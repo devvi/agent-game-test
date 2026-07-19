@@ -1,17 +1,15 @@
-extends Node
-
-# GDScript test runner for Godot headless mode
-# Uses direct OS.exit() since --script mode has no SceneTree
+extends SceneTree
 
 var passed: int = 0
 var failed: int = 0
 
 func _init() -> void:
-	# _init runs before _ready in --script mode
 	print("=== GDScript Test Runner ===")
-	print("Running tests...")
+	print("Running tests in SceneTree mode...")
 
-	_test_placeholder()
+	_test_label_text_setting()
+	_test_empty_text()
+	_test_long_text()
 
 	print("\n=== Results ===")
 	print("Passed: ", passed)
@@ -19,14 +17,29 @@ func _init() -> void:
 
 	if failed > 0:
 		print("❌ Some tests FAILED")
-		OS.call_deferred("exit", 1)
+		quit(1)
 	else:
 		print("✅ All tests passed!")
-		OS.call_deferred("exit", 0)
+		quit(0)
 
-func _test_placeholder() -> void:
-	# Placeholder test — always passes
-	_assert(true, "Placeholder test (remove me!)")
+func _test_label_text_setting() -> void:
+	var label = Label.new()
+	label.text = "Hello World"
+	_assert(label.text == "Hello World", "Label text setting: 'Hello World'")
+
+func _test_empty_text() -> void:
+	var label = Label.new()
+	label.text = ""
+	_assert(label.text == "", "Label empty text: ''")
+
+func _test_long_text() -> void:
+	var label = Label.new()
+	var long_text = ""
+	for i in range(100):
+		long_text += "e"
+	long_text = "H" + long_text + "!"
+	label.text = long_text
+	_assert(len(label.text) > 0, "Label long text: length > 0")
 
 func _assert(condition: bool, name: String) -> void:
 	if condition:
