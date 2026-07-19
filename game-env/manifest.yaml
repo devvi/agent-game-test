@@ -1,0 +1,31 @@
+# Godot Game Manifest — Agent Game Test
+engine:
+  name: "godot"
+  version: "4.7.1"
+  runner: "godot"
+
+source:
+  dir: "gdscripts/"
+  entry: "scenes/main.tscn"
+
+test:
+  dir: "tests/"
+  framework: "gdscript"
+  cmd: "godot --headless --script tests/run_tests.gd"
+  e2e:
+    tool: "godot"
+    entry: "scenes/main.tscn"
+
+build:
+  cmd: "godot --headless --export-debug Linux/X11 2>&1"
+
+deploy:
+  target: "github-releases"
+  url: ""
+
+code_gen:
+  language: "gdscript"
+  style_guide: "godot-4"
+
+git:
+  default_branch: "main"

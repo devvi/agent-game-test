@@ -1,0 +1,75 @@
+name: review
+# CI testing — runs ONLY on implement-stage PRs
+# Uses Godot headless for GDScript testing
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-report:
+    if: startsWith(github.event.pull_request.head.ref, 'impl/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Godot 4
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.1
+          use-double-precision: false
+
+      - name: Verify Godot
+        run: godot --version
+
+      - name: Run GDScript tests
+        id: test
+        run: |
+          godot --headless --script tests/run_tests.gd 2>&1 | tee test-output.log
+          echo "exit_code=${PIPESTATUS[0]}" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Test gate — block merge on failure
+        if: steps.test.outputs.exit_code != '0'
+        run: |
+          echo "❌ Tests FAILED (exit code ${{ steps.test.outputs.exit_code }}). Blocking merge."
+          exit 1
+
+      - name: Upload test output artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-output-${{ github.event.pull_request.number }}
+          path: test-output.log
+          retention-days: 3
+
+      - name: Comment failure summary on PR
+        if: steps.test.outputs.exit_code != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            var fs = require('fs');
+            var output = fs.readFileSync('test-output.log', 'utf8');
+            var lines = output.split('\n');
+            var failLines = lines.filter(function(l) {
+              return l.includes('FAIL') || l.includes('AssertionError') || l.includes('failed') || l.includes('error');
+            });
+            var summary = failLines.slice(-15).join('\n').substring(0, 1000);
+            var baseUrl = process.env.GITHUB_SERVER_URL || 'https://github.com';
+            var runUrl = baseUrl + '/' + process.env.GITHUB_REPOSITORY + '/actions/runs/' + process.env.GITHUB_RUN_ID;
+            var body = 'Tests FAILED — dispatcher will auto-fix\n\n```\n' + (summary || 'See run logs') + '\n```\n\n' + runUrl;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });

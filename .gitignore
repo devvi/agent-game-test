@@ -1,0 +1,26 @@
+# Godot
+.godot/
+*.import
+*.godot.meta
+
+# Build exports
+export/
+exports/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Env
+.env
+.env*

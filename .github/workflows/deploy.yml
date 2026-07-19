@@ -1,0 +1,103 @@
+name: deploy
+# Auto-build and release when an implement PR is merged to main
+# Uses Godot headless export + GitHub Releases
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      pr_num:
+        description: 'Merged PR number'
+        required: false
+        type: string
+
+jobs:
+  check-implement:
+    runs-on: ubuntu-latest
+    outputs:
+      should-deploy: ${{ steps.check.outputs.should_deploy }}
+      pr-num: ${{ steps.check.outputs.pr_num }}
+    permissions:
+      pull-requests: read
+    steps:
+      - name: Check if merged PR is from implement branch
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_PR_NUM: ${{ inputs.pr_num || '' }}
+        run: |
+          PR_NUM="$INPUT_PR_NUM"
+
+          if [ -z "$PR_NUM" ]; then
+            COMMIT_SHA="${{ github.sha }}"
+            echo "No input PR. Checking commit $COMMIT_SHA..."
+            PR_NUM=$(gh api "repos/${{ github.repository }}/commits/${COMMIT_SHA}/pulls" \
+              --jq '.[] | select(.state == "closed" and .merged_at != null) | .number' 2>/dev/null | head -1)
+          fi
+
+          if [ -z "$PR_NUM" ]; then
+            echo "No merged PR found. Skipping deploy."
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Checking PR #$PR_NUM head branch for implement prefix..."
+
+          FROM_BRANCH=$(gh api "repos/${{ github.repository }}/pulls/${PR_NUM}" \
+            --jq '.head.ref' 2>/dev/null)
+
+          if [ -z "$FROM_BRANCH" ]; then
+            echo "Could not determine PR head branch. Skipping deploy."
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "PR head branch: $FROM_BRANCH"
+
+          if [[ "$FROM_BRANCH" == impl/* ]]; then
+            echo "PR #$PR_NUM is from implement branch ($FROM_BRANCH) → build + release!"
+            echo "should_deploy=true" >> $GITHUB_OUTPUT
+            echo "pr_num=$PR_NUM" >> $GITHUB_OUTPUT
+          else
+            echo "PR #$PR_NUM is from $FROM_BRANCH (not implement) → skip."
+            echo "should_deploy=false" >> $GITHUB_OUTPUT
+          fi
+
+  build-and-release:
+    needs: check-implement
+    if: needs.check-implement.outputs.should-deploy == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Godot 4
+        uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.1
+          use-double-precision: false
+
+      - name: Verify Godot
+        run: godot --version
+
+      - name: Export game (Linux)
+        run: |
+          mkdir -p exports
+          # Export preset must be configured in project.godot first
+          godot --headless --export-release "Linux/X11" exports/agent-game-test-linux.x86_64 2>&1 || \
+            echo "⚠️ No Linux export preset configured yet — skipping build."
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: "Release v${{ github.run_number }} (PR #${{ needs.check-implement.outputs.pr-num }})"
+          body: |
+            🚀 Auto-build from merged PR #${{ needs.check-implement.outputs.pr-num }}
+            Triggered by: ${{ github.sha }}
+          files: exports/*
+          fail_on_unmatched_files: false
+          generate_release_notes: true
