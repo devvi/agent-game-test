@@ -36,7 +36,25 @@
 │  plan agent → 架构设计 + 测试描述 → PR → 自动合并           │
 │  implement agent → OpenCode GDScript 实现 → PR → CI → review → 合并 │
 └─────────────────────────────────────────────────────────┘
+
+## Game-to-Issues
+
+把一句游戏开发命令自动拆解为结构化的 GitHub Issues，审阅后批量创建：
+
 ```
+你: "做一个平台跳跃游戏..."
+         │
+         ▼
+   deepseek-v4-pro 语义分解
+         │
+         ▼
+   保存 JSON → 审阅 → 确认
+         │
+         ▼
+   gh 批量创建 Issues → 进入 workflow 管线
+```
+
+详见 `agents/skills/game-to-issues/SKILL.md`。
 
 ## 标签
 
@@ -56,6 +74,8 @@
 | Godot 4.7 | 游戏引擎 + GDScript |
 | Hermes Agent | Agent 运行时 + 事件路由 |
 | OpenCode Serve | LLM 代码生成引擎 |
+| OpenCode Godot LSP | GDScript 代码智能（自动补全、诊断） |
+| GodotPrompter | 54 个 Godot 专项技能（安装到 Hermes） |
 | GitHub Issues | 任务队列 |
 | GitHub Actions | CI/CD |
 | GitHub Releases | 部署 |
