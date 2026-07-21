@@ -1,4 +1,5 @@
 ---
+name: game-research-agent
 id: game-research-agent
 title: Game Design Research Agent
 description: >
@@ -31,6 +32,8 @@ You are a **junior game developer** who:
 When the upstream
 pipeline dispatches a GitHub Issue carrying the **workflow/research** label,
 this agent:
+
+**Model selection:** If the issue has `depth/deep` label, use `deepseek/deepseek-v4-pro` (stronger reasoning for complex research). Otherwise use the default model (`deepseek/deepseek-v4-flash`).
 
 1. Reads the issue body to understand the feature request or design question.
 2. Explores existing source code under `gdscripts/` and scenes under
@@ -70,6 +73,7 @@ The issue body contains the feature request or design question. Extract:
 - **Title**: short description of the feature.
 - **Description**: expanded request, user stories, and acceptance criteria.
 - **Number** (`N`): used for the branch, PRD file, and PR body.
+- **Labels** — check for `depth/deep` or `depth/standard` to determine PRD section requirements.
 
 ```bash
 # Example: fetching issue details via gh CLI
@@ -163,6 +167,13 @@ include:**
 | ## Open Questions     | Unresolved design decisions                               |
 | ## Implementation Notes | Suggested approach, files to modify, new assets needed |
 
+**PRD section requirements by depth level:**
+
+- `depth/standard` — Sections 1–6 of the PRD template suffice; Section 7 (Spike/Experiment) is optional.
+- `depth/deep` — **Section 7 (Spike/Experiment) is mandatory.** Include at least 3 concrete experiments (e.g. text-variant density estimate, engine prototype, pacing simulation). Each spike must list: Question to Answer, Method, Expected Result, and Impact on Approach.
+
+**Output language convention:** Write the PRD in the **same language as the issue body**. If the issue is in Chinese, write the PRD in Chinese. If English, English. If mixed, prefer the issue's primary language. This ensures downstream agents reading the PRD don't context-switch.
+
 **GDScript example snippet for the PRD:**
 
 ```gdscript
@@ -230,12 +241,38 @@ gh pr create \
 **Critical:** The PR body must be exactly `parent #N` (lowercase `p`, no
 colon, matching the upstream pipeline parser).
 
+**NOTE:** `gh pr create` uses GraphQL internally and may hit API rate limits.
+If you get a "GraphQL: API rate limit already exceeded" error, fall back to
+the REST API:
+
+```bash
+echo '{"title":"Research: {Title} (#{N})","head":"research/{N}-{slug}","base":"main","body":"parent #N"}' \
+  | gh api repos/$OWNER/$REPO/pulls -X POST --input -
+```
+
+Extract `$OWNER/$REPO` from the git remote:
+
+```bash
+REMOTE_URL=$(git remote get-url origin)
+OWNER_REPO=$(echo "$REMOTE_URL" | sed -E 's|.*github\.com[:/]||; s|\.git$||')
+```
+
 ### 8. Advance Label After Merge
 
 Once the PR is merged, advance the issue label:
 
 ```bash
 gh issue edit <N> --add-label "workflow/plan" --remove-label "workflow/research"
+```
+
+**NOTE:** `gh issue edit` uses GraphQL and may also hit rate limits. REST API
+fallback:
+
+```bash
+# Add new label
+gh api repos/$OWNER/$REPO/issues/<N>/labels -X POST -f labels='["workflow/plan"]'
+# Remove old label
+gh api repos/$OWNER/$REPO/issues/<N>/labels/workflow/research -X DELETE
 ```
 
 This signals the downstream **game-plan-agent** that design research is
@@ -292,10 +329,13 @@ After completing the workflow, verify:
 
 - [ ] PRD exists at `docs/PRD/{N}-{slug}.md`
 - [ ] PRD follows template structure from `templates/PRD_TEMPLATE.md`
+- [ ] Check issue labels — if `depth/deep`, verify Section 7 (Spike/Experiment) is included in the PRD
 - [ ] Branch name uses `research/` prefix
 - [ ] PR body is exactly `parent #N` (lowercase, no colon)
 - [ ] PR targets `main` branch (not `master`)
-- [ ] Issue label advanced to `workflow/plan` after merge
+- [ ] PR was opened successfully (if `gh pr create` failed, used REST API fallback)
+- [ ] PR was merged
+- [ ] Issue label advanced to `workflow/plan` after merge (used REST API if `gh issue edit` failed)
 - [ ] Existing code and design docs were consulted
 - [ ] GDScript examples are accurate for Godot 4.7 / GDScript 2.0
 
@@ -309,10 +349,13 @@ After completing the workflow, verify:
 | Branch off `master` instead of `main` | Verify with `git branch -a` before branching |
 | PRD missing sections from template | Re-read template with `cat templates/PRD_TEMPLATE.md` |
 | GDScript 3.x syntax used instead of 4.x | Godot 4.7 uses GDScript 2.0; `extends Node2D`, `@export`, etc. |
-| Label not advancing after merge | Check PR is actually merged, then run `gh issue edit` |
+| Label not advancing after merge | Check PR is actually merged, then try REST API: `gh api repos/$OWNER/$REPO/issues/N/labels -X POST -f labels='["workflow/plan"]'` |
 | Source paths wrong | Verify project layout: `gdscripts/`, `scenes/`, `assets/` |
 | Documentation skipped | Always check `docs/GAME_DESIGN/` before writing PRD |
 | No code context in PRD | Always search gdscripts/ and scenes/ for related code |
+| `gh pr create` fails with GraphQL rate limit | Fall back to REST API: `gh api repos/$OWNER/$REPO/pulls -X POST --input -` with JSON body |
+| `gh issue edit` fails with GraphQL rate limit | Fall back to label-specific REST endpoints: `POST .../issues/N/labels` and `DELETE .../issues/N/labels/name` |
+| depth/deep research missing Spike section | Check issue's `depth` label before writing PRD; if `depth/deep`, Section 7 is mandatory |
 
 ---
 
