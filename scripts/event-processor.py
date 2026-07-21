@@ -858,6 +858,7 @@ def preprocess():
         elif etype == "issues.labeled":
             label = event.get("label", "")
             stage_map = {
+                "workflow/available": "research",   # picker label → start research
                 "workflow/research": "research",
                 "workflow/plan": "plan",
                 "workflow/implement": "implement",
