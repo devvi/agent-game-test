@@ -6,6 +6,8 @@ extends Node
 const SCENE_OFFICE: String = "res://scenes/office/office.tscn"
 const SCENE_STREET: String = "res://scenes/street/street.tscn"
 const SCENE_STORE: String = "res://scenes/store/convenience_store.tscn"
+const SCENE_BRIDGE: String = "res://scenes/bridge/bridge.tscn"
+const SCENE_UNDERPASS: String = "res://scenes/underpass/underpass.tscn"
 
 # Fade Transition
 const FADE_DURATION: float = 0.5
@@ -92,3 +94,7 @@ const DELTA_BUY_COFFEE_WILL: float = 1.0
 const DELTA_BUY_COFFEE_HOPE: float = 0.5
 const DELTA_NO_COFFEE_WILL: float = -0.5
 const DELTA_NO_COFFEE_HOPE: float = -0.5
+
+# Despair thresholds for AC3 hidden text
+const DESPAIR_HOPE_THRESHOLD: float = 2.0
+const DESPAIR_CONVICTION_THRESHOLD: float = 2.0

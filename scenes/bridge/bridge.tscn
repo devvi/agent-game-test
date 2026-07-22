@@ -1,23 +1,132 @@
-[gd_scene load_steps=2 format=3 uid="uid://bridge_001"]
+[gd_scene load_steps=8 format=3 uid="uid://bridge_001"]
 
 [ext_resource type="Script" path="res://gdscripts/bridge.gd" id="1"]
+[ext_resource type="Script" path="res://gdscripts/scene_manager.gd" id="2"]
+[ext_resource type="PackedScene" uid="uid://dialogue_panel" path="res://scenes/dialogue/dialogue_panel.tscn" id="3"]
+[ext_resource type="Material" path="res://assets/materials/bridge_asphalt.tres" id="4"]
+[ext_resource type="Material" path="res://assets/materials/canal_water.tres" id="5"]
+[ext_resource type="Material" path="res://assets/materials/building_silhouette.tres" id="6"]
 
-[node name="Bridge" type="Node3D"]
+[sub_resource type="Environment" id="Environment_bridge"]
+background_color = Color(0.1, 0.1, 0.18, 1)
+background_mode = 1
+glow_enabled = true
+glow_levels/1 = 0.3
+glow_intensity = 0.4
+
+[sub_resource type="Animation" id="Animation_fade_out"]
+length = 0.5
+tracks/0/type = "value"
+tracks/0/path = NodePath("ColorRect:modulate")
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"values": [Color(0, 0, 0, 0), Color(0, 0, 0, 1)]
+}
+
+[sub_resource type="Animation" id="Animation_fade_in"]
+length = 0.5
+tracks/0/type = "value"
+tracks/0/path = NodePath("ColorRect:modulate")
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"values": [Color(0, 0, 0, 1), Color(0, 0, 0, 0)]
+}
+
+[node name="BridgeRoot" type="Node3D"]
 script = ExtResource("1")
+
+[node name="MainCamera" type="Camera3D" parent="."]
+position = Vector3(-5, 2, 0)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_bridge")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+rotation = Vector3(-0.7, 0.5, 0)
+light_color = Color(0.5, 0.6, 0.8)
+light_energy = 0.3
+
+[node name="OmniLight3D" type="OmniLight3D" parent="."]
+position = Vector3(0, 2.5, 0)
+light_color = Color(1, 0.85, 0.6)
+light_energy = 0.8
+light_range = 6
 
 [node name="Environments" type="Node3D" parent="."]
 
+[node name="BridgeDeck" type="StaticBody3D" parent="Environments"]
+position = Vector3(0, -0.5, 0)
+
+[node name="CSGBox3D" type="CSGBox3D" parent="Environments/BridgeDeck"]
+size = Vector3(14, 0.3, 5)
+material = ExtResource("4")
+
+[node name="RailingLeft" type="StaticBody3D" parent="Environments"]
+position = Vector3(-2.3, 0.2, 0)
+
+[node name="CSGBox3D" type="CSGBox3D" parent="Environments/RailingLeft"]
+size = Vector3(0.15, 1.2, 5)
+material = ExtResource("4")
+
+[node name="RailingRight" type="StaticBody3D" parent="Environments"]
+position = Vector3(2.3, 0.2, 0)
+
+[node name="CSGBox3D" type="CSGBox3D" parent="Environments/RailingRight"]
+size = Vector3(0.15, 1.2, 5)
+material = ExtResource("4")
+
+[node name="CanalSurface" type="StaticBody3D" parent="Environments"]
+position = Vector3(0, -2.5, 0)
+
+[node name="CSGBox3D" type="CSGBox3D" parent="Environments/CanalSurface"]
+size = Vector3(20, 0.1, 10)
+material = ExtResource("5")
+
+[node name="DistantBuilding1" type="StaticBody3D" parent="Environments"]
+position = Vector3(-8, 0.5, -8)
+
+[node name="CSGBox3D" type="CSGBox3D" parent="Environments/DistantBuilding1"]
+size = Vector3(3, 3, 0.5)
+material = ExtResource("6")
+
+[node name="DistantBuilding2" type="StaticBody3D" parent="Environments"]
+position = Vector3(-4, 1, -8)
+
+[node name="CSGBox3D" type="CSGBox3D" parent="Environments/DistantBuilding2"]
+size = Vector3(2, 4, 0.5)
+material = ExtResource("6")
+
+[node name="DistantBuilding3" type="StaticBody3D" parent="Environments"]
+position = Vector3(6, 0.2, -8)
+
+[node name="CSGBox3D" type="CSGBox3D" parent="Environments/DistantBuilding3"]
+size = Vector3(4, 2.5, 0.5)
+material = ExtResource("6")
+
+[node name="StreetLampPole" type="StaticBody3D" parent="Environments"]
+position = Vector3(0, 0, 0)
+
+[node name="CSGCylinder3D" type="CSGCylinder3D" parent="Environments/StreetLampPole"]
+height = 2.5
+radius = 0.08
+material = ExtResource("4")
+
 [node name="TrafficText" type="Label3D" parent="Environments"]
+position = Vector3(-1, 1.5, 2)
 text = "Traffic flows below the bridge.\nRed tail lights stretch into the distance."
 billboard = true
 pixel_size = 0.005
 
 [node name="HomelessText" type="Label3D" parent="Environments"]
+position = Vector3(-1.5, 1, -1.5)
 text = "A homeless person sits near the railing,\nwrapped in a dirty coat."
 billboard = true
 pixel_size = 0.005
 
 [node name="RainBridgeText" type="Label3D" parent="Environments"]
+position = Vector3(1.5, 1.8, 0)
 text = "Rain falls steadily.\nThe wind picks up."
 billboard = true
 pixel_size = 0.005
@@ -25,22 +134,47 @@ pixel_size = 0.005
 [node name="InteractionZones" type="Node3D" parent="."]
 
 [node name="RailingTrigger" type="Area3D" parent="InteractionZones"]
+position = Vector3(-2.3, 1, 0)
 
-[node name="RailingCollision" type="CollisionShape3D" parent="InteractionZones/RailingTrigger"]
-shape = SubResource("box")
+[node name="CollisionShape3D" type="CollisionShape3D" parent="InteractionZones/RailingTrigger"]
+
+[node name="CSGBox3D" type="CSGBox3D" parent="InteractionZones/RailingTrigger"]
+size = Vector3(0.5, 1.5, 3)
 
 [node name="HomelessTrigger" type="Area3D" parent="InteractionZones"]
+position = Vector3(-1.5, 0.5, -1.5)
 
-[node name="HomelessCollision" type="CollisionShape3D" parent="InteractionZones/HomelessTrigger"]
-shape = SubResource("box")
+[node name="CollisionShape3D" type="CollisionShape3D" parent="InteractionZones/HomelessTrigger"]
+
+[node name="CSGBox3D" type="CSGBox3D" parent="InteractionZones/HomelessTrigger"]
+size = Vector3(2, 2, 2)
 
 [node name="BridgeExitTrigger" type="Area3D" parent="InteractionZones"]
+position = Vector3(0, 0.5, 4)
 
-[node name="ExitCollision" type="CollisionShape3D" parent="InteractionZones/BridgeExitTrigger"]
-shape = SubResource("box")
+[node name="CollisionShape3D" type="CollisionShape3D" parent="InteractionZones/BridgeExitTrigger"]
+
+[node name="CSGBox3D" type="CSGBox3D" parent="InteractionZones/BridgeExitTrigger"]
+size = Vector3(3, 2.5, 2)
 
 [node name="SceneManager" type="Node" parent="."]
+script = ExtResource("2")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
-[node name="DialoguePanel" type="Control" parent="CanvasLayer"]
+[node name="DialoguePanel" parent="CanvasLayer" instance=ExtResource("3")]
+
+[node name="FadeCurtain" type="CanvasLayer" parent="."]
+layer = 128
+
+[node name="ColorRect" type="ColorRect" parent="FadeCurtain"]
+color = Color(0, 0, 0, 1)
+mouse_filter = 2
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+modulate = Color(0, 0, 0, 0)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="FadeCurtain"]
+anims/fade_out = SubResource("Animation_fade_out")
+anims/fade_in = SubResource("Animation_fade_in")

@@ -119,6 +119,21 @@ horizontal_alignment = 1
 pixel_size = 0.008
 modulate = Color(0.8, 0.7, 0.5, 0.8)
 
+[node name="StoreExitTrigger" type="Area3D" parent="InteractionZones"]
+position = Vector3(0, 0.5, 5)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="InteractionZones/StoreExitTrigger"]
+
+[node name="CSGBox3D" type="CSGBox3D" parent="InteractionZones/StoreExitTrigger"]
+size = Vector3(3, 3, 1.5)
+
+[node name="ExitLabel" type="Label3D" parent="InteractionZones"]
+position = Vector3(0, 2, 5)
+text = "⌈Exit→⌋"
+horizontal_alignment = 1
+pixel_size = 0.008
+modulate = Color(0.8, 0.7, 0.5, 0.8)
+
 [node name="SceneManager" type="Node" parent="."]
 script = ExtResource("2_scene_manager")
 

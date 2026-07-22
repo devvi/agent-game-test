@@ -62,6 +62,10 @@ func _check_intrusive_thought() -> void:
 	if ss and ss.get("conviction", 5.0) <= 2.0:
 		if rain_bridge_text:
 			rain_bridge_text.text = "A voice in your head:\n'从这里跳下去就解脱了'\nYou grip the railing. You don't jump."
+		# Synchronize with echo system — intrusive thought path also triggers screensaver echo
+		var nm: Node = get_node_or_null("/root/NarrativeManager")
+		if nm and nm.has_method("trigger_echo"):
+			nm.trigger_echo("screensaver_echo")
 
 
 func _on_railing_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:

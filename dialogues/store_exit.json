@@ -1,0 +1,52 @@
+{
+  "entry_node_id": "store_exit_prompt",
+  "nodes": {
+    "store_exit_prompt": {
+      "speaker": "Narrator",
+      "text": "The door swings open. Cold air hits your face.\n⌈The rain has stopped.⌋\nA bridge stretches across the dark canal ahead.",
+      "choices": [
+        {
+          "text": "Walk toward the bridge.",
+          "effects": [],
+          "scene": "res://scenes/bridge/bridge.tscn"
+        },
+        {
+          "text": "Stand in the doorway a moment longer.",
+          "next_node": "store_exit_stand",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": -0.3 }
+          ]
+        }
+      ]
+    },
+    "store_exit_stand": {
+      "speaker": "Narrator",
+      "text": "The night stretches out. Somewhere, a dog barks.\nThe bridge waits.",
+      "choices": [
+        {
+          "text": "Walk toward the bridge.",
+          "effects": [],
+          "scene": "res://scenes/bridge/bridge.tscn"
+        },
+        {
+          "text": "...",
+          "next_node": "store_exit_stand_go",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": -0.5 }
+          ]
+        }
+      ]
+    },
+    "store_exit_stand_go": {
+      "speaker": "Narrator",
+      "text": "You push off the doorframe. The bridge is your only way forward.",
+      "choices": [
+        {
+          "text": "Go.",
+          "effects": [],
+          "scene": "res://scenes/bridge/bridge.tscn"
+        }
+      ]
+    }
+  }
+}
