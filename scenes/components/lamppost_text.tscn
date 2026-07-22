@@ -1,0 +1,12 @@
+[gd_scene load_steps=2 format=3 uid="uid://a1b2c3d4e5f6g7"]
+
+[ext_resource type="Script" path="res://gdscripts/lamppost_text.gd" id="1"]
+
+[node name="LamppostText" type="Label3D"]
+script = ExtResource("1")
+billboard = true
+pixel_factor = 0.3
+color_bits = 8
+scanline_intensity = 0.15
+emissive_color = Color(1.0, 0.866667, 0.533333, 1.0)
+emissive_strength = 1.0

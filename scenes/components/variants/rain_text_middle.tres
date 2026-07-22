@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://gdscripts/text_variant_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+text = "Rain falls on the asphalt."
+emissive_color = Color(0.266667, 0.533333, 1.0, 1.0)
+emissive_strength = 0.7
+pixel_factor = 0.55
+color_bits = 7
+scanline_intensity = 0.2
+fragment_text = ""

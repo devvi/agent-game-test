@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://gdscripts/text_variant_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+text = "The street glistens."
+emissive_color = Color(0.2, 0.266667, 0.4, 1.0)
+emissive_strength = 0.2
+pixel_factor = 0.4
+color_bits = 6
+scanline_intensity = 0.1
+fragment_text = ""

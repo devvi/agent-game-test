@@ -1,0 +1,12 @@
+[gd_scene load_steps=2 format=3 uid="uid://c8p7o6i5u4y3t2"]
+
+[ext_resource type="Script" path="res://gdscripts/neon_sign.gd" id="1"]
+
+[node name="NeonSign" type="Label3D"]
+script = ExtResource("1")
+billboard = true
+pixel_factor = 0.6
+color_bits = 4
+scanline_intensity = 0.3
+emissive_color = Color(1.0, 0.666667, 0.2, 1.0)
+emissive_strength = 2.0
