@@ -1,21 +1,22 @@
 {
   "meta": {
-    "title": "都市夜行者 - Urban Night Walker (分层表达版)",
-    "description": "文学性超小型CRPG。引擎: Godot 4.7.1, 平台: macOS/Linux。三层表达：浅层雨夜故事、中层行业互文、深层自我隐喻。",
+    "title": "都市夜行者 - Urban Night Walker (V4)",
+    "description": "Literary micro CRPG. Engine: Godot 4.7.1, Platform: macOS/Linux. Three layers of expression: shallow (rainy night story), middle (industry intertextuality), deep (self-metaphor). 18 issues.",
     "engine": "Godot 4.7.1",
     "platform": "macOS / Linux",
-    "created_at": "",
+    "created_at": "2026-07-22T18:43:00Z",
     "model": "deepseek/deepseek-v4-pro",
-    "status": "draft",
-    "total_issues": 17
+    "status": "created",
+    "total_issues": 18
   },
   "issues": [
     {
       "id": 1,
-      "title": "[Research] CRPG核心机制设计 - 主题映射与分层表达框架",
-      "description": "研究极乐迪斯科的系统即叙事方法论，设计都市夜行者的核心机制映射。包含分层表达框架：浅层(谁都能走完的故事线)、中层(场景和NPC的互文关系)、深层(游戏对自身处境的隐喻)。核心问题：3个月deadline如何具象化？雨夜作为环境压力系统如何设计？每个机制必须通过三层表达验证。输出CRPG机制设计文档。",
-      "context": "设计基石。机制必须支持三层表达：浅层玩家只需要走路和选选项就有完整体验；中层玩家注意到NPC故事之间的关联；深层玩家意识到这个游戏在说做游戏本身。",
-      "depth": "deep",
+      "github_number": 42,
+      "title": "[Research] Theme-Mechanic Mapping",
+      "description": "Map core themes (despair, hope, identity) to game mechanics (Hope/Despair slider, dialogue branching, environmental changes). Produce mapping chains, harmony scores, and substitution/elimination tests to ensure thematic coherence.",
+      "context": "Refer to 'Project YOUTH' notes on game-as-expression and identity anxiety. Use '体验引擎' patterns for decision-producing systems. Output a document that maps each thematic beat to a mechanic action.",
+      "depth": "standard",
       "priority": "critical",
       "dependencies": [],
       "labels": [
@@ -25,18 +26,64 @@
       "estimate": "large",
       "milestone": "mvp",
       "acceptance_criteria": [
-        "输出CRPG机制设计文档到docs/DESIGN/crpg-core-mechanics.md",
-        "文档包含三层表达框架设计（每层至少一个示例场景拆解）",
-        "每个提案机制完成映射链声明、反向验证、替换测试",
-        "输出结合度评分表和被淘汰候选机制及理由",
-        "文档回答：3个月deadline如何体现为游戏机制"
-      ]
+        "Document with mapping chains for at least 5 thematic-mechanic pairs.",
+        "Harmony scores (1-5) for each pair, with justification.",
+        "At least 2 substitution tests and 2 elimination tests documented."
+      ],
+      "progress": 100
     },
     {
       "id": 2,
-      "title": "[Design] 叙事架构与三层表达图谱",
-      "description": "设计叙事架构：7场景+5NPC+3结局的分支图谱。每个场景标注三层表达目标：浅层(氛围+事件)、中层(互文+伏笔)、深层(隐喻+主题)。NPC之间的关联关系图谱。3个结局的分层含义：浅层(到了之后怎样)、中层(选择的结果)、深层(对玩家自身的提问)。",
-      "context": "先画结构再写剧本。三层表达必须从设计一开始就嵌入——决定了每句话怎么写。NPC之间的关联是中层表达的核心。",
+      "github_number": 43,
+      "title": "[Feature] Project Scaffold",
+      "description": "Set up Godot 4.7.1 project with CRPG base framework: scene tree, autoloads, singleton GameState, input handling, and a basic test scene.",
+      "context": "Foundation for all other features. Must adhere to Godot best practices for macOS/Linux. Include placeholder for dialogue engine, UI, and text components.",
+      "depth": "standard",
+      "priority": "critical",
+      "dependencies": [],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "Project opens without errors on Godot 4.7.1.",
+        "Autoload GameState.gd with basic hope/despair variable and signal.",
+        "Default scene displays a 3D text label and responds to keyboard input."
+      ],
+      "progress": 100
+    },
+    {
+      "id": 3,
+      "github_number": 44,
+      "title": "[Research] Lo-Fi 3D text rendering",
+      "description": "Investigate Godot 4.7.1 Label3D and shader approaches for rendering text in 3D space with a lo-fi, atmospheric feel (rain, neon, etc.). Prototype simple fragment shaders for color blending and distortion.",
+      "context": "Inspired by '九十年代素材与文化参考' aesthetic: urban desolation, UFO pulp. Must support dynamic text changes from game state.",
+      "depth": "standard",
+      "priority": "critical",
+      "dependencies": [
+        1
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "Working Label3D with shader that simulates rain streaks and neon glow.",
+        "Performance benchmark: 100 text labels at min 30 FPS on macOS/Linux.",
+        "Documented shader approach and alternative methods."
+      ],
+      "progress": 100
+    },
+    {
+      "id": 4,
+      "github_number": 45,
+      "title": "[Design] Narrative Architecture",
+      "description": "Design the branching timeline from office to subway station, incorporating 3 endings (Keep Walking, Turn Back, Stay). Define choice points, scene flow, and emotional pacing.",
+      "context": "Use '体验引擎' world narrative patterns. The narrative should feel environmental, not scripted. Layers: shallow (plot), middle (NPC intertextuality), deep (metaphor for inner projection).",
       "depth": "deep",
       "priority": "critical",
       "dependencies": [
@@ -49,20 +96,68 @@
       "estimate": "medium",
       "milestone": "mvp",
       "acceptance_criteria": [
-        "叙事架构文档含场景-选择点-结局图谱",
-        "每个场景标注三层表达目标",
-        "NPC关联关系图谱至少2条互文线",
-        "3结局的分层含义定义",
-        "明确哪些信息只在深层可达"
-      ]
+        "Complete timeline graph with all scenes and choice points leading to 3 endings.",
+        "At least 2 narrative echoes (e.g., a line from office reappears in underpass).",
+        "Document how the Stranger NPC functions as inner projection and how endings reflect acceptance vs denial."
+      ],
+      "progress": 0
     },
     {
-      "id": 3,
-      "title": "[Design] 海明威风格约束与分层写作规范",
-      "description": "海明威约束：每句不超过25字、段落不超过3句、动作替代心理。分层写作规范：同一场景文本在不同层有不同读法。浅层文本推进剧情。中层文本用词选择暗示NPC关联。深层句式结构暗示主题。",
-      "context": "海明威的冰山理论天然适合分层表达。约束确保每层独立成立，但深层读者能发现更多。",
+      "id": 5,
+      "github_number": 46,
+      "title": "[Feature] Dialogue Engine — data model + conditional branching",
+      "description": "Implement the data model for dialogue nodes, choices, conditions based on GameState (hope/despair, flags). Use JSON or nested dictionaries for dialogue trees.",
+      "context": "Must support branching conditions evaluated at runtime. Refer to narrative architecture (issue #4) for structure.",
       "depth": "standard",
-      "priority": "high",
+      "priority": "critical",
+      "dependencies": [
+        2
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "large",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "Dialogue node can hold multiple choice branches with condition predicates.",
+        "Conditions can read hope/despair slider, flags, and previous choices.",
+        "Serialization/deserialization of dialogues from a resource file."
+      ],
+      "progress": 50
+    },
+    {
+      "id": 6,
+      "github_number": 47,
+      "title": "[Feature] GameState System",
+      "description": "Implement the singleton GameState with hope/despair slider (range -10 to +10), flags, and history of choices. Emit signals for state changes to update world text and NPCs.",
+      "context": "Core feedback system. Must be testable and decoupled. Integrates with dialogue engine and text components.",
+      "depth": "standard",
+      "priority": "critical",
+      "dependencies": [
+        2
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "Slider changes with discrete steps and emits 'state_changed' signal.",
+        "Save/load game state for testing.",
+        "Flags system works for at least 10 boolean flags."
+      ],
+      "progress": 0
+    },
+    {
+      "id": 7,
+      "github_number": 48,
+      "title": "[Feature] Sound System",
+      "description": "Implement ambient sound: rain (continuous), footsteps (on different surfaces), distant city hum. Use Godot AudioStreamPlayer2D with spatial audio for 3D immersion. Include a low-pass filter for underpass.",
+      "context": "Enhances literary atmosphere. Sound should respond to slider: more distorted at high despair. Rain volume increases with distance from office?",
+      "depth": "standard",
+      "priority": "medium",
       "dependencies": [
         2
       ],
@@ -71,70 +166,25 @@
         "workflow/backlog"
       ],
       "estimate": "small",
-      "milestone": "mvp",
+      "milestone": "v1",
       "acceptance_criteria": [
-        "输出海明威约束文档含10组对照示例",
-        "定义三层写作规范（同一内容的三种写法）",
-        "定义互文标记规则词汇作为NPC间连结点",
-        "定义句式-情绪映射表",
-        "风格合规检查清单含分层检查"
-      ]
+        "Rain loop plays continuously, with random variation.",
+        "Footstep sounds triggered by dialogue choices (walking).",
+        "Underpass scene has reverb/muffled effect."
+      ],
+      "progress": 0
     },
     {
-      "id": 4,
-      "title": "[Design] 状态-世界反馈与分层感知系统",
-      "description": "玩家状态改变世界呈现的三层方式。浅层：状态影响NPC语气和环境色调。中层：状态影响玩家注意到的环境细节。深层：世界是玩家内心的镜像。",
-      "context": "分层反馈是CRPG区别于视觉小说的核心。极乐迪斯科的失败推进叙事正是三层表达的典范。",
+      "id": 8,
+      "github_number": 49,
+      "title": "[Feature] Text Component Library",
+      "description": "Create reusable Label3D scene components for environment text: rain, neon signs, puddles, street lamps. Each component has shader parameters and responds to GameState changes.",
+      "context": "Lo-fi aesthetic from research (issue #3). Each component must have layered text variants (shallow, middle, deep) based on slider.",
       "depth": "deep",
       "priority": "high",
       "dependencies": [
-        1
-      ],
-      "labels": [
-        "enhancement",
-        "workflow/backlog"
-      ],
-      "estimate": "medium",
-      "milestone": "mvp",
-      "acceptance_criteria": [
-        "状态-世界反馈设计文档含分层映射规则",
-        "浅层状态影响NPC语气和环境色调",
-        "中层状态影响可注意到的环境细节",
-        "深层状态文本暗示世界是内心镜像",
-        "至少2个场景的高希望vs高绝望对比"
-      ]
-    },
-    {
-      "id": 5,
-      "title": "[Feature] 项目脚手架 - Godot 4.7 CRPG框架",
-      "description": "初始化Godot 4.7.1项目，配置渲染器、输入映射、音频总线。创建main.tscn。配置CI和export_presets。",
-      "context": "基础设施层。CRPG需要AudioBus三层支持分层氛围切换。",
-      "depth": "deep",
-      "priority": "critical",
-      "dependencies": [],
-      "labels": [
-        "enhancement",
-        "workflow/backlog"
-      ],
-      "estimate": "medium",
-      "milestone": "mvp",
-      "acceptance_criteria": [
-        "Godot 4.7.1项目正常启动主场景无报错",
-        "输入映射完备",
-        "音频总线至少3条",
-        "CI和export_presets配置完成"
-      ]
-    },
-    {
-      "id": 6,
-      "title": "[Feature] 对话引擎 - 数据模型与分层条件系统",
-      "description": "对话数据模型含分层支持。DialogueNode含layer字段(浅/中/深)。浅层节点无条件播放。中层需要前置条件。深层需要极端状态值。运行时自动根据玩家状态筛选可达对话层。",
-      "context": "引擎层面支持分层。浅层玩家看不到中层节点，但体验不因此变差。",
-      "depth": "deep",
-      "priority": "critical",
-      "dependencies": [
         3,
-        5
+        2
       ],
       "labels": [
         "enhancement",
@@ -143,21 +193,95 @@
       "estimate": "large",
       "milestone": "mvp",
       "acceptance_criteria": [
-        "DialogueNode含layer字段和触发条件",
-        "运行时根据状态自动筛选可达对话层",
-        "浅层节点无需前置条件即可播放",
-        "支持跨场景互文NPC对话",
-        "对话JSON与引擎代码分离"
-      ]
+        "4 base components (rain, neon, puddle, lamppost) with basic visual effects.",
+        "Each component has 3 text variants mapped to hope/despair ranges.",
+        "Components subtly reflect inner state: e.g., rain text becomes more fragmented at despair."
+      ],
+      "progress": 0
     },
     {
-      "id": 7,
-      "title": "[Feature] 对话引擎 - 运行时与分层视觉暗示",
-      "description": "对话运行时UI：打字机逐字、选项面板、技能检定、历史回溯。分层视觉暗示：浅层字体正常，中层字体微变，深层有极微妙视觉强调。",
-      "context": "运行时视觉分层暗示给细心玩家一个这里好像有更多的信号。",
+      "id": 9,
+      "github_number": 50,
+      "title": "[Design] State-World Feedback",
+      "description": "Design the Hope/Despair slider and how it affects NPC attitude, environmental text, and available dialogue choices. Define layered responses for each world element.",
+      "context": "Refer to '体验引擎' decision-producing systems. Each scene must have at least three text variants based on slider state. Use slider as emotional pacing tool.",
+      "depth": "deep",
+      "priority": "critical",
+      "dependencies": [
+        4
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "Slider ranges -10 (despair) to +10 (hope) with 5 discrete states.",
+        "Every scene object (rain, neon sign, puddle) has 3 text variants mapped to slider ranges.",
+        "Slider influences not just text but also available choices, reflecting internal state change."
+      ],
+      "progress": 0
+    },
+    {
+      "id": 10,
+      "github_number": 51,
+      "title": "[Design] Hemingway Writing Constraints",
+      "description": "Design the style enforcement system: max 25 chars per sentence, max 3 sentences per paragraph. Specify how dialogue and narration will be parsed and enforced at authoring and runtime.",
+      "context": "Inspired by Hemingway's minimalism. This constraint forces poetic economy. The system should flag violations during content creation and enforce at display time.",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        4
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "small",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "Documented constraint rules and examples.",
+        "Design for an editor-side validation script (future).",
+        "Runtime enforcement: text longer than limit is truncated or triggers UI warning."
+      ],
+      "progress": 0
+    },
+    {
+      "id": 11,
+      "github_number": 52,
+      "title": "[Feature] Dialogue Engine — runtime + visual presentation",
+      "description": "Implement the runtime system that processes dialogue nodes, displays text in 3D space (using Label3D), handles player input to advance, and applies Hemingway constraints.",
+      "context": "Must work with Text Component Library (issue #8). Use signals to communicate with GameState and UISystem.",
       "depth": "standard",
       "priority": "critical",
       "dependencies": [
+        5,
+        8
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "Player can navigate a dialogue tree in 3D space via keyboard.",
+        "Hemingway constraint truncates text to max 25 chars / 3 sentences.",
+        "Dialogue choices trigger GameState updates (hope/despair change)."
+      ],
+      "progress": 0
+    },
+    {
+      "id": 12,
+      "github_number": 53,
+      "title": "[Feature] UI System",
+      "description": "Implement minimal Hopper-style UI: text display area, choice list, and status bar showing hope/despair. All in 3D space using Label3D or CanvasLayer as needed.",
+      "context": "Minimalist, non-intrusive. Should not break immersion. Use Godot's UI containers but keep text in 3D.",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        11,
         6
       ],
       "labels": [
@@ -167,147 +291,50 @@
       "estimate": "medium",
       "milestone": "mvp",
       "acceptance_criteria": [
-        "打字机逐字每字0.08s",
-        "选项最多4个不超过15字",
-        "不同层对话有细微视觉区分",
-        "技能检定状态值和难度显示",
-        "对话历史回看最近3条"
-      ]
-    },
-    {
-      "id": 8,
-      "title": "[Research] Lo-Fi 3D文字渲染 - Hopper风格与分层视觉",
-      "description": "调研Godot 4.7 3D文字方案。分层视觉需求：浅层清晰文字轮廓，中层文字在不同光照下显隐，深层特定文字只在特定状态可见。",
-      "context": "视觉分层是三层表达的物质基础。Hopper的光影对比天然支持明处为浅层暗处为中层的视觉隐喻。",
-      "depth": "deep",
-      "priority": "critical",
-      "dependencies": [
-        5
+        "Choice list appears as 3D floating labels above dialogue text.",
+        "Hope/despair indicator shown as a thin bar at bottom of screen.",
+        "No overlapping or clipped text; responsive to different aspect ratios."
       ],
-      "labels": [
-        "enhancement",
-        "workflow/backlog"
-      ],
-      "estimate": "medium",
-      "milestone": "mvp",
-      "acceptance_criteria": [
-        "技术选型报告含Asset Library调研",
-        "原型展示Hopper式光影文字",
-        "验证文字随状态变化的可行性",
-        "验证不同光照下文字显隐效果",
-        "M系列Mac保持60fps"
-      ]
-    },
-    {
-      "id": 9,
-      "title": "[Feature] 文字组件库 - 场景元素预制",
-      "description": "5个文字组件(TextBuilding/TextLight/TextRain/TextCharacter/TextEnvironment)含tscn预制。三种状态对应三层表达。",
-      "context": "每个文字组件有三种状态对应三层。组件化让场景搭建快也支持动态切换。",
-      "depth": "standard",
-      "priority": "high",
-      "dependencies": [
-        8
-      ],
-      "labels": [
-        "enhancement",
-        "workflow/backlog"
-      ],
-      "estimate": "large",
-      "milestone": "mvp",
-      "acceptance_criteria": [
-        "5个组件各有tscn预制",
-        "TextRain响应GameState",
-        "TextLight支持暖色冷色切换",
-        "TextCharacter支持三层表情变化",
-        "组件支持隐藏文字在特定状态下显现"
-      ]
-    },
-    {
-      "id": 10,
-      "title": "[Feature] GameState系统 - 三组滑条与分层反馈",
-      "description": "GameState Autoload三组滑条和为10。state_changed信号。浅层反馈对话文本变化。中层反馈场景细节变化。深层反馈极端状态时隐喻语言。",
-      "context": "中枢神经系统。状态变化广播信号让世界做三层响应。",
-      "depth": "standard",
-      "priority": "critical",
-      "dependencies": [
-        4,
-        5
-      ],
-      "labels": [
-        "enhancement",
-        "workflow/backlog"
-      ],
-      "estimate": "medium",
-      "milestone": "mvp",
-      "acceptance_criteria": [
-        "GameState Autoload三组滑条初始5-5",
-        "state_changed信号带变化详情",
-        "极端值触发内心独白不超过20字",
-        "信号被场景组件监听实现分层响应"
-      ]
-    },
-    {
-      "id": 11,
-      "title": "[Feature] UI系统 - Hopper风格与分层提示",
-      "description": "对话面板底部对齐打字机。选项面板右侧暖黄高亮。状态面板Tab显隐。分层暗示中层对话触发时边框微变，深层触发时极短文字闪烁。",
-      "context": "UI在不破坏沉浸感的前提下给玩家这里好像更多的暗示。",
-      "depth": "standard",
-      "priority": "high",
-      "dependencies": [
-        7,
-        8
-      ],
-      "labels": [
-        "enhancement",
-        "workflow/backlog"
-      ],
-      "estimate": "medium",
-      "milestone": "mvp",
-      "acceptance_criteria": [
-        "对话面板底部打字机逐字左侧对齐",
-        "选项面板暖黄高亮边框",
-        "状态面板Tab显隐三组滑条",
-        "中层对话时边框有微妙变化",
-        "全局Theme统一粗衬线字体"
-      ]
-    },
-    {
-      "id": 12,
-      "title": "[Feature] 场景搭建 - 公司门口到便利店（场景1-2）",
-      "description": "场景1公司门口写字楼轮廓加发光招牌加雨夜。场景2便利店暖光内透加水雾窗加人影。三层表达：浅层雨夜氛围加神秘相遇；中层招牌与灯光的冷暖对比暗示行业处境；深层城市在雨夜中的面貌是玩家内心的镜像。",
-      "context": "开场场景建立一切基调。Hopper夜鹰构图参考。三层从游戏第一秒就开始：雨声(浅)、远处灯光若隐若现(中)、招牌文字深层次含义(深)。",
-      "depth": "standard",
-      "priority": "high",
-      "dependencies": [
-        9,
-        10,
-        11
-      ],
-      "labels": [
-        "enhancement",
-        "workflow/backlog"
-      ],
-      "estimate": "medium",
-      "milestone": "mvp",
-      "acceptance_criteria": [
-        "场景1和2搭建完整",
-        "浅层氛围清晰可读文字易懂",
-        "中层文字灯光环境有可发现的关联",
-        "深层场景调性随玩家状态变化",
-        "前30秒建立雨夜氛围无对话环境漫步"
-      ]
+      "progress": 0
     },
     {
       "id": 13,
-      "title": "[Feature] NPC框架 + 便利店店员(三层表达)",
-      "description": "NPC基类含三层对话挂载。便利店店员浅层完整剧情线。中层提到的朋友信息与后续NPC呼应。深层对行业的厌倦映射开发者自身状态。对话随状态变化。",
-      "context": "第一个NPC让玩家理解NPC系统的三层性。浅层完整故事，中层弦外之音，深层意识到在说自己。",
-      "depth": "standard",
+      "github_number": 54,
+      "title": "[Feature] NPC Framework + Convenience Clerk",
+      "description": "Create generic NPC framework (dialogue tree, state, sprite label) and implement the Convenience Clerk as first NPC. Clerk has layered personality: tired worker, cynical veteran, systemic exhaustion.",
+      "context": "From design notes: NPC intertextuality. Clerk should comment on player's state. Three layers correspond to different slider ranges. Use dialogue engine (issues #5, #11).",
+      "depth": "deep",
       "priority": "high",
       "dependencies": [
+        5,
+        11,
+        6
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "Clerk has 3 dialogue branches (greeting, purchase, farewell).",
+        "When hope > 5, clerk is more cheerful; when despair < -5, clerk becomes nihilistic.",
+        "Clerk's lines contain subtle references to player's office choice, revealing a shared resignation."
+      ],
+      "progress": 0
+    },
+    {
+      "id": 14,
+      "github_number": 55,
+      "title": "[Scene] Office Door → Street → Convenience Store",
+      "description": "Build the first playable scene sequence: player leaves office (doorway), walks along rainy street, enters convenience store. Include branching dialogue with clerk and environmental text components.",
+      "context": "This is the opening of the game. Must set atmosphere and introduce Hope/Despair slider through dialogue choices. Layered: shallow (moving forward), middle (clerk's intertextuality), deep (office as symbol of routine despair).",
+      "depth": "deep",
+      "priority": "critical",
+      "dependencies": [
+        11,
+        8,
         6,
-        9,
-        10,
         12
       ],
       "labels": [
@@ -317,105 +344,75 @@
       "estimate": "medium",
       "milestone": "mvp",
       "acceptance_criteria": [
-        "NPC基类支持三层对话和状态感知",
-        "店员浅层对话完整独立至少4节点",
-        "中层对话含互文线索埋下伏笔",
-        "深层对话在极端状态下触发",
-        "对话随hope值变化至少2种变体",
-        "店员3种表情对应三层"
-      ]
-    },
-    {
-      "id": 14,
-      "title": "[Feature] 神秘人NPC - 核心对话树与三层真相",
-      "description": "神秘人全程场景挂载便利店首次深度对话。三层：浅层完整故事角色；中层越来越像在说玩家自己；深层可能是玩家内心的希望的具象化。3种版本依赖hope值。",
-      "context": "神秘人是三层表达的核心载体。同一套对话文本三种读法完全不同。",
-      "depth": "deep",
-      "priority": "high",
-      "dependencies": [
-        13,
-        10
+        "Player can move from office to convenience store through dialogue choices, with proper scene transitions.",
+        "Convenience store clerk (NPC) has 3 dialogue branches that reference earlier choices (e.g., 'You look tired').",
+        "Environmental texts (office window, street sign, neon) reflect hope/despair and foreshadow the Stranger."
       ],
-      "labels": [
-        "enhancement",
-        "workflow/backlog"
-      ],
-      "estimate": "large",
-      "milestone": "mvp",
-      "acceptance_criteria": [
-        "神秘人全程存在共享雨伞效果",
-        "便利店首次深度对话至少5节点",
-        "浅层故事完整独立",
-        "中层话语逐渐指向玩家自身",
-        "深层极端值时暗示非真实存在",
-        "3种版本依赖hope值",
-        "秘密揭示1层留有悬念"
-      ]
+      "progress": 0
     },
     {
       "id": 15,
-      "title": "[Feature] 音效系统 - 雨夜分层氛围",
-      "description": "雨声2种强度脚步声2种材质便利店钢琴。浅层持续的雨声。中层雨声随hope值微妙变化。深层极端值下有额外声音暗示内心。",
-      "context": "大部分玩家只听到雨声，细心玩家发现雨声随情绪变化，投入玩家在某刻听到那不是雨声是我的心跳。",
-      "depth": "light",
-      "priority": "medium",
-      "dependencies": [
-        5
-      ],
-      "labels": [
-        "enhancement",
-        "workflow/backlog"
-      ],
-      "estimate": "small",
-      "milestone": "mvp",
-      "acceptance_criteria": [
-        "持续雨声2种强度自动切换",
-        "浅层雨声氛围完整",
-        "中层雨声随hope值变化",
-        "深层极端值有额外环境音层",
-        "便利店钢琴loop温暖30秒"
-      ]
-    },
-    {
-      "id": 16,
-      "title": "[Feature] 故事内容 - 序幕剧本与三层结局",
-      "description": "海明威风格约800字。三层结局：浅层三种不同故事结局。中层结局是玩家选择的必然结果。深层结局是对玩家自身的情况提问。",
-      "context": "三层表达在结局最明显。浅层看到不同故事，中层意识到是自己选的，深层被问到你自己呢？",
+      "github_number": 56,
+      "title": "[Feature] Story Content — script for all scenes + 3 endings",
+      "description": "Write the full script: all dialogue lines, environmental texts, and ending sequences. Ensure Hemingway constraints are met. Integrate into dialogue data files.",
+      "context": "Content creation. Must align with narrative architecture and layered expressions. Each line must have at least shallow and middle layers; deep layer optional but encouraged for key moments.",
       "depth": "deep",
-      "priority": "high",
+      "priority": "critical",
       "dependencies": [
-        3,
-        6,
-        7,
-        12,
-        14,
-        15
+        4,
+        9,
+        10,
+        14
       ],
       "labels": [
         "enhancement",
         "workflow/backlog"
       ],
       "estimate": "large",
-      "milestone": "mvp",
+      "milestone": "v1",
       "acceptance_criteria": [
-        "总内容约800字10到12分钟",
-        "每句不超过25字段落不超过3句",
-        "3种结局各有不同收尾",
-        "浅层故事完整独立",
-        "中层结局是选择必然结果",
-        "深层结局暗示对玩家自身的提问",
-        "所有内容写入JSON文件无心理描写形容词"
-      ]
+        "All scenes have complete dialogue and environmental text (100% coverage).",
+        "At least 5 instances of intertextuality across scenes (e.g., phrase repeated in different context).",
+        "The three endings each carry a distinct emotional arc: Keep Walking (faith), Turn Back (give up), Stay (acceptance)."
+      ],
+      "progress": 0
+    },
+    {
+      "id": 16,
+      "github_number": 57,
+      "title": "[Testing] MVP Playtest & Layered Verification",
+      "description": "Conduct playtest of full MVP vertical slice (issues 1-17). Verify each acceptance criteria layer (shallow, middle, deep). Document bugs, pacing issues, and thematic coherence.",
+      "context": "Must have at least 3 testers. Use a checklist derived from acceptance criteria. Note any broken dependencies or missing features.",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        15,
+        7
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "v1",
+      "acceptance_criteria": [
+        "All shallow acceptance criteria pass for each scene and feature.",
+        "At least 60% of middle criteria pass; failing ones documented with suggestions.",
+        "Deep layer evaluated qualitatively: at least 2 testers report feeling the metaphor/introspection."
+      ],
+      "progress": 0
     },
     {
       "id": 17,
-      "title": "[Feature] MVP全流程测试与三层体验验证",
-      "description": "跑通3种结局。三层验证：浅层叙事完整10到12分钟。中层互文线索存在。深层极端状态内容可达。",
-      "context": "MVP验证不仅验证功能还验证三层表达成立。浅层必须独立完整。",
-      "depth": "light",
-      "priority": "high",
+      "github_number": 58,
+      "title": "[Scene] Convenience Store → Bridge → Underpass",
+      "description": "Build the second scene sequence: player exits store, crosses a bridge (over a dark canal), descends into an underpass. Culminates in encounter with Mysterious Stranger. Branching dialogue options lead to three endings.",
+      "context": "Emotional climax. Bridge scene should echo 'death-and-rebirth' themes from Project YOUTH. Underpass as liminal space. Layered: shallow (walking), middle (bridge text recalls office), deep (Stranger's true nature revealed only on deep playthrough).",
+      "depth": "deep",
+      "priority": "critical",
       "dependencies": [
-        16
+        14,
+        13
       ],
       "labels": [
         "enhancement",
@@ -424,19 +421,42 @@
       "estimate": "medium",
       "milestone": "mvp",
       "acceptance_criteria": [
-        "3种路径各跑一遍10到12分钟",
-        "浅层故事完整无需额外知识",
-        "中层互文线索存在不破坏浅层体验",
-        "深层极端状态下特殊内容可达",
-        "Godot headless通过",
-        "MacBook上30fps"
-      ]
+        "Player navigates from store to underpass with 3 scene transitions.",
+        "Bridge text changes based on earlier convenience store choice; Stranger's dialogue has two visible layers.",
+        "Underpass has a hidden text (only visible at despair < -5) that reveals the Stranger as projection."
+      ],
+      "progress": 0
+    },
+    {
+      "id": 18,
+      "github_number": 59,
+      "title": "[Feature] Mysterious Stranger NPC",
+      "description": "Implement the Mysterious Stranger NPC with core dialogue tree that has 3 truth layers. The Stranger is an ambiguous figure: inner projection, doppelganger, or supernatural? Choices determine ending.",
+      "context": "Key to narrative depth. Refer to narrative architecture (issue #4). The Stranger's dialogue should shift based on hope/despair and previous choices. Layered: shallow (mysterious helper/adversary), middle (mirror of player), deep (symbol of acceptance/rejection).",
+      "depth": "deep",
+      "priority": "critical",
+      "dependencies": [
+        13,
+        17
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "large",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "Stranger appears in underpass with 3 distinct dialogue paths leading to 3 endings.",
+        "Player's previous choices (office, store, bridge) influence Stranger's lines and attitude.",
+        "On second playthrough (or specific flag), Stranger's dialogue reveals 'I am you' – the game-as-metaphor layer."
+      ],
+      "progress": 0
     }
   ],
   "versions": {
     "mvp": {
-      "name": "最小可用版本",
-      "description": "设计先行(CRPG机制+分层表达+叙事架构+海明威)+核心引擎+序幕三层剧情。",
+      "name": "Minimal Viable Product",
+      "description": "Design first (theme-mechanic + narrative architecture + Hemingway constraints) + core engine (dialogue, GameState, UI, text components) + complete 2-scene path with Stranger NPC and 3 endings.",
       "issues": [
         1,
         2,
@@ -444,7 +464,6 @@
         4,
         5,
         6,
-        7,
         8,
         9,
         10,
@@ -452,14 +471,13 @@
         12,
         13,
         14,
-        15,
-        16,
-        17
+        17,
+        18
       ]
     },
     "v1": {
-      "name": "完整漫步版",
-      "description": "补齐所有7场景+5NPC+完整3结局+完整音效。",
+      "name": "Content Complete",
+      "description": "Full script content + sound system + MVP playtest and layered verification.",
       "issues": [
         1,
         2,
@@ -477,7 +495,32 @@
         14,
         15,
         16,
-        17
+        17,
+        18
+      ]
+    },
+    "full": {
+      "name": "Full Release",
+      "description": "All 18 issues complete: full game with all scenes, NPCs, endings, sound, and verified layered experience.",
+      "issues": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18
       ]
     }
   },
@@ -499,15 +542,12 @@
       14,
       15,
       16,
-      17
+      17,
+      18
     ],
     "edges": [
       {
         "from": 1,
-        "to": 2
-      },
-      {
-        "from": 2,
         "to": 3
       },
       {
@@ -515,23 +555,27 @@
         "to": 4
       },
       {
-        "from": 3,
+        "from": 2,
+        "to": 5
+      },
+      {
+        "from": 2,
         "to": 6
       },
       {
-        "from": 5,
-        "to": 6
-      },
-      {
-        "from": 6,
+        "from": 2,
         "to": 7
       },
       {
-        "from": 5,
+        "from": 2,
         "to": 8
       },
       {
-        "from": 8,
+        "from": 3,
+        "to": 8
+      },
+      {
+        "from": 4,
         "to": 9
       },
       {
@@ -540,10 +584,6 @@
       },
       {
         "from": 5,
-        "to": 10
-      },
-      {
-        "from": 7,
         "to": 11
       },
       {
@@ -551,51 +591,59 @@
         "to": 11
       },
       {
-        "from": 9,
-        "to": 12
-      },
-      {
-        "from": 10,
-        "to": 12
-      },
-      {
         "from": 11,
         "to": 12
       },
       {
         "from": 6,
-        "to": 13
-      },
-      {
-        "from": 9,
-        "to": 13
-      },
-      {
-        "from": 10,
-        "to": 13
-      },
-      {
-        "from": 12,
-        "to": 13
-      },
-      {
-        "from": 13,
-        "to": 14
-      },
-      {
-        "from": 10,
-        "to": 14
+        "to": 12
       },
       {
         "from": 5,
-        "to": 15
+        "to": 13
       },
       {
-        "from": 3,
-        "to": 16
+        "from": 11,
+        "to": 13
       },
       {
         "from": 6,
+        "to": 13
+      },
+      {
+        "from": 11,
+        "to": 14
+      },
+      {
+        "from": 8,
+        "to": 14
+      },
+      {
+        "from": 6,
+        "to": 14
+      },
+      {
+        "from": 12,
+        "to": 14
+      },
+      {
+        "from": 4,
+        "to": 15
+      },
+      {
+        "from": 9,
+        "to": 15
+      },
+      {
+        "from": 10,
+        "to": 15
+      },
+      {
+        "from": 14,
+        "to": 15
+      },
+      {
+        "from": 15,
         "to": 16
       },
       {
@@ -603,20 +651,20 @@
         "to": 16
       },
       {
-        "from": 12,
-        "to": 16
-      },
-      {
         "from": 14,
-        "to": 16
-      },
-      {
-        "from": 15,
-        "to": 16
-      },
-      {
-        "from": 16,
         "to": 17
+      },
+      {
+        "from": 13,
+        "to": 17
+      },
+      {
+        "from": 13,
+        "to": 18
+      },
+      {
+        "from": 17,
+        "to": 18
       }
     ]
   }

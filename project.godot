@@ -24,3 +24,13 @@ GameState="*res://gdscripts/game_state.gd"
 
 [editor_plugins]
 enabled=PackedStringArray()
+
+[input]
+toggle_debug={
+"deadzone": 0.5,
+"events": [{"keycode": 4194326, "type": 0}]
+}
+toggle_dialogue={
+"deadzone": 0.5,
+"events": [{"keycode": 4194318, "type": 0}]
+}

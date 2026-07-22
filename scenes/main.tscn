@@ -1,6 +1,8 @@
-[gd_scene load_steps=2 format=3 uid="uid://main_scene"]
+[gd_scene load_steps=4 format=3 uid="uid://main_scene"]
 
 [ext_resource type="Script" path="res://gdscripts/main.gd" id="1_main"]
+[ext_resource type="PackedScene" uid="uid://dialogue_panel" path="res://scenes/dialogue/dialogue_panel.tscn" id="2_dialogue_panel"]
+[ext_resource type="PackedScene" uid="uid://dialogue_debug_overlay" path="res://scenes/dialogue/dialogue_debug_overlay.tscn" id="3_dialogue_debug"]
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main")
@@ -19,4 +21,6 @@ position = Vector3(0, 2, 5)
 
 [node name="Dialogue" type="CanvasLayer" parent="."]
 
-[node name="Panel" type="Control" parent="Dialogue"]
+[node name="DialoguePanel" parent="Dialogue" instance=ExtResource("2_dialogue_panel")]
+
+[node name="DialogueDebug" parent="." instance=ExtResource("3_dialogue_debug")]
