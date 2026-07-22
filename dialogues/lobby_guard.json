@@ -3,52 +3,56 @@
   "nodes": {
     "guard_greet": {
       "speaker": "Security Guard",
-      "text": "Another late shift? You office workers never stop.",
+      "text": "Long shift tonight?",
+      "on_enter": [],
       "choices": [
         {
-          "text": "「习惯了。」",
+          "text": "「是啊。你呢？」",
           "next_node": "guard_chat",
           "effects": [
             { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
-            { "type": "slider_delta", "axis": "will", "delta": -0.5 }
+            { "type": "advance_clock", "delta": 1 }
           ]
         },
         {
-          "text": "沉默地点头",
-          "next_node": "guard_exit",
+          "text": "（沉默地走出去）",
+          "next_node": null,
           "effects": []
         }
       ]
     },
     "guard_chat": {
       "speaker": "Security Guard",
-      "text": "\"You say that every night. One day you'll say something different.\"\nHe chuckles. \"…or you won't come back at all. That'd be something, eh?\"",
+      "text": "Same old. Night shift's quiet tonight. Just the rain and the security monitors.",
+      "on_enter": [],
       "choices": [
         {
-          "text": "「有一天。」",
-          "next_node": "guard_exit",
+          "text": "「早点休息。」",
+          "next_node": null,
           "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
-            { "type": "set_flag", "flag": "chatted_with_guard", "value": true }
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
           ]
         },
         {
-          "text": "「说的是。」",
-          "next_node": "guard_exit",
+          "text": "「这雨什么时候停。」",
+          "next_node": "guard_weather",
           "effects": [
-            { "type": "set_flag", "flag": "chatted_with_guard", "value": true }
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
           ]
         }
       ]
     },
-    "guard_exit": {
+    "guard_weather": {
       "speaker": "Security Guard",
-      "text": "\"Take care of yourself. It's wet out there.\"",
+      "text": "Forecast says it won't. But forecasts lie. Just like the job description.",
+      "on_enter": [],
       "choices": [
         {
-          "text": "(Continue)",
+          "text": "「哈哈…那我走了。」",
           "next_node": null,
-          "effects": []
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ]
         }
       ]
     }

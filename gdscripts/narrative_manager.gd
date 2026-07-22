@@ -1,5 +1,4 @@
 extends Node
-class_name NarrativeManager
 
 # NarrativeManager — Core narrative architecture controller (Issue #45)
 # Manages scene sequence, ending determination, and echo system.

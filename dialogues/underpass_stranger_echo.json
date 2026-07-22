@@ -1,181 +1,71 @@
 {
-  "entry_node_id": "underpass_echo_greet",
+  "entry_node_id": "echo_greet",
   "nodes": {
-    "underpass_echo_greet": {
+    "echo_greet": {
       "speaker": "Stranger",
-      "text": "From the shadows of the underpass, a familiar voice:\n\"雨这么大，你不会想走太远的。\"",
+      "text": "雨这么大，你不会想走太远的。",
+      "on_enter": [
+        { "type": "set_flag", "flag": "rain_echo_triggered", "value": true }
+      ],
       "choices": [
         {
-          "text": "「又是你。」",
-          "next_node": "echo_recognize",
-          "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
-            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
-          ]
-        },
-        {
-          "text": "「……你说过这话了。」",
+          "text": "「我知道。但我还是得走。」",
           "next_node": "echo_acknowledge",
-          "effects": [
-            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
-          ]
+          "effects": []
         },
         {
-          "text": "沉默地走过",
+          "text": "「不关你的事。」",
+          "next_node": "echo_deny",
+          "effects": []
+        },
+        {
+          "text": "（沉默地走过）",
           "next_node": "echo_silent",
           "effects": []
         }
       ]
     },
-    "echo_recognize": {
+    "echo_acknowledge": {
       "speaker": "Stranger",
-      "text": "They step into the faint light. The same coat. The same tired smile.\n\"I told you. Everyone walks this route.\"\nThey lean against the wall, watching you.",
+      "text": "……好。那就走吧。",
+      "on_enter": [],
       "choices": [
         {
-          "text": "「我没事。」",
-          "next_node": "echo_hope",
-          "condition": {
-            "type": "and",
-            "conditions": [
-              { "type": "slider", "axis": "hope", "op": "gte", "value": 5 },
-              { "type": "slider", "axis": "will", "op": "gte", "value": 5 }
-            ]
-          },
+          "text": "(Continue to the station)",
+          "next_node": null,
           "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
-            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 },
-            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+            { "type": "slider_delta", "axis": "hope", "delta": 1.0 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 1.0 },
+            { "type": "slider_delta", "axis": "will", "delta": 1.0 }
           ]
-        },
+        }
+      ]
+    },
+    "echo_deny": {
+      "speaker": "Stranger",
+      "text": "……你说得对。不关我的事。",
+      "on_enter": [],
+      "choices": [
         {
-          "text": "「承认吧，我不知道自己在做什么。」",
-          "next_node": "echo_despair",
+          "text": "(Continue to the station)",
+          "next_node": null,
           "effects": [
             { "type": "slider_delta", "axis": "hope", "delta": -1.0 },
             { "type": "slider_delta", "axis": "conviction", "delta": -1.0 },
             { "type": "slider_delta", "axis": "will", "delta": -1.0 }
           ]
-        },
-        {
-          "text": "「这不是你该关心的事。」",
-          "next_node": "echo_deflect",
-          "effects": [
-            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 },
-            { "type": "slider_delta", "axis": "hope", "delta": -0.5 }
-          ]
-        }
-      ]
-    },
-    "echo_hope": {
-      "speaker": "Stranger",
-      "text": "\"I know.\" They say it softly. Almost kindly.\n\"I know you're fine. That's what worries me.\"\nThey push off the wall. \"The ones who say they're fine are the ones I remember.\"",
-      "choices": [
-        {
-          "text": "「这句话什么意思？」",
-          "next_node": "echo_hope_question",
-          "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
-          ]
-        },
-        {
-          "text": "沉默",
-          "next_node": "echo_farewell",
-          "effects": []
-        }
-      ]
-    },
-    "echo_hope_question": {
-      "speaker": "Stranger",
-      "text": "\"It means you're still fighting. You haven't given up yet.\"\nThey smile — a real one this time.\n\"The subway station's up ahead. You'll know what to do when you get there.\"",
-      "choices": [
-        {
-          "text": "「谢谢。」",
-          "next_node": "echo_farewell",
-          "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
-          ]
-        }
-      ]
-    },
-    "echo_despair": {
-      "speaker": "Stranger",
-      "text": "They don't respond at first. Just watch you with an expression\nthat's hard to read. Then:\n\"Neither do I. Nobody does. But we keep walking.\"",
-      "choices": [
-        {
-          "text": "「走有什么区别？」",
-          "next_node": "echo_despair_question",
-          "effects": []
-        },
-        {
-          "text": "「……走吧。」",
-          "next_node": "echo_farewell",
-          "effects": []
-        }
-      ]
-    },
-    "echo_despair_question": {
-      "speaker": "Stranger",
-      "text": "\"Because stopping is the only real failure.\"\nThey gesture down the tunnel.\n\"The station's not far. You'll make it.\"",
-      "choices": [
-        {
-          "text": "「嗯。」",
-          "next_node": "echo_farewell",
-          "effects": [
-            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
-          ]
-        }
-      ]
-    },
-    "echo_acknowledge": {
-      "speaker": "Stranger",
-      "text": "\"Did I? That was a long time ago. Or maybe just last night.\nTime moves strange in this city.\"\nThey look at you. \"You've been through a lot since then.\"",
-      "choices": [
-        {
-          "text": "「你怎么知道？」",
-          "next_node": "echo_farewell",
-          "effects": [
-            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
-          ]
-        },
-        {
-          "text": "「是啊。」",
-          "next_node": "echo_farewell",
-          "effects": []
-        }
-      ]
-    },
-    "echo_deflect": {
-      "speaker": "Stranger",
-      "text": "\"Harsh. But fair.\"\nThey raise their hands in mock surrender.\n\"I'll leave you alone. Just remember — the rain always stops.\nEventually.\"",
-      "choices": [
-        {
-          "text": "(Walk past them)",
-          "next_node": "echo_farewell",
-          "effects": []
         }
       ]
     },
     "echo_silent": {
       "speaker": "Narrator",
-      "text": "You walk past without a word.\nTheir voice follows you: \"雨这么大……\"\nThe words echo off the tunnel walls.\nYou've heard them before. You'll hear them again.",
+      "text": "You walk past them without a word. The tunnel stretches ahead.",
+      "on_enter": [],
       "choices": [
         {
-          "text": "(Continue through the underpass)",
+          "text": "(Continue to the station)",
           "next_node": null,
           "effects": []
-        }
-      ]
-    },
-    "echo_farewell": {
-      "speaker": "Stranger",
-      "text": "\"The station's just ahead. One more walk.\"\nThey fade into the shadows of the underpass.\nOr maybe they were never really there.\nThe exit glows faintly in the distance.",
-      "choices": [
-        {
-          "text": "(Walk toward the station)",
-          "next_node": null,
-          "effects": [
-            { "type": "set_flag", "flag": "reached_subway_station", "value": true }
-          ]
         }
       ]
     }
