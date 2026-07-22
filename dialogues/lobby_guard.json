@@ -18,19 +18,51 @@
           "text": "（沉默地走出去）",
           "next_node": null,
           "effects": []
+        },
+        {
+          "text": "「又是你值班？」",
+          "next_node": "guard_greet_variant",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ],
+          "condition": {
+            "type": "flag",
+            "flag": "guard_chatted",
+            "value": true
+          }
+        }
+      ]
+    },
+    "guard_greet_variant": {
+      "speaker": "Security Guard",
+      "text": "Back again?\nSame rain, same shift.",
+      "choices": [
+        {
+          "text": "「聊聊？」",
+          "next_node": "guard_chat",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "advance_clock", "delta": 1 }
+          ]
+        },
+        {
+          "text": "「走了。」",
+          "next_node": null,
+          "effects": []
         }
       ]
     },
     "guard_chat": {
       "speaker": "Security Guard",
-      "text": "Same old. Night shift's quiet tonight. Just the rain and the security monitors.",
+      "text": "Same old. Night shift's quiet tonight.\nJust the rain and the monitors.",
       "on_enter": [],
       "choices": [
         {
           "text": "「早点休息。」",
           "next_node": null,
           "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "set_flag", "flag": "guard_chatted", "value": true }
           ]
         },
         {
@@ -39,20 +71,75 @@
           "effects": [
             { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
           ]
+        },
+        {
+          "text": "「为什么上夜班？」",
+          "next_node": "guard_deep_chat",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ],
+          "condition": {
+            "type": "slider",
+            "axis": "hope",
+            "op": "gte",
+            "value": 5
+          }
+        }
+      ]
+    },
+    "guard_deep_chat": {
+      "speaker": "Security Guard",
+      "text": "My kid asked why I work nights.\nI said: someone watches the city.\nSomeone keeps the lights on.",
+      "choices": [
+        {
+          "text": "「说得好。」",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 1.0 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 },
+            { "type": "set_flag", "flag": "guard_chatted", "value": true }
+          ]
         }
       ]
     },
     "guard_weather": {
       "speaker": "Security Guard",
-      "text": "Forecast says it won't. But forecasts lie. Just like the job description.",
-      "on_enter": [],
+      "text": "Forecast says it won't.\nBut forecasts lie.\nJust like the job description.",
       "choices": [
         {
           "text": "「哈哈…那我走了。」",
           "next_node": null,
           "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "set_flag", "flag": "guard_chatted", "value": true }
           ]
+        },
+        {
+          "text": "「谢谢。我走了。」",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 1.0 },
+            { "type": "set_flag", "flag": "guard_chatted", "value": true }
+          ],
+          "condition": {
+            "type": "slider",
+            "axis": "will",
+            "op": "gte",
+            "value": 5
+          }
+        },
+        {
+          "text": "「…好吧。」",
+          "next_node": null,
+          "effects": [
+            { "type": "set_flag", "flag": "guard_chatted", "value": true }
+          ],
+          "condition": {
+            "type": "slider",
+            "axis": "will",
+            "op": "lt",
+            "value": 5
+          }
         }
       ]
     }

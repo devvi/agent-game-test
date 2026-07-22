@@ -127,6 +127,31 @@ func _calculate_echo_variant(echo_id: String) -> int:
 			var conviction_val: float = _state_system.conviction if _state_system else 5.0
 			if conviction_val >= 7.0: return 0
 			else: return 1
+		"clock_echo":
+			# 0=train is coming (high hope), 1=neutral ticks, 2=too late (low hope)
+			var clock_hope: float = _state_system.hope if _state_system else 5.0
+			if clock_hope >= 7.0: return 0
+			elif clock_hope <= 3.0: return 2
+			else: return 1
+		"door_echo":
+			# 0=gate opens (high conviction), 1=neutral, 2=gate closed (low conviction)
+			var door_conviction: float = _state_system.conviction if _state_system else 5.0
+			if door_conviction >= 7.0: return 0
+			elif door_conviction <= 3.0: return 2
+			else: return 1
+		"rain_variation_echo":
+			# 0=rain softens (high hope), 1=steady rain, 2=rain heavier (low hope)
+			var rain_hope: float = _state_system.hope if _state_system else 5.0
+			if rain_hope >= 7.0: return 0
+			elif rain_hope <= 3.0: return 2
+			else: return 1
+		"stranger_echo":
+			# 0=warm stranger (high hope+conviction), 1=neutral, 2=cold stranger
+			var stranger_hope: float = _state_system.hope if _state_system else 5.0
+			var stranger_conviction: float = _state_system.conviction if _state_system else 5.0
+			if stranger_hope >= 7.0 and stranger_conviction >= 7.0: return 0
+			elif stranger_hope <= 3.0 or stranger_conviction <= 3.0: return 2
+			else: return 1
 		_:
 			return 0
 

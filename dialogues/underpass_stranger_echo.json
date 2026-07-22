@@ -32,7 +32,7 @@
       "choices": [
         {
           "text": "(Continue to the station)",
-          "next_node": null,
+          "next_node": "echo_tunnel_walk",
           "effects": [
             { "type": "slider_delta", "axis": "hope", "delta": 1.0 },
             { "type": "slider_delta", "axis": "conviction", "delta": 1.0 },
@@ -48,7 +48,7 @@
       "choices": [
         {
           "text": "(Continue to the station)",
-          "next_node": null,
+          "next_node": "echo_deny_followup",
           "effects": [
             { "type": "slider_delta", "axis": "hope", "delta": -1.0 },
             { "type": "slider_delta", "axis": "conviction", "delta": -1.0 },
@@ -59,11 +59,65 @@
     },
     "echo_silent": {
       "speaker": "Narrator",
-      "text": "You walk past them without a word. The tunnel stretches ahead.",
+      "text": "You walk past without a word.\nThe tunnel stretches ahead.",
       "on_enter": [],
       "choices": [
         {
           "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    },
+    "echo_tunnel_walk": {
+      "speaker": "Narrator",
+      "text": "They walk beside you.\nNo words, just steps.\nFor a moment, not alone.",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "set_flag", "flag": "stranger_walked_with", "value": true }
+          ]
+        }
+      ]
+    },
+    "echo_deny_followup": {
+      "speaker": "Narrator",
+      "text": "Their footsteps fade.\nYou're alone again.\nThe tunnel swallows the sound.",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "set_flag", "flag": "stranger_denied", "value": true }
+          ]
+        }
+      ]
+    },
+    "echo_bought_coffee": {
+      "speaker": "Stranger",
+      "text": "那杯咖啡还好吗？",
+      "condition": {
+        "type": "flag",
+        "flag": "bought_coffee",
+        "value": true
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "「还不错。」",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "（沉默地继续走）",
           "next_node": null,
           "effects": []
         }
@@ -175,7 +229,7 @@
     },
     "echo_silent_low_conviction": {
       "speaker": "Narrator",
-      "text": "They watch you pass. Their gaze lingers.\nYou feel judged. You feel seen.",
+      "text": "They watch you pass.\nTheir gaze lingers.\nYou feel seen.",
       "condition": {
         "type": "slider",
         "axis": "conviction",

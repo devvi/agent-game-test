@@ -10,7 +10,7 @@
       "choices": [
         {
           "text": "给零钱",
-          "next_node": null,
+          "next_node": "homeless_talk",
           "effects": [
             { "type": "slider_delta", "axis": "conviction", "delta": 1.0 },
             { "type": "slider_delta", "axis": "hope", "delta": 1.0 }
@@ -18,7 +18,7 @@
         },
         {
           "text": "停下倾听",
-          "next_node": null,
+          "next_node": "homeless_talk",
           "effects": [
             { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
             { "type": "slider_delta", "axis": "will", "delta": 0.5 }
@@ -26,8 +26,129 @@
         },
         {
           "text": "快步走过",
-          "next_node": null,
+          "next_node": "homeless_ignore",
           "effects": []
+        },
+        {
+          "text": "坐下休息",
+          "next_node": "homeless_low_will",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ],
+          "condition": {
+            "type": "slider",
+            "axis": "will",
+            "op": "lte",
+            "value": 3
+          }
+        }
+      ]
+    },
+    "homeless_talk": {
+      "speaker": "Homeless Person",
+      "text": "Ten years on this bridge.\nGame makers, night workers, loners.\nYou all look the same at 2 AM.",
+      "choices": [
+        {
+          "text": "「你以前做什么？」",
+          "next_node": "homeless_story",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "「我得走了。」",
+          "next_node": "homeless_farewell",
+          "effects": []
+        }
+      ]
+    },
+    "homeless_story": {
+      "speaker": "Homeless Person",
+      "text": "I made things too.\nSmall things. Paper boats.\nThen I just stopped.",
+      "choices": [
+        {
+          "text": "「为什么？」",
+          "next_node": "homeless_farewell",
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "「…我懂。」",
+          "next_node": "homeless_farewell",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "「你为什么做游戏？」",
+          "next_node": "homeless_deep_question",
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": 1.0 }
+          ],
+          "condition": {
+            "type": "slider",
+            "axis": "conviction",
+            "op": "gte",
+            "value": 6
+          }
+        }
+      ]
+    },
+    "homeless_deep_question": {
+      "speaker": "Homeless Person",
+      "text": "Why do you make games?\nAsk yourself that.\nThe bridge knows the answer.",
+      "choices": [
+        {
+          "text": "「…也许吧。」",
+          "next_node": "homeless_farewell",
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "homeless_farewell": {
+      "speaker": "Homeless Person",
+      "text": "Keep making things.\nRain or no rain.\nThat's all any of us can do.",
+      "choices": [
+        {
+          "text": "「谢谢。」",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 1.0 },
+            { "type": "slider_delta", "axis": "will", "delta": 1.0 },
+            { "type": "set_flag", "flag": "heard_homeless_story", "value": true }
+          ]
+        }
+      ]
+    },
+    "homeless_low_will": {
+      "speaker": "Narrator",
+      "text": "You sit on wet concrete.\nThe city hums below.\nYour legs refuse to move.",
+      "choices": [
+        {
+          "text": "Get up. Keep going.",
+          "next_node": "homeless_farewell",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": 1.0 }
+          ]
+        }
+      ]
+    },
+    "homeless_ignore": {
+      "speaker": "Narrator",
+      "text": "You walk past.\nTheir gaze follows you.\nThe question lingers.",
+      "choices": [
+        {
+          "text": "(Continue to the underpass)",
+          "next_node": null,
+          "effects": [
+            { "type": "set_flag", "flag": "ignored_homeless", "value": true }
+          ]
         }
       ]
     }
