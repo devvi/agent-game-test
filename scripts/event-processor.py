@@ -647,8 +647,6 @@ def _pick_candidate() -> int | None:
             continue
         if "workflow/available" in label_names:
             continue
-        if "bug" not in label_names and "enhancement" not in label_names:
-            continue
         candidates.append(iss)
     
     if not candidates:
