@@ -75,6 +75,10 @@ const ENDING_STAY_WILL: float = 4.0
 const ECHO_RAIN: String = "rain_echo"
 const ECHO_SCREENSAVER: String = "screensaver_echo"
 const ECHO_BROADCAST: String = "lobby_broadcast_echo"
+const ECHO_CLOCK: String = "clock_echo"
+const ECHO_DOOR: String = "door_echo"
+const ECHO_RAIN_VARIATION: String = "rain_variation_echo"
+const ECHO_STRANGER: String = "stranger_echo"
 
 # Dialogue file paths
 const DIALOGUE_OFFICE_DOOR: String = "res://dialogues/office_door.json"

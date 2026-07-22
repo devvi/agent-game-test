@@ -3,26 +3,53 @@
   "nodes": {
     "door_greet": {
       "speaker": "Narrator",
-      "text": "The office door is heavy. You've opened it a thousand times.\nTonight feels different.",
+      "text": "The door is heavy.\nThe handle is cold.\nTonight feels different.",
       "on_enter": [],
       "choices": [
         {
           "text": "Walk out. Don't look back.",
           "next_node": "door_leave",
-          "effects": []
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ]
         },
         {
-          "text": "Hesitate. One more look at the desk.",
+          "text": "Hesitate. One more look.",
           "next_node": "door_hesitate",
           "effects": [
             { "type": "slider_delta", "axis": "conviction", "delta": -0.5 }
+          ]
+        },
+        {
+          "text": "Pause at the door.",
+          "next_node": "door_lookback",
+          "effects": [],
+          "condition": {
+            "type": "slider",
+            "axis": "hope",
+            "op": "gte",
+            "value": 6
+          }
+        }
+      ]
+    },
+    "door_lookback": {
+      "speaker": "Narrator",
+      "text": "Blue light from the screen.\nYour mug sits empty.\nOne last glance back.",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "Turn and go.",
+          "next_node": "door_leave",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
           ]
         }
       ]
     },
     "door_hesitate": {
       "speaker": "Narrator",
-      "text": "The screensaver flickers. The wet window. The empty coffee cup.\nYou've spent too many nights here.",
+      "text": "The screensaver flickers.\nRain on the window.\nToo many nights here.",
       "choices": [
         {
           "text": "Turn and go.",
@@ -35,14 +62,41 @@
     },
     "door_leave": {
       "speaker": "Narrator",
-      "text": "The door closes behind you with a soft click.\nThe hallway stretches ahead, dim and quiet.\nTo the lobby. To the street. To wherever this night takes you.",
+      "text": "The door clicks shut.\nThe hall stretches ahead.\nThe night awaits.",
       "choices": [
         {
-          "text": "(Continue)",
+          "text": "To the lobby.",
           "next_node": null,
           "effects": [
             { "type": "set_flag", "flag": "left_office", "value": true }
           ]
+        },
+        {
+          "text": "Step out with purpose.",
+          "next_node": null,
+          "effects": [
+            { "type": "set_flag", "flag": "left_office", "value": true },
+            { "type": "set_flag", "flag": "left_with_purpose", "value": true }
+          ],
+          "condition": {
+            "type": "slider",
+            "axis": "will",
+            "op": "gte",
+            "value": 7
+          }
+        },
+        {
+          "text": "Each step takes work.",
+          "next_node": null,
+          "effects": [
+            { "type": "set_flag", "flag": "left_office", "value": true }
+          ],
+          "condition": {
+            "type": "slider",
+            "axis": "will",
+            "op": "lte",
+            "value": 3
+          }
         }
       ]
     }

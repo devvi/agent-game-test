@@ -25,12 +25,41 @@
             "value": 6
           },
           "effects": []
+        },
+        {
+          "text": "「别欢迎我。」",
+          "next_node": "clerk_greet_low",
+          "condition": {
+            "type": "slider",
+            "axis": "hope",
+            "op": "lte",
+            "value": 3
+          },
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": -0.5 }
+          ]
+        }
+      ]
+    },
+    "clerk_greet_low": {
+      "speaker": "Store Clerk",
+      "text": "Welcome…\n(trail off)",
+      "choices": [
+        {
+          "text": "「…咖啡。」",
+          "next_node": "coffee_offer",
+          "effects": []
+        },
+        {
+          "text": "「随便看看。」",
+          "next_node": "clerk_look",
+          "effects": []
         }
       ]
     },
     "coffee_offer": {
       "speaker": "Store Clerk",
-      "text": "Coffee machine's still on. One cup or two?",
+      "text": "Coffee machine's still on.\nOne cup or two?",
       "choices": [
         {
           "text": "「一杯就好。」",
@@ -52,7 +81,7 @@
     },
     "coffee_buy": {
       "speaker": "Store Clerk",
-      "text": "Here you go. Hot cup, fresh brew.\nThe warmth spreads through your hands.\nSmall things.",
+      "text": "Here you go. Hot cup.\nThe warmth spreads through your hands.\nSmall things.",
       "choices": [
         {
           "text": "「谢谢。」",
@@ -74,7 +103,7 @@
     },
     "clerk_chat": {
       "speaker": "Store Clerk",
-      "text": "\"Long night?\". You nod.\n\"They all are, at some point. But the rain will stop eventually.\"\nThey look at the window. \"Or not. Who knows.\"",
+      "text": "\"Long night?\" You nod.\n\"They all are, at some point.\nBut the rain will stop.\"",
       "choices": [
         {
           "text": "「这雨什么时候停？」",
@@ -93,7 +122,7 @@
     },
     "clerk_no_coffee": {
       "speaker": "Store Clerk",
-      "text": "They shrug. \"Suit yourself.\"\nThe bell chimes as someone else enters.",
+      "text": "They shrug.\n\"Suit yourself.\"\nThe bell chimes behind you.",
       "choices": [
         {
           "text": "(Leave the counter)",
@@ -104,7 +133,7 @@
     },
     "clerk_comfort": {
       "speaker": "Store Clerk",
-      "text": "They pause, look at you properly for the first time.\n\"Sometimes a cup of coffee helps. Sometimes it doesn't.\nBut it's a start.\"",
+      "text": "They pause, look at you.\n\"Sometimes coffee helps.\nSometimes it doesn't.\"",
       "choices": [
         {
           "text": "「你说得对。」",
@@ -126,12 +155,29 @@
     },
     "clerk_look": {
       "speaker": "Narrator",
-      "text": "The shelves are lined with instant noodles, chips, and energy drinks.\nEverything a night worker needs.\nNothing you really want.",
+      "text": "Shelf of instant noodles.\nChips, energy drinks.\nEverything night workers need.",
       "choices": [
         {
           "text": "走向柜台",
-          "next_node": "clerk_greet",
-          "effects": []
+          "next_node": "shelf_explore",
+          "effects": [],
+          "condition": {
+            "type": "slider",
+            "axis": "will",
+            "op": "gte",
+            "value": 6
+          }
+        },
+        {
+          "text": "走向柜台",
+          "next_node": "shelf_explore_low",
+          "effects": [],
+          "condition": {
+            "type": "slider",
+            "axis": "will",
+            "op": "lt",
+            "value": 6
+          }
         },
         {
           "text": "看看窗外",
@@ -140,20 +186,92 @@
         }
       ]
     },
-    "look_window": {
+    "shelf_explore": {
       "speaker": "Narrator",
-      "text": "Rain streams down the glass. The street outside is empty.\nA single streetlight casts a orange pool on the wet asphalt.",
+      "text": "You grab a rice ball.\nThe plastic is warm.\nSmall comfort helps.",
       "choices": [
         {
-          "text": "(Turn to leave)",
+          "text": "(Go to counter)",
+          "next_node": "clerk_greet",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "shelf_explore_low": {
+      "speaker": "Narrator",
+      "text": "Everything looks the same.\nYou walk past.\nNothing appeals.",
+      "choices": [
+        {
+          "text": "(Go to counter)",
+          "next_node": "clerk_greet",
+          "effects": []
+        }
+      ]
+    },
+    "look_window": {
+      "speaker": "Narrator",
+      "text": "Rain streams down the glass.\nA single orange streetlight.\nThe street is empty.",
+      "choices": [
+        {
+          "text": "(Look closer)",
+          "next_node": "look_window_hope",
+          "effects": [],
+          "condition": {
+            "type": "slider",
+            "axis": "hope",
+            "op": "gte",
+            "value": 7
+          }
+        },
+        {
+          "text": "(Look closer)",
+          "next_node": "look_window_despair",
+          "effects": [],
+          "condition": {
+            "type": "slider",
+            "axis": "hope",
+            "op": "lte",
+            "value": 3
+          }
+        },
+        {
+          "text": "(Turn away)",
           "next_node": null,
           "effects": []
         }
       ]
     },
+    "look_window_hope": {
+      "speaker": "Narrator",
+      "text": "Through the rain, a star.\nOr maybe it's a plane.\nEither way, light exists.",
+      "choices": [
+        {
+          "text": "(Leave the window)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "look_window_despair": {
+      "speaker": "Narrator",
+      "text": "The rain never stops.\nNeither does the night.\nYou look away.",
+      "choices": [
+        {
+          "text": "(Leave the window)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": -0.5 }
+          ]
+        }
+      ]
+    },
     "exit_after_coffee": {
       "speaker": "Narrator",
-      "text": "You finish your coffee. The cup is warm in your hands.\nTime to go. The bridge awaits.",
+      "text": "Your coffee cup is warm.\nThe warmth spreads.\nTime for the bridge.",
       "choices": [
         {
           "text": "(Leave the store)",

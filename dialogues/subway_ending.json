@@ -3,59 +3,200 @@
   "nodes": {
     "station_arrive": {
       "speaker": "Narrator",
-      "text": "The station is nearly empty. The clock reads 11:47 PM.\nA train hums in the distance.",
+      "text": "The station is empty.\nThe clock reads 11:47 PM.\nA train hums below.",
       "on_enter": [],
       "choices": [
         {
           "text": "进站检票",
-          "next_node": "ending_walk_entry",
-          "effects": []
+          "next_node": "kw_arrive",
+          "effects": [],
+          "condition": {
+            "type": "and",
+            "conditions": [
+              { "type": "slider", "axis": "hope", "op": "gte", "value": 6 },
+              { "type": "slider", "axis": "will", "op": "gte", "value": 5 }
+            ]
+          }
         },
         {
           "text": "转身走回出口",
-          "next_node": "ending_turnback",
-          "effects": []
+          "next_node": "tb_arrive",
+          "effects": [],
+          "condition": {
+            "type": "slider",
+            "axis": "conviction",
+            "op": "lte",
+            "value": 3
+          }
         },
         {
           "text": "在长椅上坐下",
-          "next_node": "ending_stay_entry",
+          "next_node": "st_arrive",
           "effects": []
         }
       ]
     },
-    "ending_walk_entry": {
-      "speaker": "Stranger",
-      "text": "下次再见。",
-      "on_enter": [],
+    "kw_arrive": {
+      "speaker": "Narrator",
+      "text": "The train hums in the distance.\nThe platform is quiet.\nYou hear your heartbeat.",
       "choices": [
         {
-          "text": "刷卡进站",
-          "next_node": "ending_walk_final",
+          "text": "Step to the edge.",
+          "next_node": "kw_edge",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "kw_edge": {
+      "speaker": "Narrator",
+      "text": "The yellow line glows.\nLight at the tunnel end.\nThe wet night behind.",
+      "choices": [
+        {
+          "text": "Look back at the city.",
+          "next_node": "kw_lookback",
+          "effects": []
+        },
+        {
+          "text": "Face forward.",
+          "next_node": "kw_stranger",
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "kw_lookback": {
+      "speaker": "Narrator",
+      "text": "The city glitters beyond.\nThe office, the bridge, the store.\nAll behind you now.",
+      "choices": [
+        {
+          "text": "Turn forward.",
+          "next_node": "kw_stranger",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "kw_stranger": {
+      "speaker": "Stranger",
+      "text": "下次再见。",
+      "choices": [
+        {
+          "text": "「再见。」",
+          "next_node": "kw_train",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 1.0 }
+          ]
+        }
+      ]
+    },
+    "kw_train": {
+      "speaker": "Narrator",
+      "text": "The doors slide open.\nWarm light spills out.\nYou step inside.",
+      "choices": [
+        {
+          "text": "Sit by the window.",
+          "next_node": "kw_final",
+          "effects": []
+        }
+      ]
+    },
+    "kw_final": {
+      "speaker": "Narrator",
+      "text": "The train pulls away.\nRain streaks past the glass.\nFor the first time, you breathe.",
+      "choices": [
+        {
+          "text": "— Keep Walking —",
+          "next_node": null,
           "effects": [
             { "type": "set_flag", "flag": "ending_keep_walking", "value": true }
           ]
         }
       ]
     },
-    "ending_walk_final": {
+    "tb_arrive": {
       "speaker": "Narrator",
-      "text": "The gate opens. You step through.\nThe train is waiting. You find a seat by the window.\nThe rain streaks past the glass as the train pulls away.\n\n— Keep Walking —",
-      "on_enter": [],
+      "text": "The station entrance gapes.\nYou stop at the stairs.\nSomething holds you back.",
       "choices": [
         {
-          "text": "(End)",
-          "next_node": null,
-          "effects": []
+          "text": "Walk down anyway.",
+          "next_node": "tb_gate",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "Turn around now.",
+          "next_node": "tb_street",
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": -0.5 }
+          ]
         }
       ]
     },
-    "ending_turnback": {
+    "tb_gate": {
       "speaker": "Narrator",
-      "text": "You turn away from the gate.\nThe exit door is still open. Rain blows in from the street.\nYou go back the way you came.\n\n— Turn Back —",
-      "on_enter": [],
+      "text": "The ticket gate hums.\nA single light flickers.\nYou reach out, stop.",
       "choices": [
         {
-          "text": "(End)",
+          "text": "Reach for the gate.",
+          "next_node": "tb_decision",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "Pull your hand back.",
+          "next_node": "tb_decision",
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": -0.5 }
+          ]
+        }
+      ]
+    },
+    "tb_decision": {
+      "speaker": "Narrator",
+      "text": "You can't.\nYou turn.\nThe exit sign glows red.",
+      "choices": [
+        {
+          "text": "Walk back.",
+          "next_node": "tb_street",
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": -0.5 },
+            { "type": "slider_delta", "axis": "hope", "delta": -0.5 }
+          ]
+        }
+      ]
+    },
+    "tb_street": {
+      "speaker": "Stranger",
+      "text": "你确定？",
+      "choices": [
+        {
+          "text": "「我确定。」",
+          "next_node": "tb_final",
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": -0.5 }
+          ]
+        },
+        {
+          "text": "「……不。」",
+          "next_node": "tb_final",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": -0.5 }
+          ]
+        }
+      ]
+    },
+    "tb_final": {
+      "speaker": "Narrator",
+      "text": "You step into the rain.\nThe street is empty.\nThe night never ends.",
+      "choices": [
+        {
+          "text": "— Turn Back —",
           "next_node": null,
           "effects": [
             { "type": "set_flag", "flag": "ending_turn_back", "value": true }
@@ -63,13 +204,82 @@
         }
       ]
     },
-    "ending_stay_entry": {
+    "st_arrive": {
       "speaker": "Narrator",
-      "text": "The bench is cold. You sit.\nThe last train arrives. The doors open. You don't move.\nThe doors close. The train pulls away.\n\n— Stay —",
-      "on_enter": [],
+      "text": "The station is empty.\n11:47 PM is frozen.\nYou stop walking.",
       "choices": [
         {
-          "text": "(End)",
+          "text": "Look around.",
+          "next_node": "st_bench",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "Approach the bench.",
+          "next_node": "st_bench",
+          "effects": []
+        }
+      ]
+    },
+    "st_bench": {
+      "speaker": "Narrator",
+      "text": "The bench is cold.\nYou sit.\nThe air is still.",
+      "choices": [
+        {
+          "text": "Close your eyes.",
+          "next_node": "st_train_passes",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "Watch the tunnel.",
+          "next_node": "st_train_passes",
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "st_train_passes": {
+      "speaker": "Narrator",
+      "text": "The last train arrives.\nDoors slide open.\nNo one gets on or off.",
+      "choices": [
+        {
+          "text": "Stand up.",
+          "next_node": "st_stranger",
+          "effects": []
+        },
+        {
+          "text": "Stay seated.",
+          "next_node": "st_stranger",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "st_stranger": {
+      "speaker": "Stranger",
+      "text": "………",
+      "choices": [
+        {
+          "text": "Watch them go.",
+          "next_node": "st_final",
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "st_final": {
+      "speaker": "Narrator",
+      "text": "The clock ticks: 11:48.\nThe platform hums.\nYou're still here. That's okay.",
+      "choices": [
+        {
+          "text": "— Stay —",
           "next_node": null,
           "effects": [
             { "type": "set_flag", "flag": "ending_stay", "value": true }

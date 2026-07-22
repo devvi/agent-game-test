@@ -1,1 +1,142 @@
-{"entry_node_id": "stranger_greet","nodes":{"stranger_greet":{"speaker":"Stranger","text":"又一个加班的？","on_enter":[],"choices":[{"text":"「你也是？」","next_node":"stranger_talk","effects":[{"type":"slider_delta","axis":"hope","delta":0.5},{"type":"slider_delta","axis":"conviction","delta":0.5}]},{"text":"（沉默离开）","next_node":"stranger_leave","effects":[{"type":"slider_delta","axis":"hope","delta":-0.5},{"type":"slider_delta","axis":"conviction","delta":-0.5}]}]},"stranger_talk":{"speaker":"Stranger","text":"这条路我走过很多次。今晚不太一样。","on_enter":[],"choices":[{"text":"「我认识你吗？」","next_node":"stranger_dejavu","effects":[{"type":"slider_delta","axis":"hope","delta":0.5},{"type":"slider_delta","axis":"conviction","delta":1.0}],"condition":{"type":"slider","axis":"conviction","op":"gte","value":6}},{"text":"「也许吧。」","next_node":"stranger_continue","effects":[]}]},"stranger_dejavu":{"speaker":"Stranger","text":"也许你见过我。也许没有。","on_enter":[],"choices":[{"text":"（继续走向出口）","next_node":"stranger_continue","effects":[]}]},"stranger_continue":{"speaker":"Narrator","text":"You walk past them toward the lobby exit. The encounter lingers.","on_enter":[],"choices":[{"text":"(Continue to the store)","next_node":null,"effects":[{"type":"set_flag","flag":"met_stranger","value":true}]}]},"stranger_leave":{"speaker":"Narrator","text":"You walk past without a word. The figure shifts in the dim light.","on_enter":[],"choices":[{"text":"(Continue to the store)","next_node":null,"effects":[{"type":"set_flag","flag":"met_stranger","value":true}]}]}}}
+{
+  "entry_node_id": "stranger_greet",
+  "nodes": {
+    "stranger_greet": {
+      "speaker": "Stranger",
+      "text": "又一个加班的？",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "「你也是？」",
+          "next_node": "stranger_talk",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "（沉默离开）",
+          "next_node": "stranger_leave",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": -0.5 },
+            { "type": "slider_delta", "axis": "conviction", "delta": -0.5 }
+          ]
+        }
+      ]
+    },
+    "stranger_talk": {
+      "speaker": "Stranger",
+      "text": "这条路我走过很多次。\n今晚不太一样。",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "「我认识你吗？」",
+          "next_node": "stranger_dejavu",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 1.0 }
+          ],
+          "condition": {
+            "type": "slider",
+            "axis": "conviction",
+            "op": "gte",
+            "value": 6
+          }
+        },
+        {
+          "text": "「也许吧。」",
+          "next_node": "stranger_continue",
+          "effects": []
+        }
+      ]
+    },
+    "stranger_dejavu": {
+      "speaker": "Stranger",
+      "text": "也许你见过我。\n也许没有。",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "「我们真的见过。」",
+          "next_node": "stranger_dejavu_dialogue",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+          ],
+          "condition": {
+            "type": "and",
+            "conditions": [
+              { "type": "slider", "axis": "conviction", "op": "gte", "value": 6 },
+              { "type": "slider", "axis": "hope", "op": "gte", "value": 6 }
+            ]
+          }
+        },
+        {
+          "text": "（继续走向出口）",
+          "next_node": "stranger_continue",
+          "effects": []
+        }
+      ]
+    },
+    "stranger_dejavu_dialogue": {
+      "speaker": "Stranger",
+      "text": "也许我们真的见过。\n在另一个夜晚。",
+      "choices": [
+        {
+          "text": "「也许吧。」",
+          "next_node": "stranger_continue",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 1.0 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 1.0 }
+          ]
+        }
+      ]
+    },
+    "stranger_continue": {
+      "speaker": "Narrator",
+      "text": "You walk past toward the exit.\nThe encounter lingers.",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the store)",
+          "next_node": "stranger_after_ignore",
+          "effects": [
+            { "type": "set_flag", "flag": "met_stranger", "value": true }
+          ]
+        }
+      ]
+    },
+    "stranger_leave": {
+      "speaker": "Narrator",
+      "text": "You walk past without a word.\nThe figure shifts in dim light.",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the store)",
+          "next_node": "stranger_after_ignore",
+          "effects": [
+            { "type": "set_flag", "flag": "met_stranger", "value": true }
+          ]
+        }
+      ]
+    },
+    "stranger_after_ignore": {
+      "speaker": "Narrator",
+      "text": "你走了。\n我也该走了。",
+      "condition": {
+        "type": "not",
+        "condition": {
+          "type": "flag",
+          "flag": "met_stranger",
+          "value": true
+        }
+      },
+      "choices": [
+        {
+          "text": "(Continue to the store)",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    }
+  }
+}
