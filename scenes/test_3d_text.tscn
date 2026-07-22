@@ -1,0 +1,79 @@
+[gd_scene load_steps=6 format=3 uid="uid://dqx6bpaqnr7p3"]
+
+[ext_resource type="Script" path="res://gdscripts/lo_fi_text_3d.gd" id="1_4hq5s"]
+[ext_resource type="Shader" path="res://shaders/lo_fi_text.gdshader" id="2_5h4h6"]
+
+[sub_resource type="Environment" id="Environment_s3rjl"]
+background_mode = 1
+background_clear_color = Color(0.10196078431372549, 0.10196078431372549, 0.1803921568627451, 1)
+glow_enabled = true
+glow_levels/01 = 0.5
+glow_intensity = 1.0
+glow_strength = 0.8
+tonemap_mode = 2
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_8kf23"]
+shader = ExtResource("2_5h4h6")
+shader_parameter/pixel_factor = 0.6
+shader_parameter/color_bits = 6.0
+shader_parameter/scanline_intensity = 0.15
+shader_parameter/emissive_color = Color(1, 0.76, 0.03, 1)
+shader_parameter/emissive_strength = 2.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_9pq34"]
+shader = ExtResource("2_5h4h6")
+shader_parameter/pixel_factor = 0.4
+shader_parameter/color_bits = 4.0
+shader_parameter/scanline_intensity = 0.15
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_f5d23"]
+shader = ExtResource("2_5h4h6")
+shader_parameter/pixel_factor = 0.5
+shader_parameter/color_bits = 8.0
+shader_parameter/scanline_intensity = 0.3
+shader_parameter/emissive_color = Color(0.0, 0.8, 1.0, 1)
+shader_parameter/emissive_strength = 3.0
+
+[node name="Test3DText" type="Node3D"]
+
+[node name="Camera3D" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 5)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_s3rjl")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3, 0)
+light_energy = 0.5
+
+[node name="BillboardSign" type="Label3D" parent="."]
+script = ExtResource("1_4hq5s")
+text = "BAR"
+pixel_factor = 0.6
+color_bits = 6
+scanline_intensity = 0.15
+emissive_color = Color(1, 0.76, 0.03, 1)
+emissive_strength = 2.0
+billboard = true
+position = Vector3(-2, 1.5, -3)
+
+[node name="FlatSign" type="Label3D" parent="."]
+script = ExtResource("1_4hq5s")
+text = "ELM ST."
+pixel_factor = 0.4
+color_bits = 4
+scanline_intensity = 0.15
+billboard = false
+position = Vector3(0, 1.0, -4)
+rotation = Vector3(0, 0.5, 0)
+
+[node name="NeonTitle" type="Label3D" parent="."]
+script = ExtResource("1_4hq5s")
+text = "DAY 17"
+pixel_factor = 0.5
+color_bits = 8
+scanline_intensity = 0.3
+emissive_color = Color(0.0, 0.8, 1.0, 1)
+emissive_strength = 3.0
+billboard = true
+position = Vector3(2, 2.0, -3)
