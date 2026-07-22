@@ -43,7 +43,7 @@
     },
     "npc_bartender_drink": {
       "speaker": "Bartender",
-      "text": "One warm sake, coming up.",
+      "text": "One glass of warm sake, coming up.",
       "choices": [
         {
           "text": "Thanks.",

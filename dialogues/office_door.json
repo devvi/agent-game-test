@@ -3,7 +3,7 @@
   "nodes": {
     "office_door_prompt": {
       "speaker": "Narrator",
-      "text": "The door looms.\nLeave the office?",
+      "text": "The door looms in front of you.\nLeave the office?",
       "choices": [
         {
           "text": "Step outside.",
@@ -23,7 +23,7 @@
     },
     "office_stay": {
       "speaker": "Narrator",
-      "text": "You sit back down.\nRain taps the window.\nThe door is still there.",
+      "text": "You sit back down. The rain taps at the window.\nThe door is still there.",
       "choices": [
         {
           "text": "Step outside.",
@@ -42,7 +42,7 @@
     },
     "store_entrance_prompt": {
       "speaker": "Narrator",
-      "text": "The store glows.\nThrough the falling rain.\nEnter?",
+      "text": "The convenience store glows through the rain.\nEnter?",
       "choices": [
         {
           "text": "Go in.",
@@ -58,7 +58,7 @@
     },
     "street_walk_away": {
       "speaker": "Narrator",
-      "text": "You walk past. The rain keeps falling.\nNeon flickers behind you.",
+      "text": "You walk past. The rain keeps falling.\nThe neon sign flickers behind you.",
       "choices": [
         {
           "text": "...",
