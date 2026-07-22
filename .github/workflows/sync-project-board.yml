@@ -1,5 +1,5 @@
 name: sync-project-board
-# Keep project board columns in sync with issue labels
+# Keep project board columns in sync with issue workflow labels
 
 on:
   issues:
@@ -13,9 +13,9 @@ jobs:
     permissions:
       issues: write
       pull-requests: read
-      projects: read
+      repository-projects: write
     steps:
-      - name: Sync label → status
+      - name: Sync label to project board Stage
         uses: actions/github-script@v7
         with:
           script: |
@@ -24,15 +24,118 @@ jobs:
 
             const labels = issue.labels.map(l => l.name);
 
-            const labelStatusMap = {
-              'workflow/available': '📋 Available',
-              'workflow/research':  '🔍 Research',
-              'workflow/plan':      '📐 Plan',
-              'workflow/implement': '⚙️ Implement',
-              'workflow/self-correct': '🔧 Self-Correct',
-              'status/done':        '✅ Done',
+            const labelStageMap = {
+              'workflow/available':   { optionId: '9cdb2bb9' },
+              'workflow/research':    { optionId: 'd6233b1f' },
+              'workflow/plan':        { optionId: 'bd32d7fd' },
+              'workflow/implement':   { optionId: 'b130fca8' },
+              'workflow/self-correct':{ optionId: 'c9fbb90c' },
+              'status/done':          { optionId: '2b264d98' },
             };
 
-            const activeLabel = Object.keys(labelStatusMap).find(l => labels.includes(l));
+            const activeLabel = Object.keys(labelStageMap).find(l => labels.includes(l));
+            if (!activeLabel) {
+              console.log(`Issue #${issue.number}: no workflow label found — skipping project sync`);
+              return;
+            }
 
-            console.log(`Issue #${issue.number}: labels=${labels.join(', ')}, active=${activeLabel}`);
+            const stageConfig = labelStageMap[activeLabel];
+            console.log(`Issue #${issue.number}: label=${activeLabel} → project stage option=${stageConfig.optionId}`);
+
+            // Find the project item for this issue
+            const PROJECT_NUMBER = 5;
+            const PROJECT_OWNER = context.repo.owner;
+
+            const listQuery = `
+              query($owner: String!, $project: Int!, $issue: Int!) {
+                user(login: $owner) {
+                  projectV2(number: $project) {
+                    items(first: 100) {
+                      nodes {
+                        id
+                        content {
+                          ... on Issue { number }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+            const listResult = await github.graphql(listQuery, {
+              owner: PROJECT_OWNER,
+              project: PROJECT_NUMBER,
+              issue: issue.number,
+            });
+
+            const items = listResult.user.projectV2.items.nodes;
+            const item = items.find(n => n.content && n.content.number === issue.number);
+
+            if (!item) {
+              console.log(`Issue #${issue.number}: not found in project #${PROJECT_NUMBER} — can't sync`);
+              // Auto-add to project
+              try {
+                const addItemQuery = `
+                  mutation($projectId: ID!, $contentId: ID!) {
+                    addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
+                      item { id }
+                    }
+                  }
+                `;
+                const addResult = await github.graphql(addItemQuery, {
+                  projectId: 'PVT_kwHOABFv7s4Bd7mL',
+                  contentId: issue.node_id,
+                });
+                const newItemId = addResult.addProjectV2ItemById.item.id;
+                console.log(`Issue #${issue.number}: added to project, itemId=${newItemId}`);
+
+                // Now set the stage on the new item
+                const setStageQuery = `
+                  mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                    updateProjectV2ItemFieldValue(
+                      input: {
+                        projectId: $projectId,
+                        itemId: $itemId,
+                        fieldId: $fieldId,
+                        value: { singleSelectOptionId: $optionId }
+                      }
+                    ) { projectV2Item { id } }
+                  }
+                `;
+                await github.graphql(setStageQuery, {
+                  projectId: 'PVT_kwHOABFv7s4Bd7mL',
+                  itemId: newItemId,
+                  fieldId: 'PVTSSF_lAHOABFv7s4Bd7mLzhYjuS4',
+                  optionId: stageConfig.optionId,
+                });
+                console.log(`Issue #${issue.number}: stage set to ${activeLabel} (new item)`);
+              } catch (addErr) {
+                console.log(`Issue #${issue.number}: failed to add to project: ${addErr.message}`);
+              }
+              return;
+            }
+
+            // Update the existing item's stage
+            const updateQuery = `
+              mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                updateProjectV2ItemFieldValue(
+                  input: {
+                    projectId: $projectId,
+                    itemId: $itemId,
+                    fieldId: $fieldId,
+                    value: { singleSelectOptionId: $optionId }
+                  }
+                ) { projectV2Item { id } }
+              }
+            `;
+            try {
+              await github.graphql(updateQuery, {
+                projectId: 'PVT_kwHOABFv7s4Bd7mL',
+                itemId: item.id,
+                fieldId: 'PVTSSF_lAHOABFv7s4Bd7mLzhYjuS4',
+                optionId: stageConfig.optionId,
+              });
+              console.log(`Issue #${issue.number}: project board stage synced to '${activeLabel}'`);
+            } catch (updateErr) {
+              console.log(`Issue #${issue.number}: failed to update project board: ${updateErr.message}`);
+            }

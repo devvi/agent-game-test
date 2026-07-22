@@ -62,7 +62,8 @@ jobs:
               'workflow/research':  'workflow/plan',
               'workflow/plan':      'workflow/implement',
               'workflow/implement': 'workflow/test',
-              'workflow/test':      null,
+              'workflow/test':      'status/done',
+              'status/done':        null,
             };
 
             const nextLabel = nextStage[activeLabel];
