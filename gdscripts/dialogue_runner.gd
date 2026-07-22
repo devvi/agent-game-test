@@ -140,12 +140,37 @@ func select_choice(choice_index: int) -> void:
 
 
 ## Start conversation from the entry node of a loaded dialogue.
-func start(dialogue_file_path: String, dialogue_id: String = "") -> bool:
+func start(dialogue_file_path: String, dialogue_id: String = "", entry_override: String = "") -> bool:
 	if not load_dialogue(dialogue_file_path, dialogue_id):
 		return false
 	dialogue_started.emit(current_dialogue_id)
-	enter_node(dialogue_tree["entry_node_id"])
+	var entry: String = entry_override if not entry_override.is_empty() else dialogue_tree.get("entry_node_id", "")
+	enter_node(entry)
 	return true
+
+
+## Check if any terminal nodes (choices all lead to null/empty next_node) remain unvisited.
+func has_unvisited_branches(dialogue_id: String) -> bool:
+	if dialogue_tree.is_empty() or not dialogue_tree.has("nodes"):
+		return false
+	var nodes: Dictionary = dialogue_tree["nodes"]
+	if nodes.is_empty():
+		return false
+	for node_id: String in nodes:
+		var node: Dictionary = nodes[node_id]
+		var choices: Array = node.get("choices", [])
+		if choices.is_empty():
+			continue
+		var all_terminal: bool = true
+		for c in choices:
+			if typeof(c) != TYPE_DICTIONARY:
+				continue
+			if c.has("next_node") and c["next_node"] != null and str(c["next_node"]) != "":
+				all_terminal = false
+				break
+		if all_terminal and visited_nodes.get(node_id, 0) == 0:
+			return true
+	return false
 
 
 ## Build a snapshot of the current GameState for condition evaluation.
@@ -159,7 +184,7 @@ func _build_state_snapshot() -> Dictionary:
 		# If GameManager doesn't have the API yet, return empty state
 		return { "sliders": {}, "flags": {}, "choices_made": choices_made }
 	var sliders := {}
-	for axis in ["hope", "despair", "vigor", "burnout", "conviction", "falter"]:
+	for axis in ["hope", "despair", "vigor", "burnout", "conviction", "falter", "hope_despair"]:
 		sliders[axis] = gm.get_slider(axis)
 	return {
 		"sliders": sliders,

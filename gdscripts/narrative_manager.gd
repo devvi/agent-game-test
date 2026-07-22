@@ -1,8 +1,9 @@
 extends Node
 
-# NarrativeManager — Core narrative architecture controller (Issue #45)
+# NarrativeManager — Core narrative architecture controller (Issue #45 / #50)
 # Manages scene sequence, ending determination, and echo system.
 # Listens to StateSystem.state_changed for tone calculation.
+# Expanded from 3-state to 5-state per-scene tones (Issue #50).
 
 # --- Signals ---
 signal scene_text_changed(scene_id: String, tone: String)  # Scene text variant change
@@ -32,6 +33,17 @@ const ENDING_STAY_HOPE: float = 4.0
 const ENDING_STAY_CONVICTION: float = 4.0
 const ENDING_STAY_WILL: float = 4.0
 
+# --- 5-State Tone Tables (Issue #50) ---
+# Per-scene tone for each state ID (1=Despair, 2=Low, 3=Neutral, 4=Buoyant, 5=Hope)
+const SCENE_TONES: Dictionary = {
+	0: {1: "despair", 2: "low", 3: "neutral", 4: "buoyant", 5: "hope"},       # Office
+	1: {1: "fear", 2: "uneasy", 3: "neutral", 4: "curious", 5: "defiant"},    # Lobby
+	2: {1: "cold", 2: "distant", 3: "neutral", 4: "warm", 5: "glowing"},      # Convenience Store
+	3: {1: "tired", 2: "heavy", 3: "neutral", 4: "hopeful", 5: "determined"}, # Bridge
+	4: {1: "despair", 2: "hollow", 3: "neutral", 4: "resolute", 5: "transcendent"}, # Underpass
+	5: {1: "backward", 2: "hesitant", 3: "waiting", 4: "forward", 5: "forward"}      # Subway Station
+}
+
 # --- State ---
 var current_scene_index: int = 0
 var echo_flags: Dictionary = {}       # {echo_id: bool} — has been triggered
@@ -52,56 +64,26 @@ func _on_state_changed(state: Dictionary) -> void:
 	scene_text_changed.emit(SCENE_ORDER[current_scene_index], tone)
 
 
-## Calculate scene text tone based on state. Each scene responds differently.
+## Convert hope (0–10) to discrete state ID (1–5) for per-scene tone lookup.
+static func _hope_to_state_id(hope: float) -> int:
+	if hope <= 2.0:
+		return 1
+	elif hope <= 4.0:
+		return 2
+	elif hope <= 6.0:
+		return 3
+	elif hope <= 8.0:
+		return 4
+	else:
+		return 5
+
+
+## Calculate scene text tone based on state using the 5-state per-scene table.
 func _calculate_tone_for_scene(scene_idx: int, state: Dictionary) -> String:
 	var hope_val: float = state.get("hope", 5.0)
-	var conviction_val: float = state.get("conviction", 5.0)
-	var will_val: float = state.get("will", 5.0)
-
-	match scene_idx:
-		0:  # Office — hope-sensitive
-			if hope_val <= 3.0: return "despair"
-			elif hope_val >= 7.0: return "hope"
-			else: return "neutral"
-		1:  # Lobby — conviction-sensitive
-			if conviction_val <= 3.0: return "fear"
-			elif conviction_val >= 7.0: return "defiant"
-			else: return "neutral"
-		2:  # Convenience Store — hope-sensitive warmth
-			if hope_val <= 3.0: return "cold"
-			elif hope_val >= 7.0: return "warm"
-			else: return "neutral"
-		3:  # Bridge — will-sensitive
-			if will_val <= 3.0: return "tired"
-			elif will_val >= 7.0: return "determined"
-			else: return "neutral"
-		4:  # Underpass — composite state
-			return _calculate_underpass_tone(state)
-		5:  # Subway Station — ending tone
-			return _calculate_station_tone(state)
-		_:
-			return "neutral"
-
-
-func _calculate_underpass_tone(state: Dictionary) -> String:
-	var hope_val: float = state.get("hope", 5.0)
-	var conviction_val: float = state.get("conviction", 5.0)
-	if hope_val <= 4.0 and conviction_val <= 4.0:
-		return "despair"
-	elif hope_val >= 6.0 and conviction_val >= 6.0:
-		return "resolute"
-	else:
-		return "neutral"
-
-
-func _calculate_station_tone(state: Dictionary) -> String:
-	var hope_val: float = state.get("hope", 5.0)
-	if hope_val >= ENDING_KEEP_WALKING_HOPE:
-		return "forward"
-	elif _state_system and _state_system.conviction <= ENDING_TURN_BACK_CONVICTION:
-		return "backward"
-	else:
-		return "waiting"
+	var state_id: int = _hope_to_state_id(hope_val)
+	var scene_tones: Dictionary = SCENE_TONES.get(scene_idx, {})
+	return scene_tones.get(state_id, "neutral")
 
 
 ## Trigger a narrative echo. Called by scene scripts at the right moment.
@@ -114,46 +96,48 @@ func trigger_echo(echo_id: String) -> void:
 
 
 ## Calculate echo variant based on current state.
+## Expanded to 5 variants (0-4) matching 5-state system (Issue #50).
+## Mapping: state 5 (Hope) -> variant 0, 4->1, 3->2, 2->3, 1 (Despair) -> variant 4
 func _calculate_echo_variant(echo_id: String) -> int:
+	var hope_val: float = _state_system.hope if _state_system else 5.0
+	var conviction_val: float = _state_system.conviction if _state_system else 5.0
+	var state_id: int = _hope_to_state_id(hope_val)
+
+	# Map state_id 1-5 to variant 4-0 (inverse: lower state = higher variant index)
+	var variant_by_state: int = 4 - (state_id - 1)
+
 	match echo_id:
 		"rain_echo":
-			# 0=concerned (high hope), 1=neutral, 2=sarcastic/disappointed (low hope)
-			var hope_val: float = _state_system.hope if _state_system else 5.0
-			if hope_val >= 7.0: return 0
-			elif hope_val <= 3.0: return 2
-			else: return 1
+			return variant_by_state
 		"screensaver_echo":
-			# 0=defiant (high conviction), 1=self-deprecating (low)
-			var conviction_val: float = _state_system.conviction if _state_system else 5.0
-			if conviction_val >= 7.0: return 0
-			else: return 1
+			return variant_by_state
 		"clock_echo":
-			# 0=train is coming (high hope), 1=neutral ticks, 2=too late (low hope)
-			var clock_hope: float = _state_system.hope if _state_system else 5.0
-			if clock_hope >= 7.0: return 0
-			elif clock_hope <= 3.0: return 2
-			else: return 1
+			return variant_by_state
 		"door_echo":
-			# 0=gate opens (high conviction), 1=neutral, 2=gate closed (low conviction)
-			var door_conviction: float = _state_system.conviction if _state_system else 5.0
-			if door_conviction >= 7.0: return 0
-			elif door_conviction <= 3.0: return 2
-			else: return 1
+			return variant_by_state
 		"rain_variation_echo":
-			# 0=rain softens (high hope), 1=steady rain, 2=rain heavier (low hope)
-			var rain_hope: float = _state_system.hope if _state_system else 5.0
-			if rain_hope >= 7.0: return 0
-			elif rain_hope <= 3.0: return 2
-			else: return 1
+			return variant_by_state
 		"stranger_echo":
-			# 0=warm stranger (high hope+conviction), 1=neutral, 2=cold stranger
-			var stranger_hope: float = _state_system.hope if _state_system else 5.0
-			var stranger_conviction: float = _state_system.conviction if _state_system else 5.0
-			if stranger_hope >= 7.0 and stranger_conviction >= 7.0: return 0
-			elif stranger_hope <= 3.0 or stranger_conviction <= 3.0: return 2
-			else: return 1
+			# Stranger echo also considers conviction; scale both to 5-state
+			var cv_state_id: int = _conviction_to_state_id(conviction_val)
+			var composite: int = (state_id + cv_state_id) / 2
+			return 4 - (composite - 1)
 		_:
 			return 0
+
+
+## Convert conviction (0–10) to a 5-state value for composite echo calculations.
+static func _conviction_to_state_id(conviction: float) -> int:
+	if conviction <= 2.0:
+		return 1
+	elif conviction <= 4.0:
+		return 2
+	elif conviction <= 6.0:
+		return 3
+	elif conviction <= 8.0:
+		return 4
+	else:
+		return 5
 
 
 ## Determine ending at subway station. Returns ending ID string.
@@ -174,7 +158,7 @@ func determine_ending(state: Dictionary) -> String:
 	if hope_val <= ENDING_STAY_HOPE and conviction_val <= ENDING_STAY_CONVICTION and will_val <= ENDING_STAY_WILL:
 		return "stay"
 
-	# Fallthrough → Stay
+	# Fallthrough -> Stay
 	return "stay"
 
 

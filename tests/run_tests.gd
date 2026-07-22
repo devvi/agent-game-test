@@ -37,6 +37,9 @@ func _init() -> void:
 	# --- Bridge/Underpass Tests (Issue #58) ---
 	run_bridge_underpass_tests()
 
+	# --- State System Slider Tests (Issue #50) ---
+	run_slider_system_tests()
+
 	# --- Sound System Tests (Issue #48) ---
 	run_sound_system_tests()
 
@@ -260,9 +263,9 @@ func run_theme_mechanic_mapping_tests() -> void:
 	_test_wv_boundary_low()
 	_test_wv_boundary_high()
 	_test_wv_get_tone_for_state()
-	_test_rain_high_conviction_low_rain()
-	_test_rain_low_conviction_high_rain()
-	_test_rain_mid_conviction()
+	_test_rain_high_hope_low_rain()
+	_test_rain_low_hope_high_rain()
+	_test_rain_mid_hope()
 	_test_rain_intensity_clamp()
 	_test_rain_shelter_trigger()
 	_test_rain_shelter_below_threshold()
@@ -367,8 +370,8 @@ func _test_wv_tone_despair() -> void:
 
 func _test_wv_tone_hope() -> void:
 	var wv = load("res://gdscripts/worldview_controller.gd").new()
-	var tone = wv._calculate_tone(8.0, 5.0)
-	_assert(tone == "hope", "WV-2: hope=8 -> hope")
+	var tone = wv._calculate_tone(9.0, 5.0)
+	_assert(tone == "hope", "WV-2: hope=9 -> hope")
 
 func _test_wv_tone_neutral() -> void:
 	var wv = load("res://gdscripts/worldview_controller.gd").new()
@@ -378,12 +381,12 @@ func _test_wv_tone_neutral() -> void:
 func _test_wv_boundary_low() -> void:
 	var wv = load("res://gdscripts/worldview_controller.gd").new()
 	var tone = wv._calculate_tone(3.0, 5.0)
-	_assert(tone == "despair", "WV-4: hope=3 (boundary) -> despair")
+	_assert(tone == "low", "WV-4: hope=3 (boundary) -> low")
 
 func _test_wv_boundary_high() -> void:
 	var wv = load("res://gdscripts/worldview_controller.gd").new()
 	var tone = wv._calculate_tone(7.0, 5.0)
-	_assert(tone == "hope", "WV-5: hope=7 (boundary) -> hope")
+	_assert(tone == "buoyant", "WV-5: hope=7 (boundary) -> buoyant")
 
 func _test_wv_get_tone_for_state() -> void:
 	var wv = load("res://gdscripts/worldview_controller.gd").new()
@@ -394,27 +397,27 @@ func _test_wv_get_tone_for_state() -> void:
 	tone = wv.get_tone_for_state({"conviction": 5.0})
 	_assert(tone == "neutral", "WV-6: get_tone_for_state defaults hope=5 -> neutral")
 
-func _test_rain_high_conviction_low_rain() -> void:
+func _test_rain_high_hope_low_rain() -> void:
 	var rc = load("res://gdscripts/rain_controller.gd").new()
-	rc._on_state_changed({"conviction": 9.0})
-	_assert(abs(rc.rain_intensity - 0.1) < 0.001, "RC-1: conviction=9 -> intensity=0.1")
+	rc._on_state_changed({"hope": 9.0})
+	_assert(abs(rc.rain_intensity - 0.1) < 0.001, "RC-1: hope=9 -> intensity=0.1")
 
-func _test_rain_low_conviction_high_rain() -> void:
+func _test_rain_low_hope_high_rain() -> void:
 	var rc = load("res://gdscripts/rain_controller.gd").new()
-	rc._on_state_changed({"conviction": 1.0})
-	_assert(abs(rc.rain_intensity - 0.9) < 0.001, "RC-2: conviction=1 -> intensity=0.9")
+	rc._on_state_changed({"hope": 1.0})
+	_assert(abs(rc.rain_intensity - 0.9) < 0.001, "RC-2: hope=1 -> intensity=0.9")
 
-func _test_rain_mid_conviction() -> void:
+func _test_rain_mid_hope() -> void:
 	var rc = load("res://gdscripts/rain_controller.gd").new()
-	rc._on_state_changed({"conviction": 5.0})
-	_assert(abs(rc.rain_intensity - 0.5) < 0.001, "RC-3: conviction=5 -> intensity=0.5")
+	rc._on_state_changed({"hope": 5.0})
+	_assert(abs(rc.rain_intensity - 0.5) < 0.001, "RC-3: hope=5 -> intensity=0.5")
 
 func _test_rain_intensity_clamp() -> void:
 	var rc = load("res://gdscripts/rain_controller.gd").new()
-	rc._on_state_changed({"conviction": -5.0})
-	_assert(abs(rc.rain_intensity - 1.0) < 0.001, "RC-4: conviction=-5 clamped -> intensity=1.0")
-	rc._on_state_changed({"conviction": 20.0})
-	_assert(abs(rc.rain_intensity - 0.0) < 0.001, "RC-4: conviction=20 clamped -> intensity=0.0")
+	rc._on_state_changed({"hope": -5.0})
+	_assert(abs(rc.rain_intensity - 1.0) < 0.001, "RC-4: hope=-5 clamped -> intensity=1.0")
+	rc._on_state_changed({"hope": 20.0})
+	_assert(abs(rc.rain_intensity - 0.0) < 0.001, "RC-4: hope=20 clamped -> intensity=0.0")
 
 func _test_rain_shelter_trigger() -> void:
 	var rc = load("res://gdscripts/rain_controller.gd").new()
@@ -585,6 +588,170 @@ func run_bridge_underpass_tests() -> void:
 	tester.run()
 	passed += tester.passed
 	failed += tester.failed
+
+
+# ===== State System Slider Tests (Issue #50) =====
+
+func run_slider_system_tests() -> void:
+	print("\n=== State System Slider Tests (Issue #50) ===\n")
+
+	# TC1-TC5: State ID Mapping
+	_test_tc1_neutral_state_id()
+	_test_tc2_despair_state_id()
+	_test_tc3_hope_state_id()
+	_test_tc4_inclusive_upper_bound()
+	_test_tc5_low_state_id()
+
+	# TC6-TC9: Clamping & Resistance
+	_test_tc6_clamp_upper()
+	_test_tc7_clamp_lower()
+	_test_tc8_resistance_at_despair()
+	_test_tc9_resistance_at_hope()
+
+	# TC10, TC13, TC14: GameManager flags (wiring tests)
+	# GM.get_slider("hope_despair") requires /root/StateSystem autoload
+	# which isn't available in --script mode. Flag operations work without it.
+	_test_tc13_set_flag()
+	_test_tc14_get_flags()
+
+	# TC28-TC29: Dialogue condition evaluation with hope_despair
+	_test_tc28_condition_gte_hope_despair()
+	_test_tc29_condition_unknown_axis()
+
+	# Derived hope property test
+	_test_derived_hope_property()
+
+	# Hope_despair apply_choice with hope_despair key
+	_test_apply_hope_despair_delta()
+	_test_legacy_hope_delta_mapping()
+
+	# get_state() includes hope_despair key
+	_test_state_includes_hope_despair()
+
+	print("  Slider System Tests: %d passed, %d failed" % [passed, failed])
+
+
+# --- TC1-TC5: State ID Mapping ---
+
+func _test_tc1_neutral_state_id() -> void:
+	var ss = _make_ss()
+	_assert(ss.get_state_id() == 3, "TC1: hope_despair=0.0 -> get_state_id()=3 (Neutral)")
+
+func _test_tc2_despair_state_id() -> void:
+	var ss = _make_ss()
+	ss.hope_despair = -10.0
+	_assert(ss.get_state_id() == 1, "TC2: hope_despair=-10.0 -> get_state_id()=1 (Despair)")
+
+func _test_tc3_hope_state_id() -> void:
+	var ss = _make_ss()
+	ss.hope_despair = 10.0
+	_assert(ss.get_state_id() == 5, "TC3: hope_despair=10.0 -> get_state_id()=5 (Hope)")
+
+func _test_tc4_inclusive_upper_bound() -> void:
+	var ss = _make_ss()
+	ss.hope_despair = -6.0
+	_assert(ss.get_state_id() == 1, "TC4: hope_despair=-6.0 -> get_state_id()=1 (Despair, inclusive upper bound)")
+
+func _test_tc5_low_state_id() -> void:
+	var ss = _make_ss()
+	ss.hope_despair = -5.0
+	_assert(ss.get_state_id() == 2, "TC5: hope_despair=-5.0 -> get_state_id()=2 (Low)")
+
+
+# --- TC6-TC9: Clamping & Resistance ---
+
+func _test_tc6_clamp_upper() -> void:
+	var ss = _make_ss()
+	ss.hope_despair = 5.0
+	ss.apply_choice({"hope_despair": 12.0})
+	_assert(abs(ss.hope_despair - 10.0) < 0.001, "TC6: hope_despair=5.0 + 12.0 -> clamped to 10.0")
+
+func _test_tc7_clamp_lower() -> void:
+	var ss = _make_ss()
+	ss.hope_despair = -3.0
+	ss.apply_choice({"hope_despair": -15.0})
+	_assert(abs(ss.hope_despair - (-10.0)) < 0.001, "TC7: hope_despair=-3.0 + -15.0 -> clamped to -10.0")
+
+func _test_tc8_resistance_at_despair() -> void:
+	var ss = _make_ss()
+	ss.hope_despair = -10.0
+	ss.apply_choice({"hope_despair": 2.0})
+	_assert(abs(ss.hope_despair - (-9.0)) < 0.001, "TC8: hope_despair=-10.0 + 2.0*0.5 -> -9.0")
+
+func _test_tc9_resistance_at_hope() -> void:
+	var ss = _make_ss()
+	ss.hope_despair = 10.0
+	ss.apply_choice({"hope_despair": -2.0})
+	_assert(abs(ss.hope_despair - 9.0) < 0.001, "TC9: hope_despair=10.0 + -2.0*0.5 -> 9.0")
+
+
+# --- TC10-TC14: GameManager Wiring ---
+
+func _test_tc13_set_flag() -> void:
+	var gm = load("res://gdscripts/game_manager.gd").new()
+	gm.set_flag("test_flag", true)
+	_assert(gm.has_flag("test_flag"), "TC13: set_flag('test_flag', true) -> has_flag=true")
+
+func _test_tc14_get_flags() -> void:
+	var gm = load("res://gdscripts/game_manager.gd").new()
+	gm.set_flag("flag_a", true)
+	gm.set_flag("flag_b", false)
+	var flags = gm.get_flags()
+	_assert(flags.get("flag_a", false), "TC14: get_flags includes flag_a=true")
+	_assert(not flags.get("flag_b", true), "TC14: get_flags includes flag_b=false")
+
+
+# --- TC28-TC29: Dialogue Condition Evaluation ---
+
+func _test_tc28_condition_gte_hope_despair() -> void:
+	var DCE = load("res://gdscripts/dialogue_condition_evaluator.gd")
+	var state = {"sliders": {"hope_despair": 3.0}}
+	var cond = {"type": "slider", "axis": "hope_despair", "op": "gte", "value": 2}
+	_assert(DCE.evaluate(cond, state), "TC28: hope_despair=3.0 gte 2 -> true")
+	var cond2 = {"type": "slider", "axis": "hope_despair", "op": "gte", "value": 5}
+	_assert(not DCE.evaluate(cond2, state), "TC28: hope_despair=3.0 gte 5 -> false")
+
+func _test_tc29_condition_unknown_axis() -> void:
+	var DCE = load("res://gdscripts/dialogue_condition_evaluator.gd")
+	var state = {"sliders": {}}
+	var cond = {"type": "slider", "axis": "hope_despair", "op": "gte", "value": 2}
+	_assert(not DCE.evaluate(cond, state), "TC29: unknown hope_despair axis -> false (default 0.0)")
+
+
+# --- Additional StateSystem Property Tests ---
+
+func _test_derived_hope_property() -> void:
+	var ss = _make_ss()
+	ss.hope_despair = 0.0
+	_assert(abs(ss.hope - 5.0) < 0.001, "hope_despair=0 -> hope=5.0")
+	ss.hope_despair = -10.0
+	_assert(abs(ss.hope - 0.0) < 0.001, "hope_despair=-10 -> hope=0.0")
+	ss.hope_despair = 10.0
+	_assert(abs(ss.hope - 10.0) < 0.001, "hope_despair=10 -> hope=10.0")
+	# Setting hope directly updates hope_despair
+	ss.hope = 5.0
+	_assert(abs(ss.hope_despair - 0.0) < 0.001, "hope=5 -> hope_despair=0.0")
+
+func _test_apply_hope_despair_delta() -> void:
+	var ss = _make_ss()
+	ss.apply_choice({"hope_despair": 3.0})
+	_assert(abs(ss.hope_despair - 3.0) < 0.001, "apply_choice hope_despair=3 -> hope_despair=3.0")
+	_assert(abs(ss.hope - 6.5) < 0.001, "apply_choice hope_despair=3 -> hope=6.5")
+
+func _test_legacy_hope_delta_mapping() -> void:
+	var ss = _make_ss()
+	ss.apply_choice({"hope": -2.0})
+	# hope delta -2.0 -> hope_despair delta -4.0
+	_assert(abs(ss.hope_despair - (-4.0)) < 0.001, "legacy hope=-2 -> hope_despair=-4.0")
+	_assert(abs(ss.hope - 3.0) < 0.001, "legacy hope=-2 -> hope=3.0")
+
+func _test_state_includes_hope_despair() -> void:
+	var ss = _make_ss()
+	var state = ss.get_state()
+	_assert(state.has("hope_despair"), "get_state() includes hope_despair key")
+	_assert(state.has("hope"), "get_state() includes hope key")
+	_assert(state.has("conviction"), "get_state() includes conviction key")
+	_assert(state.has("will"), "get_state() includes will key")
 
 
 func run_sound_system_tests() -> void:

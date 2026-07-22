@@ -224,17 +224,17 @@ func _test_n7_office_tone() -> void:
 	var nm = _make_nm()
 	var tone = nm._calculate_tone_for_scene(0, {"hope": 2.0, "conviction": 5.0, "will": 5.0})
 	_assert(tone == "despair", "TC-N7-1: office hope=2 -> despair")
-	tone = nm._calculate_tone_for_scene(0, {"hope": 8.0, "conviction": 5.0, "will": 5.0})
-	_assert(tone == "hope", "TC-N7-1: office hope=8 -> hope")
+	tone = nm._calculate_tone_for_scene(0, {"hope": 9.0, "conviction": 5.0, "will": 5.0})
+	_assert(tone == "hope", "TC-N7-1: office hope=9 -> hope")
 	tone = nm._calculate_tone_for_scene(0, {"hope": 5.0, "conviction": 5.0, "will": 5.0})
 	_assert(tone == "neutral", "TC-N7-1: office hope=5 -> neutral")
 
 func _test_n7_lobby_tone() -> void:
 	var nm = _make_nm()
-	var tone = nm._calculate_tone_for_scene(1, {"hope": 5.0, "conviction": 2.0, "will": 5.0})
-	_assert(tone == "fear", "TC-N7-2: lobby conviction=2 -> fear")
-	tone = nm._calculate_tone_for_scene(1, {"hope": 5.0, "conviction": 8.0, "will": 5.0})
-	_assert(tone == "defiant", "TC-N7-2: lobby conviction=8 -> defiant")
+	var tone = nm._calculate_tone_for_scene(1, {"hope": 1.0, "conviction": 5.0, "will": 5.0})
+	_assert(tone == "fear", "TC-N7-2: lobby hope=1 -> fear")
+	tone = nm._calculate_tone_for_scene(1, {"hope": 9.0, "conviction": 5.0, "will": 5.0})
+	_assert(tone == "defiant", "TC-N7-2: lobby hope=9 -> defiant")
 
 func _test_n7_store_tone() -> void:
 	var nm = _make_nm()
@@ -245,17 +245,17 @@ func _test_n7_store_tone() -> void:
 
 func _test_n7_bridge_tone() -> void:
 	var nm = _make_nm()
-	var tone = nm._calculate_tone_for_scene(3, {"hope": 5.0, "conviction": 5.0, "will": 2.0})
-	_assert(tone == "tired", "TC-N7-4: bridge will=2 -> tired")
-	tone = nm._calculate_tone_for_scene(3, {"hope": 5.0, "conviction": 5.0, "will": 8.0})
-	_assert(tone == "determined", "TC-N7-4: bridge will=8 -> determined")
+	var tone = nm._calculate_tone_for_scene(3, {"hope": 1.0, "conviction": 5.0, "will": 5.0})
+	_assert(tone == "tired", "TC-N7-4: bridge hope=1 -> tired")
+	tone = nm._calculate_tone_for_scene(3, {"hope": 9.0, "conviction": 5.0, "will": 5.0})
+	_assert(tone == "determined", "TC-N7-4: bridge hope=9 -> determined")
 
 func _test_n7_underpass_tone() -> void:
 	var nm = _make_nm()
-	var tone = nm._calculate_tone_for_scene(4, {"hope": 3.0, "conviction": 3.0, "will": 5.0})
-	_assert(tone == "despair", "TC-N7-5: underpass hope=3,conviction=3 -> despair")
-	tone = nm._calculate_tone_for_scene(4, {"hope": 7.0, "conviction": 7.0, "will": 5.0})
-	_assert(tone == "resolute", "TC-N7-5: underpass hope=7,conviction=7 -> resolute")
+	var tone = nm._calculate_tone_for_scene(4, {"hope": 3.0, "conviction": 5.0, "will": 5.0})
+	_assert(tone == "hollow", "TC-N7-5: underpass hope=3 -> hollow")
+	tone = nm._calculate_tone_for_scene(4, {"hope": 7.0, "conviction": 5.0, "will": 5.0})
+	_assert(tone == "resolute", "TC-N7-5: underpass hope=7 -> resolute")
 	tone = nm._calculate_tone_for_scene(4, {"hope": 5.0, "conviction": 5.0, "will": 5.0})
 	_assert(tone == "neutral", "TC-N7-5: underpass all=5 -> neutral")
 

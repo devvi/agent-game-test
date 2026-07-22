@@ -3,7 +3,7 @@ extends Node
 # StateSystem — Tri-axis state manager with bipolar Hope/Despair slider
 # Manages hope_despair (-10 to +10), conviction (0-10), and will (0-10)
 # Provides flags system, choice history, and save/load serialization
-# See: docs/DESIGN/47-gamestate-system.md
+# See: docs/DESIGN/47-gamestate-system.md, docs/DESIGN/50-state-world-feedback.md
 
 signal state_changed(state: Dictionary)
 ## Emitted on every apply_choice() / load_state_from_file() call.

@@ -89,6 +89,7 @@ func _test_b2_low_conviction_thought() -> void:
 
 
 func _test_b2_high_conviction_no_thought() -> void:
+	var bridge = _make_bridge()
 	_assert(bridge.has_method("_check_intrusive_thought"), "TC-B2-2: _check_intrusive_thought exists")
 
 
@@ -104,6 +105,7 @@ func _test_b3_despair_tone() -> void:
 
 
 func _test_b3_resolute_tone() -> void:
+	var up = _make_underpass()
 	_assert(up.has_method("_get_tone"), "TC-B3-2: _get_tone exists")
 
 

@@ -6,9 +6,10 @@ extends Node
 # Delegates flags and choice history to StateSystem for Issue #47
 
 var game_started: bool = false
-
 # Reference to StateSystem autoload
 @onready var _state_system: Node = get_node_or_null("/root/StateSystem")
+# Local flag storage fallback (used when StateSystem is unavailable, e.g. headless tests)
+var _flags: Dictionary = {}
 
 # Dialogue persistence across scene changes
 var dialogue_history: Array = []  # future: full dialogue traversal log
@@ -48,22 +49,22 @@ func get_slider(axis: String) -> float:
 			return 5.0
 
 ## Check if a named flag is set.
-## Delegates to StateSystem.
+## Delegates to StateSystem; falls back to local storage.
 func has_flag(flag_name: String) -> bool:
 	if _state_system == null:
 		_state_system = get_node_or_null("/root/StateSystem")
-	if _state_system == null or not _state_system.has_method("has_flag"):
-		return false
-	return _state_system.has_flag(flag_name)
+	if _state_system != null and _state_system.has_method("has_flag"):
+		return _state_system.has_flag(flag_name)
+	return _flags.get(flag_name, false)
 
 ## Get all flags as a Dictionary.
-## Delegates to StateSystem.
+## Delegates to StateSystem; falls back to local storage.
 func get_flags() -> Dictionary:
 	if _state_system == null:
 		_state_system = get_node_or_null("/root/StateSystem")
-	if _state_system == null or not _state_system.has_method("get_flags"):
-		return {}
-	return _state_system.get_flags()
+	if _state_system != null and _state_system.has_method("get_flags"):
+		return _state_system.get_flags()
+	return _flags.duplicate()
 
 ## Apply a slider delta (clamped to axis range).
 ## Delegates to StateSystem.apply_choice() for the given axis.
@@ -85,13 +86,14 @@ func apply_slider_delta(axis: String, delta: float) -> void:
 			push_warning("GameManager.apply_slider_delta: unknown axis '%s'" % axis)
 
 ## Set a named flag.
-## Delegates to StateSystem.
+## Delegates to StateSystem; falls back to local storage.
 func set_flag(flag_name: String, value: bool) -> void:
 	if _state_system == null:
 		_state_system = get_node_or_null("/root/StateSystem")
-	if _state_system == null or not _state_system.has_method("set_flag"):
+	if _state_system != null and _state_system.has_method("set_flag"):
+		_state_system.set_flag(flag_name, value)
 		return
-	_state_system.set_flag(flag_name, value)
+	_flags[flag_name] = value
 
 # ===== Dialogue Persistence =====
 
