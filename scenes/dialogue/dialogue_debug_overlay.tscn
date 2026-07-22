@@ -1,0 +1,37 @@
+[gd_scene load_steps=2 format=3 uid="uid://dialogue_debug_overlay"]
+
+[ext_resource type="Script" path="res://gdscripts/dialogue_debug.gd" id="1_dialogue_debug"]
+
+[node name="DialogueDebugOverlay" type="CanvasLayer"]
+script = ExtResource("1_dialogue_debug")
+
+[node name="Panel" type="Panel" parent="."]
+offset_left = 10.0
+offset_top = 10.0
+offset_right = 400.0
+offset_bottom = 130.0
+theme_override_styles/panel = null
+
+[node name="NodeIdLabel" type="Label" parent="Panel"]
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 380.0
+offset_bottom = 32.0
+theme_override_colors/font_color = Color(0, 1, 0, 1)
+theme_override_font_sizes/font_size = 12
+
+[node name="ChoicesLabel" type="Label" parent="Panel"]
+offset_left = 8.0
+offset_top = 36.0
+offset_right = 380.0
+offset_bottom = 60.0
+theme_override_colors/font_color = Color(0, 1, 0, 1)
+theme_override_font_sizes/font_size = 12
+
+[node name="StateLabel" type="Label" parent="Panel"]
+offset_left = 8.0
+offset_top = 64.0
+offset_right = 380.0
+offset_bottom = 88.0
+theme_override_colors/font_color = Color(0, 1, 0, 1)
+theme_override_font_sizes/font_size = 12

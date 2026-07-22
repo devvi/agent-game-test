@@ -1,0 +1,83 @@
+{
+  "entry_node_id": "npc_bartender_greet",
+  "nodes": {
+    "npc_bartender_greet": {
+      "speaker": "Bartender",
+      "text": "You again. Same as usual?",
+      "choices": [
+        {
+          "text": "Yeah, the usual.",
+          "next_node": "npc_bartender_drink",
+          "condition": null,
+          "effects": []
+        },
+        {
+          "text": "Not tonight.",
+          "next_node": "npc_bartender_leave",
+          "condition": {
+            "type": "slider",
+            "axis": "despair",
+            "op": "lte",
+            "value": 5
+          },
+          "effects": [
+            { "type": "set_flag", "flag": "declined_drink", "value": true }
+          ]
+        },
+        {
+          "text": "...",
+          "next_node": "npc_bartender_silent",
+          "condition": {
+            "type": "slider",
+            "axis": "despair",
+            "op": "gte",
+            "value": 7
+          },
+          "effects": [
+            { "type": "slider_delta", "axis": "despair", "delta": 1 }
+          ]
+        }
+      ],
+      "on_enter": [],
+      "tags": ["bartender", "night_1"]
+    },
+    "npc_bartender_drink": {
+      "speaker": "Bartender",
+      "text": "One glass of warm sake, coming up.",
+      "choices": [
+        {
+          "text": "Thanks.",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 1 }
+          ]
+        }
+      ],
+      "tags": ["bartender"]
+    },
+    "npc_bartender_leave": {
+      "speaker": "Bartender",
+      "text": "Suit yourself.",
+      "choices": [
+        {
+          "text": "See you.",
+          "next_node": null,
+          "effects": []
+        }
+      ],
+      "tags": ["bartender"]
+    },
+    "npc_bartender_silent": {
+      "speaker": "Bartender",
+      "text": "... Right.",
+      "choices": [
+        {
+          "text": "...",
+          "next_node": null,
+          "effects": []
+        }
+      ],
+      "tags": ["bartender"]
+    }
+  }
+}
