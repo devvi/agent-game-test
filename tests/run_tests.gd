@@ -3,8 +3,12 @@ extends SceneTree
 var passed: int = 0
 var failed: int = 0
 
+var _DialogueParser = preload("res://gdscripts/dialogue_parser.gd")
+var _ConditionEvaluator = preload("res://gdscripts/dialogue_condition_evaluator.gd")
+var _DialogueRunnerScript = preload("res://gdscripts/dialogue_runner.gd")
+
 func _init() -> void:
-	print("=== GDScript Test Runner ====")
+	print("=== GDScript Test Runner ===")
 	print("Running tests in SceneTree mode...")
 
 	# --- Label Tests (existing) ---
@@ -523,6 +527,7 @@ func run_dialogue_engine_tests() -> void:
 	tester.run()
 	passed += tester.passed
 	failed += tester.failed
+
 
 func _assert(condition: bool, name: String) -> void:
 	if condition:
