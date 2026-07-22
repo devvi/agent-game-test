@@ -1,152 +1,195 @@
-# Dialogue Engine — Data Model + Conditional Branching + Runtime + Visual
+# GDD §05 — Dialogue Engine: Data Model, Conditional Branching, Runtime
 
-> Parent Issues: #46, #52
-> Added: 2026-07-22 (post-merge GDD updates)
-> Updated: 2026-07-22 (added runtime + visual layer — PR #83)
+> Updated: 2026-07-22 — Added intertextuality pattern documentation
 
-## 1. Architecture Overview
+---
 
-The dialogue engine consists of three components that form a pipeline:
+## 1. Dialogue Data Model
 
-```
-dialogue JSON → DialogueParser (validate + index)
-                    ↓ parsed dictionary
-             DialogueRunner (stateful runtime)
-                    ↓
-        DialogueConditionEvaluator (stateless checks)
-```
-
-**Design decisions:**
-- **JSON format** over Godot Resources — writer-ergonomic, diffable, mergeable
-- **Parsed Dictionaries** over custom classes — simpler validation at this project scale (~5 NPCs)
-- **Declarative condition DSL** — dict-based (`{"type": "slider", "axis": "hope", "op": "gte", "value": 5}`) — type-safe, no arbitrary expression evaluation
-- **Lazy-load per NPC** — dialogue JSON loaded only on interaction
-
-## 2. Data Model
-
-### Dialogue Tree Structure
+Each dialogue file is a JSON object with an `entry_node_id` and a `nodes` dictionary:
 
 ```json
 {
-  "entry_node_id": "n_01",
+  "entry_node_id": "node_id",
   "nodes": {
-    "n_01": {
-      "speaker": "Bartender",
-      "text": "You again. Same as usual?",
+    "node_id": {
+      "speaker": "Character Name",
+      "text": "Dialogue text.",
       "choices": [
         {
-          "text": "Yeah, the usual.",
-          "next_node": "n_02",
+          "text": "Choice text.",
           "condition": null,
-          "effects": []
+          "effects": [],
+          "next_node": "next_id",
+          "scene": "res://path/to/scene.tscn"
         }
-      ],
-      "on_enter": [],
-      "tags": ["bartender", "night_1"]
+      ]
     }
   }
 }
 ```
 
-### Condition DSL
+### Node Fields
 
-| Type | Fields | Description |
-|------|--------|-------------|
-| `slider` | `axis`, `op` (gte/lte/gt/lt/eq), `value` | Check slider value against threshold |
-| `flag` | `flag`, `value` | Check if a boolean flag matches |
-| `choice_made` | `node_id`, `choice_index` | Check if a specific choice was made |
-| `and` | `conditions` (array) | All sub-conditions must pass |
-| `or` | `conditions` (array) | At least one sub-condition must pass |
-| `not` | `condition` | Invert a single sub-condition |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `speaker` | String | Yes | Character name or "Narrator" / "Inner Voice" |
+| `text` | String | Yes | Dialogue text. Use `\n` for line breaks. Hemingway: ≤25 chars/sentence, ≤3 sentences/paragraph |
+| `choices` | Array | No | Array of choice objects. Empty or absent = terminal node |
+| `on_enter` | Array | No | Effects applied when entering the node |
+| `tags` | Array | No | Metadata tags (e.g., "bartender", "night_1") |
 
-### Effect Types
+### Choice Fields
 
-| Type | Fields | Description |
-|------|--------|-------------|
-| `slider_delta` | `axis`, `delta` | Modify a slider value (clamped [1, 10]) |
-| `set_flag` | `flag`, `value` | Set a named boolean flag |
-| `trigger_event` | `event` | Narratively-trigger event (placeholder) |
-| `advance_clock` | — | Advance game clock (placeholder) |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `text` | String | Yes | Choice label shown to player |
+| `condition` | Object | No | Condition dict (see below). null/unset = always available |
+| `effects` | Array | No | Effect dicts applied when chosen |
+| `next_node` | String | No | Next node ID. null/absent/missing = end conversation |
+| `scene` | String | No | Scene path to transition to. If set, overrides next_node |
+| `default` | Boolean | No | If true, this choice is a fallback when no other choices reachable |
 
-## 3. Key Implementation Details
+---
 
-### DialogueParser (`gdscripts/dialogue_parser.gd`)
+## 2. Condition Evaluation
 
-- Extends `RefCounted` — pure utility, no scene attachment
-- `load_dialogue(path)` → `{"ok": true, "data": {nodes, entry_node_id}}` or error
-- Validates on load: missing fields, duplicate IDs, dangling next_node references
+Conditions use the `DialogueConditionEvaluator`:
 
-### DialogueRunner (`gdscripts/dialogue_runner.gd`)
+```json
+{
+  "type": "slider",
+  "axis": "hope",
+  "op": "gte",
+  "value": 7
+}
+```
 
-- Extends `Node` — attached to `dialogue_panel.tscn`
-- Stateful per conversation: tracks current node, visited nodes, choice history
-- Anti-loop protection: `MAX_NODE_VISITS = 3` per node, force-ends conversation
-- Default choice fallback: when all gated choices are hidden, uses the choice marked `"default": true`
-- Signals: `dialogue_started`, `dialogue_ended`, `node_changed`, `choices_available`, `choice_made`
+### Supported Operators
 
-### DialogueConditionEvaluator (`gdscripts/dialogue_condition_evaluator.gd`)
+| Operator | Meaning |
+|----------|---------|
+| `gte` | Greater than or equal |
+| `gt` | Greater than |
+| `lte` | Less than or equal |
+| `lt` | Less than |
+| `eq` | Equal |
 
-- Extends `RefCounted` — stateless utility
-- `evaluate(condition_dict, state_snapshot)` → bool
-- Supports compound nesting: AND/OR/NOT
-- Unknown condition types return false with warning
+### Flag Conditions
 
-## 4. Scene Integration
+```json
+{
+  "type": "flag",
+  "flag": "asked_about_stranger",
+  "value": true
+}
+```
 
-- `scenes/main.tscn`: Has `CanvasLayer` child with `DialoguePanel` instance and `Dialogue3D` node
-- `scenes/dialogue/dialogue_panel.tscn`: Dialogue UI overlay (Panel → RichTextLabel + VBoxContainer of Buttons)
-- `scenes/dialogue/dialogue_debug_overlay.tscn`: Dev overlay showing node ID, visit count, reachable choices (F12 toggle)
-- `scenes/dialogue/Dialouge3D.tscn`: 3D dialogue display with SpeakerLabel, DialogueText, choice container (4 choice slots), and ContinuePrompt — all using LoFiText3D for retro pixel-style rendering
+---
 
-### Key Architecture Decisions (Issue #52)
+## 3. Effects System
 
-- **Dual display paths**: 2D UI panel (`DialoguePanel`) for editor/fallback; 3D display (`Dialogue3D`) as the primary in-game visual layer
-- **Hemingway text enforcer**: Short, punchy dialogue enforced via `HemingwayEnforcer` — max 3 sentences, max 25 chars per sentence, with smart word-boundary truncation
-- **Signal-driven updates**: `DialogueDisplay3D` listens to `DialogueRunner` signals (`node_changed`, `choices_available`, `dialogue_ended`) rather than polling or being directly driven by the runner
+Effects are applied when a choice is made or on node entry:
 
-## 5. Runtime Enhancements (Issue #52)
+| Type | Parameters | Description |
+|------|------------|-------------|
+| `slider_delta` | `axis`, `delta` | Modify a slider (hope, conviction, will, despair) |
+| `set_flag` | `flag`, `value` | Set a boolean flag |
+| `trigger_event` | `event` | Future: trigger game events |
+| `advance_clock` | — | Future: advance game clock |
 
-### DialogueRunner Extensions
+---
 
-| Feature | Description |
-|---------|-------------|
-| `state_provider` callable | Test hook for injecting custom GameState snapshots without GameManager autoload |
-| Lazy-load via `load_dialogue()` | Load dialogue from file path, returns bool success |
-| Extended effect types | `trigger_event` and `advance_clock` (both placeholder with warning) |
-| `get_last_reachable_count()` | Returns reachable choice count — used by debug overlay and tests |
+## 4. Intertextuality Patterns (Issue #56)
 
-### KineticNovel / Hemingway Text Enforcer (`gdscripts/hemingway_enforcer.gd`)
+The game uses ≥7 cross-scene repeated phrases (intertextual echoes). Each echo appears in a first context (where its meaning is established) and a later context (where the meaning shifts).
 
-- Extends `RefCounted` — pure utility, no scene attachment
-- `truncate(text)` → dictionary with `truncated_text`, `original_text`, `was_truncated`, `original_sentence_count`, `original_max_sentence_length`
-- Enforces 3-sentence max, 25-char-per-sentence max with trailing punctuation removal and ellipsis replacement
-- Null/empty/type-safe handling for testability
+### Pattern 1: Direct Repetition
 
-### Visual Display (`gdscripts/dialogue_display_3d.gd`)
+A phrase is repeated verbatim in a new context. The meaning shifts because of accumulated player experience.
 
-- Extends `Node3D` with `class_name DialogueDisplay3D` for editor usability
-- 3D billboarded labels for speaker name, dialogue text, and up to 4 choices
-- Choice navigation: `navigate_up()`, `navigate_down()`, `get_focused_choice_index()`, `highlight_choice(index)` with amber emissive focus highlighting
-- Animated fade-out on dialogue end via `Tween` (0.3s duration)
-- Reveal delay (0.5s) before choices appear
-- `_prefix_letter()` static helper maps choice indices to A/B/C/D prefixes
+**Example:** "Check the door" — Office desk note (instruction) → Underpass wall poster (existential reminder).
 
-### Input Mapping (Issue #52 — main.gd)
+### Pattern 2: Fragmentary Echo
 
-| Action | Key | Effect |
-|--------|-----|--------|
-| `toggle_dialogue` | F9 | Start a test dialogue |
-| `dialogue_up` | Arrow Up | Navigate choice focus up |
-| `dialogue_down` | Arrow Down | Navigate choice focus down |
-| `dialogue_select` | Space/Enter | Select focused choice |
-| `dialogue_skip` | (placeholder) | Skip typewriter animation |
-| `digit_1`–`digit_4` | 1–4 | Direct choice selection |
+A phrase appears as a partial fragment, recognizable but eroded, mirroring the theme of decay.
 
-## 6. Constants & Limits
+**Example:** "ELM ST." → "el m... t... s st..." — the concrete street name has fragmented in the underpass.
 
-| Constant | Value | Context |
-|----------|-------|---------|
-| `MAX_NODE_VISITS` | 3 | Anti-loop per-node visit limit |
-| Slider range | [1, 10] | All six slider axes |
-| Text reveal | 30ms/char | Typewriter effect (skippable) |
-| Max visible choices | 4 | UI layout constraint |
+### Pattern 3: Inversion
+
+A phrase is inverted to reveal its opposite meaning.
+
+**Example:** "this too shall pass" (street graffiti, comforting) → "this too shall not pass" (Stay ending, some things remain).
+
+### Pattern 4: Tone Shift
+
+The same words but a different emotional tone due to context.
+
+**Example:** "YOU'RE STILL HERE" — neon sign (welcome/recognition) → Turn Back ending (accusation/hollowness).
+
+### Implementation in Dialogue JSONs
+
+Intertextual echoes are encoded in text with `⌈...⌋` markers to indicate cross-scene references:
+
+```json
+{
+  "text": "The neon sign is dark.\n⌈YOU'RE STILL HERE⌋\nbut the light is gone."
+}
+```
+
+### Echo Reference Table
+
+| # | Phrase | First Scene | Reappearance |
+|---|--------|-------------|--------------|
+| 1 | "Check the door" | Office desk note (static) | Underpass wall poster (static) |
+| 2 | "YOU'RE STILL HERE" | Street neon sign (conviction-variant) | Turn Back ending (dialogue) |
+| 3 | "i was here" | Street graffiti (hope-variant) | Underpass floor (conviction-variant) + Stay ending |
+| 4 | "ELM ST." | Street sign (static) | Underpass graffiti (hope-variant, faded) |
+| 5 | "this too shall pass" | Street graffiti (hope ≥ 6) | Stay ending (inverted: "shall not pass") |
+| 6 | "Take care" | Clerk farewell dialogue | Narrator epilogue (all endings) |
+| 7 | "the same streets" | Office window text (all variants) | Underpass graffiti (hope-variant) |
+
+---
+
+## 5. Hemingway Constraints
+
+All authored text must satisfy:
+- **Sentence length**: ≤25 characters per sentence
+- **Paragraph length**: ≤3 sentences per paragraph
+
+These are enforced by `hemingway_enforcer.gd` (loadable as `@tool`). Run on any dialogue JSON:
+
+```gdscript
+var result = HemingwayEnforcer.truncate(text)
+if result.was_truncated:
+    print("Violation in node X: ", result.original_text)
+```
+
+---
+
+## 6. Scene Transition Flow
+
+```
+Dialogue Choice → {effects applied} → {
+  if choice.scene: SceneManager.trigger_scene_change(scene)
+  elif choice.next_node: DialogueRunner.enter_node(next_node)
+  else: DialogueRunner._end_conversation()
+}
+```
+
+The `scene` field in a choice triggers a fade-to-black transition via `SceneManager`, which persists dialogue state to `GameManager.choices_history` before the scene change.
+
+---
+
+## 7. Full Dialogue File Inventory
+
+| File | Purpose | Nodes | Entry Node |
+|------|---------|-------|------------|
+| `dialogues/office_door.json` | Office door + store entrance | 4 | `office_door_prompt` |
+| `dialogues/store_clerk.json` | Clerk 3-branch conversation | 9 | `clerk_greet` |
+| `dialogues/bartender.json` | Optional street bar encounter | 4 | `npc_bartender_greet` |
+| `dialogues/underpass.json` | Underpass arrival + final 3-choice | 4 | `underpass_arrival` |
+| `dialogues/ending_keep_walking.json` | Faith ending monologue | 4 | `keep_walking_01` |
+| `dialogues/ending_turn_back.json` | Give-up ending monologue | 4 | `turn_back_01` |
+| `dialogues/ending_stay.json` | Acceptance ending monologue | 4 | `stay_01` |

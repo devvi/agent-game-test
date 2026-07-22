@@ -1,0 +1,151 @@
+[gd_scene format=3 uid="uid://underpass_scene_main"]
+
+[node name="UnderpassRoot" type="Node3D"]
+script = ExtResource("1_d5ngz")
+
+[node name="MainCamera" type="Camera3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, 4)
+current = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("env_underpass")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866, -0.5, 0, 0.5, 0.866, 0, 0, 0, 1, 0, 3, 0)
+light_color = Color(0.4, 0.5, 0.7)
+light_energy = 0.3
+
+[node name="OmniLight3D" type="OmniLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.5, 0)
+light_color = Color(0.7, 0.8, 1.0)
+light_energy = 0.4
+omni_range = 6.0
+
+[node name="TunnelGeometry" type="StaticBody3D" parent="."]
+
+[node name="Floor" type="CSGBox3D" parent="TunnelGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+size = Vector3(10, 0.2, 6)
+material = SubResource("mat_tunnel_floor")
+
+[node name="Ceiling" type="CSGBox3D" parent="TunnelGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 3.5, 0)
+size = Vector3(10, 0.2, 6)
+material = SubResource("mat_tunnel_wall")
+
+[node name="LeftWall" type="CSGBox3D" parent="TunnelGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 1.5, 0)
+size = Vector3(0.2, 3.2, 6)
+material = SubResource("mat_tunnel_wall")
+
+[node name="RightWall" type="CSGBox3D" parent="TunnelGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 1.5, 0)
+size = Vector3(0.2, 3.2, 6)
+material = SubResource("mat_tunnel_wall")
+
+[node name="BackWall" type="CSGBox3D" parent="TunnelGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -3)
+size = Vector3(10, 3.2, 0.2)
+material = SubResource("mat_tunnel_wall")
+
+[node name="Bench" type="CSGBox3D" parent="TunnelGeometry"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0.2, 1.5)
+size = Vector3(1.5, 0.4, 0.6)
+material = SubResource("mat_bench")
+
+[node name="Graffiti_Wall" type="Node3D" parent="."]
+script = ExtResource("2_lo_fi_3d")
+pixel_factor = 0.6
+color_bits = 6
+scanline_intensity = 0.2
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4.8, 1.2, -0.5)
+text = "the same streets / the same night"
+modulate = Color(0.8, 0.8, 0.9, 0.7)
+horizontal_alignment = 1
+
+[node name="SubwaySign" type="Node3D" parent="."]
+script = ExtResource("2_lo_fi_3d")
+pixel_factor = 0.5
+color_bits = 8
+scanline_intensity = 0.1
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 2.8, -2)
+text = "NEXT TRAIN - Platform 3"
+modulate = Color(0.7, 0.7, 0.8, 0.9)
+horizontal_alignment = 1
+
+[node name="FloorText" type="Node3D" parent="."]
+script = ExtResource("2_lo_fi_3d")
+pixel_factor = 0.4
+color_bits = 4
+scanline_intensity = 0.3
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.3, 0)
+text = "i was here"
+modulate = Color(0.5, 0.5, 0.5, 0.4)
+horizontal_alignment = 1
+
+[node name="WallPoster" type="Node3D" parent="."]
+script = ExtResource("2_lo_fi_3d")
+pixel_factor = 0.5
+color_bits = 6
+scanline_intensity = 0.15
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.5, 1.5, -0.5)
+text = "Check the door before leaving"
+modulate = Color(0.9, 0.85, 0.7, 0.5)
+horizontal_alignment = 1
+
+[node name="InteractionZones" type="Node" parent="."]
+
+[node name="FinalChoiceTrigger" type="Area3D" parent="InteractionZones"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, -2)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="InteractionZones/FinalChoiceTrigger"]
+shape = SubResource("box_final_trigger")
+
+[node name="EndingController" type="Node" parent="."]
+script = ExtResource("3_echo_ctl")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+layer = 1
+
+[node name="DialoguePanel" type="Panel" parent="CanvasLayer"]
+
+[node name="FadeCurtain" type="ColorRect" parent="CanvasLayer"]
+color = Color(0, 0, 0, 0)
+mouse_filter = 2
+layout_mode = 0
+offset_left = 0
+offset_top = 0
+offset_right = 0
+offset_bottom = 0
+size_flags_horizontal = 0
+size_flags_vertical = 0
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="CanvasLayer"]
+
+[sub_resource type="Environment" id="env_underpass"]
+ambient_light_color = Color(0.04, 0.04, 0.08)
+ambient_light_source = 0
+glow_enabled = false
+fog_enabled = false
+
+[sub_resource type="BoxShape3D" id="box_final_trigger"]
+size = Vector3(3, 2, 2)
+
+[sub_resource type="StandardMaterial3D" id="mat_tunnel_floor"]
+albedo_color = Color(0.25, 0.25, 0.28)
+metallic = 0.0
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="mat_tunnel_wall"]
+albedo_color = Color(0.2, 0.2, 0.22)
+metallic = 0.0
+roughness = 0.95
+
+[sub_resource type="StandardMaterial3D" id="mat_bench"]
+albedo_color = Color(0.15, 0.1, 0.05)
+metallic = 0.0
+roughness = 0.8
+
+[ext_resource type="Script" path="res://gdscripts/underpass.gd" id="1_d5ngz"]
+[ext_resource type="Script" path="res://gdscripts/lo_fi_text_3d.gd" id="2_lo_fi_3d"]
+[ext_resource type="Script" path="res://gdscripts/ending_controller.gd" id="3_echo_ctl"]
