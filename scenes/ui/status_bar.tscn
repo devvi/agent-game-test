@@ -1,0 +1,26 @@
+[gd_scene load_steps=2 format=3 uid="uid://status_bar_scene"]
+
+[ext_resource type="Script" path="res://gdscripts/status_bar.gd" id="1_sbar"]
+
+[node name="StatusBar" type="CanvasLayer"]
+script = ExtResource("1_sbar")
+layer = 128
+
+[node name="Background" type="ColorRect" parent="."]
+color = Color(0.102, 0.102, 0.18, 0.6)
+
+[node name="FillBar" type="ColorRect" parent="."]
+color = Color(1.0, 0.69, 0.0, 1.0)
+
+[node name="Indicator" type="ColorRect" parent="."]
+color = Color(1.0, 0.843, 0.0, 1.0)
+
+[node name="HopeLabel" type="Label" parent="."]
+text = "HOPE"
+theme_override_colors/font_color = Color(1.0, 0.69, 0.0, 1.0)
+theme_override_font_sizes/font_size = 10
+
+[node name="DespairLabel" type="Label" parent="."]
+text = "DESPAIR"
+theme_override_colors/font_color = Color(0.165, 0.165, 0.29, 1.0)
+theme_override_font_sizes/font_size = 10
