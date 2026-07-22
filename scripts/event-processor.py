@@ -402,9 +402,9 @@ DEFAULT_BRANCH = MANIFEST.get("git", {}).get("default_branch", "master")
 # ── Issue Picker ─────────────────────────────────────────────────
 # Reads backlog, picks candidate, adds workflow/available label.
 
-MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_ISSUES", "3"))
-MAX_SPAWN_PER_TICK = int(os.environ.get("MAX_SPAWN_PER_TICK", "3"))
-MAX_PHASE_SLOTS = int(os.environ.get("MAX_PHASE_SLOTS", "2"))
+MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_ISSUES", "4"))
+MAX_SPAWN_PER_TICK = int(os.environ.get("MAX_SPAWN_PER_TICK", "4"))
+MAX_PHASE_SLOTS = int(os.environ.get("MAX_PHASE_SLOTS", "3"))
 # Phase agents (research/plan/implement) capped at MAX_PHASE_SLOTS.
 # Review and self-correct don't count toward this cap (reserved slots).
 
