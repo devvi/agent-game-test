@@ -1,0 +1,8 @@
+repos:
+  - repo: local
+    hooks:
+      - id: hemingway-validate
+        name: Hemingway Writing Constraint Validation
+        entry: python scripts/validate_hemingway.py
+        language: system
+        files: 'dialogues/.*\.json|gdscripts/.*\.gd'
