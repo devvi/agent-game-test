@@ -1,5 +1,41 @@
 # 01. 游戏概述
 
-> 暂无内容 — 待 workflow 自动填充。
->
-> 提第一个 Feature Issue 后，research agent 会在此生成 PRD。
+> 暂定概述 — 随 Feature 推进逐步扩充。
+
+## 1.1 核心设定
+
+Edward Hopper 式都市夜晚美学 — 暗色调基底（#1a1a2e 夜空）、暖琥珀色光源、深红与青蓝的受限调色板。游戏世界强调氛围而非写实，所有视觉元素需体现"刻意的残缺美"（worn-out, fading hope, broken dreams）。
+
+## 1.2 视觉方向
+
+### Lo-Fi 视觉语言
+
+所有 3D 世界中的文字渲染采用 **Lo-Fi 3D Text 系统**，核心属性：
+
+- **像素化边缘** — 通过 UV 量化实现，可调强度 (0.0–1.0)
+- **受限色深** — 每通道 2-24 bits，模拟早期数字显示设备
+- **CRT 扫描线** — 仅作用于文字像素（非全屏），alpha 遮罩
+- **霓虹自发光** — 可选的 emissive glow 效果，需配合 WorldEnvironment Glow 后处理
+
+### 三种渲染模式
+
+| 模式 | 描述 | 应用场景 |
+|------|------|---------|
+| Billboard 模式 | 文字始终面向相机 | 霓虹招牌、位置标记 |
+| Flat Sign 模式 | 文字固定在平面上 | 墙面铭牌、店招 |
+| Emissive 模式 | Billboard + 自发光辉光 | 霓虹酒吧招牌、章节标题卡 |
+
+### 技术基础
+
+- 基于 Godot 4.7 原生 **Label3D** 节点
+- 效果通过自定义 **ShaderMaterial** 片段着色器实现（`shaders/lo_fi_text.gdshader`）
+- 像素风位图字体 `.fnt` + 8×8 字形纹理图集（`assets/fonts/pixel_font.*`）
+- 通过 Python 脚本 `scripts/generate_pixel_font.py` 生成
+
+### 设计意图
+
+Lo-Fi 视觉不是锦上添花，而是核心约束 — 文字必须看起来"不完美"才能匹配游戏主题。像素化边缘和扫描线让数字文字带上物理世界的磨损感，受限色深和暗淡色调对应游戏中的"希望衰减"机制。霓虹自发光用于关键信息（位置、章节标题、状态变化提示），与暗色背景形成高对比焦点。
+
+## 1.3 写作风格
+
+Hemingway 风格 — 短文本、冰山理论。游戏内 signage 和 graffiti 要保持简洁，与 Hopper 都市夜景的留白美学一致。
