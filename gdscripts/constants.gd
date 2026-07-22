@@ -2,6 +2,14 @@ extends Node
 
 # Constants — Threshold and priority constants for Theme-Mechanic Mapping Chain
 
+# Scene Paths
+const SCENE_OFFICE: String = "res://scenes/office/office.tscn"
+const SCENE_STREET: String = "res://scenes/street/street.tscn"
+const SCENE_STORE: String = "res://scenes/store/convenience_store.tscn"
+
+# Fade Transition
+const FADE_DURATION: float = 0.5
+
 # Priority Tiers
 const PRIORITY_P0: Array[String] = ["dialogue_check", "worldview_filter", "triaxis_slider"]
 const PRIORITY_P1: Array[String] = ["rainy_night"]
