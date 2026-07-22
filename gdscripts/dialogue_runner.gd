@@ -25,6 +25,7 @@ var current_node: Dictionary = {}
 var dialogue_tree: Dictionary = {}   # result from DialogueParser
 var visited_nodes: Dictionary = {}   # node_id → visit_count
 var choices_made: Array = []         # [ {node_id, choice_index, choice_text}, ... ]
+var _last_reachable_count: int = 0  # Track last reachable choice count for debug overlay
 
 ## Load a dialogue by its file path (lazy-load).
 ## Returns true on successful load, false on error.
@@ -105,6 +106,7 @@ func enter_node(node_id: String) -> void:
 
 	node_changed.emit(node_id, node.get("speaker", ""), node.get("text", ""))
 	choices_available.emit(reachable)
+	_last_reachable_count = reachable.size()
 
 
 ## Called when player selects a choice.
@@ -195,3 +197,8 @@ func _end_conversation() -> void:
 	current_node_id = ""
 	current_node = {}
 	dialogue_ended.emit()
+
+## Return the number of reachable choices from the last enter_node() call.
+## Used by dialogue_debug.gd and tests.
+func get_last_reachable_count() -> int:
+	return _last_reachable_count
