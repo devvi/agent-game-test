@@ -1,0 +1,151 @@
+[gd_scene load_steps=7 format=3 uid="uid://street_scene"]
+
+[ext_resource type="Script" path="res://gdscripts/street.gd" id="1_street"]
+[ext_resource type="Script" path="res://gdscripts/scene_manager.gd" id="2_scene_manager"]
+[ext_resource type="PackedScene" uid="uid://dialogue_panel" path="res://scenes/dialogue/dialogue_panel.tscn" id="3_dialogue_panel"]
+[ext_resource type="Material" path="res://assets/materials/floor_concrete.tres" id="4_road_mat"]
+
+[sub_resource type="Environment" id="Environment_street"]
+background_color = Color(0.05, 0.05, 0.12, 1)
+background_mode = 1
+glow_enabled = true
+glow_levels/1 = 0.6
+glow_intensity = 0.9
+
+[sub_resource type="Animation" id="Animation_fade_out"]
+length = 0.5
+tracks/0/type = "value"
+tracks/0/path = NodePath("ColorRect:modulate")
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"values": [Color(0, 0, 0, 0), Color(0, 0, 0, 1)]
+}
+
+[sub_resource type="Animation" id="Animation_fade_in"]
+length = 0.5
+tracks/0/type = "value"
+tracks/0/path = NodePath("ColorRect:modulate")
+tracks/0/keys = {
+"times": PackedFloat32Array(0, 0.5),
+"transitions": PackedFloat32Array(1, 1),
+"values": [Color(0, 0, 0, 1), Color(0, 0, 0, 0)]
+}
+
+[node name="StreetRoot" type="Node3D"]
+script = ExtResource("1_street")
+
+[node name="MainCamera" type="Camera3D" parent="."]
+position = Vector3(0, 2.5, 8)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_street")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+rotation = Vector3(-0.8, 0.5, 0)
+light_color = Color(0.3, 0.4, 0.7)
+light_energy = 0.3
+
+[node name="OmniLight3D" type="OmniLight3D" parent="."]
+position = Vector3(4, 4, 0)
+light_color = Color(1, 0.7, 0.3)
+light_energy = 0.8
+light_range = 10
+
+[node name="Environments" type="Node3D" parent="."]
+
+[node name="StreetSurface" type="StaticBody3D" parent="Environments"]
+position = Vector3(0, -0.5, 0)
+
+[node name="CSGBox3D" type="CSGBox3D" parent="Environments/StreetSurface"]
+size = Vector3(12, 0.2, 10)
+material = ExtResource("4_road_mat")
+
+[node name="BuildingLeft" type="StaticBody3D" parent="Environments"]
+position = Vector3(-5, 1, 0)
+
+[node name="CSGBox3D" type="CSGBox3D" parent="Environments/BuildingLeft"]
+size = Vector3(2, 4, 10)
+
+[node name="BuildingRight" type="StaticBody3D" parent="Environments"]
+position = Vector3(5, 1, 2)
+
+[node name="CSGBox3D" type="CSGBox3D" parent="Environments/BuildingRight"]
+size = Vector3(2, 4, 10)
+
+[node name="StoreFront" type="StaticBody3D" parent="Environments"]
+position = Vector3(4, 1, 2)
+
+[node name="CSGBox3D" type="CSGBox3D" parent="Environments/StoreFront"]
+size = Vector3(1, 3, 4)
+
+[node name="Streetlamp" type="StaticBody3D" parent="Environments"]
+position = Vector3(3, 0, -3)
+
+[node name="CSGCombiner3D" type="CSGCombiner3D" parent="Environments/Streetlamp"]
+use_collision = false
+
+[node name="Pole" type="CSGCylinder3D" parent="Environments/Streetlamp/CSGCombiner3D"]
+height = 3
+radius = 0.05
+
+[node name="NeonSign" type="Label3D" parent="Environments"]
+position = Vector3(4.5, 2.5, 3)
+text = "YOU'RE STILL HERE"
+horizontal_alignment = 1
+pixel_size = 0.015
+modulate = Color(1, 0.7, 0.2, 1)
+
+[node name="Graffiti" type="Label3D" parent="Environments"]
+position = Vector3(-4.5, 0.5, 3)
+rotation = Vector3(0, 1.5, 0)
+text = "this too shall pass"
+horizontal_alignment = 1
+pixel_size = 0.008
+modulate = Color(1, 1, 1, 0.6)
+
+[node name="StreetSign" type="Label3D" parent="Environments"]
+position = Vector3(2, 2, -3)
+text = "ELM ST."
+horizontal_alignment = 1
+pixel_size = 0.01
+modulate = Color(0.8, 0.8, 0.9, 1)
+
+[node name="InteractionZones" type="Node3D" parent="."]
+
+[node name="StoreEntranceTrigger" type="Area3D" parent="InteractionZones"]
+position = Vector3(4.5, 0.5, 1)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="InteractionZones/StoreEntranceTrigger"]
+
+[node name="CSGBox3D" type="CSGBox3D" parent="InteractionZones/StoreEntranceTrigger"]
+size = Vector3(2, 2.5, 2)
+
+[node name="StoreLabel" type="Label3D" parent="InteractionZones"]
+position = Vector3(4.5, 2, 1)
+text = "⌈Convenience Store⌋"
+horizontal_alignment = 1
+pixel_size = 0.008
+modulate = Color(0.8, 0.7, 0.5, 0.8)
+
+[node name="SceneManager" type="Node" parent="."]
+script = ExtResource("2_scene_manager")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="DialoguePanel" parent="CanvasLayer" instance=ExtResource("3_dialogue_panel")]
+
+[node name="FadeCurtain" type="CanvasLayer" parent="."]
+layer = 128
+
+[node name="ColorRect" type="ColorRect" parent="FadeCurtain"]
+color = Color(0, 0, 0, 1)
+mouse_filter = 2
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+modulate = Color(0, 0, 0, 0)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="FadeCurtain"]
+anims/fade_out = SubResource("Animation_fade_out")
+anims/fade_in = SubResource("Animation_fade_in")

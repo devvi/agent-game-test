@@ -1,0 +1,71 @@
+{
+  "entry_node_id": "office_door_prompt",
+  "nodes": {
+    "office_door_prompt": {
+      "speaker": "Narrator",
+      "text": "The door looms in front of you.\nLeave the office?",
+      "choices": [
+        {
+          "text": "Step outside.",
+          "condition": null,
+          "effects": [
+            { "type": "set_flag", "flag": "left_office_immediately", "value": true },
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+          ],
+          "scene": "res://scenes/street/street.tscn"
+        },
+        {
+          "text": "Stay a while longer.",
+          "next_node": "office_stay",
+          "effects": []
+        }
+      ]
+    },
+    "office_stay": {
+      "speaker": "Narrator",
+      "text": "You sit back down. The rain taps at the window.\nThe door is still there.",
+      "choices": [
+        {
+          "text": "Step outside.",
+          "effects": [
+            { "type": "set_flag", "flag": "left_office_hesitated", "value": true },
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.3 }
+          ],
+          "scene": "res://scenes/street/street.tscn"
+        },
+        {
+          "text": "Not yet.",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    },
+    "store_entrance_prompt": {
+      "speaker": "Narrator",
+      "text": "The convenience store glows through the rain.\nEnter?",
+      "choices": [
+        {
+          "text": "Go in.",
+          "effects": [],
+          "scene": "res://scenes/store/convenience_store.tscn"
+        },
+        {
+          "text": "Keep walking.",
+          "next_node": "street_walk_away",
+          "effects": []
+        }
+      ]
+    },
+    "street_walk_away": {
+      "speaker": "Narrator",
+      "text": "You walk past. The rain keeps falling.\nThe neon sign flickers behind you.",
+      "choices": [
+        {
+          "text": "...",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    }
+  }
+}

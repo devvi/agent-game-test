@@ -1,0 +1,148 @@
+{
+  "entry_node_id": "clerk_greet",
+  "nodes": {
+    "clerk_greet": {
+      "speaker": "Clerk",
+      "text": "Evening.",
+      "choices": [
+        {
+          "text": "(Clerk greets you warmly)",
+          "condition": { "type": "slider", "axis": "hope", "op": "gte", "value": 7 },
+          "next_node": "clerk_upbeat",
+          "effects": []
+        },
+        {
+          "text": "(Clerk gives a neutral nod)",
+          "condition": { "type": "slider", "axis": "hope", "op": "gte", "value": 4 },
+          "next_node": "clerk_neutral",
+          "effects": []
+        },
+        {
+          "text": "(Clerk looks at you with concern)",
+          "condition": { "type": "slider", "axis": "hope", "op": "lt", "value": 4 },
+          "next_node": "clerk_concern",
+          "effects": []
+        },
+        {
+          "text": "...",
+          "next_node": "clerk_silent",
+          "effects": []
+        }
+      ]
+    },
+    "clerk_upbeat": {
+      "speaker": "Clerk",
+      "text": "You look... actually okay tonight.",
+      "choices": [
+        {
+          "text": "Yeah. It's a good night.",
+          "next_node": "clerk_upbeat_choice",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "Thanks. Just passing through.",
+          "next_node": "clerk_farewell",
+          "effects": []
+        }
+      ]
+    },
+    "clerk_upbeat_choice": {
+      "speaker": "Clerk",
+      "text": "Good to hear. You know, most people who come in this late don't say that.\n⌈He was here earlier. Said the same thing.⌋",
+      "choices": [
+        {
+          "text": "He? Who?",
+          "next_node": "clerk_stranger_hint",
+          "effects": [
+            { "type": "set_flag", "flag": "asked_about_stranger", "value": true }
+          ]
+        },
+        {
+          "text": "I should get going.",
+          "next_node": "clerk_farewell",
+          "effects": []
+        }
+      ]
+    },
+    "clerk_stranger_hint": {
+      "speaker": "Clerk",
+      "text": "Just a regular. Tall. Wears a coat even inside.\n⌈You'll know him when you see him.⌋",
+      "choices": [
+        {
+          "text": "... Right.",
+          "next_node": "clerk_farewell",
+          "effects": [
+            { "type": "set_flag", "flag": "stranger_hint_received", "value": true }
+          ]
+        }
+      ]
+    },
+    "clerk_neutral": {
+      "speaker": "Clerk",
+      "text": "Evening. The usual?",
+      "choices": [
+        {
+          "text": "Yeah. Same as always.",
+          "next_node": "clerk_farewell",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.3 }
+          ]
+        },
+        {
+          "text": "Not tonight. Just looking.",
+          "next_node": "clerk_farewell",
+          "effects": []
+        }
+      ]
+    },
+    "clerk_concern": {
+      "speaker": "Clerk",
+      "text": "Rough night? You look tired.",
+      "choices": [
+        {
+          "text": "You have no idea.",
+          "next_node": "clerk_farewell",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "I'm fine.",
+          "next_node": "clerk_farewell",
+          "effects": []
+        },
+        {
+          "text": "...",
+          "next_node": "clerk_silent",
+          "effects": [
+            { "type": "slider_delta", "axis": "despair", "delta": 0.3 }
+          ]
+        }
+      ]
+    },
+    "clerk_silent": {
+      "speaker": "Clerk",
+      "text": "... Right.",
+      "choices": [
+        {
+          "text": "...",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    },
+    "clerk_farewell": {
+      "speaker": "Clerk",
+      "text": "Take care.",
+      "choices": [
+        {
+          "text": "You too.",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    }
+  }
+}
