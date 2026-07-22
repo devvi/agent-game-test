@@ -1,8 +1,10 @@
 extends Node
 
-# RainController — Maps conviction to rain intensity
-# Higher rain intensity = lower conviction (inverse relationship)
-# Triggers forced shelter when rain intensity exceeds threshold
+# RainController — Maps hope to rain intensity (inverse relationship)
+# Re-mapped from conviction to hope for Issue #50.
+# Higher rain intensity = lower hope.
+# 5 intensity levels matching 5 slider states.
+# Triggers forced shelter when rain intensity exceeds threshold.
 
 signal forced_shelter_triggered()
 
@@ -22,7 +24,10 @@ func _ready() -> void:
 	timer.start()
 
 func _on_state_changed(state: Dictionary) -> void:
-	rain_intensity = clamp((10.0 - state.get("conviction", 5.0)) / 10.0, 0.0, 1.0)
+	# Rain intensity inversely proportional to hope: (10.0 - hope) / 10.0
+	# Was conviction-based in Issue #42; now hope-based per Issue #50
+	var hope_val: float = state.get("hope", 5.0)
+	rain_intensity = clamp((10.0 - hope_val) / 10.0, 0.0, 1.0)
 
 func _check_rain() -> void:
 	if rain_intensity >= SHELTER_THRESHOLD / 10.0:

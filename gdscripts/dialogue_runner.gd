@@ -159,7 +159,7 @@ func _build_state_snapshot() -> Dictionary:
 		# If GameManager doesn't have the API yet, return empty state
 		return { "sliders": {}, "flags": {}, "choices_made": choices_made }
 	var sliders := {}
-	for axis in ["hope", "despair", "vigor", "burnout", "conviction", "falter"]:
+	for axis in ["hope", "despair", "vigor", "burnout", "conviction", "falter", "hope_despair"]:
 		sliders[axis] = gm.get_slider(axis)
 	return {
 		"sliders": sliders,

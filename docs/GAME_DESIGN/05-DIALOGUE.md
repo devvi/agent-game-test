@@ -63,7 +63,7 @@ dialogue JSON → DialogueParser (validate + index)
 
 | Type | Fields | Description |
 |------|--------|-------------|
-| `slider_delta` | `axis`, `delta` | Modify a slider value (clamped [1, 10]) |
+| `slider_delta` | `axis`, `delta` | Modify a slider value (clamped to axis range) |
 | `set_flag` | `flag`, `value` | Set a named boolean flag |
 | `trigger_event` | `event` | Narratively-trigger event (placeholder) |
 | `advance_clock` | — | Advance game clock (placeholder) |
@@ -147,6 +147,38 @@ dialogue JSON → DialogueParser (validate + index)
 | Constant | Value | Context |
 |----------|-------|---------|
 | `MAX_NODE_VISITS` | 3 | Anti-loop per-node visit limit |
-| Slider range | [1, 10] | All six slider axes |
+| Slider range (hope_despair) | [-10, +10] | Bipolar hope/despair axis (Issue #50) |
+| Slider range (hope, conviction, will) | [0, 10] | Legacy axis ranges |
 | Text reveal | 30ms/char | Typewriter effect (skippable) |
 | Max visible choices | 4 | UI layout constraint |
+
+## 7. Slider Axis Reference (Issue #50)
+
+All dialogue condition `axis` values:
+
+| Axis | Range | Description |
+|------|-------|-------------|
+| `hope_despair` | -10 ~ +10 | Unified bipolar slider (Issue #50) — primary axis for 5-state system |
+| `hope` | 0 ~ 10 | Derived from hope_despair, backward compat |
+| `conviction` | 0 ~ 10 | Independent axis |
+| `will` | 0 ~ 10 | Independent axis |
+
+### 5-State Condition Patterns
+
+NPC attitude gating example using `hope_despair`:
+
+```json
+{
+  "text": "「今天过得不好。」",
+  "condition": {
+    "type": "slider",
+    "axis": "hope_despair",
+    "op": "lte",
+    "value": -2.0
+  }
+}
+```
+
+### Disabled Gating (Issue #50)
+
+Choices that don't meet slider conditions should be **grayed out** (not hidden), with tooltip "You don't feel like saying this right now." This maintains player awareness of missed content.

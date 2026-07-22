@@ -25,6 +25,9 @@
 | hope | 希望 | 温暖、积极的环境描述 | 绝望、灰暗的环境描述 |
 | conviction | 信念 | 坚定、对抗性 NPC 语气 | 顺从、恐惧的 NPC 反应 |
 | will | 意志 | 清脆、快速的动作描述 | 沉重、迟缓的动作描述 |
+| hope_despair | 双极情绪 (Issue #50) | +6~+10 → Hope | -10~-6 → Despair |
+
+> **注意：** Issue #50 将场景文本基调从 3 态扩展为 5 态，统一使用 `hope` 轴（派生自 `hope_despair`）计算状态 ID。原本不同场景使用不同轴（lobby→conviction, bridge→will）的机制已废弃。
 
 ---
 
@@ -81,6 +84,19 @@
 2. **Keep Walking** — hope ≥ 6 AND will ≥ 5
 3. **Stay** — hope ≤ 4 AND conviction ≤ 4 AND will ≤ 4（或 fallthrough）
 
+### 3.1a 五态场景基调表（Issue #50）
+
+6 个场景 × 5 个离散状态 = 30 条基调定义，统一使用 `hope` 派生状态 ID：
+
+| 场景 | 状态 1 (Despair) | 状态 2 (Low) | 状态 3 (Neutral) | 状态 4 (Buoyant) | 状态 5 (Hope) |
+|------|-------------------|---------------|-------------------|-------------------|----------------|
+| Office | "despair" | "low" | "neutral" | "buoyant" | "hope" |
+| Lobby | "fear" | "uneasy" | "neutral" | "curious" | "defiant" |
+| Convenience Store | "cold" | "distant" | "neutral" | "warm" | "glowing" |
+| Bridge | "tired" | "heavy" | "neutral" | "hopeful" | "determined" |
+| Underpass | "despair" | "hollow" | "neutral" | "resolute" | "transcendent" |
+| Subway Station | "backward" | "hesitant" | "waiting" | "forward" | "forward" |
+
 ### 3.2 SceneBase（`gdscripts/scene_base.gd` — class_name SceneBase）
 
 所有场景脚本的基类，提供公共行为。
@@ -119,12 +135,18 @@ func _ready():
 
 叙事回声（Echo）是跨越场景的台词或意象重现，产生「命运在呼应自己」的感受。
 
-### 定义的回声
+### 定义的回声（Issue #50 更新为 5 变体）
 
 | 回声 ID | 源点场景 | 源点文本 | 重现场景 | 变体数 |
 |---------|---------|---------|---------|-------|
-| rain_echo | 便利店 | Stranger 「雨这么大…」 | 地下通道 | 3（关切/中性/讽刺） |
-| screensaver_echo | 办公室 | 屏保「你做游戏有什么用？」 | 天桥 | 2（挑衅/自嘲） |
+| rain_echo | 便利店 | Stranger 「雨这么大…」 | 地下通道 | 5（希望→绝望） |
+| screensaver_echo | 办公室 | 屏保「你做游戏有什么用？」 | 天桥 | 5（坚定→沉默） |
+| clock_echo | 办公室 | 时钟滴答声 | 天桥 | 5 |
+| door_echo | 办公室 | 门开关声 | 地下通道 | 5 |
+| rain_variation_echo | 便利店 | 雨声变化 | 天桥 | 5 |
+| stranger_echo | 大厅 | Stranger 对话 | 地下通道 | 5 |
+
+变体映射：state 5 (Hope) → variant 0, state 4 → 1, state 3 → 2, state 2 → 3, state 1 (Despair) → variant 4。
 
 ### 触发机制
 
