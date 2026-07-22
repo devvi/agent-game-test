@@ -102,3 +102,18 @@ const DELTA_NO_COFFEE_HOPE: float = -0.5
 # Despair thresholds for AC3 hidden text
 const DESPAIR_HOPE_THRESHOLD: float = 2.0
 const DESPAIR_CONVICTION_THRESHOLD: float = 2.0
+
+# --- NPC Framework Constants (Issue #54) ---
+
+# NPC defaults
+const NPC_DEFAULT_PROXIMITY: float = 3.0
+const NPC_DEFAULT_COOLDOWN: float = 2.0
+const NPC_LABEL_OFFSET: Vector3 = Vector3(0, 1.5, 0)
+
+# Office exit flags (set by office_door.json, checked by clerk dialogue)
+const FLAG_OFFICE_EXIT_SIGH: String = "office_exit_sigh"
+const FLAG_OFFICE_EXIT_NEUTRAL: String = "office_exit_neutral"
+const FLAG_OFFICE_EXIT_DETERMINED: String = "office_exit_determined"
+
+# Expanded clerk dialogue file constant
+const DIALOGUE_STORE_CLERK_EXPANDED: String = "res://dialogues/store_clerk.json"

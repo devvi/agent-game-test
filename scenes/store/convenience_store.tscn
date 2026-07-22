@@ -1,9 +1,10 @@
-[gd_scene load_steps=7 format=3 uid="uid://convenience_store_scene"]
+[gd_scene load_steps=8 format=3 uid="uid://convenience_store_scene"]
 
 [ext_resource type="Script" path="res://gdscripts/store.gd" id="1_store"]
 [ext_resource type="Script" path="res://gdscripts/scene_manager.gd" id="2_scene_manager"]
 [ext_resource type="PackedScene" uid="uid://dialogue_panel" path="res://scenes/dialogue/dialogue_panel.tscn" id="3_dialogue_panel"]
 [ext_resource type="Material" path="res://assets/materials/floor_concrete.tres" id="4_floor_mat"]
+[ext_resource type="PackedScene" uid="uid://npc_component" path="res://scenes/components/NPC.tscn" id="5_npc"]
 
 [sub_resource type="Environment" id="Environment_store"]
 background_color = Color(0.15, 0.12, 0.08, 1)
@@ -93,31 +94,36 @@ horizontal_alignment = 1
 pixel_size = 0.005
 modulate = Color(0.7, 0.7, 0.7, 0.6)
 
-[node name="ClerkNPC" type="Node3D" parent="Environments"]
+# Store Clerk NPC — uses reusable NPC.tscn component
+[node name="StoreClerk" parent="Environments" instance=ExtResource("5_npc")]
 position = Vector3(0, 1, -2)
-
-[node name="ClerkLabel" type="Label3D" parent="Environments/ClerkNPC"]
-text = "⌈Clerk⌋"
-horizontal_alignment = 1
-pixel_size = 0.01
-modulate = Color(0.9, 0.8, 0.7, 1)
+dialogue_file = "res://dialogues/store_clerk.json"
+dialogue_id = "store_clerk"
+speaker_name = "⌈Clerk⌋"
+mood_axis = "hope_despair"
+proximity_distance = 3.0
+cooldown_seconds = 2.0
+personality_layers = [{
+"name": "systemic_exhaustion",
+"condition": {"type": "slider", "axis": "hope_despair", "op": "lte", "value": -2},
+"name_prefix": "⌈Tired Voice⌋ ",
+"greeting_override": "clerk_greet_systemic"
+}, {
+"name": "cynical_veteran",
+"condition": {"type": "or", "conditions": [
+{"type": "slider", "axis": "hope_despair", "op": "lt", "value": 0},
+{"type": "slider", "axis": "conviction", "op": "lt", "value": 5}
+]},
+"name_prefix": "⌈Clerk (distant)⌋ ",
+"greeting_override": "clerk_greet_cynical"
+}, {
+"name": "tired_worker",
+"condition": {"type": "always"},
+"name_prefix": "⌈Clerk⌋ ",
+"greeting_override": ""
+}]
 
 [node name="InteractionZones" type="Node3D" parent="."]
-
-[node name="ClerkTrigger" type="Area3D" parent="InteractionZones"]
-position = Vector3(0, 0.5, -1)
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="InteractionZones/ClerkTrigger"]
-
-[node name="CSGBox3D" type="CSGBox3D" parent="InteractionZones/ClerkTrigger"]
-size = Vector3(3, 2.5, 2)
-
-[node name="ClerkLabelTrigger" type="Label3D" parent="InteractionZones"]
-position = Vector3(0, 2, -0.5)
-text = "⌈Talk to Clerk⌋"
-horizontal_alignment = 1
-pixel_size = 0.008
-modulate = Color(0.8, 0.7, 0.5, 0.8)
 
 [node name="StoreExitTrigger" type="Area3D" parent="InteractionZones"]
 position = Vector3(0, 0.5, 5)
