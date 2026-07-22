@@ -20,6 +20,7 @@ window/dpi/allow_hidpi=true
 
 [autoload]
 GameManager="*res://gdscripts/game_manager.gd"
+GameState="*res://gdscripts/game_state.gd"
 
 [editor_plugins]
 enabled=PackedStringArray()
