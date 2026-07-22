@@ -21,6 +21,9 @@ func _init() -> void:
 	# --- Theme-Mechanic Mapping Tests (Issue #42) ---
 	run_theme_mechanic_mapping_tests()
 
+	# --- Dialogue Engine Tests (Issue #46) ---
+	run_dialogue_engine_tests()
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)
@@ -512,6 +515,14 @@ func _test_dialogue_choice_effect_applied() -> void:
 	var s = ss.get_state()
 	_assert(abs(s.hope - 7.0) < 0.001, "DE-5: choice effect hope=7.0")
 	_assert(abs(s.conviction - 6.0) < 0.001, "DE-5: choice effect conviction=6.0")
+
+# ===== Dialogue Engine Tests (Issue #46) =====
+
+func run_dialogue_engine_tests() -> void:
+	var tester = load("res://tests/test_dialogue_engine.gd").new()
+	tester.run()
+	passed += tester.passed
+	failed += tester.failed
 
 func _assert(condition: bool, name: String) -> void:
 	if condition:
