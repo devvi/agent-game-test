@@ -692,6 +692,7 @@ def pick_next_issue():
         if candidate is None:
             break
         gh("issue", "edit", str(candidate), "--add-label", "workflow/available")
+        gh("issue", "edit", str(candidate), "--remove-label", "workflow/backlog")
         print(f"[PICKER] marked #{candidate} as workflow/available", file=sys.stderr)
         current += 1
 
