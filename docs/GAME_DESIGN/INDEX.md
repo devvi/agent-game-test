@@ -10,6 +10,7 @@
 | [03-GODOT-SETUP](03-GODOT-SETUP.md) | Godot 引擎配置、场景管理、代码规范 |
 | [04-RENDERING](04-RENDERING.md) | Lo-Fi 3D Text 渲染系统 — 着色器、Label3D、像素风字体 |
 | [05-DIALOGUE](05-DIALOGUE.md) | 对话引擎 — 数据模型、条件分支、运行时 |
+| [06-STORY](06-STORY.md) | 故事脚本 — 全场景脚本、三层叙事、七处互文回响、三种结局 |
 
 ---
 

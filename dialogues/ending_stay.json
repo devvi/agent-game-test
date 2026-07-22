@@ -1,0 +1,49 @@
+{
+  "entry_node_id": "stay_01",
+  "nodes": {
+    "stay_01": {
+      "speaker": "Inner Voice",
+      "text": "You sit.\nThe concrete is cold.\nThe tunnel is quiet.\nNothing happens.",
+      "choices": [
+        {
+          "text": "... I'll wait.",
+          "next_node": "stay_02",
+          "effects": []
+        }
+      ]
+    },
+    "stay_02": {
+      "speaker": "Inner Voice",
+      "text": "Minutes pass.\nOr hours.\nThe train doesn't come.\nThe Stranger doesn't come.",
+      "choices": [
+        {
+          "text": "I'm not waiting for anything.",
+          "next_node": "stay_03",
+          "effects": []
+        }
+      ]
+    },
+    "stay_03": {
+      "speaker": "Inner Voice",
+      "text": "The rain stops.\nThe neon dies above.\nYou're still here.\nAnd that's enough.",
+      "choices": [
+        {
+          "text": "Yes. This is enough.",
+          "next_node": "stay_end",
+          "effects": []
+        }
+      ]
+    },
+    "stay_end": {
+      "speaker": "Narrator",
+      "text": "You close your eyes.\nThe tunnel hums.\nNot with trains.\nWith silence.\nYou breathe.\nYou are here.\nYou stay.",
+      "choices": [
+        {
+          "text": "...",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    }
+  }
+}

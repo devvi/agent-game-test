@@ -1,0 +1,73 @@
+{
+  "entry_node_id": "underpass_arrival",
+  "nodes": {
+    "underpass_arrival": {
+      "speaker": "Inner Voice",
+      "text": "Three paths in the dark.\nRain echoes behind you.\nThe light is gone.",
+      "choices": [
+        {
+          "text": "Keep walking.",
+          "next_node": "underpass_choose_keep_walking",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 2 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 2 },
+            { "type": "slider_delta", "axis": "will", "delta": 1 },
+            { "type": "set_flag", "flag": "ending_keep_walking", "value": true }
+          ]
+        },
+        {
+          "text": "Turn back.",
+          "next_node": "underpass_choose_turn_back",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": -2 },
+            { "type": "slider_delta", "axis": "conviction", "delta": -2 },
+            { "type": "slider_delta", "axis": "will", "delta": -1 },
+            { "type": "set_flag", "flag": "ending_turn_back", "value": true }
+          ]
+        },
+        {
+          "text": "Sit down. Stay.",
+          "next_node": "underpass_choose_stay",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 1 },
+            { "type": "slider_delta", "axis": "will", "delta": 2 },
+            { "type": "set_flag", "flag": "ending_stay", "value": true }
+          ]
+        }
+      ]
+    },
+    "underpass_choose_keep_walking": {
+      "speaker": "Inner Voice",
+      "text": "One foot after another.\nInto the dark.",
+      "choices": [
+        {
+          "text": "...",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    },
+    "underpass_choose_turn_back": {
+      "speaker": "Inner Voice",
+      "text": "You turn around.\nThe way back is dark too.",
+      "choices": [
+        {
+          "text": "...",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    },
+    "underpass_choose_stay": {
+      "speaker": "Inner Voice",
+      "text": "You sit on the bench.\nThe tunnel is quiet.",
+      "choices": [
+        {
+          "text": "...",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    }
+  }
+}

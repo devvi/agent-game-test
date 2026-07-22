@@ -31,6 +31,12 @@ func _init() -> void:
 	# --- Dialogue Engine v2 Tests (Issue #52) ---
 	run_dialogue_engine_v2_tests()
 
+	# --- Hope/Despair Slider Tests (Issue #50) ---
+	run_slider_system_tests()
+
+	# --- Story Content Tests (Issue #56) ---
+	run_story_content_tests()
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)
@@ -535,6 +541,18 @@ func run_dialogue_engine_tests() -> void:
 
 func run_dialogue_engine_v2_tests() -> void:
 	var tester = load("res://tests/test_dialogue_engine_v2.gd").new()
+	tester.run()
+	passed += tester.passed
+	failed += tester.failed
+
+func run_story_content_tests() -> void:
+	var tester = load("res://tests/test_story_content.gd").new()
+	tester.run()
+	passed += tester.passed
+	failed += tester.failed
+
+func run_slider_system_tests() -> void:
+	var tester = load("res://tests/test_state_system.gd").new()
 	tester.run()
 	passed += tester.passed
 	failed += tester.failed
