@@ -40,6 +40,9 @@ func _init() -> void:
 	# --- Sound System Tests (Issue #48) ---
 	run_sound_system_tests()
 
+	# --- GameState System Tests (Issue #47) ---
+	run_gamestate_system_47_tests()
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)
@@ -583,6 +586,405 @@ func run_sound_system_tests() -> void:
 	footstep.run()
 	passed += footstep.passed
 	failed += footstep.failed
+
+
+# ===== GameState System Tests (Issue #47) =====
+
+func run_gamestate_system_47_tests() -> void:
+	print("\n=== GameState System Tests (Issue #47) ===\n")
+
+	# TC1-TC7: Slider & State ID
+	_test_47_tc1_initial_state()
+	_test_47_tc2_clamp_range()
+	_test_47_tc3_state_id_values()
+	_test_47_tc4_boundary_despair()
+	_test_47_tc5_boundary_low()
+	_test_47_tc6_boundary_neutral()
+	_test_47_tc7_boundary_buoyant()
+
+	# TC8-TC12: Signal Emission
+	_test_47_tc8_state_changed_fires()
+	_test_47_tc9_state_changed_payload()
+	_test_47_tc10_state_id_changed_on_transition()
+	_test_47_tc11_state_id_changed_not_on_intra()
+	_test_47_tc12_state_changed_on_load()
+
+	# TC13-TC16: Flags
+	_test_47_tc13_set_flag()
+	_test_47_tc14_has_flag_unset()
+	_test_47_tc15_get_flags()
+	_test_47_tc16_flags_save_load()
+
+	# TC17-TC19: Choice History
+	_test_47_tc17_record_choice()
+	_test_47_tc18_choice_history_cap()
+	_test_47_tc19_choice_history_roundtrip()
+
+	# TC20-TC23: Save/Load
+	_test_47_tc20_save_valid()
+	_test_47_tc21_load_restores()
+	_test_47_tc22_load_missing()
+	_test_47_tc23_load_corrupt()
+
+	# TC24-TC26: Derived Values
+	_test_47_tc24_hope_derived()
+	_test_47_tc25_hope_zero()
+	_test_47_tc26_hope_ten()
+
+	# TC27-TC29: GameManager Delegation
+	_test_47_tc27_gm_get_slider()
+	_test_47_tc28_gm_apply_slider_delta()
+	_test_47_tc29_gm_flag_delegation()
+
+	# TC30-TC31: Legacy Deprecation
+	_test_47_tc30_legacy_get_state()
+	_test_47_tc31_legacy_apply_state()
+
+	print("  GameState System Tests (#47): %d passed, %d failed" % [_47_passed, _47_failed])
+	passed += _47_passed
+	failed += _47_failed
+
+
+# === Test state ===
+var _47_passed: int = 0
+var _47_failed: int = 0
+
+# Signal capture helpers
+var _47_signal_fired: bool = false
+var _47_captured_state: Dictionary = {}
+var _47_state_id_changed_fired: bool = false
+var _47_captured_state_id: int = 0
+
+func _47_make_ss():
+	var ss = load("res://gdscripts/state_system.gd").new()
+	ss.state_changed.connect(_47_on_state_changed)
+	ss.state_id_changed.connect(_47_on_state_id_changed)
+	return ss
+
+func _47_on_state_changed(state: Dictionary) -> void:
+	_47_signal_fired = true
+	_47_captured_state = state
+
+func _47_on_state_id_changed(state_id: int) -> void:
+	_47_state_id_changed_fired = true
+	_47_captured_state_id = state_id
+
+func _47_reset_signals() -> void:
+	_47_signal_fired = false
+	_47_captured_state = {}
+	_47_state_id_changed_fired = false
+	_47_captured_state_id = 0
+
+func _47_assert(condition: bool, name: String) -> void:
+	if condition:
+		_47_passed += 1
+		print("  ✅ ", name)
+	else:
+		_47_failed += 1
+		print("  ❌ ", name)
+
+
+# --- TC1-TC7: Slider & State ID ---
+
+func _test_47_tc1_initial_state() -> void:
+	var ss = _47_make_ss()
+	_47_assert(abs(ss.hope_despair - 0.0) < 0.001, "TC1: hope_despair initializes to 0.0")
+	_47_assert(ss.get_state_id() == 3, "TC1: state_id == 3 (Neutral)")
+
+func _test_47_tc2_clamp_range() -> void:
+	var ss = _47_make_ss()
+	ss.hope_despair = 0.0
+	ss.apply_choice({"hope_despair": 20.0})
+	_47_assert(abs(ss.hope_despair - 10.0) < 0.001, "TC2: +20 delta clamped to 10.0")
+	ss.apply_choice({"hope_despair": -25.0})
+	_47_assert(abs(ss.hope_despair - (-10.0)) < 0.001, "TC2: -25 delta clamped to -10.0")
+
+func _test_47_tc3_state_id_values() -> void:
+	var ss = _47_make_ss()
+	ss.hope_despair = -10.0
+	_47_assert(ss.get_state_id() == 1, "TC3: hope_despair=-10 -> state_id=1 (Despair)")
+	ss.hope_despair = -6.0
+	_47_assert(ss.get_state_id() == 1, "TC3: hope_despair=-6 -> state_id=1 (Despair)")
+	ss.hope_despair = 0.0
+	_47_assert(ss.get_state_id() == 3, "TC3: hope_despair=0 -> state_id=3 (Neutral)")
+	ss.hope_despair = 6.0
+	_47_assert(ss.get_state_id() == 4, "TC3: hope_despair=6 -> state_id=4 (Buoyant)")
+	ss.hope_despair = 10.0
+	_47_assert(ss.get_state_id() == 5, "TC3: hope_despair=10 -> state_id=5 (Hope)")
+
+func _test_47_tc4_boundary_despair() -> void:
+	var ss = _47_make_ss()
+	ss.hope_despair = -6.0
+	_47_assert(ss.get_state_id() == 1, "TC4: hope_despair=-6.0 -> state_id=1 (Despair, inclusive)")
+
+func _test_47_tc5_boundary_low() -> void:
+	var ss = _47_make_ss()
+	ss.hope_despair = -2.0
+	_47_assert(ss.get_state_id() == 2, "TC5: hope_despair=-2.0 -> state_id=2 (Low, inclusive)")
+
+func _test_47_tc6_boundary_neutral() -> void:
+	var ss = _47_make_ss()
+	ss.hope_despair = 2.0
+	_47_assert(ss.get_state_id() == 3, "TC6: hope_despair=2.0 -> state_id=3 (Neutral, inclusive)")
+
+func _test_47_tc7_boundary_buoyant() -> void:
+	var ss = _47_make_ss()
+	ss.hope_despair = 6.0
+	_47_assert(ss.get_state_id() == 4, "TC7: hope_despair=6.0 -> state_id=4 (Buoyant, inclusive)")
+
+
+# --- TC8-TC12: Signal Emission ---
+
+func _test_47_tc8_state_changed_fires() -> void:
+	var ss = load("res://gdscripts/state_system.gd").new()
+	_47_reset_signals()
+	ss.state_changed.connect(_47_on_state_changed)
+	ss.apply_choice({"hope_despair": 1.0})
+	_47_assert(_47_signal_fired, "TC8: state_changed fires on apply_choice()")
+
+func _test_47_tc9_state_changed_payload() -> void:
+	var ss = load("res://gdscripts/state_system.gd").new()
+	_47_reset_signals()
+	ss.state_changed.connect(_47_on_state_changed)
+	ss.set_flag("test_flag", true)
+	ss.apply_choice({"hope_despair": 2.0, "conviction": 1.0})
+	_47_assert(_47_captured_state.has("hope_despair"), "TC9: payload has hope_despair")
+	_47_assert(_47_captured_state.has("hope"), "TC9: payload has hope")
+	_47_assert(_47_captured_state.has("despair"), "TC9: payload has despair")
+	_47_assert(_47_captured_state.has("conviction"), "TC9: payload has conviction")
+	_47_assert(_47_captured_state.has("will"), "TC9: payload has will")
+	_47_assert(_47_captured_state.has("state_id"), "TC9: payload has state_id")
+	_47_assert(_47_captured_state.has("flags"), "TC9: payload has flags")
+	_47_assert(_47_captured_state.has("choice_count"), "TC9: payload has choice_count")
+
+func _test_47_tc10_state_id_changed_on_transition() -> void:
+	var ss = load("res://gdscripts/state_system.gd").new()
+	_47_reset_signals()
+	ss.state_id_changed.connect(_47_on_state_id_changed)
+	# Move from Neutral (3) to Buoyant (4)
+	ss.apply_choice({"hope_despair": 3.0})
+	_47_assert(_47_state_id_changed_fired, "TC10: state_id_changed fires on state transition")
+	_47_assert(_47_captured_state_id == 4, "TC10: new state_id=4 (Buoyant)")
+
+func _test_47_tc11_state_id_changed_not_on_intra() -> void:
+	var ss = load("res://gdscripts/state_system.gd").new()
+	_47_reset_signals()
+	ss.state_id_changed.connect(_47_on_state_id_changed)
+	# Move within Neutral (3): 0.0 -> 1.0, still state 3
+	ss.apply_choice({"hope_despair": 1.0})
+	_47_assert(not _47_state_id_changed_fired, "TC11: state_id_changed does NOT fire on intra-state change")
+	# But state_changed should still fire
+	_47_assert(_47_signal_fired, "TC11: state_changed still fires on intra-state change")
+
+func _test_47_tc12_state_changed_on_load() -> void:
+	var ss = _47_make_ss()
+	ss.hope_despair = 5.0
+	var save_path: String = "user://test_47_tc12.json"
+	ss.save_state_to_file(save_path)
+	ss.hope_despair = -5.0  # Modify after save
+	_47_reset_signals()
+	var result: bool = ss.load_state_from_file(save_path)
+	_47_assert(result, "TC12: load returns true")
+	_47_assert(_47_signal_fired, "TC12: state_changed fires after load_state_from_file")
+
+
+# --- TC13-TC16: Flags ---
+
+func _test_47_tc13_set_flag() -> void:
+	var ss = _47_make_ss()
+	ss.set_flag("test_flag", true)
+	_47_assert(ss.has_flag("test_flag"), "TC13: set_flag creates and stores a flag")
+
+func _test_47_tc14_has_flag_unset() -> void:
+	var ss = _47_make_ss()
+	_47_assert(not ss.has_flag("nonexistent"), "TC14: has_flag returns false for unset flags")
+
+func _test_47_tc15_get_flags() -> void:
+	var ss = _47_make_ss()
+	ss.set_flag("a", true)
+	ss.set_flag("b", false)
+	ss.set_flag("c", true)
+	var flags: Dictionary = ss.get_flags()
+	_47_assert(flags.size() == 3, "TC15: get_flags returns 3 entries")
+	_47_assert(flags.get("a", false), "TC15: flag 'a' = true")
+	_47_assert(not flags.get("b", true), "TC15: flag 'b' = false")
+	_47_assert(flags.get("c", false), "TC15: flag 'c' = true")
+
+func _test_47_tc16_flags_save_load() -> void:
+	var ss1 = _47_make_ss()
+	ss1.set_flag("met_stranger", true)
+	ss1.set_flag("bought_coffee", false)
+	var save_path: String = "user://test_47_tc16.json"
+	_47_assert(ss1.save_state_to_file(save_path), "TC16: save returns true")
+
+	var ss2 = _47_make_ss()
+	var result: bool = ss2.load_state_from_file(save_path)
+	_47_assert(result, "TC16: load returns true")
+	_47_assert(ss2.has_flag("met_stranger"), "TC16: flag 'met_stranger' restored")
+	_47_assert(not ss2.has_flag("bought_coffee"), "TC16: flag 'bought_coffee' restored as false")
+
+
+# --- TC17-TC19: Choice History ---
+
+func _test_47_tc17_record_choice() -> void:
+	var ss = _47_make_ss()
+	ss.record_choice("n_01", 0, "I'll wait.")
+	ss.record_choice("n_02", 1, "Let's go.")
+	ss.record_choice("n_01", 2, "No thanks.")
+	_47_assert(ss.get_choice_count() == 3, "TC17: choice count = 3")
+	var history: Array[Dictionary] = ss.get_choice_history()
+	_47_assert(history.size() == 3, "TC17: history has 3 entries")
+	_47_assert(history[0]["node_id"] == "n_01", "TC17: first entry node_id = n_01")
+	_47_assert(history[0]["choice_text"] == "I'll wait.", "TC17: first entry choice_text correct")
+	_47_assert(history[0].has("timestamp"), "TC17: first entry has timestamp")
+
+func _test_47_tc18_choice_history_cap() -> void:
+	var ss = _47_make_ss()
+	for i in range(210):
+		ss.record_choice("n_%d" % i, 0, "Choice %d" % i)
+	_47_assert(ss.get_choice_count() == 200, "TC18: choice count capped at 200")
+	var history: Array[Dictionary] = ss.get_choice_history()
+	_47_assert(history.size() == 200, "TC18: history has 200 entries")
+	_47_assert(history[0]["node_id"] == "n_10", "TC18: oldest entry dropped (starts at n_10)")
+	_47_assert(history[199]["node_id"] == "n_209", "TC18: newest entry is n_209")
+
+func _test_47_tc19_choice_history_roundtrip() -> void:
+	var ss1 = _47_make_ss()
+	ss1.record_choice("n_01", 0, "Hello")
+	ss1.record_choice("n_02", 1, "World")
+	ss1.record_choice("n_03", 0, "Test")
+	var save_path: String = "user://test_47_tc19.json"
+	_47_assert(ss1.save_state_to_file(save_path), "TC19: save returns true")
+
+	var ss2 = _47_make_ss()
+	var result: bool = ss2.load_state_from_file(save_path)
+	_47_assert(result, "TC19: load returns true")
+	_47_assert(ss2.get_choice_count() == 3, "TC19: choice count restored = 3")
+	var h2: Array[Dictionary] = ss2.get_choice_history()
+	_47_assert(h2[0]["node_id"] == "n_01", "TC19: first entry node_id = n_01")
+	_47_assert(h2[1]["choice_text"] == "World", "TC19: second entry text = 'World'")
+
+
+# --- TC20-TC23: Save/Load ---
+
+func _test_47_tc20_save_valid() -> void:
+	var ss = _47_make_ss()
+	ss.hope_despair = 3.0
+	ss.conviction = 7.0
+	ss.will = 2.0
+	ss.set_flag("test", true)
+	ss.record_choice("n_01", 0, "Test choice")
+	var save_path: String = "user://test_47_tc20.json"
+	var result: bool = ss.save_state_to_file(save_path)
+	_47_assert(result, "TC20: save returns true")
+
+func _test_47_tc21_load_restores() -> void:
+	var ss1 = _47_make_ss()
+	ss1.hope_despair = 3.0
+	ss1.conviction = 7.0
+	ss1.will = 2.0
+	ss1.set_flag("test_flag", true)
+	ss1.record_choice("n_01", 0, "Test choice")
+	var save_path: String = "user://test_47_tc21.json"
+	_47_assert(ss1.save_state_to_file(save_path), "TC21: save returns true")
+
+	var ss2 = _47_make_ss()
+	var result: bool = ss2.load_state_from_file(save_path)
+	_47_assert(result, "TC21: load returns true")
+	_47_assert(abs(ss2.hope_despair - 3.0) < 0.001, "TC21: hope_despair restored = 3.0")
+	_47_assert(abs(ss2.conviction - 7.0) < 0.001, "TC21: conviction restored = 7.0")
+	_47_assert(abs(ss2.will - 2.0) < 0.001, "TC21: will restored = 2.0")
+	_47_assert(ss2.has_flag("test_flag"), "TC21: flag restored")
+	_47_assert(ss2.get_choice_count() == 1, "TC21: choice count restored = 1")
+
+func _test_47_tc22_load_missing() -> void:
+	var ss = _47_make_ss()
+	var result: bool = ss.load_state_from_file("user://nonexistent_file.json")
+	_47_assert(not result, "TC22: load from missing file returns false")
+
+func _test_47_tc23_load_corrupt() -> void:
+	var ss = _47_make_ss()
+	# Write corrupt JSON
+	var file: FileAccess = FileAccess.open("user://test_47_tc23_corrupt.json", FileAccess.WRITE)
+	file.store_string("{invalid json!!!")
+	file.close()
+
+	var result: bool = ss.load_state_from_file("user://test_47_tc23_corrupt.json")
+	_47_assert(not result, "TC23: load from corrupt JSON returns false")
+
+
+# --- TC24-TC26: Derived Values ---
+
+func _test_47_tc24_hope_derived() -> void:
+	var ss = _47_make_ss()
+	ss.hope_despair = 0.0
+	_47_assert(abs(ss.hope - 5.0) < 0.001, "TC24: hope_despair=0 -> hope=5.0")
+
+func _test_47_tc25_hope_zero() -> void:
+	var ss = _47_make_ss()
+	ss.hope_despair = -10.0
+	_47_assert(abs(ss.hope - 0.0) < 0.001, "TC25: hope_despair=-10 -> hope=0.0")
+
+func _test_47_tc26_hope_ten() -> void:
+	var ss = _47_make_ss()
+	ss.hope_despair = 10.0
+	_47_assert(abs(ss.hope - 10.0) < 0.001, "TC26: hope_despair=10 -> hope=10.0")
+
+
+# --- TC27-TC29: GameManager Delegation ---
+
+func _test_47_tc27_gm_get_slider() -> void:
+	# We can't fully test this in --script mode (no autoloads),
+	# but we can test GameManager's delegation by wiring manually.
+	var ss = load("res://gdscripts/state_system.gd").new()
+	ss.hope_despair = 3.0
+	var gm = load("res://gdscripts/game_manager.gd").new()
+	gm._state_system = ss  # Wire manually for test
+	var val: float = gm.get_slider("hope_despair")
+	_47_assert(abs(val - 3.0) < 0.001, "TC27: GameManager.get_slider returns hope_despair=3.0")
+
+func _test_47_tc28_gm_apply_slider_delta() -> void:
+	var ss = load("res://gdscripts/state_system.gd").new()
+	var gm = load("res://gdscripts/game_manager.gd").new()
+	gm._state_system = ss
+	gm.apply_slider_delta("hope_despair", 2.0)
+	_47_assert(abs(ss.hope_despair - 2.0) < 0.001, "TC28: apply_slider_delta increases hope_despair by 2.0")
+
+func _test_47_tc29_gm_flag_delegation() -> void:
+	var ss = load("res://gdscripts/state_system.gd").new()
+	var gm = load("res://gdscripts/game_manager.gd").new()
+	gm._state_system = ss
+	gm.set_flag("test_flag", true)
+	_47_assert(gm.has_flag("test_flag"), "TC29: GameManager.has_flag returns true via StateSystem")
+	_47_assert(ss.has_flag("test_flag"), "TC29: StateSystem flag also set")
+	# Test get_flags
+	var flags: Dictionary = gm.get_flags()
+	_47_assert(flags.get("test_flag", false), "TC29: GameManager.get_flags includes test_flag=true")
+
+
+# --- TC30-TC31: Legacy Deprecation ---
+
+func _test_47_tc30_legacy_get_state() -> void:
+	var ss = load("res://gdscripts/state_system.gd").new()
+	ss.hope_despair = 5.0
+	ss.conviction = 7.0
+	ss.will = 3.0
+	var gs = load("res://gdscripts/game_state.gd").new()
+	# Wire GameState's internal _state_system
+	gs._state_system = ss
+	var state: Dictionary = gs.get_state()
+	_47_assert(state.has("hope"), "TC30: legacy get_state returns 'hope'")
+	_47_assert(state.has("despair"), "TC30: legacy get_state returns 'despair'")
+	_47_assert(state["hope"] == clampi(int(ss.hope * 10.0), 0, 100), "TC30: hope matches scaled StateSystem value")
+
+func _test_47_tc31_legacy_apply_state() -> void:
+	var ss = load("res://gdscripts/state_system.gd").new()
+	var gs = load("res://gdscripts/game_state.gd").new()
+	gs._state_system = ss
+	var hope_before: float = ss.hope
+	gs.apply_state(10, 0)  # +10 hope in 0-100 scale
+	# 10 * 0.2 = 2.0 hope_despair delta
+	_47_assert(abs(ss.hope_despair - 2.0) < 0.001, "TC31: apply_state(+10,0) -> hope_despair +2.0")
 
 
 func _assert(condition: bool, name: String) -> void:
