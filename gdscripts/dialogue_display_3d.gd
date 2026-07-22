@@ -77,11 +77,15 @@ func on_node_changed(node_id: String, speaker: String, text: String) -> void:
 	
 	# Hemingway-truncate dialogue text
 	var enforcer := preload("res://gdscripts/hemingway_enforcer.gd")
-	var result := enforcer.truncate(text)
-	
+	var result := enforcer.truncate(text, "dialogue")
+
 	if dialogue_text.has_method("set_text") or "text" in dialogue_text:
 		dialogue_text.text = result["truncated_text"]
-	
+
+	if result["was_truncated"]:
+		dialogue_text.set_meta("hemingway_truncated", true)
+		dialogue_text.set_meta("hemingway_original", result["original_text"])
+
 	# Hide choices and continue prompt until on_choices_available fires
 	for label in _choice_labels:
 		label.visible = false

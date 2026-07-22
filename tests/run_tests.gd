@@ -43,8 +43,29 @@ func _init() -> void:
 	# --- Sound System Tests (Issue #48) ---
 	run_sound_system_tests()
 
+	# --- HemingwayEnforcer Tests (Issue #51) ---
+	run_hemingway_enforcer_tests()
+
 	# --- GameState System Tests (Issue #47) ---
 	run_gamestate_system_47_tests()
+
+	# --- Integration Tests (Issue #57 -- MVP Playtest) ---
+	var _integration = load("res://tests/test_integration.gd").new()
+	_integration.run()
+	passed += _integration.passed
+	failed += _integration.failed
+
+	# --- UI Config Tests (Issue #53) ---
+	run_ui_config_tests()
+
+	# --- Status Bar Tests (Issue #53) ---
+	run_status_bar_tests()
+
+	# --- Hemingway Writing Constraints Tests (Issue #51) ---
+	var _hemingway_tests = load("res://tests/test_hemingway_enforcer.gd").new()
+	_hemingway_tests.run()
+	passed += _hemingway_tests.passed
+	failed += _hemingway_tests.failed
 
 	print("\n=== Results ===")
 	print("Passed: ", passed)
@@ -755,6 +776,14 @@ func run_sound_system_tests() -> void:
 	failed += footstep.failed
 
 
+# ===== HemingwayEnforcer Tests (Issue #51) =====
+
+func run_hemingway_enforcer_tests() -> void:
+	var tester = load("res://tests/test_hemingway_enforcer.gd").new()
+	tester.run()
+	passed += tester.passed
+	failed += tester.failed
+
 # ===== GameState System Tests (Issue #47) =====
 
 func run_gamestate_system_47_tests() -> void:
@@ -1156,6 +1185,24 @@ func _test_47_tc31_legacy_apply_state() -> void:
 	gs.apply_state(10, 0)  # +10 hope in 0-100 scale
 	# 10 * 0.2 = 2.0 hope_despair delta
 	_47_assert(abs(ss.hope_despair - 2.0) < 0.001, "TC31: apply_state(+10,0) -> hope_despair +2.0")
+
+
+# ===== UI Config Tests (Issue #53) =====
+
+func run_ui_config_tests() -> void:
+	var tester = load("res://tests/test_ui_config.gd").new()
+	tester.run()
+	passed += tester.passed
+	failed += tester.failed
+
+
+# ===== Status Bar Tests (Issue #53) =====
+
+func run_status_bar_tests() -> void:
+	var tester = load("res://tests/test_ui_status_bar.gd").new()
+	tester.run()
+	passed += tester.passed
+	failed += tester.failed
 
 
 func _assert(condition: bool, name: String) -> void:
