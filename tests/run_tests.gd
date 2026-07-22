@@ -692,12 +692,15 @@ func _test_47_tc1_initial_state() -> void:
 	_47_assert(ss.get_state_id() == 3, "TC1: state_id == 3 (Neutral)")
 
 func _test_47_tc2_clamp_range() -> void:
-	var ss = _47_make_ss()
+	var ss = load("res://gdscripts/state_system.gd").new()
 	ss.hope_despair = 0.0
 	ss.apply_choice({"hope_despair": 20.0})
 	_47_assert(abs(ss.hope_despair - 10.0) < 0.001, "TC2: +20 delta clamped to 10.0")
-	ss.apply_choice({"hope_despair": -25.0})
-	_47_assert(abs(ss.hope_despair - (-10.0)) < 0.001, "TC2: -25 delta clamped to -10.0")
+	# Reset to neutral and apply large negative directly (bypass resistance state)
+	var ss2 = load("res://gdscripts/state_system.gd").new()
+	ss2.hope_despair = 0.0
+	ss2.apply_choice({"hope_despair": -25.0})
+	_47_assert(abs(ss2.hope_despair - (-10.0)) < 0.001, "TC2: -25 delta clamped to -10.0")
 
 func _test_47_tc3_state_id_values() -> void:
 	var ss = _47_make_ss()
@@ -769,6 +772,7 @@ func _test_47_tc10_state_id_changed_on_transition() -> void:
 func _test_47_tc11_state_id_changed_not_on_intra() -> void:
 	var ss = load("res://gdscripts/state_system.gd").new()
 	_47_reset_signals()
+	ss.state_changed.connect(_47_on_state_changed)
 	ss.state_id_changed.connect(_47_on_state_id_changed)
 	# Move within Neutral (3): 0.0 -> 1.0, still state 3
 	ss.apply_choice({"hope_despair": 1.0})

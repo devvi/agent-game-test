@@ -242,7 +242,9 @@ func _from_save_dict(data: Dictionary) -> void:
 	conviction = float(data.get("conviction", 5.0))
 	will = float(data.get("will", 5.0))
 	_flags = (data.get("flags", {})).duplicate()
-	_choice_history = (data.get("choice_history", [])).duplicate()
+	_choice_history.clear()
+	for entry in data.get("choice_history", []):
+		_choice_history.append(entry)
 
 ## Calculate state_id from hope_despair value using the 5-state mapping.
 func _calculate_state_id(value: float) -> int:
