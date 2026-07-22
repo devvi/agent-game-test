@@ -101,7 +101,7 @@ dialogue JSON → DialogueParser (validate + index)
 ### Key Architecture Decisions (Issue #52)
 
 - **Dual display paths**: 2D UI panel (`DialoguePanel`) for editor/fallback; 3D display (`Dialogue3D`) as the primary in-game visual layer
-- **Hemingway text enforcer**: Short, punchy dialogue enforced via `HemingwayEnforcer` — max 3 sentences, max 25 chars per sentence, with smart word-boundary truncation
+- **Hemingway text enforcer**: Short, punchy dialogue enforced via `HemingwayEnforcer` — domain-aware limits (5 text types), CJK sentence delimiter support, smart word-boundary truncation. See §7 for full constraint table.
 - **Signal-driven updates**: `DialogueDisplay3D` listens to `DialogueRunner` signals (`node_changed`, `choices_available`, `dialogue_ended`) rather than polling or being directly driven by the runner
 
 ## 5. Runtime Enhancements (Issue #52)
@@ -150,3 +150,44 @@ dialogue JSON → DialogueParser (validate + index)
 | Slider range | [1, 10] | All six slider axes |
 | Text reveal | 30ms/char | Typewriter effect (skippable) |
 | Max visible choices | 4 | UI layout constraint |
+
+## 7. Hemingway Writing Constraints (Issue #51)
+
+### 7.1 Domain-Specific Limits
+
+The `HemingwayEnforcer` (`gdscripts/hemingway_enforcer.gd`) enforces per-domain limits:
+
+| Domain | Max Sentences | Max Chars/Sentence | Rationale |
+|--------|---------------|--------------------|-----------|
+| `narration` | 3 | 25 | Narrator text; 3-line Haiku format dominant |
+| `dialogue` | 1 | 25 | Spoken NPC lines; one breath per utterance |
+| `signage` | 1 | 15 | Environmental text; pixel font illegible above ~15 glyphs |
+| `choice_text` | 1 | 30 | Player choices; `"(A) "` prefix consumes 4 chars |
+| `echo_variant` | 1 | 25 | Echo system text (same as dialogue) |
+
+### 7.2 Sentence Delimiters
+
+- **English**: `. ! ?` followed by space, newline, tab, or end-of-string
+- **CJK**: `。！？` — split unconditionally (no space required)
+- **Not delimiters**: `…` (ellipsis, U+2026), `——` (em dash)
+
+### 7.3 CJK Support
+
+Chinese text is detected via Unicode range (U+4E00–U+9FFF). CJK sentences have no word-boundary search during truncation — character-level cut is used instead. `String.length()` in GDScript 4 correctly counts Unicode code points.
+
+### 7.4 Truncation Metadata
+
+When truncation occurs:
+- `dialogue_text.set_meta("hemingway_truncated", true)` — truncation indicator
+- `dialogue_text.set_meta("hemingway_original", result["original_text"])` — original preserved in metadata
+- Editor warning via `push_warning()` with full truncation detail
+
+### 7.5 Python Validator
+
+`scripts/validate_hemingway.py` provides pre-commit and CI validation of dialogue JSON and GDScript files against the same constraints. Features:
+- Auto-discovery of `dialogues/*.json` and `gdscripts/*.gd`
+- `--fix` flag for in-place auto-truncation
+- `--report` flag for markdown violation report
+- Exit code 0 = all clean, 1 = violations found
+
+Optional pre-commit hook at `.pre-commit-config.yaml`.
