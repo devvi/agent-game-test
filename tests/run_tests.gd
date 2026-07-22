@@ -31,6 +31,9 @@ func _init() -> void:
 	# --- Dialogue Engine v2 Tests (Issue #52) ---
 	run_dialogue_engine_v2_tests()
 
+	# --- Narrative Architecture Tests (Issue #45) ---
+	run_narrative_architecture_tests()
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)
@@ -535,6 +538,14 @@ func run_dialogue_engine_tests() -> void:
 
 func run_dialogue_engine_v2_tests() -> void:
 	var tester = load("res://tests/test_dialogue_engine_v2.gd").new()
+	tester.run()
+	passed += tester.passed
+	failed += tester.failed
+
+# ===== Narrative Architecture Tests (Issue #45) =====
+
+func run_narrative_architecture_tests() -> void:
+	var tester = load("res://tests/test_narrative_architecture.gd").new()
 	tester.run()
 	passed += tester.passed
 	failed += tester.failed

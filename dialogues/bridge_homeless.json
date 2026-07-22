@@ -1,0 +1,35 @@
+{
+  "entry_node_id": "homeless_greet",
+  "nodes": {
+    "homeless_greet": {
+      "speaker": "Homeless Person",
+      "text": "你做游戏有什么用？",
+      "on_enter": [
+        { "type": "set_flag", "flag": "screensaver_echo_heard", "value": true }
+      ],
+      "choices": [
+        {
+          "text": "给零钱",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": 1.0 },
+            { "type": "slider_delta", "axis": "hope", "delta": 1.0 }
+          ]
+        },
+        {
+          "text": "停下倾听",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "快步走过",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    }
+  }
+}

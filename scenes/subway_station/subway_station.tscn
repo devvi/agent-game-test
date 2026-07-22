@@ -1,0 +1,51 @@
+[gd_scene load_steps=2 format=3 uid="uid://subway_001"]
+
+[ext_resource type="Script" path="res://gdscripts/subway_station.gd" id="1"]
+
+[node name="SubwayStation" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Environments" type="Node3D" parent="."]
+
+[node name="TicketGateText" type="Label3D" parent="Environments"]
+text = "The ticket gate stands before you.\nOne way in. No way back."
+billboard = true
+pixel_size = 0.005
+
+[node name="ClockText" type="Label3D" parent="Environments"]
+text = "11:47 PM — The clock ticks."
+billboard = true
+pixel_size = 0.005
+
+[node name="BroadcastText" type="Label3D" parent="Environments"]
+text = "Please mind the gap."
+billboard = true
+pixel_size = 0.005
+
+[node name="StrangerFinalText" type="Label3D" parent="Environments"]
+text = "The Stranger is here.\nWaiting."
+billboard = true
+pixel_size = 0.005
+
+[node name="InteractionZones" type="Node3D" parent="."]
+
+[node name="TicketGateTrigger" type="Area3D" parent="InteractionZones"]
+
+[node name="GateCollision" type="CollisionShape3D" parent="InteractionZones/TicketGateTrigger"]
+shape = SubResource("box")
+
+[node name="TurnBackTrigger" type="Area3D" parent="InteractionZones"]
+
+[node name="TurnBackCollision" type="CollisionShape3D" parent="InteractionZones/TurnBackTrigger"]
+shape = SubResource("box")
+
+[node name="BenchTrigger" type="Area3D" parent="InteractionZones"]
+
+[node name="BenchCollision" type="CollisionShape3D" parent="InteractionZones/BenchTrigger"]
+shape = SubResource("box")
+
+[node name="SceneManager" type="Node" parent="."]
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="DialoguePanel" type="Control" parent="CanvasLayer"]

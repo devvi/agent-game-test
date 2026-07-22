@@ -1,0 +1,73 @@
+{
+  "entry_node_id": "echo_greet",
+  "nodes": {
+    "echo_greet": {
+      "speaker": "Stranger",
+      "text": "雨这么大，你不会想走太远的。",
+      "on_enter": [
+        { "type": "set_flag", "flag": "rain_echo_triggered", "value": true }
+      ],
+      "choices": [
+        {
+          "text": "「我知道。但我还是得走。」",
+          "next_node": "echo_acknowledge",
+          "effects": []
+        },
+        {
+          "text": "「不关你的事。」",
+          "next_node": "echo_deny",
+          "effects": []
+        },
+        {
+          "text": "（沉默地走过）",
+          "next_node": "echo_silent",
+          "effects": []
+        }
+      ]
+    },
+    "echo_acknowledge": {
+      "speaker": "Stranger",
+      "text": "……好。那就走吧。",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 1.0 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 1.0 },
+            { "type": "slider_delta", "axis": "will", "delta": 1.0 }
+          ]
+        }
+      ]
+    },
+    "echo_deny": {
+      "speaker": "Stranger",
+      "text": "……你说得对。不关我的事。",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": -1.0 },
+            { "type": "slider_delta", "axis": "conviction", "delta": -1.0 },
+            { "type": "slider_delta", "axis": "will", "delta": -1.0 }
+          ]
+        }
+      ]
+    },
+    "echo_silent": {
+      "speaker": "Narrator",
+      "text": "You walk past them without a word. The tunnel stretches ahead.",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    }
+  }
+}

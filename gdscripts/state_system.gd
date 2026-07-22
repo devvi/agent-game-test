@@ -24,3 +24,22 @@ func reset() -> void:
 	conviction = 5.0
 	will = 5.0
 	state_changed.emit(get_state())
+
+## Get state tier label for a given axis.
+## Returns "low" (0-3), "mid" (4-6), or "high" (7-10).
+func get_state_tier(axis: String) -> String:
+	var value: float = _get_axis(axis)
+	if value <= 3.0:
+		return "low"
+	elif value >= 7.0:
+		return "high"
+	else:
+		return "mid"
+
+
+func _get_axis(axis: String) -> float:
+	match axis:
+		"hope": return hope
+		"conviction": return conviction
+		"will": return will
+		_: return 5.0

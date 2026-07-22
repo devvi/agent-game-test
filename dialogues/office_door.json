@@ -1,69 +1,48 @@
 {
-  "entry_node_id": "office_door_prompt",
+  "entry_node_id": "door_greet",
   "nodes": {
-    "office_door_prompt": {
+    "door_greet": {
       "speaker": "Narrator",
-      "text": "The door looms in front of you.\nLeave the office?",
+      "text": "The office door is heavy. You've opened it a thousand times.\nTonight feels different.",
+      "on_enter": [],
       "choices": [
         {
-          "text": "Step outside.",
-          "condition": null,
+          "text": "Walk out. Don't look back.",
+          "next_node": "door_leave",
+          "effects": []
+        },
+        {
+          "text": "Hesitate. One more look at the desk.",
+          "next_node": "door_hesitate",
           "effects": [
-            { "type": "set_flag", "flag": "left_office_immediately", "value": true },
-            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
-          ],
-          "scene": "res://scenes/street/street.tscn"
-        },
-        {
-          "text": "Stay a while longer.",
-          "next_node": "office_stay",
-          "effects": []
+            { "type": "slider_delta", "axis": "conviction", "delta": -0.5 }
+          ]
         }
       ]
     },
-    "office_stay": {
+    "door_hesitate": {
       "speaker": "Narrator",
-      "text": "You sit back down. The rain taps at the window.\nThe door is still there.",
+      "text": "The screensaver flickers. The wet window. The empty coffee cup.\nYou've spent too many nights here.",
       "choices": [
         {
-          "text": "Step outside.",
+          "text": "Turn and go.",
+          "next_node": "door_leave",
           "effects": [
-            { "type": "set_flag", "flag": "left_office_hesitated", "value": true },
-            { "type": "slider_delta", "axis": "conviction", "delta": 0.3 }
-          ],
-          "scene": "res://scenes/street/street.tscn"
-        },
-        {
-          "text": "Not yet.",
-          "next_node": null,
-          "effects": []
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ]
         }
       ]
     },
-    "store_entrance_prompt": {
+    "door_leave": {
       "speaker": "Narrator",
-      "text": "The convenience store glows through the rain.\nEnter?",
+      "text": "The door closes behind you with a soft click.\nThe hallway stretches ahead, dim and quiet.\nTo the lobby. To the street. To wherever this night takes you.",
       "choices": [
         {
-          "text": "Go in.",
-          "effects": [],
-          "scene": "res://scenes/store/convenience_store.tscn"
-        },
-        {
-          "text": "Keep walking.",
-          "next_node": "street_walk_away",
-          "effects": []
-        }
-      ]
-    },
-    "street_walk_away": {
-      "speaker": "Narrator",
-      "text": "You walk past. The rain keeps falling.\nThe neon sign flickers behind you.",
-      "choices": [
-        {
-          "text": "...",
+          "text": "(Continue)",
           "next_node": null,
-          "effects": []
+          "effects": [
+            { "type": "set_flag", "flag": "left_office", "value": true }
+          ]
         }
       ]
     }

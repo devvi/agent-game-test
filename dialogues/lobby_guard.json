@@ -1,0 +1,60 @@
+{
+  "entry_node_id": "guard_greet",
+  "nodes": {
+    "guard_greet": {
+      "speaker": "Security Guard",
+      "text": "Long shift tonight?",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "「是啊。你呢？」",
+          "next_node": "guard_chat",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "advance_clock", "delta": 1 }
+          ]
+        },
+        {
+          "text": "（沉默地走出去）",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    },
+    "guard_chat": {
+      "speaker": "Security Guard",
+      "text": "Same old. Night shift's quiet tonight. Just the rain and the security monitors.",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "「早点休息。」",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "「这雨什么时候停。」",
+          "next_node": "guard_weather",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "guard_weather": {
+      "speaker": "Security Guard",
+      "text": "Forecast says it won't. But forecasts lie. Just like the job description.",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "「哈哈…那我走了。」",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ]
+        }
+      ]
+    }
+  }
+}

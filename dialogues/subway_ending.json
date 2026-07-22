@@ -1,0 +1,81 @@
+{
+  "entry_node_id": "station_arrive",
+  "nodes": {
+    "station_arrive": {
+      "speaker": "Narrator",
+      "text": "The station is nearly empty. The clock reads 11:47 PM.\nA train hums in the distance.",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "进站检票",
+          "next_node": "ending_walk_entry",
+          "effects": []
+        },
+        {
+          "text": "转身走回出口",
+          "next_node": "ending_turnback",
+          "effects": []
+        },
+        {
+          "text": "在长椅上坐下",
+          "next_node": "ending_stay_entry",
+          "effects": []
+        }
+      ]
+    },
+    "ending_walk_entry": {
+      "speaker": "Stranger",
+      "text": "下次再见。",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "刷卡进站",
+          "next_node": "ending_walk_final",
+          "effects": [
+            { "type": "set_flag", "flag": "ending_keep_walking", "value": true }
+          ]
+        }
+      ]
+    },
+    "ending_walk_final": {
+      "speaker": "Narrator",
+      "text": "The gate opens. You step through.\nThe train is waiting. You find a seat by the window.\nThe rain streaks past the glass as the train pulls away.\n\n— Keep Walking —",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(End)",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    },
+    "ending_turnback": {
+      "speaker": "Narrator",
+      "text": "You turn away from the gate.\nThe exit door is still open. Rain blows in from the street.\nYou go back the way you came.\n\n— Turn Back —",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(End)",
+          "next_node": null,
+          "effects": [
+            { "type": "set_flag", "flag": "ending_turn_back", "value": true }
+          ]
+        }
+      ]
+    },
+    "ending_stay_entry": {
+      "speaker": "Narrator",
+      "text": "The bench is cold. You sit.\nThe last train arrives. The doors open. You don't move.\nThe doors close. The train pulls away.\n\n— Stay —",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(End)",
+          "next_node": null,
+          "effects": [
+            { "type": "set_flag", "flag": "ending_stay", "value": true }
+          ]
+        }
+      ]
+    }
+  }
+}

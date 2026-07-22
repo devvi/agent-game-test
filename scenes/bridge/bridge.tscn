@@ -1,0 +1,46 @@
+[gd_scene load_steps=2 format=3 uid="uid://bridge_001"]
+
+[ext_resource type="Script" path="res://gdscripts/bridge.gd" id="1"]
+
+[node name="Bridge" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Environments" type="Node3D" parent="."]
+
+[node name="TrafficText" type="Label3D" parent="Environments"]
+text = "Traffic flows below the bridge.\nRed tail lights stretch into the distance."
+billboard = true
+pixel_size = 0.005
+
+[node name="HomelessText" type="Label3D" parent="Environments"]
+text = "A homeless person sits near the railing,\nwrapped in a dirty coat."
+billboard = true
+pixel_size = 0.005
+
+[node name="RainBridgeText" type="Label3D" parent="Environments"]
+text = "Rain falls steadily.\nThe wind picks up."
+billboard = true
+pixel_size = 0.005
+
+[node name="InteractionZones" type="Node3D" parent="."]
+
+[node name="RailingTrigger" type="Area3D" parent="InteractionZones"]
+
+[node name="RailingCollision" type="CollisionShape3D" parent="InteractionZones/RailingTrigger"]
+shape = SubResource("box")
+
+[node name="HomelessTrigger" type="Area3D" parent="InteractionZones"]
+
+[node name="HomelessCollision" type="CollisionShape3D" parent="InteractionZones/HomelessTrigger"]
+shape = SubResource("box")
+
+[node name="BridgeExitTrigger" type="Area3D" parent="InteractionZones"]
+
+[node name="ExitCollision" type="CollisionShape3D" parent="InteractionZones/BridgeExitTrigger"]
+shape = SubResource("box")
+
+[node name="SceneManager" type="Node" parent="."]
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="DialoguePanel" type="Control" parent="CanvasLayer"]
