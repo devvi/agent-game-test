@@ -50,7 +50,7 @@
     },
     "clerk_upbeat_choice": {
       "speaker": "Clerk",
-      "text": "Good to hear. Few say that this late.\n⌈He was here earlier. Said the same thing.⌋",
+      "text": "Good to hear. You know, most people who come in this late don't say that.\n⌈He was here earlier. Said the same thing.⌋",
       "choices": [
         {
           "text": "He? Who?",
@@ -68,7 +68,7 @@
     },
     "clerk_stranger_hint": {
       "speaker": "Clerk",
-      "text": "Just a regular. Tall. Wears a coat indoors.\n⌈You'll know him when you see him.⌋",
+      "text": "Just a regular. Tall. Wears a coat even inside.\n⌈You'll know him when you see him.⌋",
       "choices": [
         {
           "text": "... Right.",
