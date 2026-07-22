@@ -32,6 +32,7 @@ import sys
 import tempfile
 import shutil
 import time
+import urllib.request
 from collections import defaultdict
 
 PENDING_FILE = os.environ.get("EVENT_PROCESSOR_PENDING_FILE") or os.path.expanduser("~/.hermes/workflow-pending.json")
@@ -926,7 +927,9 @@ def main():
         
         in_window = _time_in_window(cfg)
         if in_window and was_outside:
-            # Just entered work hours
+            # Just entered work hours → health check
+            hc = health_check()
+            print(hc, file=sys.stderr)
             reconcile()
             pick_next_issue()
         
@@ -1023,6 +1026,54 @@ def main():
             print("[NO_ACTIONABLE_EVENTS: run stalled scan]")
     except Exception as e:
         print(f"[event-processor error: {e}]", file=sys.stderr)
+
+
+def check_webhook_connectivity() -> bool:
+    """Ping GitHub webhook, return True if 200."""
+    try:
+        token = os.environ.get("GH_TOKEN", "")
+        if not token:
+            return False
+        url = "https://api.github.com/repos/devvi/agent-game-test/hooks"
+        req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}", "User-Agent": "Hermes"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            hooks = json.loads(r.read().decode())
+        if not hooks:
+            return False
+        hid = hooks[0]["id"]
+        ping_req = urllib.request.Request(
+            f"https://api.github.com/repos/devvi/agent-game-test/hooks/{hid}/pings",
+            method="POST", headers={"Authorization": f"Bearer {token}", "User-Agent": "Hermes"})
+        urllib.request.urlopen(ping_req, timeout=10)
+        import time as _t; _t.sleep(2)
+        del_req = urllib.request.Request(
+            f"https://api.github.com/repos/devvi/agent-game-test/hooks/{hid}/deliveries?per_page=1",
+            headers={"Authorization": f"Bearer {token}", "User-Agent": "Hermes"})
+        with urllib.request.urlopen(del_req, timeout=10) as r:
+            dl = json.loads(r.read().decode())
+        return bool(dl and dl[0].get("status") == "OK")
+    except Exception:
+        return False
+
+
+def health_check() -> str:
+    """One-line health check. Returns e.g. [HEALTH] gateway=200 ngrok=UP webhook=OK"""
+    parts = []
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:8644/", timeout=3) as r:
+            parts.append(f"gateway={r.status}")
+    except: parts.append("gateway=DOWN")
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:4040/api/tunnels", timeout=3) as r:
+            d = json.loads(r.read().decode())
+            parts.append("ngrok=UP" if d.get("tunnels") else "ngrok=NOPATH")
+    except: parts.append("ngrok=DOWN")
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:18765/health", timeout=3) as r:
+            parts.append(f"opencode={r.status}")
+    except: parts.append("opencode=DOWN")
+    parts.append("webhook=OK" if check_webhook_connectivity() else "webhook=FAIL")
+    return f"[HEALTH] {' '.join(parts)}"
 
 
 if __name__ == "__main__":

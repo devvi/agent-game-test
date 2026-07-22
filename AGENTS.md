@@ -1,87 +1,129 @@
-# Perfect Dev Agent Workflow — Godot Edition
+# Perfect Dev Agent Workflow
 
-> 基于 **Perfect Dev Agent Workflow** 框架，使用 **Godot 4.7** 引擎的游戏开发自动化工作流。
+> **两部分结构：** 这个项目是一个 **可复用的游戏开发 agent 框架**（`framework/`），附带一个 **贪吃蛇实验项目**（根目录）。
 
-## 项目结构
+## 框架 (framework/)
 
-```
-├── project.godot           # Godot 项目文件
-├── AGENTS.md               # 本文档
-├── game-env/
-│   └── manifest.yaml       # 游戏环境配置 (Godot)
-├── framework/              # 可复用框架代码
-│   ├── ARCHITECTURE.md
-│   ├── quickstart.md
-│   ├── cicd/               # CI/CD 模板
-│   └── templates/          # 文档模板
-├── gdscripts/              # GDScript 游戏源码
-├── scenes/                 # Godot 场景文件 (.tscn)
-├── assets/                 # 资源文件 (图片、音效等)
-├── tests/                  # 测试 (GDScript)
-├── agents/
-│   └── skills/             # Agent skill 文件
-├── scripts/                # Workflow 确定性脚本
-├── .github/
-│   ├── ISSUE_TEMPLATE/     # Issue 模板
-│   └── workflows/          # GitHub Actions
-└── docs/
-    └── GAME_DESIGN/        # 游戏设计文档
-```
-
-## Workflow 流程
+面向有经验的游戏制作人，把设计经验自动化为可重复的 agent 流程。
 
 ```
-┌─ 提 Issue ────────────────────────────────────────────────┐
-│  research agent → PRD → PR → 自动合并                      │
-│  plan agent → 架构设计 + 测试描述 → PR → 自动合并           │
-│  implement agent → OpenCode GDScript 实现 → PR → CI → review → 合并 │
-└─────────────────────────────────────────────────────────┘
-
-## Game-to-Issues
-
-把一句游戏开发命令自动拆解为结构化的 GitHub Issues，审阅后批量创建：
-
-```
-你: "做一个平台跳跃游戏..."
-         │
-         ▼
-   deepseek-v4-pro 语义分解
-         │
-         ▼
-   保存 JSON → 审阅 → 确认
-         │
-         ▼
-   gh 批量创建 Issues → 进入 workflow 管线
+┌─ 你提 Issue ────────────────────────────────────────────────┐
+│  research agent → Obsidian 知识搜索 → PRD → PR → 自动合并    │
+│  plan agent → 架构设计 + 测试描述 → PR → 自动合并            │
+│  implement agent → OpenCode 分层实现 → PR → CI → review → 部署 │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-详见 `agents/skills/game-to-issues/SKILL.md`。
+详见：
+- `framework/ARCHITECTURE.md` — 系统架构、设计决策、已知限制
+- `framework/quickstart.md` — 游戏制作人 30 分钟上手
+- `framework/templates/` — 模板文件副本
+- `framework/cicd/` — CI/CD 流程副本
 
-## 标签
+## 实验项目 (根目录)
 
-| Label | 阶段 | 说明 |
-|-------|------|------|
-| `workflow/available` | Available | Issue 等待处理 |
+当前实验项目是一个贪吃蛇游戏（Metroidvania Snake），用于验证框架的实际效果。
+
+所有关于游戏本身的代码、测试、文档都在根目录：
+- `public/` — 游戏源码
+- `tests/` — 游戏特定测试（包括 E2E play-test）
+- `docs/` — Issue 级别的 PRD、DESIGN、REFERENCE
+- `.github/workflows/` — 运行时 workflow（GitHub 要求位置）
+- `.github/ISSUE_TEMPLATE/` — Issue 模板（GitHub 要求位置）
+
+## Workflow Labels
+
+| Label | Stage | 说明 |
+|-------|-------|------|
+| `workflow/available` | Available | Issue 创建后，等待处理 |
 | `workflow/research` | Research | research agent 进行中 |
 | `workflow/plan` | Plan | plan agent 进行中 |
 | `workflow/implement` | Implement | implement agent 进行中 |
 | `workflow/self-correct` | Fixing | CI 失败，自愈中 |
 | `status/done` | Done | Issue 关闭 |
 
+**Review 不在 label 链中。** Review agent 在 `check_run.completed` (CI 成功) 后、merge 前被调用。审核通过则 agent 直接 merge PR。详见 `game-review-agent` skill。
+
+
 ## Tech Stack
 
 | 组件 | 用途 |
 |------|------|
-| Godot 4.7 | 游戏引擎 + GDScript |
 | Hermes Agent | Agent 运行时 + 事件路由 |
 | OpenCode Serve | LLM 代码生成引擎 |
-| OpenCode Godot LSP | GDScript 代码智能（自动补全、诊断） |
-| GodotPrompter | 54 个 Godot 专项技能（安装到 Hermes） |
-| GitHub Issues | 任务队列 |
-| GitHub Actions | CI/CD |
-| GitHub Releases | 部署 |
+| GitHub Issues | 任务队列 + 状态管理 |
+| GitHub Actions | CI/CD 执行环境 |
+| Vercel | 部署平台 |
+| Obsidian | 知识库（设计笔记） |
+| Playwright | E2E 浏览器测试 |
 
-## 快速开始
+## 游戏设计文档（GDD）
 
-1. 确保 Godot 4.7 已安装: `godot --version`
-2. 提一个 Feature Issue → workflow 自动开始
-3. 或直接编辑 `gdscripts/` 和 `scenes/` 手动开发
+Workflow 持续产出 Issue 级的 PRD / DESIGN / TASKS，但那是"用完即走"的碎片化知识。
+
+**GDD（Game Design Document）** 是自动沉淀的统一入口——把所有系统的设计知识收敛到一处，结构化为分层文档。
+
+```
+docs/GAME_DESIGN/
+├── INDEX.md          ← 目录 + 每章概要
+├── 01-OVERVIEW.md    ← 游戏概述
+├── 02-MOVEMENT.md    ← 移动与碰撞
+├── 03-COMBAT.md      ← 战斗系统
+├── ...
+```
+
+- **初版：** 手动从代码提取一次写完
+- **增量更新：** Review agent 在每个 implement PR merge 后，读取 DESIGN doc 的架构决策/常量/数据流，写入对应 GDD 章节
+- **不写入 GDD 的：** 代码 diff、测试用例、实施阶段——留在 PRD/DESIGN 中
+- **约定文件：** `framework/templates/GDD_TEMPLATE.md`
+
+GDD 的写作风格遵循"人读得懂，LLM 查得到"的原则：叙事体、层次编号、代码块放定义、表格放参数、段落讲意图。
+
+详见 `docs/GAME_DESIGN/INDEX.md` 的维护规则。
+
+## Workflow 资产
+
+框架的核心逻辑在 `agents/skills/` 下（版本控制），运行时通过 symlink 加载到 Hermes。
+
+### Agent Skills
+
+| Skill | 职责 | 位置 |
+|-------|------|------|
+| `game-research-agent` | Issue → PRD（含 Obsidian 搜索） | `agents/skills/game-research-agent/` |
+| `game-plan-agent` | PRD → DESIGN（含测试用例描述，不写可运行测试文件） | `agents/skills/game-plan-agent/` |
+| `game-implement-agent` | DESIGN → 代码 + 测试文件（OpenCode 分层实现） | `agents/skills/game-implement-agent/` |
+| `game-review-agent` | 代码审查 + 合并决策 + post-merge GDD 更新 | `agents/skills/game-review-agent/` |
+| `dev-workflow-dispatcher` | 事件调度 + 规则 | `agents/skills/dev-workflow-dispatcher/` |
+
+### 确定性脚本 (`scripts/`)
+
+Python 脚本在 cron tick 的 LLM 阶段之前运行，做纯数据加工：
+
+| 脚本 | 职责 | 触发 |
+|------|------|------|
+| `event-processor.py` | 读取 pending 事件，分组/去重/排序，输出 SPAWN 指令 | 每次 cron tick |
+| `stage-gate.py` | PR 创建后验证 label/branch/body，自动修复 | 每个 phase agent 创建 PR 后 |
+| `workflow-dispatcher.py` | 接收 webhook payload，写入 pending 文件（thin，不做 gh/git） | 每个 webhook 事件 |
+| `sync-to-hermes.sh` | 修改脚本后将项目副本同步到 `~/.hermes/scripts/` | 手动运行 |
+
+> **改脚本的流程：** 改 `scripts/` 下的文件 → `./scripts/sync-to-hermes.sh` → commit + push。
+
+## Workflow 控制
+
+通过 slash 命令或自然语言控制 workflow 运行状态：
+
+| 命令 | 效果 |
+|------|------|
+| `/workflow status` | 查看状态：是否启用、预设、时间段、当前是否在工作时段 + **Webhook 连通性检查**（GitHub ping → 200） |
+| `/workflow pause` | 暂停：event-processor 输出空 → 无 LLM 调用，事件累积 |
+| `/workflow resume` | 恢复：启用 daytime 预设，下个 tick 正常处理 |
+| `/workflow hours daytime` | 8:00-22:00（默认） |
+| `/workflow hours night-owl` | 14:00-2:00（夜猫子） |
+| `/workflow hours always` | 全天无限制 |
+| `/workflow hours 9 23` | 自定义时间段 |
+
+> **slash 命令不可用时：** gateway 重启前 /workflow 不会生效。用自然语言代替，如"暂停 workflow"、"workflow 什么状态"。
+>
+> **原理：** `scripts/event-processor.py` 每分钟读取 `~/.hermes/workflow-config.json`，判断是否在工作时间 + 是否启用。配置更改后下一个 cron tick 自动生效。
+>
+> **自动健康检查：** 每次进入工作时段时，`event-processor.py` 自动运行 `health_check()`，输出 `[HEALTH] gateway=200 ngrok=UP webhook=OK`。如果 webhook 不通，会在 stderr 打印告警。
