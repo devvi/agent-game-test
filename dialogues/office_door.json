@@ -15,8 +15,64 @@
           "scene": "res://scenes/street/street.tscn"
         },
         {
+          "text": "Take a breath. The night can wait.",
+          "condition": { "type": "slider", "axis": "hope_despair", "op": "gte", "value": 2 },
+          "next_node": "office_hopeful_stay",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope_despair", "delta": 0.5 }
+          ]
+        },
+        {
           "text": "Stay a while longer.",
           "next_node": "office_stay",
+          "effects": []
+        },
+        {
+          "text": "I can't face this tonight.",
+          "condition": { "type": "slider", "axis": "hope_despair", "op": "lte", "value": -2 },
+          "next_node": "office_despair_stay",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope_despair", "delta": -0.3 }
+          ]
+        }
+      ]
+    },
+    "office_hopeful_stay": {
+      "speaker": "Narrator",
+      "text": "You pause at the threshold. The rain sounds different tonight — softer, almost rhythmic.\n⌈There is a kind of peace in waiting.⌋",
+      "choices": [
+        {
+          "text": "Step outside. The rain is fine.",
+          "effects": [
+            { "type": "set_flag", "flag": "left_office_hopeful", "value": true },
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+          ],
+          "scene": "res://scenes/street/street.tscn"
+        },
+        {
+          "text": "One more moment.",
+          "next_node": "office_stay",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope_despair", "delta": 0.3 }
+          ]
+        }
+      ]
+    },
+    "office_despair_stay": {
+      "speaker": "Narrator",
+      "text": "You sit back down heavily. The rain pounds against the glass. The door waits.\n⌈Some nights, even a door feels like too much.⌋",
+      "choices": [
+        {
+          "text": "Step outside. It doesn't matter.",
+          "effects": [
+            { "type": "set_flag", "flag": "left_office_despair", "value": true },
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.3 }
+          ],
+          "scene": "res://scenes/street/street.tscn"
+        },
+        {
+          "text": "Not yet.",
+          "next_node": null,
           "effects": []
         }
       ]

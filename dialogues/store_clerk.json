@@ -1,27 +1,49 @@
 {
   "entry_node_id": "clerk_greet",
+  "npc_metadata": {
+    "npc_id": "store_clerk",
+    "display_name": "Clerk",
+    "state_greetings": {
+      "1": "...",
+      "2": "Yeah?",
+      "3": "Evening.",
+      "4": "Hey there.",
+      "5": "Good to see you!"
+    },
+    "state_information_tiers": {
+      "1": "The clerk barely looks up.",
+      "2": "The clerk nods, distracted.",
+      "3": "The clerk acknowledges you.",
+      "4": "The clerk seems glad to see you.",
+      "5": "The clerk brightens as you enter."
+    }
+  },
   "nodes": {
     "clerk_greet": {
       "speaker": "Clerk",
-      "text": "Evening.",
+      "text": "{greeting}",
       "choices": [
         {
-          "text": "(Clerk greets you warmly)",
-          "condition": { "type": "slider", "axis": "hope", "op": "gte", "value": 7 },
+          "text": "I'm doing alright tonight.",
+          "condition": { "type": "slider", "axis": "hope_despair", "op": "gte", "value": 6 },
           "next_node": "clerk_upbeat",
-          "effects": []
+          "effects": [
+            { "type": "slider_delta", "axis": "hope_despair", "delta": 0.5 }
+          ]
         },
         {
-          "text": "(Clerk gives a neutral nod)",
-          "condition": { "type": "slider", "axis": "hope", "op": "gte", "value": 4 },
+          "text": "Hey. Just passing through.",
+          "condition": { "type": "slider", "axis": "hope_despair", "op": "gte", "value": 2 },
           "next_node": "clerk_neutral",
           "effects": []
         },
         {
-          "text": "(Clerk looks at you with concern)",
-          "condition": { "type": "slider", "axis": "hope", "op": "lt", "value": 4 },
+          "text": "... Rough night.",
+          "condition": { "type": "slider", "axis": "hope_despair", "op": "lte", "value": -2 },
           "next_node": "clerk_concern",
-          "effects": []
+          "effects": [
+            { "type": "slider_delta", "axis": "hope_despair", "delta": 0.5 }
+          ]
         },
         {
           "text": "...",
@@ -38,7 +60,7 @@
           "text": "Yeah. It's a good night.",
           "next_node": "clerk_upbeat_choice",
           "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+            { "type": "slider_delta", "axis": "hope_despair", "delta": 1.0 }
           ]
         },
         {
@@ -76,6 +98,28 @@
           "effects": [
             { "type": "set_flag", "flag": "stranger_hint_received", "value": true }
           ]
+        },
+        {
+          "text": "Where can I find him?",
+          "condition": { "type": "slider", "axis": "hope_despair", "op": "gte", "value": 4 },
+          "next_node": "clerk_stranger_direction",
+          "effects": [
+            { "type": "set_flag", "flag": "asked_stranger_location", "value": true }
+          ]
+        }
+      ]
+    },
+    "clerk_stranger_direction": {
+      "speaker": "Clerk",
+      "text": "He usually heads toward the underpass after midnight.\n⌈You might catch him if you hurry.⌋",
+      "choices": [
+        {
+          "text": "Thanks. I'll check it out.",
+          "next_node": "clerk_farewell",
+          "effects": [
+            { "type": "set_flag", "flag": "stranger_direction_received", "value": true },
+            { "type": "slider_delta", "axis": "hope_despair", "delta": 0.5 }
+          ]
         }
       ]
     },
@@ -87,7 +131,7 @@
           "text": "Yeah. Same as always.",
           "next_node": "clerk_farewell",
           "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 0.3 }
+            { "type": "slider_delta", "axis": "hope_despair", "delta": 0.3 }
           ]
         },
         {
@@ -105,7 +149,7 @@
           "text": "You have no idea.",
           "next_node": "clerk_farewell",
           "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+            { "type": "slider_delta", "axis": "hope_despair", "delta": 1.0 }
           ]
         },
         {
@@ -117,7 +161,7 @@
           "text": "...",
           "next_node": "clerk_silent",
           "effects": [
-            { "type": "slider_delta", "axis": "despair", "delta": 0.3 }
+            { "type": "slider_delta", "axis": "hope_despair", "delta": -0.5 }
           ]
         }
       ]

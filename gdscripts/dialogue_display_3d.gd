@@ -7,6 +7,7 @@ class_name DialogueDisplay3D
 @export var choice_spacing: float = 0.25
 @export var emissive_focus: float = 3.0
 @export var emissive_dim: float = 0.0
+@export var emissive_disabled: float = 0.3  # Dimmer for disabled choices
 @export var reveal_delay: float = 0.5
 @export var fade_duration: float = 0.3
 
@@ -120,16 +121,30 @@ func show_choices_immediate(choices: Array) -> void:
 		var label = _choice_labels[i]
 		if i < count:
 			label.visible = true
-			label.emissive_strength = emissive_dim
-			label.emissive_color = Color(0, 0, 0, 0)
-			var choice_text: String = choices[i].get("text", "")
-			label.text = "(%s) %s" % [_prefix_letter(i), choice_text]
+			var choice: Dictionary = choices[i]
+			var is_disabled: bool = choice.get("disabled", false)
+			
+			if is_disabled:
+				# Disabled choice: grayed out, reduced opacity, not focusable
+				label.emissive_strength = emissive_disabled
+				label.emissive_color = Color(0.3, 0.3, 0.3, 0.0)
+				var disabled_text: String = choice.get("disabled_tooltip", "")
+				if disabled_text:
+					label.text = "(%s) %s  [%s]" % [_prefix_letter(i), choice.get("text", ""), disabled_text]
+				else:
+					label.text = "(%s) %s" % [_prefix_letter(i), choice.get("text", "")]
+			else:
+				label.emissive_strength = emissive_dim
+				label.emissive_color = Color(0, 0, 0, 0)
+				var choice_text: String = choice.get("text", "")
+				label.text = "(%s) %s" % [_prefix_letter(i), choice_text)
 		else:
 			label.visible = false
 	
-	# Highlight first choice
+	# Highlight first non-disabled choice
 	if count > 0:
-		highlight_choice(0)
+		var first_enabled: int = _find_first_enabled_choice(choices)
+		highlight_choice(first_enabled)
 
 
 func on_dialogue_ended() -> void:
@@ -158,7 +173,15 @@ func navigate_up() -> void:
 	if not _is_active or _current_choices.is_empty():
 		return
 	var count: int = mini(_current_choices.size(), max_choices)
-	_focused_index = (_focused_index - 1 + count) % count
+	# Skip disabled choices
+	var attempts: int = 0
+	while attempts < count:
+		_focused_index = (_focused_index - 1 + count) % count
+		if not _is_choice_disabled(_focused_index):
+			highlight_choice(_focused_index)
+			return
+		attempts += 1
+	# If all choices are disabled, stay put
 	highlight_choice(_focused_index)
 
 
@@ -166,7 +189,15 @@ func navigate_down() -> void:
 	if not _is_active or _current_choices.is_empty():
 		return
 	var count: int = mini(_current_choices.size(), max_choices)
-	_focused_index = (_focused_index + 1) % count
+	# Skip disabled choices
+	var attempts: int = 0
+	while attempts < count:
+		_focused_index = (_focused_index + 1) % count
+		if not _is_choice_disabled(_focused_index):
+			highlight_choice(_focused_index)
+			return
+		attempts += 1
+	# If all choices are disabled, stay put
 	highlight_choice(_focused_index)
 
 
@@ -184,9 +215,19 @@ func highlight_choice(index: int) -> void:
 			continue
 		
 		label.visible = true
-		var choice_text: String = _current_choices[i].get("text", "")
+		var choice: Dictionary = _current_choices[i]
+		var is_disabled: bool = choice.get("disabled", false)
+		var choice_text: String = choice.get("text", "")
+		var disabled_tooltip: String = choice.get("disabled_tooltip", "")
 		
-		if i == index:
+		if is_disabled:
+			label.emissive_strength = emissive_disabled
+			label.emissive_color = Color(0.3, 0.3, 0.3)
+			if disabled_tooltip:
+				label.text = "(%s) %s  [%s]" % [_prefix_letter(i), choice_text, disabled_tooltip]
+			else:
+				label.text = "(%s) %s" % [_prefix_letter(i), choice_text)
+		elif i == index:
 			label.emissive_strength = emissive_focus
 			label.emissive_color = Color(1.0, 0.69, 0.0)  # #FFB000 amber
 			label.text = "→ (%s) %s" % [_prefix_letter(i), choice_text]
@@ -194,6 +235,21 @@ func highlight_choice(index: int) -> void:
 			label.emissive_strength = emissive_dim
 			label.emissive_color = Color(0, 0, 0, 0)
 			label.text = "(%s) %s" % [_prefix_letter(i), choice_text]
+
+
+## Find the first non-disabled choice index.
+func _find_first_enabled_choice(choices: Array) -> int:
+	for i in range(choices.size()):
+		if not choices[i].get("disabled", false):
+			return i
+	return 0
+
+
+## Check if a choice at the given index is disabled.
+func _is_choice_disabled(index: int) -> bool:
+	if index < 0 or index >= _current_choices.size():
+		return true
+	return _current_choices[index].get("disabled", false) == true
 
 
 static func _prefix_letter(index: int) -> String:
