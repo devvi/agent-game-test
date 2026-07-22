@@ -36,11 +36,11 @@ func _ready() -> void:
 		dialogue_runner.dialogue_ended.connect(dialogue_display_3d.on_dialogue_ended)
 
 	# Delegate to SceneManager to load the starting scene
-	call_deferred(&quot;_load_starting_scene&quot;)
+	call_deferred("_load_starting_scene")
 
 
 func _load_starting_scene() -> void:
-	get_tree().change_scene_to_file(&quot;res://scenes/office/office.tscn&quot;)
+	get_tree().change_scene_to_file("res://scenes/office/office.tscn")
 
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_up"):
