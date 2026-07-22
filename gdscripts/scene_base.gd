@@ -14,12 +14,20 @@ func _ready() -> void:
 	if scene_manager and scene_manager.has_method("fade_in"):
 		scene_manager.fade_in()
 	_configure_environmental_text()
+	_configure_ambient_audio()
 	_restore_dialogue_state()
 
 
 ## Override in subclass: configure all environmental text for this scene (state-aware).
 func _configure_environmental_text() -> void:
 	pass
+
+
+## Override in subclass: configure ambient audio for this scene.
+func _configure_ambient_audio() -> void:
+	var am := get_node_or_null("/root/AudioManager")
+	if am and am.has_method("register_scene"):
+		am.register_scene(scene_id)
 
 
 ## Restore dialogue state from GameManager's choices_history.

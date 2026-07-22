@@ -26,6 +26,12 @@ func _ready() -> void:
 	call_deferred("_check_intrusive_thought")
 
 
+func _configure_ambient_audio() -> void:
+	var am := get_node_or_null("/root/AudioManager")
+	if am and am.has_method("register_scene"):
+		am.register_scene(scene_id)
+
+
 func _configure_environmental_text() -> void:
 	var tone := _get_tone()
 	_set_environment_text(tone)

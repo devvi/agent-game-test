@@ -106,6 +106,11 @@ func trigger_scene_change(target_scene: String, fade_duration: float = 0.5) -> v
 	transition_in_progress = true
 	transition_started.emit(target_scene)
 
+	var target_scene_id := target_scene.get_file().get_basename()
+	var am := get_node_or_null("/root/AudioManager")
+	if am and am.has_method("cross_fade_ambient"):
+		am.cross_fade_ambient(target_scene_id)
+
 	# Persist dialogue choices_made to GameManager
 	_persist_dialogue_state()
 

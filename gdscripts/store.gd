@@ -18,6 +18,12 @@ func _ready() -> void:
 		exit_trigger.input_event.connect(_on_exit_trigger_input)
 
 
+func _configure_ambient_audio() -> void:
+	var am := get_node_or_null("/root/AudioManager")
+	if am and am.has_method("register_scene"):
+		am.register_scene(scene_id)
+
+
 func _configure_environmental_text() -> void:
 	var gm: Node = get_node_or_null("/root/GameManager")
 	if not gm:

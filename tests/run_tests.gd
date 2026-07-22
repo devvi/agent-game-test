@@ -37,6 +37,9 @@ func _init() -> void:
 	# --- Bridge/Underpass Tests (Issue #58) ---
 	run_bridge_underpass_tests()
 
+	# --- Sound System Tests (Issue #48) ---
+	run_sound_system_tests()
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)
@@ -558,6 +561,28 @@ func run_bridge_underpass_tests() -> void:
 	tester.run()
 	passed += tester.passed
 	failed += tester.failed
+
+
+func run_sound_system_tests() -> void:
+	var unit = load("res://tests/unit/test_audio_manager.gd").new()
+	unit.run()
+	passed += unit.passed
+	failed += unit.failed
+
+	var state_mod = load("res://tests/integration/test_audio_state_modulation.gd").new()
+	state_mod.run()
+	passed += state_mod.passed
+	failed += state_mod.failed
+
+	var transition = load("res://tests/integration/test_audio_scene_transition.gd").new()
+	transition.run()
+	passed += transition.passed
+	failed += transition.failed
+
+	var footstep = load("res://tests/integration/test_audio_footstep_dialogue.gd").new()
+	footstep.run()
+	passed += footstep.passed
+	failed += footstep.failed
 
 
 func _assert(condition: bool, name: String) -> void:
