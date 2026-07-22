@@ -68,6 +68,130 @@
           "effects": []
         }
       ]
+    },
+    "echo_acknowledge_echo": {
+      "speaker": "Stranger",
+      "text": "……你听到了，是吧。那条声音。\n它说你不该在这里。",
+      "condition": {
+        "type": "flag",
+        "flag": "screensaver_echo_heard",
+        "value": true
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 1.5 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 1.5 },
+            { "type": "slider_delta", "axis": "will", "delta": 1.5 }
+          ]
+        }
+      ]
+    },
+    "echo_deny_echo": {
+      "speaker": "Stranger",
+      "text": "……你不承认，但我知道你听到了。\n⌈你也跑不掉。⌋",
+      "condition": {
+        "type": "flag",
+        "flag": "screensaver_echo_heard",
+        "value": true
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": -1.5 },
+            { "type": "slider_delta", "axis": "conviction", "delta": -1.5 },
+            { "type": "slider_delta", "axis": "will", "delta": -1.5 }
+          ]
+        }
+      ]
+    },
+    "echo_silent_echo": {
+      "speaker": "Stranger",
+      "text": "……沉默也是一种回答。\n⌈但沉默不会救你。⌋",
+      "condition": {
+        "type": "flag",
+        "flag": "screensaver_echo_heard",
+        "value": true
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": -0.3 },
+            { "type": "slider_delta", "axis": "conviction", "delta": -0.3 }
+          ]
+        }
+      ]
+    },
+    "echo_acknowledge_low_conviction": {
+      "speaker": "Stranger",
+      "text": "你连自己都不信，却说要走？\n……行吧。我不拦你。",
+      "condition": {
+        "type": "slider",
+        "axis": "conviction",
+        "op": "lte",
+        "value": 3.0
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "echo_deny_low_conviction": {
+      "speaker": "Stranger",
+      "text": "……你的声音在发抖。\n你说不关我的事，可你也不相信这句话。",
+      "condition": {
+        "type": "slider",
+        "axis": "conviction",
+        "op": "lte",
+        "value": 3.0
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": -0.5 },
+            { "type": "slider_delta", "axis": "will", "delta": -0.5 }
+          ]
+        }
+      ]
+    },
+    "echo_silent_low_conviction": {
+      "speaker": "Narrator",
+      "text": "They watch you pass. Their gaze lingers.\nYou feel judged. You feel seen.",
+      "condition": {
+        "type": "slider",
+        "axis": "conviction",
+        "op": "lte",
+        "value": 3.0
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": -0.5 }
+          ]
+        }
+      ]
     }
   }
 }

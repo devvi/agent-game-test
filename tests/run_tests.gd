@@ -34,6 +34,9 @@ func _init() -> void:
 	# --- Narrative Architecture Tests (Issue #45) ---
 	run_narrative_architecture_tests()
 
+	# --- Bridge/Underpass Tests (Issue #58) ---
+	run_bridge_underpass_tests()
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)
@@ -546,6 +549,12 @@ func run_dialogue_engine_v2_tests() -> void:
 
 func run_narrative_architecture_tests() -> void:
 	var tester = load("res://tests/test_narrative_architecture.gd").new()
+	tester.run()
+	passed += tester.passed
+	failed += tester.failed
+
+func run_bridge_underpass_tests() -> void:
+	var tester = load("res://tests/test_bridge_underpass.gd").new()
 	tester.run()
 	passed += tester.passed
 	failed += tester.failed

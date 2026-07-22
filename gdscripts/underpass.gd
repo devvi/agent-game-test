@@ -24,6 +24,8 @@ func _ready() -> void:
 	
 	# Check for echo triggers
 	call_deferred("_check_echoes")
+	# Check AC3 hidden text condition
+	call_deferred("_check_hidden_text")
 
 
 func _configure_environmental_text() -> void:
@@ -74,6 +76,21 @@ func _check_echoes() -> void:
 				if nm.echo_flags.get("screensaver_echo", false):
 					# Screensaver echo also shows here
 					echo_text.text = "\"你做游戏有什么用？\"\nThe words echo in the tunnel."
+
+
+## AC3 hidden text: When hope ≤ 2.0 AND conviction ≤ 2.0,
+## reveal Stranger as a projection of the player's psyche.
+func _check_hidden_text() -> void:
+	var ss: Node = get_node_or_null("/root/StateSystem")
+	if not ss:
+		return
+	var hope_val: float = ss.get("hope", 5.0)
+	var conviction_val: float = ss.get("conviction", 5.0)
+	
+	if hope_val <= 2.0 and conviction_val <= 2.0:
+		if echo_text:
+			echo_text.visible = true
+			echo_text.text = "⌈你看到的不是别人——\n是你的影子。⌋\nThe stranger was never there."
 
 
 func _on_graffiti_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
