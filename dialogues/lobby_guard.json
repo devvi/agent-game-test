@@ -1,0 +1,56 @@
+{
+  "entry_node_id": "guard_greet",
+  "nodes": {
+    "guard_greet": {
+      "speaker": "Security Guard",
+      "text": "Another late shift? You office workers never stop.",
+      "choices": [
+        {
+          "text": "「习惯了。」",
+          "next_node": "guard_chat",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "will", "delta": -0.5 }
+          ]
+        },
+        {
+          "text": "沉默地点头",
+          "next_node": "guard_exit",
+          "effects": []
+        }
+      ]
+    },
+    "guard_chat": {
+      "speaker": "Security Guard",
+      "text": "\"You say that every night. One day you'll say something different.\"\nHe chuckles. \"…or you won't come back at all. That'd be something, eh?\"",
+      "choices": [
+        {
+          "text": "「有一天。」",
+          "next_node": "guard_exit",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "set_flag", "flag": "chatted_with_guard", "value": true }
+          ]
+        },
+        {
+          "text": "「说的是。」",
+          "next_node": "guard_exit",
+          "effects": [
+            { "type": "set_flag", "flag": "chatted_with_guard", "value": true }
+          ]
+        }
+      ]
+    },
+    "guard_exit": {
+      "speaker": "Security Guard",
+      "text": "\"Take care of yourself. It's wet out there.\"",
+      "choices": [
+        {
+          "text": "(Continue)",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    }
+  }
+}

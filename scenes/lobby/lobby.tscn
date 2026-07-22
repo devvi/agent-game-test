@@ -1,0 +1,41 @@
+[gd_scene load_steps=2 format=3 uid="uid://lobby_001"]
+
+[ext_resource type="Script" path="res://gdscripts/lobby.gd" id="1"]
+
+[node name="Lobby" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Environments" type="Node3D" parent="."]
+
+[node name="EntranceText" type="Label3D" parent="Environments"]
+text = "The lobby is quiet.\nPolished floors reflect the dim lights."
+billboard = true
+pixel_size = 0.005
+
+[node name="StrangerSpotlight" type="Label3D" parent="Environments"]
+text = "A stranger stands near the entrance."
+billboard = true
+pixel_size = 0.005
+
+[node name="InteractionZones" type="Node3D" parent="."]
+
+[node name="SecurityGuardTrigger" type="Area3D" parent="InteractionZones"]
+
+[node name="GuardCollision" type="CollisionShape3D" parent="InteractionZones/SecurityGuardTrigger"]
+shape = SubResource("box")
+
+[node name="StrangerTrigger" type="Area3D" parent="InteractionZones"]
+
+[node name="StrangerCollision" type="CollisionShape3D" parent="InteractionZones/StrangerTrigger"]
+shape = SubResource("box")
+
+[node name="ExitTrigger" type="Area3D" parent="InteractionZones"]
+
+[node name="ExitCollision" type="CollisionShape3D" parent="InteractionZones/ExitTrigger"]
+shape = SubResource("box")
+
+[node name="SceneManager" type="Node" parent="."]
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="DialoguePanel" type="Control" parent="CanvasLayer"]

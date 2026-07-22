@@ -1,0 +1,47 @@
+[gd_scene load_steps=2 format=3 uid="uid://underpass_001"]
+
+[ext_resource type="Script" path="res://gdscripts/underpass.gd" id="1"]
+
+[node name="Underpass" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Environments" type="Node3D" parent="."]
+
+[node name="GraffitiText" type="Label3D" parent="Environments"]
+text = "Graffiti covers the underpass walls.\nTags and faded messages."
+billboard = true
+pixel_size = 0.005
+
+[node name="EchoText" type="Label3D" parent="Environments"]
+text = ""
+billboard = true
+pixel_size = 0.005
+visible = false
+
+[node name="UnderpassLight" type="Label3D" parent="Environments"]
+text = "A single fluorescent light buzzes overhead."
+billboard = true
+pixel_size = 0.005
+
+[node name="InteractionZones" type="Node3D" parent="."]
+
+[node name="GraffitiTrigger" type="Area3D" parent="InteractionZones"]
+
+[node name="GraffitiCollision" type="CollisionShape3D" parent="InteractionZones/GraffitiTrigger"]
+shape = SubResource("box")
+
+[node name="StrangerEchoTrigger" type="Area3D" parent="InteractionZones"]
+
+[node name="StrangerCollision" type="CollisionShape3D" parent="InteractionZones/StrangerEchoTrigger"]
+shape = SubResource("box")
+
+[node name="UnderpassExitTrigger" type="Area3D" parent="InteractionZones"]
+
+[node name="ExitCollision" type="CollisionShape3D" parent="InteractionZones/UnderpassExitTrigger"]
+shape = SubResource("box")
+
+[node name="SceneManager" type="Node" parent="."]
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="DialoguePanel" type="Control" parent="CanvasLayer"]

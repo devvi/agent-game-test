@@ -9,6 +9,11 @@ var game_started: bool = false
 var choices_history: Array = []   # [{node_id, choice_index, choice_text}, ...]
 var dialogue_history: Array = []  # future: full dialogue traversal log
 
+# --- Narrative Architecture (Issue #45) ---
+var current_scene_id: String = "office"  # Current scene in the narrative path
+var scene_visited: Dictionary = {}        # {scene_id: bool} — track visited scenes
+var choices_made: int = 0                 # Total choices made this run
+
 func _ready() -> void:
 	print("Agent Game Test — Godot 4.7")
 	print("GameManager initialized.")
@@ -44,6 +49,21 @@ func set_flag(flag_name: String, value: bool) -> void:
 ## Save dialogue choices to persist across scene transitions.
 func save_choices(choices: Array) -> void:
 	choices_history = choices.duplicate()
+
+## Get the next scene ID via NarrativeManager.
+func get_next_scene_id() -> String:
+	var nm: Node = get_node_or_null("/root/NarrativeManager")
+	if nm and nm.has_method("get_next_scene"):
+		return nm.get_next_scene(current_scene_id)
+	return ""
+
+## Track a scene as visited.
+func mark_scene_visited(scene_id: String) -> void:
+	scene_visited[scene_id] = true
+
+## Check if a scene was visited.
+func is_scene_visited(scene_id: String) -> bool:
+	return scene_visited.get(scene_id, false)
 
 ## Restore previously saved choices.
 func restore_choices() -> Array:

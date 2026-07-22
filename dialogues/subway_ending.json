@@ -1,0 +1,180 @@
+{
+  "entry_node_id": "station_entry",
+  "nodes": {
+    "station_entry": {
+      "speaker": "Narrator",
+      "text": "The station is nearly empty. The clock reads 11:47 PM.\nThe last train will arrive soon.\nThree paths lie before you.",
+      "choices": [
+        {
+          "text": "进站",
+          "next_node": "keep_walking_path",
+          "condition": {
+            "type": "slider",
+            "axis": "hope",
+            "op": "gte",
+            "value": 6
+          },
+          "effects": []
+        },
+        {
+          "text": "转身，往回走",
+          "next_node": "turn_back_path",
+          "condition": {
+            "type": "slider",
+            "axis": "conviction",
+            "op": "lte",
+            "value": 3
+          },
+          "effects": []
+        },
+        {
+          "text": "在站台坐下",
+          "next_node": "stay_path",
+          "effects": []
+        },
+        {
+          "text": "进站",
+          "next_node": "keep_walking_path",
+          "default": true,
+          "effects": []
+        }
+      ]
+    },
+    "keep_walking_path": {
+      "speaker": "Narrator",
+      "text": "You insert your ticket. The gate slides open with a mechanical hum.",
+      "choices": [
+        {
+          "text": "走下列台阶",
+          "next_node": "keep_walking_platform",
+          "effects": []
+        }
+      ]
+    },
+    "keep_walking_platform": {
+      "speaker": "Narrator",
+      "text": "The platform is quiet. A few people wait in silence.\nThe Stranger is there — standing by a pillar.\nThey smile. A relieved smile.",
+      "choices": [
+        {
+          "text": "走向他们",
+          "next_node": "keep_walking_stranger",
+          "effects": []
+        },
+        {
+          "text": "站在站台边等车",
+          "next_node": "keep_walking_train",
+          "effects": []
+        }
+      ]
+    },
+    "keep_walking_stranger": {
+      "speaker": "Stranger",
+      "text": "\"Made it.\" It's not a question.\n\"I knew you would.\"\nThey look at the tunnel where the train will come.\n\"下次再见。\"",
+      "choices": [
+        {
+          "text": "「下次见。」",
+          "next_node": "keep_walking_train",
+          "effects": [
+            { "type": "set_flag", "flag": "ending_keep_walking", "value": true }
+          ]
+        }
+      ]
+    },
+    "keep_walking_train": {
+      "speaker": "Narrator",
+      "text": "The train arrives. The doors slide open.\nYou step inside. The warmth of the carriage envelops you.\nAs the doors close, you see the Stranger —\nalready fading, already turning away.\nThe train pulls into the dark. You're going somewhere.",
+      "choices": [
+        {
+          "text": "——Keep Walking——",
+          "next_node": null,
+          "effects": [
+            { "type": "trigger_event", "event": "ending_keep_walking" }
+          ]
+        }
+      ]
+    },
+    "turn_back_path": {
+      "speaker": "Narrator",
+      "text": "You stop at the gate. Your hand hovers over the ticket.\nThen you turn around.",
+      "choices": [
+        {
+          "text": "走回入口",
+          "next_node": "turn_back_exit",
+          "effects": []
+        }
+      ]
+    },
+    "turn_back_exit": {
+      "speaker": "Narrator",
+      "text": "The streets are empty. The rain hasn't stopped.\nYou walk back the way you came—\npast the underpass, the bridge, the convenience store.\nEverything looks the same. But different.",
+      "choices": [
+        {
+          "text": "继续走",
+          "next_node": "turn_back_office",
+          "effects": []
+        }
+      ]
+    },
+    "turn_back_office": {
+      "speaker": "Narrator",
+      "text": "The office building looms ahead.\nAnd there — at the entrance — the Stranger.\nStanding exactly where you first saw them.\nAs if they never left.",
+      "choices": [
+        {
+          "text": "「你……」",
+          "next_node": "turn_back_stranger",
+          "effects": []
+        }
+      ]
+    },
+    "turn_back_stranger": {
+      "speaker": "Stranger",
+      "text": "\"You're back.\" No surprise in their voice.\n\"I figured you would be.\"\nThey tilt their head. \"Some routes don't end.\"\n\"They just begin again.\"",
+      "choices": [
+        {
+          "text": "——Turn Back——",
+          "next_node": null,
+          "effects": [
+            { "type": "set_flag", "flag": "ending_turn_back", "value": true },
+            { "type": "trigger_event", "event": "ending_turn_back" }
+          ]
+        }
+      ]
+    },
+    "stay_path": {
+      "speaker": "Narrator",
+      "text": "You sit on a cold bench on the platform.\nThe minutes pass. The clock ticks. 11:52. 11:58.",
+      "choices": [
+        {
+          "text": "等",
+          "next_node": "stay_wait",
+          "effects": []
+        }
+      ]
+    },
+    "stay_wait": {
+      "speaker": "Narrator",
+      "text": "The Stranger sits down next to you.\nThey don't say anything. You don't either.\nThe two of you watch as the last train arrives…\n…and departs again.",
+      "choices": [
+        {
+          "text": "看它离开",
+          "next_node": "stay_after",
+          "effects": []
+        }
+      ]
+    },
+    "stay_after": {
+      "speaker": "Narrator",
+      "text": "The platform is empty now. The Stranger stands up.\nThey don't look back. They walk toward a maintenance door\nand disappear into the service tunnel.",
+      "choices": [
+        {
+          "text": "——Stay——",
+          "next_node": null,
+          "effects": [
+            { "type": "set_flag", "flag": "ending_stay", "value": true },
+            { "type": "trigger_event", "event": "ending_stay" }
+          ]
+        }
+      ]
+    }
+  }
+}

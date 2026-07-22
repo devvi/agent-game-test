@@ -2,143 +2,161 @@
   "entry_node_id": "clerk_greet",
   "nodes": {
     "clerk_greet": {
-      "speaker": "Clerk",
-      "text": "Evening.",
+      "speaker": "Store Clerk",
+      "text": "Welcome. Late night shopping?",
       "choices": [
         {
-          "text": "(Clerk greets you warmly)",
-          "condition": { "type": "slider", "axis": "hope", "op": "gte", "value": 7 },
-          "next_node": "clerk_upbeat",
+          "text": "「买杯咖啡。」",
+          "next_node": "coffee_offer",
           "effects": []
         },
         {
-          "text": "(Clerk gives a neutral nod)",
-          "condition": { "type": "slider", "axis": "hope", "op": "gte", "value": 4 },
-          "next_node": "clerk_neutral",
+          "text": "「随便看看。」",
+          "next_node": "clerk_look",
           "effects": []
         },
         {
-          "text": "(Clerk looks at you with concern)",
-          "condition": { "type": "slider", "axis": "hope", "op": "lt", "value": 4 },
-          "next_node": "clerk_concern",
-          "effects": []
-        },
-        {
-          "text": "...",
-          "next_node": "clerk_silent",
+          "text": "「今天过得不好。」",
+          "next_node": "clerk_comfort",
+          "condition": {
+            "type": "slider",
+            "axis": "hope",
+            "op": "gte",
+            "value": 6
+          },
           "effects": []
         }
       ]
     },
-    "clerk_upbeat": {
-      "speaker": "Clerk",
-      "text": "You look... actually okay tonight.",
+    "coffee_offer": {
+      "speaker": "Store Clerk",
+      "text": "Coffee machine's still on. One cup or two?",
       "choices": [
         {
-          "text": "Yeah. It's a good night.",
-          "next_node": "clerk_upbeat_choice",
+          "text": "「一杯就好。」",
+          "next_node": "coffee_buy",
           "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": 1.0 },
             { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
           ]
         },
         {
-          "text": "Thanks. Just passing through.",
-          "next_node": "clerk_farewell",
+          "text": "「算了，不买了。」",
+          "next_node": "clerk_no_coffee",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": -0.5 },
+            { "type": "slider_delta", "axis": "hope", "delta": -0.5 }
+          ]
+        }
+      ]
+    },
+    "coffee_buy": {
+      "speaker": "Store Clerk",
+      "text": "Here you go. Hot cup, fresh brew.\nThe warmth spreads through your hands.\nSmall things.",
+      "choices": [
+        {
+          "text": "「谢谢。」",
+          "next_node": "clerk_chat",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 },
+            { "type": "set_flag", "flag": "bought_coffee", "value": true }
+          ]
+        },
+        {
+          "text": "沉默地喝一口",
+          "next_node": "exit_after_coffee",
+          "effects": [
+            { "type": "set_flag", "flag": "bought_coffee", "value": true }
+          ]
+        }
+      ]
+    },
+    "clerk_chat": {
+      "speaker": "Store Clerk",
+      "text": "\"Long night?\". You nod.\n\"They all are, at some point. But the rain will stop eventually.\"\nThey look at the window. \"Or not. Who knows.\"",
+      "choices": [
+        {
+          "text": "「这雨什么时候停？」",
+          "next_node": "exit_after_coffee",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "set_flag", "flag": "chatted_with_clerk", "value": true }
+          ]
+        },
+        {
+          "text": "「是啊。」",
+          "next_node": "exit_after_coffee",
           "effects": []
         }
       ]
     },
-    "clerk_upbeat_choice": {
-      "speaker": "Clerk",
-      "text": "Good to hear. You know, most people who come in this late don't say that.\n⌈He was here earlier. Said the same thing.⌋",
+    "clerk_no_coffee": {
+      "speaker": "Store Clerk",
+      "text": "They shrug. \"Suit yourself.\"\nThe bell chimes as someone else enters.",
       "choices": [
         {
-          "text": "He? Who?",
-          "next_node": "clerk_stranger_hint",
-          "effects": [
-            { "type": "set_flag", "flag": "asked_about_stranger", "value": true }
-          ]
-        },
-        {
-          "text": "I should get going.",
-          "next_node": "clerk_farewell",
-          "effects": []
-        }
-      ]
-    },
-    "clerk_stranger_hint": {
-      "speaker": "Clerk",
-      "text": "Just a regular. Tall. Wears a coat even inside.\n⌈You'll know him when you see him.⌋",
-      "choices": [
-        {
-          "text": "... Right.",
-          "next_node": "clerk_farewell",
-          "effects": [
-            { "type": "set_flag", "flag": "stranger_hint_received", "value": true }
-          ]
-        }
-      ]
-    },
-    "clerk_neutral": {
-      "speaker": "Clerk",
-      "text": "Evening. The usual?",
-      "choices": [
-        {
-          "text": "Yeah. Same as always.",
-          "next_node": "clerk_farewell",
-          "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 0.3 }
-          ]
-        },
-        {
-          "text": "Not tonight. Just looking.",
-          "next_node": "clerk_farewell",
-          "effects": []
-        }
-      ]
-    },
-    "clerk_concern": {
-      "speaker": "Clerk",
-      "text": "Rough night? You look tired.",
-      "choices": [
-        {
-          "text": "You have no idea.",
-          "next_node": "clerk_farewell",
-          "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
-          ]
-        },
-        {
-          "text": "I'm fine.",
-          "next_node": "clerk_farewell",
-          "effects": []
-        },
-        {
-          "text": "...",
-          "next_node": "clerk_silent",
-          "effects": [
-            { "type": "slider_delta", "axis": "despair", "delta": 0.3 }
-          ]
-        }
-      ]
-    },
-    "clerk_silent": {
-      "speaker": "Clerk",
-      "text": "... Right.",
-      "choices": [
-        {
-          "text": "...",
+          "text": "(Leave the counter)",
           "next_node": null,
           "effects": []
         }
       ]
     },
-    "clerk_farewell": {
-      "speaker": "Clerk",
-      "text": "Take care.",
+    "clerk_comfort": {
+      "speaker": "Store Clerk",
+      "text": "They pause, look at you properly for the first time.\n\"Sometimes a cup of coffee helps. Sometimes it doesn't.\nBut it's a start.\"",
       "choices": [
         {
-          "text": "You too.",
+          "text": "「你说得对。」",
+          "next_node": "coffee_offer",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 1.0 },
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 },
+            { "type": "set_flag", "flag": "clerk_comforted", "value": true }
+          ]
+        },
+        {
+          "text": "「也许吧。」",
+          "next_node": "exit_after_coffee",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "clerk_look": {
+      "speaker": "Narrator",
+      "text": "The shelves are lined with instant noodles, chips, and energy drinks.\nEverything a night worker needs.\nNothing you really want.",
+      "choices": [
+        {
+          "text": "走向柜台",
+          "next_node": "clerk_greet",
+          "effects": []
+        },
+        {
+          "text": "看看窗外",
+          "next_node": "look_window",
+          "effects": []
+        }
+      ]
+    },
+    "look_window": {
+      "speaker": "Narrator",
+      "text": "Rain streams down the glass. The street outside is empty.\nA single streetlight casts a orange pool on the wet asphalt.",
+      "choices": [
+        {
+          "text": "(Turn to leave)",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    },
+    "exit_after_coffee": {
+      "speaker": "Narrator",
+      "text": "You finish your coffee. The cup is warm in your hands.\nTime to go. The bridge awaits.",
+      "choices": [
+        {
+          "text": "(Leave the store)",
           "next_node": null,
           "effects": []
         }

@@ -1,19 +1,18 @@
-extends Node
+extends SceneBase
+class_name StoreScene
 
 # Store scene script
 # Configures OPEN sign text, triggers clerk dialogue.
 
-@onready var scene_manager: Node = $SceneManager
-@onready var dialogue_runner: Node = $CanvasLayer/DialoguePanel
 @onready var open_sign: Node3D = $Environments/OpenSign
 @onready var clerk_trigger: Area3D = $InteractionZones/ClerkTrigger
 
+var scene_id: String = "convenience_store"
+
 
 func _ready() -> void:
-	scene_manager.fade_in()
-	_configure_environmental_text()
+	super._ready()
 	clerk_trigger.input_event.connect(_on_clerk_trigger_input)
-	_restore_dialogue_state()
 
 
 func _configure_environmental_text() -> void:

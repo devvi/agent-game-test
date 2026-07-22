@@ -1,0 +1,119 @@
+{
+  "entry_node_id": "homeless_greet",
+  "nodes": {
+    "homeless_greet": {
+      "speaker": "Homeless Person",
+      "text": "They don't look up at first. Just a shape in the corner,\nwrapped in a coat that's seen too many winters.\nThen they speak — and the words freeze you.",
+      "choices": [
+        {
+          "text": "倾听",
+          "next_node": "homeless_echo",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "快步走过",
+          "next_node": "homeless_ignore",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "给零钱",
+          "next_node": "homeless_give",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 1.0 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 1.0 },
+            { "type": "set_flag", "flag": "gave_money_homeless", "value": true }
+          ]
+        }
+      ]
+    },
+    "homeless_echo": {
+      "speaker": "Homeless Person",
+      "text": "\"做游戏有什么用？\"\nThe words hit you like a cold wind.\nThe screensaver. The same words.\nThey look up now, eyes meeting yours.",
+      "choices": [
+        {
+          "text": "「你……你怎么知道？」",
+          "next_node": "homeless_response",
+          "effects": [
+            { "type": "set_flag", "flag": "screensaver_echo_heard", "value": true }
+          ]
+        },
+        {
+          "text": "沉默地看着他",
+          "next_node": "homeless_silence",
+          "effects": []
+        }
+      ]
+    },
+    "homeless_response": {
+      "speaker": "Homeless Person",
+      "text": "\"I hear it all. People talk to themselves on this bridge.\nYou're not the first game maker to walk here.\"\nThey laugh — a dry, rattling sound.\n\"None of you finish them.\"",
+      "choices": [
+        {
+          "text": "「这次不一样。」",
+          "next_node": "homeless_farewell",
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "「……你说得对。」",
+          "next_node": "homeless_farewell",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": -0.5 }
+          ]
+        }
+      ]
+    },
+    "homeless_silence": {
+      "speaker": "Homeless Person",
+      "text": "They hold your gaze for a moment, then look down.\n\"Walk safe. The underpass is dark this time of night.\"",
+      "choices": [
+        {
+          "text": "(Nod and continue)",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    },
+    "homeless_give": {
+      "speaker": "Homeless Person",
+      "text": "They take the coins without looking.\n\"Bless you. Or whatever.\"\nA pause. \"You're still walking, huh?\"",
+      "choices": [
+        {
+          "text": "「嗯。还在走。」",
+          "next_node": "homeless_farewell",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "homeless_ignore": {
+      "speaker": "Narrator",
+      "text": "You walk faster. The wind picks up.\nBehind you, you hear a dry laugh —\nor maybe it's just the rain.",
+      "choices": [
+        {
+          "text": "(Continue across the bridge)",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    },
+    "homeless_farewell": {
+      "speaker": "Homeless Person",
+      "text": "\"Go on then. The night's not waiting.\"\nThey pull their coat tighter and turn away.\nYou leave them on the bridge, a fading silhouette.",
+      "choices": [
+        {
+          "text": "(Continue to the underpass)",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    }
+  }
+}

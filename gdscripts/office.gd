@@ -1,35 +1,34 @@
-extends Node
+extends SceneBase
+class_name OfficeScene
 
 # Office scene script
 # Configures environmental text from GameState and connects door trigger.
 
-@onready var scene_manager: Node = $SceneManager
-@onready var dialogue_runner: Node = $CanvasLayer/DialoguePanel
 @onready var window_text: Node3D = $Environments/WindowText
+@onready var screensaver_text: Node3D = $Environments/ScreensaverText
+@onready var desktop_text: Node3D = $Environments/DesktopText
 @onready var door_trigger: Area3D = $InteractionZones/OfficeDoorTrigger
+
+var scene_id: String = "office"
 
 
 func _ready() -> void:
-	# Fade in after scene load
-	scene_manager.fade_in()
-
-	# Configure environmental text from current state
-	_configure_environmental_text()
-
-	# Connect door trigger
+	super._ready()
 	door_trigger.input_event.connect(_on_door_trigger_input)
-
-	# Restore dialogue state if returning to office
-	_restore_dialogue_state()
 
 
 func _configure_environmental_text() -> void:
+	var ss: Node = get_node_or_null("/root/StateSystem")
 	var gm: Node = get_node_or_null("/root/GameManager")
-	if not gm:
+	if not ss and not gm:
 		return
 
-	var wv = preload("res://gdscripts/worldview_controller.gd").new()
-	var tone: String = wv.get_tone_for_state({"hope": gm.get_slider("hope")})
+	var hope_val: float = ss.get("hope", 5.0) if ss else (gm.get_slider("hope") if gm else 5.0)
+	var tone: String = "neutral"
+	if hope_val <= 3.0:
+		tone = "despair"
+	elif hope_val >= 7.0:
+		tone = "hope"
 
 	match tone:
 		"hope":
@@ -38,6 +37,17 @@ func _configure_environmental_text() -> void:
 			window_text.text = "Rain on the glass.\nAnother night at the office.\n⌈Somewhere out there, someone walks\nthe same streets.⌋"
 		"despair":
 			window_text.text = "The streetlights blur.\nOne more night. One more.\n⌈Somewhere out there, someone walks\nthe same streets.⌋"
+
+	# Screensaver — source of echo 2 (screensaver_echo)
+	screensaver_text.text = "你做游戏有什么用？"
+
+	# Desktop — deadline display
+	var day: int = 0
+	if ss and ss.has_method("get"):
+		day = int(ss.get("day", 0)) if ss.has("day") else 0
+	elif gm:
+		day = int(gm.get_slider("day"))
+	desktop_text.text = "Deadline: Day %d / 90" % day
 
 
 func _on_door_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
