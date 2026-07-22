@@ -1,0 +1,57 @@
+[gd_resource type="AudioBusLayout" format=3]
+
+[resource]
+bus/0/name = "Master"
+bus/0/solo = false
+bus/0/mute = false
+bus/0/bypass_fx = false
+bus/0/volume_db = 0.0
+bus/0/effect/0 = SubResource("distortion")
+
+bus/1/name = "AmbientBus"
+bus/1/solo = false
+bus/1/mute = false
+bus/1/bypass_fx = false
+bus/1/volume_db = 0.0
+
+bus/2/name = "SFXBus"
+bus/2/solo = false
+bus/2/mute = false
+bus/2/bypass_fx = false
+bus/2/volume_db = 0.0
+
+bus/3/name = "IndoorBus"
+bus/3/solo = false
+bus/3/mute = false
+bus/3/bypass_fx = false
+bus/3/volume_db = 0.0
+bus/3/effect/0 = SubResource("indoor_lpf")
+
+bus/4/name = "UnderpassBus"
+bus/4/solo = false
+bus/4/mute = false
+bus/4/bypass_fx = false
+bus/4/volume_db = 0.0
+bus/4/effect/0 = SubResource("underpass_reverb")
+bus/4/effect/1 = SubResource("underpass_lpf")
+
+[sub_resource type="AudioEffectDistortion" id=1]
+drive = 0.0
+keep_harmonics = false
+
+[sub_resource type="AudioEffectLowPassFilter" id=2]
+cutoff_hz = 4000.0
+resonance = 0.0
+gain_db = 0.0
+
+[sub_resource type="AudioEffectReverb" id=3]
+room_size = 0.8
+damping = 0.6
+wet = 0.5
+dry = 0.5
+predelay_msec = 150.0
+
+[sub_resource type="AudioEffectLowPassFilter" id=4]
+cutoff_hz = 2000.0
+resonance = 0.0
+gain_db = 0.0

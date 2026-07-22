@@ -189,6 +189,16 @@ func _apply_effects(effects: Array) -> void:
 				push_warning("trigger_event not yet implemented: %s" % effect.get("event", ""))
 			"advance_clock":
 				push_warning("advance_clock not yet implemented")
+			"play_sound":
+				var am := get_node_or_null("/root/AudioManager")
+				if am and am.has_method("play_footstep"):
+					var surface: String = effect.get("surface", "")
+					if surface.is_empty():
+						var scene_root := get_tree().current_scene
+						var scene_id_val = scene_root.get("scene_id") if scene_root else null
+						var scene_id: String = str(scene_id_val) if scene_id_val != null else ""
+						surface = am.get_surface_for_scene(scene_id) if scene_id != "" else "office"
+					am.play_footstep(surface)
 			_:
 				push_warning("Unknown effect type: '%s'" % etype)
 

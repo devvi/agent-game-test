@@ -1,22 +1,27 @@
-extends Node
+extends SceneBase
+class_name StreetScene
 
 # Street scene script
 # Configures neon, graffiti, and street sign text. Sets rain intensity.
 # Connects store entrance trigger.
 
-@onready var scene_manager: Node = $SceneManager
-@onready var dialogue_runner: Node = $CanvasLayer/DialoguePanel
 @onready var neon_sign: Node3D = $Environments/NeonSign
 @onready var graffiti: Node3D = $Environments/Graffiti
 @onready var street_sign: Node3D = $Environments/StreetSign
 @onready var store_entrance: Area3D = $InteractionZones/StoreEntranceTrigger
 
+var scene_id: String = "street"
+
 
 func _ready() -> void:
-	scene_manager.fade_in()
-	_configure_environmental_text()
+	super._ready()
 	store_entrance.input_event.connect(_on_store_entrance_input)
-	_restore_dialogue_state()
+
+
+func _configure_ambient_audio() -> void:
+	var am := get_node_or_null("/root/AudioManager")
+	if am and am.has_method("register_scene"):
+		am.register_scene(scene_id)
 
 
 func _configure_environmental_text() -> void:
