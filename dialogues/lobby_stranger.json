@@ -56,6 +56,30 @@
       "on_enter": [],
       "choices": [
         {
+          "text": "「我好像认识你。」",
+          "next_node": "stranger_high_hope",
+          "condition": { "type": "slider", "axis": "hope", "op": "gte", "value": 7 },
+          "effects": []
+        },
+        {
+          "text": "「你是谁？」",
+          "next_node": "stranger_low_conviction",
+          "condition": { "type": "slider", "axis": "conviction", "op": "lte", "value": 4 },
+          "effects": []
+        },
+        {
+          "text": "「我们真的见过吗？」",
+          "next_node": "stranger_dejavu_deep",
+          "condition": {
+            "type": "and",
+            "conditions": [
+              { "type": "slider", "axis": "conviction", "op": "gte", "value": 6 },
+              { "type": "slider", "axis": "hope", "op": "gte", "value": 6 }
+            ]
+          },
+          "effects": []
+        },
+        {
           "text": "「我们真的见过。」",
           "next_node": "stranger_dejavu_dialogue",
           "effects": [
@@ -135,6 +159,45 @@
           "text": "(Continue to the store)",
           "next_node": null,
           "effects": []
+        }
+      ]
+    },
+    "stranger_high_hope": {
+      "speaker": "Stranger",
+      "text": "你在办公室时\n可不是这样。\n那时候你更有希望。",
+      "choices": [
+        {
+          "text": "(Continue to the store)",
+          "next_node": "stranger_continue",
+          "effects": [
+            { "type": "set_flag", "flag": "lobby_hope_high", "value": true }
+          ]
+        }
+      ]
+    },
+    "stranger_low_conviction": {
+      "speaker": "Stranger",
+      "text": "你不确定的事\n太多了。\n从一开始就是。",
+      "choices": [
+        {
+          "text": "(Continue to the store)",
+          "next_node": "stranger_continue",
+          "effects": [
+            { "type": "set_flag", "flag": "lobby_low_conviction", "value": true }
+          ]
+        }
+      ]
+    },
+    "stranger_dejavu_deep": {
+      "speaker": "Stranger",
+      "text": "也许你还没明白。\n⌈但我告诉过你。⌋",
+      "choices": [
+        {
+          "text": "「明白什么？」",
+          "next_node": "stranger_continue",
+          "effects": [
+            { "type": "set_flag", "flag": "stranger_hinted_meta", "value": true }
+          ]
         }
       ]
     }

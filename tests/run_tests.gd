@@ -67,6 +67,18 @@ func _init() -> void:
 	passed += _hemingway_tests.passed
 	failed += _hemingway_tests.failed
 
+	# --- Stranger Dialogue Tests (Issue #59) ---
+	var _stranger_dialogue = load("res://tests/test_stranger_dialogue.gd").new()
+	_stranger_dialogue.run()
+	passed += _stranger_dialogue.passed
+	failed += _stranger_dialogue.failed
+
+	# --- Stranger Scene Integration Tests (Issue #59) ---
+	var _stranger_scene = load("res://tests/test_stranger_scene.gd").new()
+	_stranger_scene.run()
+	passed += _stranger_scene.passed
+	failed += _stranger_scene.failed
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)

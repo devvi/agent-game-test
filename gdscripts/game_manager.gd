@@ -6,6 +6,8 @@ extends Node
 # Delegates flags and choice history to StateSystem for Issue #47
 
 var game_started: bool = false
+# Playthrough counter for AC3 meta-narrative detection (Issue #59)
+var playthrough_count: int = 0
 # Reference to StateSystem autoload
 @onready var _state_system: Node = get_node_or_null("/root/StateSystem")
 # Local flag storage fallback (used when StateSystem is unavailable, e.g. headless tests)
@@ -25,7 +27,8 @@ func _ready() -> void:
 
 func start_game() -> void:
 	game_started = true
-	print("Game started!")
+	playthrough_count += 1
+	print("Game started! (Playthrough #%d)" % playthrough_count)
 
 # ===== Dialogue API =====
 
@@ -117,6 +120,10 @@ func get_next_scene_id() -> String:
 	if nm and nm.has_method("get_next_scene"):
 		return nm.get_next_scene(current_scene_id)
 	return ""
+
+## Get the playthrough count (for AC3 meta-narrative detection).
+func get_playthrough_count() -> int:
+	return playthrough_count
 
 ## Track a scene as visited.
 func mark_scene_visited(scene_id: String) -> void:

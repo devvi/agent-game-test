@@ -1,7 +1,7 @@
 {
-  "entry_node_id": "echo_greet",
+  "entry_node_id": "echo_entry",
   "nodes": {
-    "echo_greet": {
+    "echo_entry": {
       "speaker": "Stranger",
       "text": "雨这么大，你不会想走太远的。",
       "on_enter": [
@@ -21,6 +21,12 @@
         {
           "text": "（沉默地走过）",
           "next_node": "echo_silent",
+          "effects": []
+        },
+        {
+          "text": "「你知道我是谁，对吧。」",
+          "next_node": "echo_meta_entry",
+          "condition": { "type": "flag", "flag": "is_new_game_plus", "value": true },
           "effects": []
         }
       ]
@@ -95,31 +101,6 @@
           "effects": [
             { "type": "set_flag", "flag": "stranger_denied", "value": true }
           ]
-        }
-      ]
-    },
-    "echo_bought_coffee": {
-      "speaker": "Stranger",
-      "text": "那杯咖啡还好吗？",
-      "condition": {
-        "type": "flag",
-        "flag": "bought_coffee",
-        "value": true
-      },
-      "on_enter": [],
-      "choices": [
-        {
-          "text": "「还不错。」",
-          "next_node": null,
-          "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
-            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
-          ]
-        },
-        {
-          "text": "（沉默地继续走）",
-          "next_node": null,
-          "effects": []
         }
       ]
     },
@@ -244,6 +225,299 @@
           "effects": [
             { "type": "slider_delta", "axis": "hope", "delta": -0.5 }
           ]
+        }
+      ]
+    },
+    "echo_acknowledge_high_hope": {
+      "speaker": "Stranger",
+      "text": "你眼里的光\n没熄。\n走吧。",
+      "condition": {
+        "type": "or",
+        "conditions": [
+          { "type": "slider", "axis": "hope", "op": "gte", "value": 9 },
+          { "type": "flag", "flag": "underpass_hope_high", "value": true }
+        ]
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "echo_deny_high_hope": {
+      "speaker": "Stranger",
+      "text": "你的嘴很硬。\n但眼睛\n说了真话。",
+      "condition": {
+        "type": "or",
+        "conditions": [
+          { "type": "slider", "axis": "hope", "op": "gte", "value": 9 },
+          { "type": "flag", "flag": "underpass_hope_high", "value": true }
+        ]
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "echo_silent_high_hope": {
+      "speaker": "Narrator",
+      "text": "They nod.\nThe corner lifts.\nAlmost a smile.",
+      "condition": {
+        "type": "or",
+        "conditions": [
+          { "type": "slider", "axis": "hope", "op": "gte", "value": 9 },
+          { "type": "flag", "flag": "underpass_hope_high", "value": true }
+        ]
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "echo_acknowledge_low_hope": {
+      "speaker": "Stranger",
+      "text": "你累了。\n我知道。\n路还远。",
+      "condition": {
+        "type": "or",
+        "conditions": [
+          { "type": "slider", "axis": "hope", "op": "lte", "value": 2 },
+          { "type": "flag", "flag": "underpass_hope_low", "value": true }
+        ]
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.3 }
+          ]
+        }
+      ]
+    },
+    "echo_deny_low_hope": {
+      "speaker": "Stranger",
+      "text": "你连生气\n的力气\n都没了。",
+      "condition": {
+        "type": "or",
+        "conditions": [
+          { "type": "slider", "axis": "hope", "op": "lte", "value": 2 },
+          { "type": "flag", "flag": "underpass_hope_low", "value": true }
+        ]
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": -0.5 },
+            { "type": "slider_delta", "axis": "will", "delta": -0.5 }
+          ]
+        }
+      ]
+    },
+    "echo_silent_low_hope": {
+      "speaker": "Narrator",
+      "text": "They wait.\nYou don't move.\nRain eats the sound.",
+      "condition": {
+        "type": "or",
+        "conditions": [
+          { "type": "slider", "axis": "hope", "op": "lte", "value": 2 },
+          { "type": "flag", "flag": "underpass_hope_low", "value": true }
+        ]
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": -0.3 },
+            { "type": "slider_delta", "axis": "will", "delta": -0.3 }
+          ]
+        }
+      ]
+    },
+    "echo_office_sigh": {
+      "speaker": "Stranger",
+      "text": "那声叹息\n我听到了。\n你也是吧。",
+      "condition": {
+        "type": "flag",
+        "flag": "office_exit_sigh",
+        "value": true
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.3 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.3 }
+          ]
+        }
+      ]
+    },
+    "echo_office_determined": {
+      "speaker": "Stranger",
+      "text": "你走出来的时候\n眼神很坚定。\n我看到了。",
+      "condition": {
+        "type": "flag",
+        "flag": "office_exit_determined",
+        "value": true
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "echo_bought_coffee": {
+      "speaker": "Stranger",
+      "text": "那杯咖啡还好吗？",
+      "condition": {
+        "type": "flag",
+        "flag": "bought_coffee",
+        "value": true
+      },
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "「还不错。」",
+          "next_node": null,
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "（沉默地继续走）",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    },
+    "echo_meta_entry": {
+      "speaker": "Stranger",
+      "text": "你知道我是谁，对吧。",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "「告诉我。」",
+          "next_node": "echo_meta_reveal",
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+          ]
+        }
+      ]
+    },
+    "echo_meta_reveal": {
+      "speaker": "Stranger",
+      "text": "⌈我就是你。⌋",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "（接受）",
+          "next_node": "echo_meta_accept",
+          "effects": []
+        },
+        {
+          "text": "「不。」",
+          "next_node": "echo_meta_deny",
+          "effects": []
+        },
+        {
+          "text": "（沉默）",
+          "next_node": "echo_meta_silent",
+          "effects": []
+        }
+      ]
+    },
+    "echo_meta_accept": {
+      "speaker": "Stranger",
+      "text": "你终于\n愿意看了。",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue)",
+          "next_node": "echo_meta_end",
+          "effects": [
+            { "type": "set_flag", "flag": "stranger_meta_accepted", "value": true },
+            { "type": "slider_delta", "axis": "hope", "delta": 1.0 },
+            { "type": "slider_delta", "axis": "conviction", "delta": 1.0 },
+            { "type": "slider_delta", "axis": "will", "delta": 1.0 },
+            { "type": "set_flag", "flag": "stranger_revealed", "value": true }
+          ]
+        }
+      ]
+    },
+    "echo_meta_deny": {
+      "speaker": "Stranger",
+      "text": "⌈你在骗\n自己。⌋",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue)",
+          "next_node": "echo_meta_end",
+          "effects": [
+            { "type": "set_flag", "flag": "stranger_meta_denied", "value": true },
+            { "type": "slider_delta", "axis": "hope", "delta": -1.0 },
+            { "type": "slider_delta", "axis": "conviction", "delta": -1.0 },
+            { "type": "slider_delta", "axis": "will", "delta": -1.0 },
+            { "type": "set_flag", "flag": "stranger_revealed", "value": true }
+          ]
+        }
+      ]
+    },
+    "echo_meta_silent": {
+      "speaker": "Narrator",
+      "text": "⌈沉默\n也是一种\n答案。⌋",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue)",
+          "next_node": "echo_meta_end",
+          "effects": [
+            { "type": "set_flag", "flag": "stranger_revealed", "value": true }
+          ]
+        }
+      ]
+    },
+    "echo_meta_end": {
+      "speaker": "Narrator",
+      "text": "⌈隧道空了。⌋\nThe tunnel is empty.",
+      "on_enter": [],
+      "choices": [
+        {
+          "text": "(Continue to the station)",
+          "next_node": null,
+          "effects": []
         }
       ]
     }
