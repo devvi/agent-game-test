@@ -84,11 +84,24 @@ jobs:
 
               console.log(`PR #${pr.number} merged → Issue #${parentNumber}: ${activeLabel} → ${nextLabel}`);
 
+              // Close the issue when reaching status/done
+              if (nextLabel === 'status/done') {
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: parentNumber,
+                  state: 'closed',
+                });
+                console.log(`Issue #${parentNumber} closed (done)`);
+              }
+
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: parentNumber,
-                body: `⏩ PR #${pr.number} (${activeLabel}) merged → advancing to **${nextLabel}**`,
+                body: nextLabel === 'status/done'
+                  ? `🎉 Issue resolved — label: **${nextLabel}**`
+                  : `⏩ PR #${pr.number} (${activeLabel}) merged → advancing to **${nextLabel}**`,
               });
             } else {
               await github.rest.issues.update({
