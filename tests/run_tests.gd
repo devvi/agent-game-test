@@ -15,6 +15,9 @@ func _init() -> void:
 	# --- GameState Tests (Issue #43) ---
 	run_game_state_tests()
 
+	# --- LoFiText3D Tests (Issue #44) ---
+	run_lo_fi_text_3d_tests()
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)
@@ -166,6 +169,14 @@ func _test_gs_large_negative_delta() -> void:
 	gs.apply_state(-500, 0)
 	var s = gs.get_state()
 	_assert(s.hope == 0, "TC-S4-2: Large negative delta clamps hope to 0")
+
+# ===== LoFiText3D Tests (Issue #44) =====
+
+func run_lo_fi_text_3d_tests() -> void:
+	var tester = load("res://tests/test_lo_fi_text_3d.gd").new()
+	tester.run()
+	passed += tester.passed
+	failed += tester.failed
 
 func _assert(condition: bool, name: String) -> void:
 	if condition:
