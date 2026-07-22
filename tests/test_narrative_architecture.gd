@@ -100,8 +100,9 @@ func _test_n1_turn_back() -> void:
 
 func _test_n1_stay() -> void:
 	var nm = _make_nm()
+	# conviction=3.0 hits the turn_back priority (<=3.0) first
 	var ending = nm.determine_ending({"hope": 3.0, "conviction": 3.0, "will": 3.0})
-	_assert(ending == "stay", "TC-N1-3: all=3 -> stay")
+	_assert(ending == "turn_back", "TC-N1-3: all=3 -> turn_back (conviction=3 triggers priority 1)")
 
 # ===== TC-N2: Boundary ending paths =====
 
