@@ -3,7 +3,7 @@
   "nodes": {
     "keep_walking_01": {
       "speaker": "Inner Voice",
-      "text": "The tunnel stretches.\nYou can't see the end.\nBut your feet keep moving.",
+      "text": "The tunnel stretches.\nYou can't see the end.\nYour feet keep moving.",
       "choices": [
         {
           "text": "... Keep walking.",
@@ -14,7 +14,7 @@
     },
     "keep_walking_02": {
       "speaker": "Inner Voice",
-      "text": "You remember the office.\nThe window. The rain.\nYou remember why you left.",
+      "text": "You remember the office.\nThe window. The rain.\nYou recall why you left.",
       "choices": [
         {
           "text": "Because staying wasn't living.",
@@ -25,7 +25,7 @@
     },
     "keep_walking_03": {
       "speaker": "Inner Voice",
-      "text": "A glow grows ahead.\nYou don't know its source.\nBut you believe it's real.",
+      "text": "A glow grows ahead.\nIts source unknown.\nBut you trust it's real.",
       "choices": [
         {
           "text": "I believe.",

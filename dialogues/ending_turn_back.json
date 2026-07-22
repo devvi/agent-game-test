@@ -25,7 +25,7 @@
     },
     "turn_back_03": {
       "speaker": "Inner Voice",
-      "text": "The office door is locked.\nFrom the outside.\nYou can't go home again.",
+      "text": "The office door's locked.\nFrom the outside.\nYou can't go home again.",
       "choices": [
         {
           "text": "There's nowhere left.",
