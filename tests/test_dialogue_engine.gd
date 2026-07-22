@@ -76,6 +76,7 @@ func run() -> void:
 	_test_dr_anti_loop_forced_exit()
 	_test_dr_start_then_enter_node()
 	_test_dr_visited_tracking()
+	_test_dr_get_last_reachable_count()
 	
 	print("  Dialogue Test Suite: %d passed, %d failed" % [passed, failed])
 
@@ -665,3 +666,12 @@ func _test_dr_visited_tracking() -> void:
 	_assert(runner.visited_nodes.get("start", 0) == 1, "DR-15: visited_nodes['start'] = 1 after first entry")
 	runner.enter_node("start")
 	_assert(runner.visited_nodes.get("start", 0) == 2, "DR-15: visited_nodes['start'] = 2 after second entry")
+
+func _test_dr_get_last_reachable_count() -> void:
+	# T14: get_last_reachable_count returns correct number of reachable choices
+	var runner := _make_runner()
+	runner.state_provider = func() -> Dictionary:
+		return {"sliders": {"hope": 8.0, "despair": 2.0, "vigor": 5.0, "burnout": 3.0, "conviction": 5.0, "falter": 3.0}, "flags": {}, "choices_made": []}
+	runner.enter_node("start")
+	_assert(runner.get_last_reachable_count() == 2, "DR-16: get_last_reachable_count = 2 with hope=8")
+	# With hope=8: "High hope" (gte 7) and "Always there" (no condition) are reachable

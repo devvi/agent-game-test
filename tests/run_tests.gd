@@ -28,6 +28,9 @@ func _init() -> void:
 	# --- Dialogue Engine Tests (Issue #46) ---
 	run_dialogue_engine_tests()
 
+	# --- Dialogue Engine v2 Tests (Issue #52) ---
+	run_dialogue_engine_v2_tests()
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)
@@ -524,6 +527,14 @@ func _test_dialogue_choice_effect_applied() -> void:
 
 func run_dialogue_engine_tests() -> void:
 	var tester = load("res://tests/test_dialogue_engine.gd").new()
+	tester.run()
+	passed += tester.passed
+	failed += tester.failed
+
+# ===== Dialogue Engine v2 Tests (Issue #52) =====
+
+func run_dialogue_engine_v2_tests() -> void:
+	var tester = load("res://tests/test_dialogue_engine_v2.gd").new()
 	tester.run()
 	passed += tester.passed
 	failed += tester.failed

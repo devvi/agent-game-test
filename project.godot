@@ -34,3 +34,35 @@ toggle_dialogue={
 "deadzone": 0.5,
 "events": [{"keycode": 4194318, "type": 0}]
 }
+dialogue_up={
+"deadzone": 0.5,
+"events": [{"keycode": 4194319, "type": 0}]
+}
+dialogue_down={
+"deadzone": 0.5,
+"events": [{"keycode": 4194321, "type": 0}]
+}
+dialogue_select={
+"deadzone": 0.5,
+"events": [{"keycode": 4194306, "type": 0}, {"keycode": 32, "type": 0}]
+}
+dialogue_skip={
+"deadzone": 0.5,
+"events": [{"keycode": 4194305, "type": 0}]
+}
+digit_1={
+"deadzone": 0.5,
+"events": [{"keycode": 49, "type": 0}]
+}
+digit_2={
+"deadzone": 0.5,
+"events": [{"keycode": 50, "type": 0}]
+}
+digit_3={
+"deadzone": 0.5,
+"events": [{"keycode": 51, "type": 0}]
+}
+digit_4={
+"deadzone": 0.5,
+"events": [{"keycode": 52, "type": 0}]
+}
