@@ -1,7 +1,8 @@
-# Dialogue Engine — Data Model + Conditional Branching
+# Dialogue Engine — Data Model + Conditional Branching + Runtime + Visual
 
-> Parent Issue: #46
-> Added: 2026-07-22 (post-merge GDD update)
+> Parent Issues: #46, #52
+> Added: 2026-07-22 (post-merge GDD updates)
+> Updated: 2026-07-22 (added runtime + visual layer — PR #83)
 
 ## 1. Architecture Overview
 
@@ -92,11 +93,56 @@ dialogue JSON → DialogueParser (validate + index)
 
 ## 4. Scene Integration
 
-- `scenes/main.tscn`: Has `CanvasLayer` child with `DialoguePanel` instance
+- `scenes/main.tscn`: Has `CanvasLayer` child with `DialoguePanel` instance and `Dialogue3D` node
 - `scenes/dialogue/dialogue_panel.tscn`: Dialogue UI overlay (Panel → RichTextLabel + VBoxContainer of Buttons)
 - `scenes/dialogue/dialogue_debug_overlay.tscn`: Dev overlay showing node ID, visit count, reachable choices (F12 toggle)
+- `scenes/dialogue/Dialouge3D.tscn`: 3D dialogue display with SpeakerLabel, DialogueText, choice container (4 choice slots), and ContinuePrompt — all using LoFiText3D for retro pixel-style rendering
 
-## 5. Constants & Limits
+### Key Architecture Decisions (Issue #52)
+
+- **Dual display paths**: 2D UI panel (`DialoguePanel`) for editor/fallback; 3D display (`Dialogue3D`) as the primary in-game visual layer
+- **Hemingway text enforcer**: Short, punchy dialogue enforced via `HemingwayEnforcer` — max 3 sentences, max 25 chars per sentence, with smart word-boundary truncation
+- **Signal-driven updates**: `DialogueDisplay3D` listens to `DialogueRunner` signals (`node_changed`, `choices_available`, `dialogue_ended`) rather than polling or being directly driven by the runner
+
+## 5. Runtime Enhancements (Issue #52)
+
+### DialogueRunner Extensions
+
+| Feature | Description |
+|---------|-------------|
+| `state_provider` callable | Test hook for injecting custom GameState snapshots without GameManager autoload |
+| Lazy-load via `load_dialogue()` | Load dialogue from file path, returns bool success |
+| Extended effect types | `trigger_event` and `advance_clock` (both placeholder with warning) |
+| `get_last_reachable_count()` | Returns reachable choice count — used by debug overlay and tests |
+
+### KineticNovel / Hemingway Text Enforcer (`gdscripts/hemingway_enforcer.gd`)
+
+- Extends `RefCounted` — pure utility, no scene attachment
+- `truncate(text)` → dictionary with `truncated_text`, `original_text`, `was_truncated`, `original_sentence_count`, `original_max_sentence_length`
+- Enforces 3-sentence max, 25-char-per-sentence max with trailing punctuation removal and ellipsis replacement
+- Null/empty/type-safe handling for testability
+
+### Visual Display (`gdscripts/dialogue_display_3d.gd`)
+
+- Extends `Node3D` with `class_name DialogueDisplay3D` for editor usability
+- 3D billboarded labels for speaker name, dialogue text, and up to 4 choices
+- Choice navigation: `navigate_up()`, `navigate_down()`, `get_focused_choice_index()`, `highlight_choice(index)` with amber emissive focus highlighting
+- Animated fade-out on dialogue end via `Tween` (0.3s duration)
+- Reveal delay (0.5s) before choices appear
+- `_prefix_letter()` static helper maps choice indices to A/B/C/D prefixes
+
+### Input Mapping (Issue #52 — main.gd)
+
+| Action | Key | Effect |
+|--------|-----|--------|
+| `toggle_dialogue` | F9 | Start a test dialogue |
+| `dialogue_up` | Arrow Up | Navigate choice focus up |
+| `dialogue_down` | Arrow Down | Navigate choice focus down |
+| `dialogue_select` | Space/Enter | Select focused choice |
+| `dialogue_skip` | (placeholder) | Skip typewriter animation |
+| `digit_1`–`digit_4` | 1–4 | Direct choice selection |
+
+## 6. Constants & Limits
 
 | Constant | Value | Context |
 |----------|-------|---------|
