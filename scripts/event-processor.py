@@ -645,6 +645,8 @@ def _pick_candidate() -> int | None:
         label_names = [l.get("name", "") for l in iss.get("labels", [])]
         if "workflow/backlog" not in label_names:
             continue
+        if "workflow/available" in label_names:
+            continue
         if "bug" not in label_names and "enhancement" not in label_names:
             continue
         candidates.append(iss)
