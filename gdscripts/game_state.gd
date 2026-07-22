@@ -2,7 +2,7 @@ extends Node
 
 # GameState — Global CRPG game state singleton (DEPRECATED)
 # Manages hope and despair variables with signal-based change notifications
-# NOTE: As of Issue #50, this delegates internally to StateSystem.
+# NOTE: As of Issue #47, this delegates internally to StateSystem.
 # Direct use emits a deprecation log warning.
 
 signal state_changed(state: Dictionary)
@@ -23,7 +23,7 @@ func _get_state_system() -> Node:
 
 func _log_deprecation() -> void:
 	if not _deprecated_warned:
-		push_warning("GameState is deprecated (Issue #50). Use StateSystem via GameManager instead.")
+		push_warning("GameState is deprecated (Issue #47). Use /root/StateSystem instead.")
 		_deprecated_warned = true
 
 func apply_state(delta_hope: int, delta_despair: int) -> void:

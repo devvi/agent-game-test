@@ -19,11 +19,11 @@ window/size/always_on_top=false
 window/dpi/allow_hidpi=true
 
 [autoload]
-GameManager="*res://gdscripts/game_manager.gd"
-GameState="*res://gdscripts/game_state.gd"
 StateSystem="*res://gdscripts/state_system.gd"
+GameManager="*res://gdscripts/game_manager.gd"
 NarrativeManager="*res://gdscripts/narrative_manager.gd"
 AudioManager="*res://gdscripts/audio_manager.gd"
+GameState="*res://gdscripts/game_state.gd"
 
 [editor_plugins]
 enabled=PackedStringArray()

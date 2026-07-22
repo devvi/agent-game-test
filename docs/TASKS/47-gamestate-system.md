@@ -124,7 +124,7 @@ func apply_state(delta_hope: float, delta_despair: float) -> void:
 # Modified get_state():
 func get_state() -> Dictionary:
     var ss = get_node("/root/StateSystem")
-    return ss.get_state()
+    return ss.get_state()  # Returns updated state dict
 ```
 
 #### T9 Details — Autoload Order

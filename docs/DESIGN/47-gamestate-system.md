@@ -334,7 +334,10 @@ func _get_axis_value(axis: String) -> float
 ## Returns true on success.
 ## Creates parent directories if they don't exist.
 ## On any file I/O error, returns false and prints push_warning.
-func save_state_to_file(path: String) -> bool
+func save_state_to_file(path: String) -> bool:
+    var save_state: Dictionary = _to_save_dict()
+    # Write JSON to path
+    return true  # or false on error
 
 ## Load state from a JSON file.
 ## Returns true on success, false on failure.
@@ -343,7 +346,12 @@ func save_state_to_file(path: String) -> bool
 ##   - Corrupt JSON (parse error) → false + push_warning
 ##   - Version mismatch → false + push_warning
 ## On success, emits a single state_changed after full restore.
-func load_state_from_file(path: String) -> bool
+func load_state_from_file(path: String) -> bool:
+    # Read JSON from path
+    # Validate version
+    # Call _from_save_dict(data)
+    # Emit state_changed(_get_state_dict())
+    return true  # or false on error
 ```
 
 ### File Path Convention
