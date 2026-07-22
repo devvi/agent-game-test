@@ -1,0 +1,151 @@
+# Deep Layer Evaluation Rubric (AC3 — Qualitative)
+# Likert scale 1–5 per dimension, plus free-text responses.
+# AC3-PASS: ≥2 testers rate D-01 at ≥4/5
+# AC3-BONUS: ≥2 testers rate D-04 at ≥4/5
+# AC3-BONUS: ≥1 tester identifies the Stranger as internal projection unprompted
+# AC3-FAIL: Only 0–1 tester rates D-01 at ≥4/5 → document structural therapy suggestions
+
+meta:
+  pass_criteria:
+    D-01_min_rating: 4
+    D-01_min_testers: 2
+  bonus_criteria:
+    D-04_min_rating: 4
+    D-04_min_testers: 2
+    stranger_projection_unprompted_testers: 1
+
+likert_dimensions:
+  - id: "D-01"
+    question: "Metaphor clarity: Does the game communicate that the walk is an introspection journey?"
+    scale:
+      1: "No — it feels like walking through random scenes"
+      2: "Weak — hints of metaphor but not clear"
+      3: "Moderate — metaphor is discernible but could be stronger"
+      4: "Good — the introspection theme is clear and consistent"
+      5: "Strongly — the walk-as-introspection metaphor is unmistakable"
+    rating: 0
+    notes: ""
+
+  - id: "D-02"
+    question: "Emotional arc: Does the 6-scene journey have a discernible emotional progression?"
+    scale:
+      1: "Flat — no change in emotional tone across scenes"
+      2: "Slight — some variation but no arc"
+      3: "Moderate — scenes have distinct tones but don't build"
+      4: "Clear — each scene builds on the last emotionally"
+      5: "Strong arc — a compelling emotional journey from start to end"
+    rating: 0
+    notes: ""
+
+  - id: "D-03"
+    question: "Pacing: Does each scene feel appropriately paced (not too fast, not too slow)?"
+    scale:
+      1: "Broken — scenes feel rushed or draggy"
+      2: "Uneven — some scenes well-paced, others not"
+      3: "Adequate — pacing is functional but not intentional"
+      4: "Good — natural rhythm to scene lengths"
+      5: "Natural — pacing perfectly supports the emotional arc"
+    rating: 0
+    notes: ""
+
+  - id: "D-04"
+    question: "State-world feedback: Does changing the slider values change how the world feels to you?"
+    scale:
+      1: "No difference — world looks same regardless of state"
+      2: "Subtle — changes are barely noticeable"
+      3: "Some — you can tell something changed"
+      4: "Clear — world changes are noticeable and meaningful"
+      5: "Profound — state changes fundamentally reshape the world atmosphere"
+    rating: 0
+    notes: ""
+
+  - id: "D-05"
+    question: "Narrative coherence: Do the 6 scenes feel connected as a single night's journey?"
+    scale:
+      1: "Disjointed — feels like random scenes stitched together"
+      2: "Loose — scenes share a theme but not a journey"
+      3: "Coherent — clear progression through the night"
+      4: "Strong — each scene logically follows from the last"
+      5: "Seamless — the journey feels inevitable and complete"
+    rating: 0
+    notes: ""
+
+  - id: "D-06"
+    question: "Hemingway style: Does the short, constrained text work for the atmosphere?"
+    scale:
+      1: "Too limiting — text feels chopped and breaks immersion"
+      2: "Mostly limiting — more words would help"
+      3: "Neutral — neither helps nor hurts"
+      4: "Good fit — brevity enhances the lonely mood"
+      5: "Perfect fit — cannot imagine the game with longer text"
+    rating: 0
+    notes: ""
+
+  - id: "D-07"
+    question: "Echo system perception: Did you notice any repeated imagery or phrases across scenes?"
+    scale:
+      1: "Not at all — didn't notice any repeats"
+      2: "Vaguely — something seemed familiar"
+      3: "Somewhat — noticed 1-2 repeats"
+      4: "Clearly — noticed 3+ recurring motifs"
+      5: "Clearly intentional — echoes feel designed and meaningful"
+    rating: 0
+    notes: ""
+
+  - id: "D-08"
+    question: "Ending emotional impact: Did the ending(s) you saw feel earned by your choices?"
+    scale:
+      1: "Random — ending seemed unrelated to my choices"
+      2: "Weak — loose connection to choices"
+      3: "Neutral — ending was fine but not impactful"
+      4: "Earned — ending felt like a natural consequence"
+      5: "Deeply earned — ending resonated because of the path I chose"
+    rating: 0
+    notes: ""
+
+  - id: "D-09"
+    question: "Atmosphere: Does the lo-fi 3D visual + audio create the intended Hopper-esque mood?"
+    scale:
+      1: "Fails — visual/audio don't create the intended mood"
+      2: "Weak — some atmospheric elements but inconsistent"
+      3: "Adequate — functional but not immersive"
+      4: "Good — atmosphere is noticeable and supports the theme"
+      5: "Succeeds — deeply immersive Hopper-esque night mood"
+    rating: 0
+    notes: ""
+
+  - id: "D-10"
+    question: "Would replay: Would you play through again to see different endings/text?"
+    scale:
+      1: "No — one playthrough is enough"
+      2: "Unlikely — not compelling enough to replay"
+      3: "Maybe — if I had a reason to"
+      4: "Likely — curious about other paths"
+      5: "Yes — eager to see what changes with different choices"
+    rating: 0
+    notes: ""
+
+free_text_prompts:
+  - id: "D-Q1"
+    prompt: "What is this game about? (in your own words)"
+    response: ""
+
+  - id: "D-Q2"
+    prompt: "Describe a moment that stood out to you."
+    response: ""
+
+  - id: "D-Q3"
+    prompt: "What did the Stranger represent to you?"
+    response: ""
+
+  - id: "D-Q4"
+    prompt: "Did the ending(s) feel consistent with the journey?"
+    response: ""
+
+  - id: "D-Q5"
+    prompt: "What one thing would you change to make the metaphor stronger?"
+    response: ""
+
+  - id: "D-Q6"
+    prompt: "Did you notice any recurring symbols or phrases? What were they?"
+    response: ""

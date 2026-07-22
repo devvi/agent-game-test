@@ -1,0 +1,299 @@
+# Shallow Layer Checklist (AC1 — 100% Must Pass)
+# Each item must pass for every tester across any single playthrough.
+# FAILURE: Any item failing halts the playtest — fix before continuing.
+#
+# Sections:
+#   scene_loading: S-01 to S-08  (8 items)
+#   dialogue_system: S-09 to S-20  (12 items)
+#   scene_transitions: S-21 to S-27  (7 items)
+#   environmental_text: S-28 to S-42  (15 items)
+#   sound_system: S-43 to S-45  (3 items)
+#   test_suite_baseline: S-46 to S-47  (2 items)
+
+scene_loading:
+  - id: "S-01"
+    description: "Game launches without errors"
+    verification: "No console errors on start"
+    pass: false
+    notes: ""
+
+  - id: "S-02"
+    description: "Office scene loads with all 4 environment text nodes visible"
+    verification: "WindowText, ScreensaverText, DesktopText, OfficeDoorTrigger present"
+    pass: false
+    notes: ""
+
+  - id: "S-03"
+    description: "Lobby scene loads with all 3 environment text nodes + 3 triggers"
+    verification: "EntranceText, StrangerSpotlight visible; guard/stranger/exit triggers enabled"
+    pass: false
+    notes: ""
+
+  - id: "S-04"
+    description: "Street scene loads with environment text + store entrance trigger"
+    verification: "NeonSign, Graffiti, StreetSign, StoreEntranceTrigger present"
+    pass: false
+    notes: ""
+
+  - id: "S-05"
+    description: "Convenience Store loads with OPEN sign, clerk trigger, exit trigger"
+    verification: "OpenSign visible, triggers active"
+    pass: false
+    notes: ""
+
+  - id: "S-06"
+    description: "Bridge loads with traffic/homeless/rain text + 3 triggers"
+    verification: "TrafficText, HomelessText, RainBridgeText visible; triggers active"
+    pass: false
+    notes: ""
+
+  - id: "S-07"
+    description: "Underpass loads with graffiti/echo/light + 3 triggers"
+    verification: "GraffitiText, EchoText, UnderpassLight visible; triggers active"
+    pass: false
+    notes: ""
+
+  - id: "S-08"
+    description: "Subway Station loads with all environment text + 3 trigger zones"
+    verification: "TicketGateText, ClockText, BroadcastText, StrangerFinalText visible; triggers active"
+    pass: false
+    notes: ""
+
+dialogue_system:
+  - id: "S-09"
+    description: "Office door dialogue starts on trigger click"
+    verification: "office_door.json loads, first node displays"
+    pass: false
+    notes: ""
+
+  - id: "S-10"
+    description: "Lobby guard dialogue starts on trigger click"
+    verification: "lobby_guard.json loads"
+    pass: false
+    notes: ""
+
+  - id: "S-11"
+    description: "Lobby stranger dialogue starts on trigger click"
+    verification: "lobby_stranger.json loads"
+    pass: false
+    notes: ""
+
+  - id: "S-12"
+    description: "Store clerk dialogue starts on trigger click"
+    verification: "store_clerk.json loads"
+    pass: false
+    notes: ""
+
+  - id: "S-13"
+    description: "Bridge homeless dialogue starts on trigger click"
+    verification: "bridge_homeless.json loads"
+    pass: false
+    notes: ""
+
+  - id: "S-14"
+    description: "Underpass stranger echo dialogue starts on trigger click"
+    verification: "underpass_stranger_echo.json loads"
+    pass: false
+    notes: ""
+
+  - id: "S-15"
+    description: "Subway ending dialogue starts on gate/turn_back/bench trigger"
+    verification: "subway_ending.json loads"
+    pass: false
+    notes: ""
+
+  - id: "S-16"
+    description: "Dialogue displays speaker name and text"
+    verification: "SpeakerLabel and DialogueText render"
+    pass: false
+    notes: ""
+
+  - id: "S-17"
+    description: "Choices appear after text (reveal delay)"
+    verification: "At least 1 choice button visible within 2s"
+    pass: false
+    notes: ""
+
+  - id: "S-18"
+    description: "Clicking a choice advances dialogue or ends conversation"
+    verification: "choice_made signal fires"
+    pass: false
+    notes: ""
+
+  - id: "S-19"
+    description: "Dialogue properly ends (exit to empty state)"
+    verification: "dialogue_ended signal fires, UI clears"
+    pass: false
+    notes: ""
+
+  - id: "S-20"
+    description: "All 9 JSON dialogue files parse without errors"
+    verification: "DialogueParser.load_dialogue() returns ok=true for each"
+    pass: false
+    notes: ""
+
+scene_transitions:
+  - id: "S-21"
+    description: "Office → Lobby transition on door dialogue completion"
+    verification: "Scene changes, fade plays"
+    pass: false
+    notes: ""
+
+  - id: "S-22"
+    description: "Lobby → Street transition on exit trigger"
+    verification: "Scene changes"
+    pass: false
+    notes: ""
+
+  - id: "S-23"
+    description: "Street → Store transition on store entrance click"
+    verification: "Scene changes"
+    pass: false
+    notes: ""
+
+  - id: "S-24"
+    description: "Store → Bridge exit transition"
+    verification: "Scene changes"
+    pass: false
+    notes: ""
+
+  - id: "S-25"
+    description: "Bridge → Underpass exit transition"
+    verification: "Scene changes"
+    pass: false
+    notes: ""
+
+  - id: "S-26"
+    description: "Underpass → Subway Station exit transition"
+    verification: "Scene changes"
+    pass: false
+    notes: ""
+
+  - id: "S-27"
+    description: "Fade-in plays on each scene entry"
+    verification: "Visual fade effect observed"
+    pass: false
+    notes: ""
+
+environmental_text:
+  - id: "S-28"
+    description: "Office window text renders with correct state tone"
+    verification: "At least one of hope/neutral/despair variants visible"
+    pass: false
+    notes: ""
+
+  - id: "S-29"
+    description: "Office screensaver text renders (\"你做游戏有什么用？\")"
+    verification: "Text is visible"
+    pass: false
+    notes: ""
+
+  - id: "S-30"
+    description: "Office desktop text renders (\"Deadline: Day X/90\")"
+    verification: "Day counter visible"
+    pass: false
+    notes: ""
+
+  - id: "S-31"
+    description: "Street neon sign renders with conviction-dependent color"
+    verification: "Modulate color set"
+    pass: false
+    notes: ""
+
+  - id: "S-32"
+    description: "Street graffiti renders with hope-dependent text"
+    verification: "Text variant visible"
+    pass: false
+    notes: ""
+
+  - id: "S-33"
+    description: "Store OPEN sign renders"
+    verification: "Text \"OPEN\" visible"
+    pass: false
+    notes: ""
+
+  - id: "S-34"
+    description: "Bridge traffic text renders"
+    verification: "Visible"
+    pass: false
+    notes: ""
+
+  - id: "S-35"
+    description: "Bridge homeless text renders"
+    verification: "Visible"
+    pass: false
+    notes: ""
+
+  - id: "S-36"
+    description: "Bridge rain text renders"
+    verification: "Visible"
+    pass: false
+    notes: ""
+
+  - id: "S-37"
+    description: "Underpass graffiti text renders"
+    verification: "Visible"
+    pass: false
+    notes: ""
+
+  - id: "S-38"
+    description: "Underpass light text renders"
+    verification: "Visible"
+    pass: false
+    notes: ""
+
+  - id: "S-39"
+    description: "Subway ticket gate text renders"
+    verification: "Visible"
+    pass: false
+    notes: ""
+
+  - id: "S-40"
+    description: "Subway clock text renders (\"11:47 PM\")"
+    verification: "Visible"
+    pass: false
+    notes: ""
+
+  - id: "S-41"
+    description: "Subway broadcast text renders"
+    verification: "Visible"
+    pass: false
+    notes: ""
+
+  - id: "S-42"
+    description: "Subway stranger final text renders (ending-dependent)"
+    verification: "Visible"
+    pass: false
+    notes: ""
+
+sound_system:
+  - id: "S-43"
+    description: "AudioManager autoload exists and does not crash"
+    verification: "Console: no errors on GameManager init"
+    pass: false
+    notes: ""
+
+  - id: "S-44"
+    description: "Each scene calls register_scene() without error"
+    verification: "Console: no 'method not found' errors"
+    pass: false
+    notes: ""
+
+  - id: "S-45"
+    description: "play_sound effect type in dialogue_runner.gd does not crash"
+    verification: "Console: no errors when walking choices selected"
+    pass: false
+    notes: ""
+
+test_suite_baseline:
+  - id: "S-46"
+    description: "All existing unit tests pass"
+    verification: "godot --headless --script tests/run_tests.gd exits 0"
+    pass: false
+    notes: ""
+
+  - id: "S-47"
+    description: "No test produces console warnings or errors"
+    verification: "stderr is empty"
+    pass: false
+    notes: ""

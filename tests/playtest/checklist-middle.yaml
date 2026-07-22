@@ -1,0 +1,381 @@
+# Middle Layer Checklist (AC2 — ≥60% Must Pass)
+# Failing items must be documented with reproduction steps and suggested fixes.
+# A test-runner may mark items as 'excluded' if the required state conditions
+# were not reached during the playthrough (e.g. ending-condition items when
+# the tester didn't reach Subway Station).
+#
+# Sections:
+#   state_dependent_branching: M-01 to M-08  (8 items)
+#   dialogue_conditions_effects: M-09 to M-14  (6 items)
+#   echo_system: M-15 to M-20  (6 items)
+#   ending_determination: M-21 to M-26  (6 items)
+#   scene_transition_integration: M-27 to M-30  (4 items)
+#   edge_cases: M-31 to M-35  (5 items)
+#   sound_system_integration: M-36 to M-40  (5 items)
+
+state_dependent_branching:
+  - id: "M-01"
+    description: "Office window text changes between hope/neutral/despair based on hope slider"
+    priority: "high"
+    state_conditions: {hope: [2.0, 5.0, 8.0]}
+    verification: "Set hope to 2, 5, 8 — text should change between three variants"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-02"
+    description: "Street neon sign color changes with conviction slider"
+    priority: "high"
+    state_conditions: {conviction: [2.0, 5.0, 8.0]}
+    verification: "Set conviction to 2, 5, 8 — color should shift from red to amber"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-03"
+    description: "Street graffiti text changes based on hope"
+    priority: "high"
+    state_conditions: {hope: [2.0, 8.0]}
+    verification: "Set hope to 2 vs 8 — text changes from 'i was here' to 'this too shall pass'"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-04"
+    description: "Store OPEN sign shows Stranger foreshadowing when hope ≥ 5 AND conviction ≥ 4"
+    priority: "high"
+    state_conditions: {hope: [5.0], conviction: [4.0]}
+    verification: "Text '⌈He was here tonight.⌋' appears"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-05"
+    description: "Bridge traffic/homeless/rain text changes with will-based tone (tired/neutral/determined)"
+    priority: "high"
+    state_conditions: {will: [2.0, 5.0, 8.0]}
+    verification: "Set will to 2, 5, 8 — text changes between three tones"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-06"
+    description: "Underpass graffiti text changes with combined hope+conviction tone"
+    priority: "high"
+    state_conditions: {hope: [2.0, 8.0], conviction: [2.0, 8.0]}
+    verification: "Set both low vs both high — text changes"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-07"
+    description: "Subway station environment text matches ending tone (forward/backward/waiting)"
+    priority: "high"
+    state_conditions: {ending_triggered: true}
+    verification: "Verified by checking ending result text"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-08"
+    description: "Lobby entrance text changes with conviction-based tone (fear/neutral/defiant)"
+    priority: "high"
+    state_conditions: {conviction: [2.0, 5.0, 8.0]}
+    verification: "Set conviction to 2, 5, 8"
+    pass: false
+    excluded: false
+    notes: ""
+
+dialogue_conditions_effects:
+  - id: "M-09"
+    description: "Dialogue choices with slider conditions correctly gate visibility"
+    priority: "high"
+    state_conditions: {hope: [2.0, 7.0], conviction: [2.0, 7.0]}
+    verification: "Set hope=2,conviction=2 → only default choices show. Set hope=7,conviction=7 → gated choices visible"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-10"
+    description: "slider_delta effect modifies state after choice made"
+    priority: "high"
+    state_conditions: {}
+    verification: "Choose option with slider_delta:{axis:'hope',value:1} — assert StateSystem.get_value('hope') increased by 1"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-11"
+    description: "set_flag effect sets flag accessible via has_flag()"
+    priority: "high"
+    state_conditions: {}
+    verification: "Choose option with set_flag:{flag:'met_stranger',value:true} — assert GameManager.has_flag('met_stranger') returns true"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-12"
+    description: "Dialogue node anti-loop (MAX_NODE_VISITS=3) terminates conversation"
+    priority: "medium"
+    state_conditions: {}
+    verification: "Visit same node 4 times — conversation should force-end with dialogue_ended signal"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-13"
+    description: "Default choice fallback works when all gated choices hidden"
+    priority: "medium"
+    state_conditions: {hope: [2.0], conviction: [2.0]}
+    verification: "Create state where all conditions fail; default choice should show"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-14"
+    description: "Dialogue state persists across scene transitions via GameManager.choices_history"
+    priority: "high"
+    state_conditions: {}
+    verification: "Make choice in office, transition to lobby — verify choices_history restored"
+    pass: false
+    excluded: false
+    notes: ""
+
+echo_system:
+  - id: "M-15"
+    description: "screensaver_echo triggers on bridge when conviction ≤ 2 (intrusive thought)"
+    priority: "high"
+    state_conditions: {conviction: [2.0]}
+    verification: "Set conviction=2, enter bridge homeless trigger — verify echo fires"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-16"
+    description: "rain_echo triggers on underpass Stranger trigger"
+    priority: "high"
+    state_conditions: {}
+    verification: "Click Stranger in underpass — verify echo triggered signal"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-17"
+    description: "Echo repeat suppression works (same echo can't fire twice)"
+    priority: "medium"
+    state_conditions: {conviction: [2.0]}
+    verification: "Trigger same echo twice — second call suppressed, no duplicate"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-18"
+    description: "Underpass echo text displays screensaver echo when triggered"
+    priority: "medium"
+    state_conditions: {conviction: [2.0]}
+    verification: "Echo text shows screensaver quote from Office scene"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-19"
+    description: "Underpass AC3 hidden text appears when hope ≤ 2 AND conviction ≤ 2"
+    priority: "high"
+    state_conditions: {hope: [2.0], conviction: [2.0]}
+    verification: "Set both to 2 — verify '你的影子' text renders"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-20"
+    description: "At least 3 of 6 defined echoes are observable in a single playthrough"
+    priority: "medium"
+    state_conditions: {}
+    verification: "Count unique echo trigger events across all scenes"
+    pass: false
+    excluded: false
+    notes: ""
+
+ending_determination:
+  - id: "M-21"
+    description: "Keep Walking triggers when hope ≥ 6 AND will ≥ 5"
+    priority: "high"
+    state_conditions: {hope: [6.0], will: [5.0]}
+    verification: "Set state accordingly, enter subway station gate trigger — Keep Walking dialogue starts"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-22"
+    description: "Turn Back triggers when conviction ≤ 3 (highest priority)"
+    priority: "high"
+    state_conditions: {conviction: [2.0]}
+    verification: "Set conviction=2 (any hope/will), enter subway — Turn Back dialogue triggers"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-23"
+    description: "Stay triggers as fallthrough when no other ending matches"
+    priority: "high"
+    state_conditions: {hope: [5.0], conviction: [5.0], will: [5.0]}
+    verification: "Set all values mid-range (5.0 each), enter subway — Stay ending triggers"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-24"
+    description: "Ending text matches ending type (keep_walking / turn_back / stay)"
+    priority: "high"
+    state_conditions: {ending_triggered: true}
+    verification: "Verify StrangerFinalText and BroadcastText match the determined ending"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-25"
+    description: "Each ending trigger zone only opens dialogue for matching ending"
+    priority: "medium"
+    state_conditions: {hope: [6.0], will: [5.0]}
+    verification: "Gate only triggers Keep Walking dialogue, bench only Stay dialogue"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-26"
+    description: "Ending determination is consistent per play session"
+    priority: "medium"
+    state_conditions: {ending_triggered: true}
+    verification: "Scene reload gives same ending without state change"
+    pass: false
+    excluded: false
+    notes: ""
+
+scene_transition_integration:
+  - id: "M-27"
+    description: "State carries across scene transitions"
+    priority: "high"
+    state_conditions: {}
+    verification: "Change hope in office via dialogue choice, transition to lobby — verify lobby entrance text reflects new state"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-28"
+    description: "Dialogue history carries across scene transitions"
+    priority: "medium"
+    state_conditions: {}
+    verification: "choices_history restored in new scene"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-29"
+    description: "NarrativeManager.current_scene_index increments correctly"
+    priority: "high"
+    state_conditions: {}
+    verification: "Verify sequential: 0→1→2→3→4→5"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-30"
+    description: "AudioManager.register_scene called on each scene load"
+    priority: "medium"
+    state_conditions: {}
+    verification: "Verify no warning for missing scene profile"
+    pass: false
+    excluded: false
+    notes: ""
+
+edge_cases:
+  - id: "M-31"
+    description: "Rapid trigger clicking does not crash game"
+    priority: "medium"
+    state_conditions: {}
+    verification: "Click same trigger rapidly 10x within 1 second — game continues without crash"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-32"
+    description: "Dialogue trigger during active dialogue (re-entrance)"
+    priority: "medium"
+    state_conditions: {}
+    verification: "Click stranger trigger while stranger dialogue already active — no crash, dialogue does not restart"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-33"
+    description: "All state axes at minimum (hope=0, conviction=0, will=0)"
+    priority: "medium"
+    state_conditions: {hope: [0.0], conviction: [0.0], will: [0.0]}
+    verification: "Set all to 0 — navigate all triggers — no crashes, text renders"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-34"
+    description: "All state axes at maximum (hope=10, conviction=10, will=10)"
+    priority: "medium"
+    state_conditions: {hope: [10.0], conviction: [10.0], will: [10.0]}
+    verification: "Set all to 10 — navigate all triggers — no crashes, text renders"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-35"
+    description: "Rain intensity at extremes (conviction=0 → 1.0, conviction=10 → 0.0)"
+    priority: "low"
+    state_conditions: {conviction: [0.0, 10.0]}
+    verification: "Verify rain_controller.gd clamp — max rain at min conviction, min rain at max conviction"
+    pass: false
+    excluded: false
+    notes: ""
+
+sound_system_integration:
+  - id: "M-36"
+    description: "Footstep play_sound effect type processes without error"
+    priority: "medium"
+    state_conditions: {}
+    verification: "Choose walking choice — verify console has no audio errors"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-37"
+    description: "AudioManager.get_surface_for_scene returns valid surface"
+    priority: "low"
+    state_conditions: {}
+    verification: "Verify mapping: office→'office', bridge→'stone' etc."
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-38"
+    description: "State change triggers NarrativeManager tone recalculation"
+    priority: "high"
+    state_conditions: {}
+    verification: "Verify scene_text_changed signal fires on state change"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-39"
+    description: "Dialogue state snapshot includes hope_despair axis"
+    priority: "high"
+    state_conditions: {}
+    verification: "Verify _build_state_snapshot() includes 'hope_despair' axis"
+    pass: false
+    excluded: false
+    notes: ""
+
+  - id: "M-40"
+    description: "Condition evaluator recognizes 'hope_despair' axis"
+    priority: "high"
+    state_conditions: {}
+    verification: "Test evaluate({axis:'hope_despair', op:'gte', value:2}) returns correct boolean"
+    pass: false
+    excluded: false
+    notes: ""
