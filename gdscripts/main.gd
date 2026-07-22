@@ -1,8 +1,9 @@
 extends Node3D
 
 # Main — CRPG entry scene script
-# Handles keyboard input and connects to GameState
+# Handles keyboard input, connects to GameState, and boots the first scene
 
+@onready var scene_manager: Node = $SceneManager
 @onready var world_label: Label3D = $WorldLabel
 @onready var state_system: Node = get_node("/root/GameState")
 @onready var dialogue_runner: Node = $Dialogue/DialoguePanel
@@ -33,6 +34,13 @@ func _ready() -> void:
 		dialogue_runner.node_changed.connect(dialogue_display_3d.on_node_changed)
 		dialogue_runner.choices_available.connect(dialogue_display_3d.on_choices_available)
 		dialogue_runner.dialogue_ended.connect(dialogue_display_3d.on_dialogue_ended)
+
+	# Delegate to SceneManager to load the starting scene
+	call_deferred(&quot;_load_starting_scene&quot;)
+
+
+func _load_starting_scene() -> void:
+	get_tree().change_scene_to_file(&quot;res://scenes/office/office.tscn&quot;)
 
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_up"):

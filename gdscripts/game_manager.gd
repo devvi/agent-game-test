@@ -5,6 +5,10 @@ extends Node
 
 var game_started: bool = false
 
+# Dialogue persistence across scene changes
+var choices_history: Array = []   # [{node_id, choice_index, choice_text}, ...]
+var dialogue_history: Array = []  # future: full dialogue traversal log
+
 func _ready() -> void:
 	print("Agent Game Test — Godot 4.7")
 	print("GameManager initialized.")
@@ -34,3 +38,13 @@ func apply_slider_delta(axis: String, delta: float) -> void:
 ## Set a named flag.
 func set_flag(flag_name: String, value: bool) -> void:
 	pass
+
+# ===== Dialogue Persistence =====
+
+## Save dialogue choices to persist across scene transitions.
+func save_choices(choices: Array) -> void:
+	choices_history = choices.duplicate()
+
+## Restore previously saved choices.
+func restore_choices() -> Array:
+	return choices_history.duplicate()
