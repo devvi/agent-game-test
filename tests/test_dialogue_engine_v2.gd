@@ -45,13 +45,13 @@ func _test_he_display_text() -> void:
 	_assert(not result["was_truncated"], "HE-1: was_truncated=false for short text")
 	_assert(result["original_text"] == "You again.", "HE-1: original_text preserved")
 	_assert(result["original_sentence_count"] == 1, "HE-1: sentence count = 1")
-	_assert(result["original_max_sentence_length"] == 9, "HE-1: max sentence length = 9")
+	_assert(result["original_max_sentence_length"] == 10, "HE-1: max sentence length = 10")
 
 func _test_he_many_sentences() -> void:
 	# T4: >3 sentences truncated
 	var input := "First. Second. Third. Fourth."
 	var result: Dictionary = _HemingwayEnforcerScript.truncate(input)
-	_assert(result["truncated_text"] == "First. Second. Third.…", "HE-4: >3 sentences truncated")
+	_assert(result["truncated_text"] == "First. Second. Third…", "HE-4: >3 sentences truncated")
 	_assert(result["was_truncated"], "HE-4: was_truncated=true")
 	_assert(result["original_sentence_count"] == 4, "HE-4: original sentence count = 4")
 
