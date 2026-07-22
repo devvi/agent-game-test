@@ -1,0 +1,12 @@
+[gd_scene load_steps=2 format=3 uid="uid://d9q8w7e6r5t4y3"]
+
+[ext_resource type="Script" path="res://gdscripts/puddle_text.gd" id="1"]
+
+[node name="PuddleText" type="Label3D"]
+script = ExtResource("1")
+billboard = false
+pixel_factor = 0.4
+color_bits = 6
+scanline_intensity = 0.1
+emissive_color = Color(0.2, 0.266667, 0.4, 1.0)
+emissive_strength = 0.3

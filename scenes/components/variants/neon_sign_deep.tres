@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://gdscripts/text_variant_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+text = "BAR"
+emissive_color = Color(0.8, 0.133333, 0.0, 1.0)
+emissive_strength = 0.5
+pixel_factor = 0.8
+color_bits = 3
+scanline_intensity = 0.5
+fragment_text = "B-R"
