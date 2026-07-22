@@ -47,7 +47,7 @@ jobs:
             const PROJECT_OWNER = context.repo.owner;
 
             const listQuery = `
-              query($owner: String!, $project: Int!, $issue: Int!) {
+              query($owner: String!, $project: Int!) {
                 user(login: $owner) {
                   projectV2(number: $project) {
                     items(first: 100) {
