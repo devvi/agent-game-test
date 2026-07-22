@@ -115,7 +115,7 @@ def should_process_event(event_type: str, label: str = "") -> bool:
     # Always process pipeline events even outside work hours
     if event_type in ("check_run",):
         return True
-    if label.startswith("workflow/") and label not in ("workflow/available",):
+    if label.startswith("workflow/") and label not in ("workflow/available", "workflow/backlog"):
         return True  # research, plan, implement, self-correct, status/done
     # Block everything else (available, picker)
     return False
