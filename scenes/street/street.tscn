@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://street_scene"]
+[gd_scene load_steps=15 format=3 uid="uid://street_scene"]
 
 [ext_resource type="Script" path="res://gdscripts/street.gd" id="1_street"]
 [ext_resource type="Script" path="res://gdscripts/scene_manager.gd" id="2_scene_manager"]
@@ -7,6 +7,10 @@
 [ext_resource type="Script" path="res://gdscripts/exit_zone.gd" id="5_exit_zone"]
 [ext_resource type="PackedScene" path="res://scenes/components/NPC.tscn" id="5_npc"]
 [ext_resource type="Script" path="res://gdscripts/e_key_trigger.gd" id="6_e_key"]
+[ext_resource type="PackedScene" path="res://scenes/components/rain_text.tscn" id="7_rain_text"]
+[ext_resource type="PackedScene" path="res://scenes/components/lamppost_text.tscn" id="8_lamppost_text"]
+[ext_resource type="PackedScene" path="res://scenes/components/puddle_text.tscn" id="9_puddle_text"]
+[ext_resource type="PackedScene" path="res://scenes/components/neon_sign.tscn" id="10_neon_sign"]
 
 [sub_resource type="Environment" id="Environment_street"]
 background_color = Color(0.05, 0.05, 0.12, 1)
@@ -123,6 +127,18 @@ text = "ELM ST."
 horizontal_alignment = 1
 pixel_size = 0.01
 modulate = Color(0.8, 0.8, 0.9, 1)
+
+[node name="RainTextInstance" parent="Environments" instance=ExtResource("7_rain_text")]
+position = Vector3(3, 2.5, 0)
+
+[node name="LamppostTextInstance" parent="Environments" instance=ExtResource("8_lamppost_text")]
+position = Vector3(3, 1.5, -3)
+
+[node name="PuddleTextInstance" parent="Environments" instance=ExtResource("9_puddle_text")]
+position = Vector3(0, 0.1, 2)
+
+[node name="NeonSignInstance" parent="Environments" instance=ExtResource("10_neon_sign")]
+position = Vector3(4.5, 2.5, 3)
 
 [node name="InteractionZones" type="Node3D" parent="."]
 
