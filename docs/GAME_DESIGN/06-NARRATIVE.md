@@ -124,7 +124,7 @@ func _ready():
 |------|--------|------|---------|
 | office.gd | SceneBase | 办公室 | 门(door_dialogue)、窗(状态感知)、屏保(echo源点) |
 | lobby.gd | SceneBase | 大厅 | 保安(闲聊)、Stranger(关键选择)、出口 |
-| store.gd | SceneBase | 便利店 | 店员(咖啡/聊天)、Stranger 脚印文本 |
+| store.gd | SceneBase | 便利店 | NPC.tscn (店员: 咖啡/聊天/3层人格)、Stranger 脚印文本 |
 | bridge.gd | SceneBase | 天桥 | 栏杆(俯瞰)、流浪汉(echo镜像)、低信念内心独白 |
 | underpass.gd | SceneBase | 地下通道 | 涂鸦(回忆)、Stranger(echo对话)、出口 |
 | subway_station.gd | SceneBase | 地铁站 | 检票口(KW)、转身(TB)、长椅(Stay) |
@@ -171,7 +171,7 @@ func trigger_echo(echo_id: String) -> void:
 | office_door.json | 办公室出口 | Narrator | 办公室 |
 | lobby_stranger.json | 初次相遇 | Stranger | 大厅 |
 | lobby_guard.json | 保安闲聊 | Security Guard | 大厅 |
-| store_clerk.json | 店员对话 | Store Clerk | 便利店 |
+| store_clerk.json | 店员对话 (3层人格 — Tired Worker/Cynical Veteran/Systemic Exhaustion + 办公室引用) | Store Clerk | 便利店 |
 | bridge_homeless.json | 流浪汉回声 | Homeless Person | 天桥 |
 | underpass_stranger_echo.json | 回声对话 | Stranger | 地下通道 |
 | subway_ending.json | 终局三结局 | Narrator/Stranger | 地铁站 |
@@ -221,10 +221,13 @@ Stranger 不是普通 NPC，而是玩家内心状态的物理投射。
 | gdscripts/scene_base.gd | 场景基类 | 52 |
 | gdscripts/office.gd | 场景脚本 | 66 |
 | gdscripts/lobby.gd | 场景脚本 | 67 |
-| gdscripts/store.gd | 场景脚本 | 42 |
+| gdscripts/store.gd | 场景脚本 | 50 |
 | gdscripts/bridge.gd | 场景脚本 | 87 |
 | gdscripts/underpass.gd | 场景脚本 | 104 |
 | gdscripts/subway_station.gd | 场景脚本 | 116 |
-| gdscripts/constants.gd (扩展) | 常量 | 94 |
-| dialogues/*.json (7 个) | 对话数据 | ~520 |
+| gdscripts/constants.gd (扩展) | 常量 | 119 |
+| gdscripts/npc_node.gd | NPC 框架核心脚本 | 201 |
+| scenes/components/NPC.tscn | NPC 组件场景 | 33 |
+| dialogues/*.json (7 个) | 对话数据 | ~750 |
+| dialogues/store_clerk.json (扩展) | 店员对话 (3层人格) | ~536 |
 | tests/test_narrative_architecture.gd | 测试 | 281 |

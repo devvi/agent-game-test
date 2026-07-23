@@ -223,3 +223,107 @@ NPC attitude gating example using `hope_despair`:
 ### 8.2 Disabled Gating (Issue #50)
 
 Choices that don't meet slider conditions should be **grayed out** (not hidden), with tooltip "You don't feel like saying this right now." This maintains player awareness of missed content.
+
+---
+
+## 9. NPC Framework (Issue #54)
+
+> Implemented: 2026-07-23 (PR #127)
+> Files: `gdscripts/npc_node.gd` (class_name NPCNode), `scenes/components/NPC.tscn`
+
+### 9.1 Overview
+
+The NPC Framework provides a **reusable drop-in component** (`NPC.tscn` + `npc_node.gd`) for all NPC interactions. Each NPC is a `Node3D` child in its scene with `@export` properties for dialogue configuration, state machine parameters, and personality layers.
+
+Previously, each scene re-implemented the interaction loop (Area3D trigger → signal wiring → `dialogue_runner.start()`). Now all interaction logic is encapsulated in `NPCNode`, and scenes only need to place an `NPC.tscn` instance and configure its exports.
+
+### 9.2 Architecture
+
+```
+NPC.tscn (Node3D)
+├── InteractionTrigger (Area3D)
+│   └── CollisionShape3D (CylinderShape3D)
+├── VisualName (Label3D) — billboarded name tag
+├── InteractionPrompt (Label3D) — billboarded prompt text
+└── CooldownTimer (Timer) — post-dialogue cooldown
+```
+
+### 9.3 NPCNode State Machine
+
+The `NPCNode` script implements a 5-state machine referenced via `enum NPCState`:
+
+| State | Value | Meaning | Interactable? |
+|-------|-------|---------|---------------|
+| `IDLE` | 0 | Waiting for player interaction | ✅ Yes |
+| `TALKING` | 1 | Dialogue in progress | ❌ No |
+| `COOLDOWN` | 2 | Post-dialogue cooldown timer | ❌ No |
+| `EXHAUSTED` | 3 | All dialogue branches visited, terminal | ❌ No |
+| `SPECIAL` | 4 | Reserved for contextual states | ❌ No |
+
+**Transition cycle:**
+```
+IDLE → (player clicks) → TALKING → (dialogue ends) → COOLDOWN → (timer)
+                                                              ├── → IDLE (unvisited branches remain)
+                                                              └── → EXHAUSTED (all visited, terminal)
+```
+
+**Key signals:**
+| Signal | Parameters | Description |
+|--------|-----------|-------------|
+| `npc_interacted` | `npc_id: String` | Emitted when player clicks the NPC |
+| `dialogue_completed` | `npc_id: String` | Emitted after dialogue ends |
+| `npc_state_changed` | `state: int` | Emitted on every state transition |
+
+### 9.4 Personality Layers
+
+Each NPC can define a `personality_layers: Array[Dictionary]` exported array. Each layer has:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | String | Layer identifier (e.g. `"tired_worker"`) |
+| `condition` | Dictionary | Condition DSL dict (same format as dialogue branch conditions) |
+| `name_prefix` | String | Optional prefix prepended to `speaker_name` when layer is active |
+| `greeting_override` | String | Optional dialogue node ID to use as entry point instead of `entry_node_id` |
+
+**Evaluation order:**
+1. Condition-based layers are evaluated in array order — first match wins.
+2. The `"always"` condition type (or empty condition) is treated as a **fallback** — evaluated last even if defined earlier.
+3. If no conditional layer matches and no fallback exists, `active_layer` remains empty.
+
+### 9.5 Exported Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `dialogue_file` | String | `""` | Path to dialogue JSON |
+| `dialogue_id` | String | `""` | Dialogue ID (for branch tracking) |
+| `speaker_name` | String | `"NPC"` | Base name shown on label |
+| `mood_axis` | String | `"hope_despair"` | Axis used for state snapshot |
+| `proximity_distance` | float | `3.0` | Cylinder trigger radius |
+| `cooldown_seconds` | float | `2.0` | Post-dialogue cooldown duration |
+| `name_label_visible` | bool | `true` | Whether name label shows |
+| `interaction_prompt_text` | String | `"⌈Talk⌋"` | Prompt label text |
+| `personality_layers` | Array[Dict] | `[]` | Personality layer definitions |
+| `label_offset` | Vector3 | `(0, 1.5, 0)` | Label position offset |
+
+### 9.6 DialogueRunner Extensions (for NPC support)
+
+| Feature | Description |
+|---------|-------------|
+| `start(file, id, greeting_override)` | Third optional parameter to override entry_node_id — used by personality layers |
+| `has_unvisited_branches(dialogue_id)` | Returns true if any terminal dialogue nodes remain unvisited — used by cooldown state machine logic |
+
+### 9.7 Constants (Issue #54 additions to `constants.gd`)
+
+```gdscript
+const NPC_DEFAULT_PROXIMITY: float = 3.0
+const NPC_DEFAULT_COOLDOWN: float = 2.0
+const NPC_LABEL_OFFSET: Vector3 = Vector3(0, 1.5, 0)
+
+# Office exit flags
+const FLAG_OFFICE_EXIT_SIGH: String = "office_exit_sigh"
+const FLAG_OFFICE_EXIT_NEUTRAL: String = "office_exit_neutral"
+const FLAG_OFFICE_EXIT_DETERMINED: String = "office_exit_determined"
+
+# Clerk dialogue path
+const DIALOGUE_STORE_CLERK_EXPANDED: String = "res://dialogues/store_clerk.json"
+```
