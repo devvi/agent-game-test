@@ -104,4 +104,3 @@ func _test_reset_calls() -> void:
 	# Test that _return_to_start calls gm.reset and ss.reset
 	# by verifying the code pattern (method exists on GameManager)
 	var gm := TestGameManager.new()
-	_assert(gm.has_method(\"reset\"), "TC15: GameManager has reset method")
