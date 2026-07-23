@@ -8,10 +8,17 @@ class_name PlayerController
 @export_range(0.5, 3.0, 0.1) var camera_height: float = 1.6          # meters — eye level
 @export_range(-1.0, 1.0, 0.001) var camera_tilt: float = -0.087         # radians (~-5°) slight downward tilt
 @export_range(0.174, 1.57, 0.01) var look_vertical_clamp: float = 1.047  # radians (60°) — ±60° vertical look
+@export var camera_mode: String = "third_person"           # "third_person" or "first_person"
+@export_range(1.0, 10.0, 0.5) var spring_arm_length: float = 4.0
+@export var orbit_sensitivity: float = 0.003
+@export_range(-1.0, 0.0, 0.01) var orbit_pitch_min: float = -0.523  # -30°
+@export_range(0.0, 1.57, 0.01) var orbit_pitch_max: float = 0.785   # +45°
 
 # ── Nodes ──
 @onready var head: Node3D = $Head
-@onready var camera: Camera3D = $Head/Camera3D
+@onready var camera_pivot: Node3D = $CameraPivot
+@onready var spring_arm: SpringArm3D = $CameraPivot/SpringArm3D
+@onready var camera: Camera3D = $CameraPivot/SpringArm3D/Camera3D
 @onready var interaction_area: Area3D = $InteractionArea
 
 # ── State ──
@@ -21,6 +28,24 @@ var _last_mouse_pos: Vector2 = Vector2.ZERO
 var _nearby_interactables: Array[Node] = []  # LIFO stack of nearby interactable nodes
 var _fall_reset_position: Vector3 = Vector3.ZERO
 var _footstep_accumulator: float = 0.0      # elapsed time since last footstep
+var _orbit_yaw: float = 0.0
+var _orbit_pitch: float = -0.2  # slight downward default
+
+
+# ── Camera Orbit Persistence (Issue #150) ──
+
+## Save camera orbit state for scene transitions (called by SceneBase).
+func get_camera_orbit() -> Dictionary:
+	return {"yaw": _orbit_yaw, "pitch": _orbit_pitch}
+
+## Restore camera orbit state from saved data (called by SceneBase).
+func set_camera_orbit(yaw: float, pitch: float) -> void:
+	_orbit_yaw = yaw
+	_orbit_pitch = clamp(pitch, orbit_pitch_min, orbit_pitch_max)
+	if camera_pivot:
+		camera_pivot.rotation.y = _orbit_yaw
+	if spring_arm:
+		spring_arm.rotation.x = _orbit_pitch
 
 # ── Constants ──
 const FOOTSTEP_INTERVAL: float = 0.5         # seconds between movement footsteps
@@ -92,14 +117,68 @@ func _build_collision_shape() -> void:
 		shape.owner = self
 
 
+func _build_camera_system() -> void:
+	if not has_node("CameraPivot"):
+		var pivot := Node3D.new()
+		pivot.name = "CameraPivot"
+		add_child(pivot)
+		pivot.owner = self
+
+	if not has_node("CameraPivot/SpringArm3D"):
+		var arm := SpringArm3D.new()
+		arm.name = "SpringArm3D"
+		arm.spring_length = spring_arm_length
+		arm.margin = 0.3
+		arm.collision_mask = 0b100
+		arm.add_excluded_object(self)
+		$CameraPivot.add_child(arm)
+		arm.owner = $CameraPivot
+
+	if has_node("Head/Camera3D"):
+		var existing_cam: Camera3D = $Head/Camera3D
+		existing_cam.reparent($CameraPivot/SpringArm3D, false)
+		existing_cam.position = Vector3(0, 2.0, 0)
+	elif not has_node("CameraPivot/SpringArm3D/Camera3D"):
+		var cam := Camera3D.new()
+		cam.name = "Camera3D"
+		cam.position = Vector3(0, 2.0, 0)
+		cam.current = true
+		$CameraPivot/SpringArm3D.add_child(cam)
+		cam.owner = $CameraPivot/SpringArm3D
+
+
+func _build_player_visual() -> void:
+	if not has_node("PlayerVisual"):
+		var mesh_instance := MeshInstance3D.new()
+		mesh_instance.name = "PlayerVisual"
+		var capsule := CapsuleMesh.new()
+		capsule.radius = 0.3
+		capsule.height = 1.4
+		mesh_instance.mesh = capsule
+		mesh_instance.position = Vector3(0, 0.7, 0)
+
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = Color(0.3, 0.5, 1.0)
+		mat.emission_enabled = true
+		mat.emission = Color(0.1, 0.2, 0.8)
+
+		mesh_instance.material_override = mat
+		add_child(mesh_instance)
+		mesh_instance.owner = self
+
+
 func _ready() -> void:
 	# Build node tree before accessing @onready vars
 	_build_node_tree()
 	_build_collision_shape()
+	_build_camera_system()
+	_build_player_visual()
 
 	# Reassign @onready vars since they were set to null before nodes existed
 	head = $Head
-	camera = $Head/Camera3D
+	camera_pivot = $CameraPivot
+	spring_arm = $CameraPivot/SpringArm3D
+	camera = $CameraPivot/SpringArm3D/Camera3D
 	interaction_area = $InteractionArea
 
 	add_to_group("player")
@@ -173,18 +252,27 @@ func _input(event: InputEvent) -> void:
 
 
 func _handle_mouse_look(delta: Vector2) -> void:
-	if not head:
-		return
-	# Yaw: rotate entire body (horizontal look)
-	rotate_y(-delta.x * look_sensitivity)
+	if camera_mode == "third_person":
+		_orbit_yaw -= delta.x * orbit_sensitivity
+		_orbit_pitch -= delta.y * orbit_sensitivity
+		_orbit_pitch = clamp(_orbit_pitch, orbit_pitch_min, orbit_pitch_max)
+		if camera_pivot:
+			camera_pivot.rotation.y = _orbit_yaw
+		if spring_arm:
+			spring_arm.rotation.x = _orbit_pitch
+	else:
+		if not head:
+			return
+		# Yaw: rotate entire body (horizontal look)
+		rotate_y(-delta.x * look_sensitivity)
 
-	# Pitch: rotate head only (vertical look), clamped
-	var pitch_delta: float = -delta.y * look_sensitivity
-	head.rotation.x = clamp(
-		head.rotation.x + pitch_delta,
-		-look_vertical_clamp + camera_tilt,
-		look_vertical_clamp + camera_tilt
-	)
+		# Pitch: rotate head only (vertical look), clamped
+		var pitch_delta: float = -delta.y * look_sensitivity
+		head.rotation.x = clamp(
+			head.rotation.x + pitch_delta,
+			-look_vertical_clamp + camera_tilt,
+			look_vertical_clamp + camera_tilt
+		)
 
 
 func _try_interact() -> void:
@@ -229,7 +317,11 @@ func _physics_process(delta: float) -> void:
 	)
 
 	# Project camera forward onto XZ plane (ignore pitch)
-	var camera_basis: Basis = head.global_transform.basis
+	var camera_basis: Basis
+	if camera_mode == "third_person" and camera_pivot:
+		camera_basis = camera_pivot.global_transform.basis
+	else:
+		camera_basis = head.global_transform.basis
 	var forward: Vector3 = -camera_basis.z
 	forward.y = 0.0
 	forward = forward.normalized()

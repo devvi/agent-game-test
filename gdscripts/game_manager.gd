@@ -25,6 +25,9 @@ var choices_made: int = 0                 # Total choices made this run
 var player_position: Vector3 = Vector3.ZERO
 var player_rotation: Vector3 = Vector3.ZERO
 var player_head_rotation: float = 0.0
+# Camera orbit state for third-person camera persistence across scene transitions (Issue #150)
+var camera_orbit_yaw: float = 0.0
+var camera_orbit_pitch: float = -0.2
 # Player spawn point set by ExitZone for zone-to-zone transitions (Issue #156)
 var target_spawn_point: Vector3 = Vector3.ZERO
 

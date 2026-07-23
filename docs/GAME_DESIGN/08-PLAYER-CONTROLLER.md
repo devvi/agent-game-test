@@ -2,6 +2,7 @@
 
 > 首次记录：2026-07-23 (Issue #142)
 > 更新：2026-07-24 (Issue #156 — ExitZone 区域传送组件)
+> 更新：2026-07-24 (Issue #150 — 第三人称轨道相机系统)
 > 更新日志：[INDEX](INDEX.md)
 
 ---
@@ -56,38 +57,108 @@
 - 左键释放 → 退出拖拽
 - 拖拽期间移动 → 计算像素偏移量并应用旋转
 
+### 两种相机模式
+
+PlayerController 支持两种相机模式，通过 `camera_mode` 导出变量切换：
+
+| 模式 | 默认 | 说明 |
+|------|------|------|
+| `third_person` | ✅ 默认 | 第三人称肩后视角，相机围绕角色旋转 |
+| `first_person` | | 第一人称视角，兼容旧行为 |
+
 ### 参数
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
-| `look_sensitivity` | 0.003 | 每像素旋转弧度 |
-| `look_vertical_clamp` | 1.047 rad (60°) | 垂直视角限制 |
+| `look_sensitivity` | 0.003 | 每像素旋转弧度（第一人称） |
+| `look_vertical_clamp` | 1.047 rad (60°) | 第一人称垂直视角限制 |
 | `camera_tilt` | -0.087 rad (~-5°) | 轻微向下倾斜，增强沉浸感 |
+| `orbit_sensitivity` | 0.003 | 每像素轨道旋转弧度 |
+| `orbit_pitch_min` | -0.523 rad (-30°) | 第三人称俯仰下限 |
+| `orbit_pitch_max` | 0.785 rad (+45°) | 第三人称俯仰上限 |
+| `spring_arm_length` | 4.0 m | 第三人称相机最大臂长 |
+| `camera_height` | 2.0 m | 第三人称相机Y偏移 |
 
-### 旋转分解
+### 第三人称轨道控制
 
-- **偏航 (Yaw)**：整体 PlayerController 绕 Y 轴旋转 → 水平看向
-- **俯仰 (Pitch)**：仅 Head 子节点绕 X 轴旋转 → 垂直看向
-- 俯仰被 `clamp()` 在 `[-60°+tilt, +60°+tilt]` 范围内
+**偏航 (Yaw)**：鼠标水平拖拽 → 旋转 `CameraPivot` 绕 Y 轴 → 相机围绕角色水平旋转
+**俯仰 (Pitch)**：鼠标垂直拖拽 → 旋转 `SpringArm3D` 绕 X 轴 → 相机垂直倾斜，clamp 在 [-30°, +45°]
+
+```gdscript
+func _handle_mouse_look(delta: Vector2) -> void:
+    if camera_mode == "third_person":
+        _orbit_yaw -= delta.x * orbit_sensitivity
+        _orbit_pitch -= delta.y * orbit_sensitivity
+        _orbit_pitch = clamp(_orbit_pitch, orbit_pitch_min, orbit_pitch_max)
+        camera_pivot.rotation.y = _orbit_yaw
+        spring_arm.rotation.x = _orbit_pitch
+    else:
+        # 第一人称：旋转整个身体（偏航）+ 仅头部旋转（俯仰）
+        rotate_y(-delta.x * look_sensitivity)
+        head.rotation.x = clamp(
+            head.rotation.x - delta.y * look_sensitivity,
+            -look_vertical_clamp + camera_tilt,
+            look_vertical_clamp + camera_tilt
+        )
+```
+
+### SpringArm3D 碰撞解析
+
+使用 Godot 4.7.1 内置的 `SpringArm3D` 节点处理相机碰撞：
+
+- **射线起点**：CameraPivot 位置（角色中心）
+- **臂长**：4.0m（默认肩后偏移）
+- **碰撞掩码**：`0b100`（层 3）— 仅碰撞场景几何体（层 2）
+- **排除对象**：`add_excluded_object(self)` — 不碰撞玩家身体
+- **自动缩短**：被阻挡时 SpringArm3D 自动缩短至碰撞点前方 0.3m
+- **自动恢复**：障碍移除后弹簧臂自动延伸回全长
 
 ### 相机结构
 
 ```
 PlayerController (CharacterBody3D)
-    ├── Head (Node3D)         ← 俯仰旋转节点
-    │   └── Camera3D          ← current=true, 位置 (0, 1.6, 0)
+    ├── Head (Node3D)               ← 可选的，第一人称残保留，不再驱动相机
+    ├── CameraPivot (Node3D)        ← [新增] 轨道偏航旋转节点
+    │   └── SpringArm3D             ← [新增] 碰撞感知的弹簧臂，length=4.0m, margin=0.3m
+    │       └── Camera3D            ← 位置 (0, 2.0, 0)，相对于 SpringArm3D 末端
     ├── PlayerCollisionShape (CollisionShape3D)  ← CapsuleShape3D, position.y=0.7
+    ├── PlayerVisual (MeshInstance3D)  ← [新增] 占位胶囊网格，第三人称相机可见
     ├── InteractionArea (Area3D)                 ← SphereShape3D, radius=2m
     └── FallReset (Area3D)                       ← BoxShape3D 1000×0.5×1000 at y=-100
 ```
 
-### 程序化节点树构建 (#149)
+### 玩家视觉占位网格
 
-PlayerController 使用 `PlayerControllerScript.new()` 实例化（无 .tscn 场景文件），因此子节点在 `_ready()` 中通过 `_build_node_tree()` 和 `_build_collision_shape()` 程序化创建。关键逻辑：
+第三人称相机需要帧内可见的玩家角色。`_build_player_visual()` 创建发光的胶囊体 MeshInstance3D：
+
+```gdscript
+var capsule := CapsuleMesh.new()
+capsule.radius = 0.3
+capsule.height = 1.4
+mesh_instance.mesh = capsule
+mesh_instance.position = Vector3(0, 0.7, 0)
+
+var mat := StandardMaterial3D.new()
+mat.albedo_color = Color(0.3, 0.5, 1.0)  # 柔和蓝色
+mat.emission_enabled = true
+mat.emission = Color(0.1, 0.2, 0.8)
+```
+
+### 程序化节点树构建 (#149 + #150)
+
+PlayerController 使用 `PlayerControllerScript.new()` 实例化（无 .tscn 场景文件），因此子节点在 `_ready()` 中通过 `_build_node_tree()`、`_build_collision_shape()`、`_build_camera_system()` 和 `_build_player_visual()` 程序化创建。关键逻辑：
 
 - **守卫模式**：`if not has_node("X"): create` — 向后兼容手动预创建子节点的测试
-- **@onready 重赋值**：创建节点后重新赋值 `head = $Head` 等变量，因第一次 @onready 解析时节点尚不存在
+- **@onready 重赋值**：创建节点后重新赋值 `head = $Head`, `camera_pivot = $CameraPivot` 等变量
 - **幂等性**：`_ready()` 可多次调用而不产生重复节点
+- **相机迁移**：`_build_camera_system()` 检测已有的 Head/Camera3D 并将其 reparent 到 CameraPivot/SpringArm3D 下
+
+### 轨道状态持久化 (#150)
+
+相机轨道偏航/俯仰角在场景切换时通过 GameManager 持久化：
+
+- **保存**（SceneBase._exit_tree → _save_player_state）：调用 `_player.get_camera_orbit()` → 存入 `GameManager.camera_orbit_yaw` 和 `camera_orbit_pitch`
+- **恢复**（SceneBase._ready → _instantiate_player）：从 `GameManager` 读取 → 调用 `_player.set_camera_orbit(yaw, pitch)`
 
 ---
 
@@ -240,6 +311,9 @@ PlayerController 使用 `PlayerControllerScript.new()` 实例化（无 .tscn 场
 | `camera_height` | 1.6 | [0.5 — 3.0] | 0.1 | 视线高度 (m) |
 | `camera_tilt` | -0.087 | [-1.0 — 1.0] | 0.001 | 默认俯仰角 (rad) |
 | `look_vertical_clamp` | 1.047 | [0.174 — 1.57] | 0.01 | 垂直视角 ± 限制 (rad) |
+| `spring_arm_length` | 4.0 | [1.0 — 10.0] | 0.5 | 第三人称相机臂长 (m) |
+| `orbit_pitch_min` | -0.523 | [-1.0 — 0.0] | 0.01 | 第三人称俯仰下限 (rad) |
+| `orbit_pitch_max` | 0.785 | [0.0 — 1.57] | 0.01 | 第三人称俯仰上限 (rad) |
 
 ### 运行时钳位 (Runtime Clamping)
 

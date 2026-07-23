@@ -6,6 +6,7 @@ class_name SceneBase
 # dialogue state restoration, and player state persistence across scene transitions.
 #
 # Extended for Issue #154: Adds 5-state tone lookup helpers and dynamic state signal wiring.
+# Extended for Issue #150: Camera orbit state save/restore for third-person camera.
 
 const PLAYER_CONTROLLER: GDScript = preload("res://gdscripts/player_controller.gd")
 
@@ -176,6 +177,12 @@ func _instantiate_player() -> void:
 				if head:
 					head.rotation.x = saved_head_rot
 
+		# Restore camera orbit state (Issue #150)
+		if _player.has_method("set_camera_orbit"):
+			var yaw: float = gm.get("camera_orbit_yaw", 0.0)
+			var pitch: float = gm.get("camera_orbit_pitch", -0.2)
+			_player.set_camera_orbit(yaw, pitch)
+
 	# Connect interaction_requested signal
 	if _player.has_signal("interaction_requested"):
 		_player.interaction_requested.connect(_on_player_interaction)
@@ -216,3 +223,9 @@ func _save_player_state() -> void:
 	var head := _player.get_node_or_null("Head")
 	if head:
 		gm.set("player_head_rotation", head.rotation.x)
+
+	# Save camera orbit state (Issue #150)
+	if _player.has_method("get_camera_orbit"):
+		var orbit: Dictionary = _player.get_camera_orbit()
+		gm.set("camera_orbit_yaw", orbit.get("yaw", 0.0))
+		gm.set("camera_orbit_pitch", orbit.get("pitch", -0.2))
