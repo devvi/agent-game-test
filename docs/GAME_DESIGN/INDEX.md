@@ -13,6 +13,7 @@
 | [06-NARRATIVE](06-NARRATIVE.md) | 叙事架构 — 场景序列、回声系统、结局判定、5态基调 (Issue #50) |
 | [07-AUDIO](07-AUDIO.md) | 音频系统 — 环境音循环、总线配置、状态调制、场景过渡 |
 | [08-PLAYER-CONTROLLER](08-PLAYER-CONTROLLER.md) | 玩家控制器 — WASD 移动、鼠标视角、E 键交互、场景切换持久化 |
+| [09-TESTING](09-TESTING.md) | 测试系统 — 头模式运行器、MVP 集成测试套件、架构与限制 |
 
 ---
 
