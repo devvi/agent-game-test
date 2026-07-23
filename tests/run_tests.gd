@@ -141,6 +141,12 @@ func _init() -> void:
 	passed += _mvp_integration.passed
 	failed += _mvp_integration.failed
 
+	# --- ExitZone Tests (Issue #156) ---
+	var _exit_zone_tests = load("res://tests/unit/test_exit_zone.gd").new()
+	_exit_zone_tests.run()
+	passed += _exit_zone_tests.passed
+	failed += _exit_zone_tests.failed
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)
