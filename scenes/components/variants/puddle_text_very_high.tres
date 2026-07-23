@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://gdscripts/text_variant_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+text = "Stars in the water."
+emissive_color = Color(0.4, 0.6, 1.0, 1.0)
+emissive_strength = 1.0
+pixel_factor = 0.2
+color_bits = 12
+scanline_intensity = 0.05
+fragment_text = ""

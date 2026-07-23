@@ -10,14 +10,22 @@
           "text": "Walk out. Don't look back.",
           "next_node": "door_leave",
           "effects": [
-            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "will",
+              "delta": 0.5
+            }
           ]
         },
         {
           "text": "Hesitate. One more look.",
           "next_node": "door_hesitate",
           "effects": [
-            { "type": "slider_delta", "axis": "conviction", "delta": -0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "conviction",
+              "delta": -0.5
+            }
           ]
         },
         {
@@ -42,7 +50,11 @@
           "text": "Turn and go.",
           "next_node": "door_leave",
           "effects": [
-            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "will",
+              "delta": 0.5
+            }
           ]
         }
       ]
@@ -55,7 +67,11 @@
           "text": "Turn and go.",
           "next_node": "door_leave",
           "effects": [
-            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "will",
+              "delta": 0.5
+            }
           ]
         }
       ]
@@ -68,35 +84,54 @@
           "text": "To the lobby.",
           "next_node": null,
           "effects": [
-            { "type": "set_flag", "flag": "left_office", "value": true }
-          ]
+            {
+              "type": "set_flag",
+              "flag": "left_office",
+              "value": true
+            }
+          ],
+          "scene": "res://scenes/lobby/lobby.tscn"
         },
         {
           "text": "Step out with purpose.",
           "next_node": null,
           "effects": [
-            { "type": "set_flag", "flag": "left_office", "value": true },
-            { "type": "set_flag", "flag": "left_with_purpose", "value": true }
+            {
+              "type": "set_flag",
+              "flag": "left_office",
+              "value": true
+            },
+            {
+              "type": "set_flag",
+              "flag": "left_with_purpose",
+              "value": true
+            }
           ],
           "condition": {
             "type": "slider",
             "axis": "will",
             "op": "gte",
             "value": 7
-          }
+          },
+          "scene": "res://scenes/lobby/lobby.tscn"
         },
         {
           "text": "Each step takes work.",
           "next_node": null,
           "effects": [
-            { "type": "set_flag", "flag": "left_office", "value": true }
+            {
+              "type": "set_flag",
+              "flag": "left_office",
+              "value": true
+            }
           ],
           "condition": {
             "type": "slider",
             "axis": "will",
             "op": "lte",
             "value": 3
-          }
+          },
+          "scene": "res://scenes/lobby/lobby.tscn"
         }
       ]
     }
