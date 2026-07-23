@@ -1300,7 +1300,6 @@ func run_status_bar_tests() -> void:
 func _assert(condition: bool, name: String) -> void:
 	if condition:
 		passed += 1
-		print("  ✅ ", name)
 	else:
 		failed += 1
 		print("  ❌ ", name)
