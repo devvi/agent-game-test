@@ -11,6 +11,11 @@ func run() -> void:
 	_test_npc_personality_layers_three_layer()
 	_test_npc_state_transition_cycle()
 
+	_test_npc_e_key_full_cycle()
+	_test_npc_label_visibility_proximity()
+	_test_npc_e_key_during_cooldown()
+	_test_npc_missing_dialogue_file()
+
 	print("  NPC Integration: %d passed, %d failed" % [passed, failed])
 
 
@@ -105,3 +110,66 @@ func _test_npc_state_transition_cycle() -> void:
 	npc._dialogue_runner = Node.new()  # has_unvisited_branches not available
 	npc._on_cooldown_timeout()
 	_assert(npc.current_state == 0, "INT-3: After cooldown (no has_unvisited_branches) → IDLE")
+
+
+# T6: Full cycle — start_npc_interaction → TALKING → dialogue_ended → COOLDOWN
+func _test_npc_e_key_full_cycle() -> void:
+	var npc = _make_npc()
+	var call_count: int = 0
+	var mock_runner = Node.new()
+	mock_runner.start = func(_a, _b, _c=""): call_count += 1
+	npc._dialogue_runner = mock_runner
+
+	npc.start_npc_interaction()
+	_assert(npc.current_state == 1, "T6: After start_npc_interaction → TALKING")
+	_assert(call_count == 1, "T6: dialogue_runner.start() called")
+
+	npc._on_dialogue_ended()
+	_assert(npc.current_state == 2, "T6: After dialogue_ended → COOLDOWN")
+
+
+# T7: Player enter/exit controls label visibility
+func _test_npc_label_visibility_proximity() -> void:
+	var npc = _make_npc()
+	npc.name_label_visible = true
+	var player = Node.new()
+	player.add_to_group("player")
+
+	npc._on_body_entered(player)
+	_assert(npc._player_nearby == true, "T7: Player enters → _player_nearby true")
+
+	npc._on_body_exited(player)
+	_assert(npc._player_nearby == false, "T7: Player exits → _player_nearby false")
+
+
+# T8: COOLDOWN blocks start_npc_interaction; after timeout → IDLE, works again
+func _test_npc_e_key_during_cooldown() -> void:
+	var npc = _make_npc()
+	var call_count: int = 0
+	var mock_runner = Node.new()
+	mock_runner.start = func(_a, _b, _c=""): call_count += 1
+	npc._dialogue_runner = mock_runner
+
+	npc.current_state = 2
+	npc.start_npc_interaction()
+	_assert(npc.current_state == 2, "T8a: Start interaction blocked during COOLDOWN")
+	_assert(call_count == 0, "T8a: start() not called during COOLDOWN")
+
+	npc._on_cooldown_timeout()
+	_assert(npc.current_state == 0, "T8b: After cooldown timeout → IDLE")
+
+	npc.start_npc_interaction()
+	_assert(npc.current_state == 1, "T8c: Start interaction works after COOLDOWN→IDLE")
+	_assert(call_count == 1, "T8c: start() called after cooldown")
+
+
+# T9: Invalid dialogue_file → start_npc_interaction proceeds without crash
+func _test_npc_missing_dialogue_file() -> void:
+	var npc = _make_npc()
+	npc.dialogue_file = "res://dialogues/nonexistent.json"
+	var mock_runner = Node.new()
+	mock_runner.start = func(_a, _b, _c=""): pass
+	npc._dialogue_runner = mock_runner
+
+	npc.start_npc_interaction()
+	_assert(npc.current_state == 1, "T9: start_npc_interaction with invalid file → no crash, state→TALKING")

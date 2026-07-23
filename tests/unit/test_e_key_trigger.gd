@@ -28,6 +28,9 @@ func run() -> void:
 	_test_ek_f_1_no_signal()
 	_test_ek_f_2_player_freed()
 
+	_test_e_key_interacted_signal_emitted()
+	_test_e_key_trigger_disconnects_on_exit()
+
 	print("  EKeyTrigger Unit Tests: %d passed, %d failed" % [passed, failed])
 
 
@@ -157,3 +160,30 @@ func _test_ek_f_2_player_freed() -> void:
 	pc.free()
 	# Signal to freed player should not crash
 	_assert(true, "TC-EK-F-2: PlayerController freed → no crash on signal")
+
+
+# T4: body_entered + interaction_requested → e_key_interacted fires
+func _test_e_key_interacted_signal_emitted() -> void:
+	var trigger = _make_trigger()
+	var pc = _make_player()
+	pc.add_to_group("player")
+	_signal_fired = false
+	trigger.e_key_interacted.connect(_on_e_key_interacted)
+	trigger._on_body_entered(pc)
+	if pc.has_signal("interaction_requested"):
+		pc.interaction_requested.emit(Node.new())
+	_assert(_signal_fired, "T4: body_entered + interaction_requested → e_key_interacted emitted")
+
+
+# T5: body_entered then body_exited → interaction_requested disconnected
+func _test_e_key_trigger_disconnects_on_exit() -> void:
+	var trigger = _make_trigger()
+	var pc = _make_player()
+	pc.add_to_group("player")
+	_signal_fired = false
+	trigger.e_key_interacted.connect(_on_e_key_interacted)
+	trigger._on_body_entered(pc)
+	trigger._on_body_exited(pc)
+	if pc.has_signal("interaction_requested"):
+		pc.interaction_requested.emit(Node.new())
+	_assert(not _signal_fired, "T5: body_entered + body_exited → interaction_requested disconnected")

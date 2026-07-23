@@ -13,8 +13,8 @@ enum NPCState {
 @export var dialogue_id: String = ""
 @export var speaker_name: String = "NPC"
 @export var mood_axis: String = "hope_despair"
-@export var proximity_distance: float = 3.0
-@export var cooldown_seconds: float = 2.0
+@export_range(0.5, 20.0, 0.1) var proximity_distance: float = 3.0
+@export_range(0.5, 60.0, 0.5) var cooldown_seconds: float = 2.0
 @export var name_label_visible: bool = true
 @export var interaction_prompt_text: String = "⌈Talk⌋"
 @export var personality_layers: Array[Dictionary] = []
@@ -65,10 +65,12 @@ func _ready() -> void:
 	if _dialogue_runner:
 		_dialogue_runner.dialogue_ended.connect(_on_dialogue_ended)
 
-	_name_label.visible = false
-	_prompt_label.visible = false
-	_name_label.text = speaker_name
-	_prompt_label.text = interaction_prompt_text
+	if _name_label:
+		_name_label.visible = false
+		_name_label.text = speaker_name
+	if _prompt_label:
+		_prompt_label.visible = false
+		_prompt_label.text = interaction_prompt_text
 
 
 func _find_parent_dialogue_runner() -> Node:
@@ -100,12 +102,26 @@ func _on_body_exited(body: Node) -> void:
 
 func _on_interaction(camera: Camera3D, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed and is_interactable():
+		if dialogue_file.is_empty() or dialogue_id.is_empty():
+			push_warning("NPCNode._on_interaction: dialogue_file or dialogue_id is empty")
+			return
 		evaluate_personality_layer()
 		set_state(NPCState.TALKING)
 		update_name_label()
 		if _dialogue_runner:
 			_dialogue_runner.start(dialogue_file, dialogue_id, _greeting_override)
 		npc_interacted.emit(name)
+
+
+func start_npc_interaction() -> void:
+	if not is_interactable():
+		return
+	evaluate_personality_layer()
+	set_state(NPCState.TALKING)
+	update_name_label()
+	if _dialogue_runner:
+		_dialogue_runner.start(dialogue_file, dialogue_id, _greeting_override)
+	npc_interacted.emit(name)
 
 
 func evaluate_personality_layer() -> void:
