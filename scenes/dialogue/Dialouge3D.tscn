@@ -1,13 +1,7 @@
-[gd_scene load_steps=5 format=3 uid="uid://dialogue_display_3d"]
+[gd_scene load_steps=3 format=3 uid="uid://dialogue_display_3d"]
 
 [ext_resource type="Script" path="res://gdscripts/dialogue_display_3d.gd" id="1"]
 [ext_resource type="Script" path="res://gdscripts/lo_fi_text_3d.gd" id="2"]
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_1"]
-resource_local_to_scene = true
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_2"]
-resource_local_to_scene = true
 
 [node name="Dialogue3D" type="Node3D"]
 script = ExtResource("1")
@@ -17,7 +11,7 @@ position = Vector3(0, 0.8, 0)
 script = ExtResource("2")
 pixel_factor = 0.3
 color_bits = 8
-emissive_color = Color(1.0, 0.69, 0.0)
+emissive_color = Color(1.0, 0.69, 0.0, 1.0)
 emissive_strength = 3.0
 billboard = true
 horizontal_alignment = 1

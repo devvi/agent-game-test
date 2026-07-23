@@ -8,10 +8,9 @@ class_name StoreScene
 @onready var open_sign: Node3D = $Environments/OpenSign
 @onready var exit_trigger: Area3D = $InteractionZones/StoreExitTrigger
 
-var scene_id: String = "convenience_store"
-
 
 func _ready() -> void:
+	scene_id = "convenience_store"
 	super._ready()
 	if exit_trigger:
 		exit_trigger.input_event.connect(_on_exit_trigger_input)
@@ -46,5 +45,5 @@ func _on_exit_trigger_input(camera: Node, event: InputEvent, position: Vector3, 
 func _restore_dialogue_state() -> void:
 	var gm: Node = get_node_or_null("/root/GameManager")
 	if gm and dialogue_runner.choices_made.is_empty():
-		if gm.has("choices_history") and not gm.choices_history.is_empty():
+		if "choices_history" in gm and not gm.choices_history.is_empty():
 			dialogue_runner.choices_made = gm.choices_history.duplicate()

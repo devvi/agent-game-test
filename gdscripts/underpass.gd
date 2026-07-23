@@ -10,10 +10,9 @@ class_name UnderpassScene
 @onready var stranger_echo_trigger: Area3D = $InteractionZones/StrangerEchoTrigger
 @onready var exit_trigger: Area3D = $InteractionZones/UnderpassExitTrigger
 
-var scene_id: String = "underpass"
-
 
 func _ready() -> void:
+	scene_id = "underpass"
 	super._ready()
 	if graffiti_trigger:
 		graffiti_trigger.input_event.connect(_on_graffiti_trigger_input)
@@ -90,8 +89,8 @@ func _check_hidden_text() -> void:
 	var ss: Node = get_node_or_null("/root/StateSystem")
 	if not ss:
 		return
-	var hope_val: float = ss.get("hope", 5.0)
-	var conviction_val: float = ss.get("conviction", 5.0)
+	var hope_val: float = ss.hope if ss else 5.0
+	var conviction_val: float = ss.conviction if ss else 5.0
 	
 	if hope_val <= 2.0 and conviction_val <= 2.0:
 		if echo_text:
@@ -103,7 +102,7 @@ func _on_graffiti_trigger_input(camera: Node, event: InputEvent, position: Vecto
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		# Memory flashback — state-aware
 		var ss: Node = get_node_or_null("/root/StateSystem")
-		var hope_val: float = ss.get("hope", 5.0) if ss else 5.0
+		var hope_val: float = ss.hope if ss else 5.0
 		if hope_val >= 6.0:
 			graffiti_text.text = "A tag reads '2019'. You remember that year.\nThings were simpler."
 		else:
@@ -127,8 +126,8 @@ func _on_stranger_echo_trigger_input(camera: Node, event: InputEvent, position: 
 		# Set extreme-state flags for AC2 dialogue variants
 		var ss: Node = get_node_or_null("/root/StateSystem")
 		if ss:
-			var hope_val: float = ss.get("hope", 5.0)
-			var conviction_val: float = ss.get("conviction", 5.0)
+			var hope_val: float = ss.hope if ss else 5.0
+			var conviction_val: float = ss.conviction if ss else 5.0
 			if hope_val >= 9.0 and nm and nm.has_method("set_flag"):
 				nm.set_flag("underpass_hope_high", true)
 			if hope_val <= 2.0 and nm and nm.has_method("set_flag"):

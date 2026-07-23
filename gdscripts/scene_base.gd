@@ -34,7 +34,7 @@ func _configure_ambient_audio() -> void:
 func _restore_dialogue_state() -> void:
 	var gm: Node = get_node_or_null("/root/GameManager")
 	if gm and dialogue_runner and dialogue_runner.has_method("load_dialogue"):
-		if gm.has("choices_history") and not gm.choices_history.is_empty():
+		if "choices_history" in gm and not gm.choices_history.is_empty():
 			dialogue_runner.choices_made = gm.choices_history.duplicate()
 
 

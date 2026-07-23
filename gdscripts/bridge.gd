@@ -10,10 +10,9 @@ class_name BridgeScene
 @onready var homeless_trigger: Area3D = $InteractionZones/HomelessTrigger
 @onready var exit_trigger: Area3D = $InteractionZones/BridgeExitTrigger
 
-var scene_id: String = "bridge"
-
 
 func _ready() -> void:
+	scene_id = "bridge"
 	super._ready()
 	if railing_trigger:
 		railing_trigger.input_event.connect(_on_railing_trigger_input)
@@ -41,7 +40,7 @@ func _get_tone() -> String:
 	var ss: Node = get_node_or_null("/root/StateSystem")
 	if not ss:
 		return "neutral"
-	var will_val: float = ss.get("will", 5.0)
+	var will_val: float = ss.will if ss else 5.0
 	if will_val <= 3.0: return "tired"
 	elif will_val >= 7.0: return "determined"
 	else: return "neutral"
@@ -65,7 +64,7 @@ func _set_environment_text(tone: String) -> void:
 
 func _check_intrusive_thought() -> void:
 	var ss: Node = get_node_or_null("/root/StateSystem")
-	if ss and ss.get("conviction", 5.0) <= 2.0:
+	if ss and (ss.conviction if ss else 5.0) <= 2.0:
 		if rain_bridge_text:
 			rain_bridge_text.text = "A voice in your head:\n'从这里跳下去就解脱了'\nYou grip the railing. You don't jump."
 		# Synchronize with echo system — intrusive thought path also triggers screensaver echo
@@ -78,7 +77,7 @@ func _on_railing_trigger_input(camera: Node, event: InputEvent, position: Vector
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		# Overlook the railing — state-aware flavor text
 		var ss: Node = get_node_or_null("/root/StateSystem")
-		var conviction_val: float = ss.get("conviction", 5.0) if ss else 5.0
+		var conviction_val: float = ss.conviction if ss else 5.0
 		if conviction_val <= 3.0:
 			traffic_text.text = "The drop is further than you remembered.\nYour stomach tightens."
 		else:

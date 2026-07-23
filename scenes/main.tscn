@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://gdscripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" uid="uid://dialogue_panel" path="res://scenes/dialogue/dialogue_panel.tscn" id="2_dialogue_panel"]
 [ext_resource type="PackedScene" uid="uid://dialogue_debug_overlay" path="res://scenes/dialogue/dialogue_debug_overlay.tscn" id="3_dialogue_debug"]
-[ext_resource type="Script" path="res://gdscripts/dialogue_display_3d.gd" id="4_dialogue_3d"]
+[ext_resource type="PackedScene" uid="uid://dialogue_display_3d" path="res://scenes/dialogue/Dialouge3D.tscn" id="4_dialogue_3d"]
 [ext_resource type="Script" path="res://gdscripts/scene_manager.gd" id="4_scene_manager"]
 [ext_resource type="PackedScene" uid="uid://status_bar_scene" path="res://scenes/ui/status_bar.tscn" id="5_status_bar"]
 
@@ -30,9 +30,8 @@ script = ExtResource("4_scene_manager")
 
 [node name="DialoguePanel" parent="Dialogue" instance=ExtResource("2_dialogue_panel")]
 
-[node name="Dialogue3D" type="Node3D" parent="."]
+[node name="Dialogue3D" parent="." instance=ExtResource("4_dialogue_3d")]
 position = Vector3(0, 1.5, -3)
-script = ExtResource("4_dialogue_3d")
 
 [node name="DialogueDebug" parent="." instance=ExtResource("3_dialogue_debug")]
 

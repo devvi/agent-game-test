@@ -9,10 +9,9 @@ class_name LobbyScene
 @onready var stranger_trigger: Area3D = $InteractionZones/StrangerTrigger
 @onready var exit_trigger: Area3D = $InteractionZones/ExitTrigger
 
-var scene_id: String = "lobby"
-
 
 func _ready() -> void:
+	scene_id = "lobby"
 	super._ready()
 	if guard_trigger:
 		guard_trigger.input_event.connect(_on_guard_trigger_input)
@@ -37,7 +36,7 @@ func _get_tone() -> String:
 	var ss: Node = get_node_or_null("/root/StateSystem")
 	if not ss:
 		return "neutral"
-	var conviction_val: float = ss.get("conviction", 5.0)
+	var conviction_val: float = ss.conviction if ss else 5.0
 	if conviction_val <= 3.0: return "fear"
 	elif conviction_val >= 7.0: return "defiant"
 	else: return "neutral"
