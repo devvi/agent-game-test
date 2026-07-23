@@ -33,6 +33,7 @@ import tempfile
 import shutil
 import time
 import urllib.request
+from typing import Optional
 from collections import defaultdict
 
 PENDING_FILE = os.environ.get("EVENT_PROCESSOR_PENDING_FILE") or os.path.expanduser("~/.hermes/workflow-pending.json")
@@ -613,7 +614,7 @@ def _has_file_conflict(issue_num: int, active_files: set) -> bool:
     return bool(target & active_files)
 
 
-def _pick_candidate() -> int | None:
+def _pick_candidate() -> Optional[int]:
     """Scan backlog and pick the best candidate issue to start.
     
     Criteria (in order):
@@ -945,6 +946,11 @@ def main():
         if not in_window:
             # Only process pipeline events via standard preprocess
             pass  # fall through to preprocess with proper filtering
+        
+        # Reconcile every in-window tick: picker may have added workflow/available
+        # mid-window, and without reconcile() the pending file has no event for it.
+        if in_window:
+            reconcile()
         
         lines = preprocess()
         
