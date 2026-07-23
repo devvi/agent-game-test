@@ -57,6 +57,34 @@ func run() -> void:
 	_test_pc_f_3_all_targets_freed()
 	_test_pc_f_4_head_missing()
 
+	# Node Tree Building Tests (PC-N-8+)
+	print("  --- PC-N: Node Tree Building ---")
+	_test_pc_n_8_build_node_tree_head()
+	_test_pc_n_8_build_node_tree_camera()
+	_test_pc_n_8_build_node_tree_interaction()
+	_test_pc_n_8_build_node_tree_camera_height()
+	_test_pc_n_9_build_collision_shape()
+	_test_pc_n_9_capsule_dimensions()
+	_test_pc_n_9_capsule_position()
+	_test_pc_n_10_ready_builds_all()
+	_test_pc_n_10_camera_current_after_ready()
+	_test_pc_n_11_fall_reset_created()
+	_test_pc_n_11_fall_reset_connected()
+
+	# Node Tree Edge Cases (PC-E-5+)
+	print("  --- PC-E: Node Tree Edge Cases ---")
+	_test_pc_e_5_guard_head_exists()
+	_test_pc_e_5_guard_interaction_exists()
+	_test_pc_e_5_guard_camera_exists()
+	_test_pc_e_5_guard_collision_exists()
+	_test_pc_e_6_double_ready()
+	_test_pc_e_6_ready_reassigns_onready()
+
+	# Node Tree Failure Paths (PC-F-5+)
+	print("  --- PC-F: Node Tree Failure Paths ---")
+	_test_pc_f_5_zero_camera_height()
+	_test_pc_f_6_make_pc_backwards_compat()
+
 	print("  PlayerController Unit Tests: %d passed, %d failed" % [passed, failed])
 
 
@@ -82,6 +110,14 @@ func _make_pc() -> Node:
 	pc.interaction_area = Area3D.new()
 	pc.interaction_area.name = "InteractionArea"
 	pc.add_child(pc.interaction_area)
+	return pc
+
+
+# Bare PC — no pre-created children, for testing builder functions
+func _make_bare_pc() -> Node:
+	var pc = PlayerControllerScript.new()
+	pc.name = "PlayerController"
+	# @onready vars are null until _build_node_tree + reassignment
 	return pc
 
 
@@ -431,3 +467,199 @@ func _test_pc_f_4_head_missing() -> void:
 	# _handle_mouse_look should gracefully handle null head
 	pc._handle_mouse_look(Vector2(100.0, 0.0))
 	_assert(true, "TC-PC-F-4-1: Head node missing → no crash in _handle_mouse_look")
+
+
+# ===== PC-N: Node Tree Building Tests =====
+
+func _test_pc_n_8_build_node_tree_head() -> void:
+	var pc = _make_bare_pc()
+	pc._build_node_tree()
+	_assert(pc.has_node("Head"), "PC-N-1-1: _build_node_tree() creates Head node")
+	_assert(pc.get_node("Head") is Node3D, "PC-N-1-1: Head is a Node3D")
+
+
+func _test_pc_n_8_build_node_tree_camera() -> void:
+	var pc = _make_bare_pc()
+	pc._build_node_tree()
+	_assert(pc.has_node("Head/Camera3D"), "PC-N-1-2: _build_node_tree() creates Camera3D under Head")
+	_assert(pc.get_node("Head/Camera3D") is Camera3D, "PC-N-1-2: Head/Camera3D is a Camera3D")
+
+
+func _test_pc_n_8_build_node_tree_interaction() -> void:
+	var pc = _make_bare_pc()
+	pc._build_node_tree()
+	_assert(pc.has_node("InteractionArea"), "PC-N-1-3: _build_node_tree() creates InteractionArea")
+	var area = pc.get_node("InteractionArea")
+	_assert(area.get_child_count() > 0, "PC-N-1-3: InteractionArea has a child")
+	var shape_node = area.get_child(0)
+	_assert(shape_node is CollisionShape3D, "PC-N-1-3: Child is CollisionShape3D")
+	_assert(shape_node.shape is SphereShape3D, "PC-N-1-3: Shape is SphereShape3D")
+
+
+func _test_pc_n_8_build_node_tree_camera_height() -> void:
+	var pc = _make_bare_pc()
+	pc._build_node_tree()
+	var cam: Camera3D = pc.get_node("Head/Camera3D")
+	_assert(abs(cam.position.y - pc.camera_height) < 0.01,
+		"PC-N-1-4: Camera3D.position.y == camera_height (%s)" % pc.camera_height)
+
+
+func _test_pc_n_9_build_collision_shape() -> void:
+	var pc = _make_bare_pc()
+	pc._build_collision_shape()
+	_assert(pc.has_node("PlayerCollisionShape"), "PC-N-2-1: _build_collision_shape() creates PlayerCollisionShape")
+	var shape_node = pc.get_node("PlayerCollisionShape")
+	_assert(shape_node is CollisionShape3D, "PC-N-2-1: PlayerCollisionShape is CollisionShape3D")
+	_assert(shape_node.shape is CapsuleShape3D, "PC-N-2-1: Shape is CapsuleShape3D")
+
+
+func _test_pc_n_9_capsule_dimensions() -> void:
+	var pc = _make_bare_pc()
+	pc._build_collision_shape()
+	var capsule: CapsuleShape3D = pc.get_node("PlayerCollisionShape").shape
+	_assert(abs(capsule.radius - 0.3) < 0.01, "PC-N-2-2: Capsule radius == 0.3")
+	_assert(abs(capsule.height - 1.4) < 0.01, "PC-N-2-2: Capsule height == 1.4")
+
+
+func _test_pc_n_9_capsule_position() -> void:
+	var pc = _make_bare_pc()
+	pc._build_collision_shape()
+	var shape_node = pc.get_node("PlayerCollisionShape")
+	_assert(abs(shape_node.position.y - 0.7) < 0.01, "PC-N-2-3: CollisionShape position.y == 0.7")
+
+
+func _test_pc_n_10_ready_builds_all() -> void:
+	var pc = _make_bare_pc()
+	pc._ready()
+	_assert(pc.has_node("Head"), "PC-N-3-1: _ready() creates Head")
+	_assert(pc.has_node("Head/Camera3D"), "PC-N-3-1: _ready() creates Camera3D")
+	_assert(pc.has_node("InteractionArea"), "PC-N-3-1: _ready() creates InteractionArea")
+	_assert(pc.has_node("PlayerCollisionShape"), "PC-N-3-1: _ready() creates PlayerCollisionShape")
+	_assert(pc.has_node("FallReset"), "PC-N-3-1: _ready() creates FallReset")
+
+
+func _test_pc_n_10_camera_current_after_ready() -> void:
+	var pc = _make_bare_pc()
+	pc._ready()
+	_assert(pc.camera.current == true, "PC-N-3-2: Camera is current after _ready")
+
+
+func _test_pc_n_11_fall_reset_created() -> void:
+	var pc = _make_bare_pc()
+	pc._build_node_tree()
+	_assert(pc.has_node("FallReset"), "PC-N-4-1: _build_node_tree() creates FallReset area")
+	var fall = pc.get_node("FallReset")
+	_assert(fall is Area3D, "PC-N-4-1: FallReset is an Area3D")
+	_assert(fall.get_child_count() > 0, "PC-N-4-1: FallReset has a child")
+	var shape_node = fall.get_child(0)
+	_assert(shape_node is CollisionShape3D, "PC-N-4-1: Child is CollisionShape3D")
+	_assert(shape_node.shape is BoxShape3D, "PC-N-4-1: Shape is BoxShape3D")
+
+
+func _test_pc_n_11_fall_reset_connected() -> void:
+	var pc = _make_bare_pc()
+	pc._build_node_tree()
+	var fall: Area3D = pc.get_node("FallReset")
+	_assert(fall.body_entered.is_connected(pc._on_fall_detector_body_entered),
+		"PC-N-4-2: FallReset body_entered connected to _on_fall_detector_body_entered")
+
+
+# ===== PC-E: Node Tree Edge Cases =====
+
+func _test_pc_e_5_guard_head_exists() -> void:
+	var pc = _make_bare_pc()
+	# Pre-create Head
+	var existing_head := Node3D.new()
+	existing_head.name = "Head"
+	pc.add_child(existing_head)
+	# Call builder — should detect existing Head
+	pc._build_node_tree()
+	_assert(pc.has_node("Head"), "PC-E-1-1: Head still exists")
+	_assert(pc.get_node("Head") == existing_head, "PC-E-1-1: Same Head node, no duplicate")
+	# Only Camera3D should have been added as child of Head
+	_assert(existing_head.get_child_count() == 1, "PC-E-1-1: Head has exactly one child (Camera3D)")
+
+
+func _test_pc_e_5_guard_interaction_exists() -> void:
+	var pc = _make_bare_pc()
+	# Pre-create InteractionArea
+	var existing_area := Area3D.new()
+	existing_area.name = "InteractionArea"
+	pc.add_child(existing_area)
+	# Call builder — should detect existing InteractionArea
+	pc._build_node_tree()
+	_assert(pc.has_node("InteractionArea"), "PC-E-1-2: InteractionArea still exists")
+	_assert(pc.get_node("InteractionArea") == existing_area, "PC-E-1-2: Same InteractionArea, no duplicate")
+
+
+func _test_pc_e_5_guard_camera_exists() -> void:
+	var pc = _make_bare_pc()
+	# Pre-create Head with Camera3D at custom position
+	pc._build_node_tree()  # creates Head, then fallback creates Camera3D as well if needed
+	# Actually, pre-create Head + custom Camera3D first
+	pc.queue_free()
+	pc = _make_bare_pc()
+	var head := Node3D.new()
+	head.name = "Head"
+	pc.add_child(head)
+	head.owner = pc
+	var existing_cam := Camera3D.new()
+	existing_cam.name = "Camera3D"
+	existing_cam.position = Vector3(0, 999, 0)  # Unusual position to detect overwrite
+	head.add_child(existing_cam)
+	existing_cam.owner = head
+	# Call builder — should detect existing Camera3D
+	pc._build_node_tree()
+	var cam: Camera3D = pc.get_node("Head/Camera3D")
+	_assert(cam == existing_cam, "PC-E-1-3: Same Camera3D node, no duplicate")
+	_assert(abs(cam.position.y - 999) < 0.01, "PC-E-1-3: Camera position preserved (not overwritten)")
+
+
+func _test_pc_e_5_guard_collision_exists() -> void:
+	var pc = _make_bare_pc()
+	# Pre-create PlayerCollisionShape
+	var existing_shape := CollisionShape3D.new()
+	existing_shape.name = "PlayerCollisionShape"
+	pc.add_child(existing_shape)
+	# Call builder — should detect existing shape
+	pc._build_collision_shape()
+	_assert(pc.get_node("PlayerCollisionShape") == existing_shape, "PC-E-1-4: Same CollisionShape, no duplicate")
+
+
+func _test_pc_e_6_double_ready() -> void:
+	var pc = _make_bare_pc()
+	pc._ready()
+	var child_count_after_first = pc.get_child_count()
+	pc._ready()
+	_assert(pc.get_child_count() == child_count_after_first,
+		"PC-E-2-1: _ready() called twice → no duplicate nodes (child count unchanged)")
+
+
+func _test_pc_e_6_ready_reassigns_onready() -> void:
+	var pc = _make_bare_pc()
+	pc._ready()
+	_assert(pc.head != null, "PC-E-2-2: head reassigned and non-null")
+	_assert(pc.camera != null, "PC-E-2-2: camera reassigned and non-null")
+	_assert(pc.interaction_area != null, "PC-E-2-2: interaction_area reassigned and non-null")
+
+
+# ===== PC-F: Node Tree Failure Paths =====
+
+func _test_pc_f_5_zero_camera_height() -> void:
+	var pc = _make_bare_pc()
+	pc.camera_height = 0.0
+	pc._build_node_tree()
+	var cam: Camera3D = pc.get_node("Head/Camera3D")
+	_assert(abs(cam.position.y) < 0.01, "PC-F-1-2: camera_height=0 → Camera at y=0")
+
+
+func _test_pc_f_6_make_pc_backwards_compat() -> void:
+	# _make_pc() pre-creates children, then _ready() should not crash or duplicate
+	var pc = _make_pc()
+	pc._ready()
+	_assert(pc.has_node("Head"), "PC-F-3-1: Head still present after _ready")
+	_assert(pc.has_node("Head/Camera3D"), "PC-F-3-1: Camera3D still present after _ready")
+	_assert(pc.has_node("InteractionArea"), "PC-F-3-1: InteractionArea still present after _ready")
+	_assert(pc.head != null, "PC-F-3-1: head @onready var reassigned")
+	_assert(pc.camera != null, "PC-F-3-1: camera @onready var reassigned")
+	_assert(pc.interaction_area != null, "PC-F-3-1: interaction_area @onready var reassigned")

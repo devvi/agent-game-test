@@ -26,7 +26,78 @@ signal interaction_requested(target: Node)
 signal dialogue_mode_changed(active: bool)
 
 
+func _build_node_tree() -> void:
+	# Build Head node (pitch rotation mount for camera)
+	if not has_node("Head"):
+		var head_node := Node3D.new()
+		head_node.name = "Head"
+		add_child(head_node)
+		head_node.owner = self
+
+	# Build Camera3D child of Head
+	if not has_node("Head/Camera3D"):
+		var cam := Camera3D.new()
+		cam.name = "Camera3D"
+		cam.position = Vector3(0, camera_height, 0)
+		cam.current = true
+		$Head.add_child(cam)
+		cam.owner = $Head
+
+	# Build InteractionArea (proximity trigger for E-key)
+	if not has_node("InteractionArea"):
+		var area := Area3D.new()
+		area.name = "InteractionArea"
+		var shape := CollisionShape3D.new()
+		shape.name = "CollisionShape3D"
+		var sphere := SphereShape3D.new()
+		sphere.radius = interaction_range
+		shape.shape = sphere
+		area.add_child(shape)
+		shape.owner = area
+		add_child(area)
+		area.owner = self
+
+	# Build FallReset area (detects player falling off world)
+	if not has_node("FallReset"):
+		var fall := Area3D.new()
+		fall.name = "FallReset"
+		var fall_shape := CollisionShape3D.new()
+		fall_shape.name = "CollisionShape3D"
+		var box := BoxShape3D.new()
+		box.size = Vector3(1000, 0.5, 1000)  # Huge floor sensor
+		fall_shape.shape = box
+		fall_shape.position = Vector3(0, -100, 0)  # Below all walkable surfaces
+		fall.add_child(fall_shape)
+		fall_shape.owner = fall
+		add_child(fall)
+		fall.owner = self
+		fall.body_entered.connect(_on_fall_detector_body_entered)
+
+
+func _build_collision_shape() -> void:
+	# Build CapsuleShape3D on the root CharacterBody3D
+	if not has_node("PlayerCollisionShape"):
+		var shape := CollisionShape3D.new()
+		shape.name = "PlayerCollisionShape"
+		var capsule := CapsuleShape3D.new()
+		capsule.radius = 0.3
+		capsule.height = 1.4
+		shape.shape = capsule
+		shape.position = Vector3(0, 0.7, 0)  # Half-height offset
+		add_child(shape)
+		shape.owner = self
+
+
 func _ready() -> void:
+	# Build node tree before accessing @onready vars
+	_build_node_tree()
+	_build_collision_shape()
+
+	# Reassign @onready vars since they were set to null before nodes existed
+	head = $Head
+	camera = $Head/Camera3D
+	interaction_area = $InteractionArea
+
 	add_to_group("player")
 	camera.current = true
 	head.rotation.x = camera_tilt  # slight downward tilt

@@ -17,7 +17,7 @@ horizontal_alignment = 1
 visible = false
 
 [node name="Camera3D" type="Camera3D" parent="."]
-current = true
+current = false
 position = Vector3(0, 2, 5)
 
 [node name="SceneManager" type="Node" parent="."]
