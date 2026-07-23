@@ -135,6 +135,12 @@ func _init() -> void:
 	passed += _input_map_tests.passed
 	failed += _input_map_tests.failed
 
+	# --- 5-State Env Text Tests (Issue #154) ---
+	var _env_text_tests = load("res://tests/unit/test_env_text_5_state.gd").new()
+	_env_text_tests.run()
+	passed += _env_text_tests.passed
+	failed += _env_text_tests.failed
+
 	# --- MVP Integration Tests (Issue #158) ---
 	var _mvp_integration = load("res://tests/test_mvp_integration.gd").new()
 	_mvp_integration.run()

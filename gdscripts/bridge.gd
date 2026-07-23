@@ -2,6 +2,8 @@ extends SceneBase
 class_name BridgeScene
 
 # Bridge scene — Railing (overlook), homeless (echo mirror), rain (pressure), low-conviction intrusive thought.
+# Uses 5-state tone lookup for environmental text (Issue #154).
+# Supports dynamic text updates when state changes mid-scene.
 
 @onready var traffic_text: Node3D = $Environments/TrafficText
 @onready var homeless_text: Node3D = $Environments/HomelessText
@@ -20,7 +22,7 @@ func _ready() -> void:
 		homeless_trigger.input_event.connect(_on_homeless_trigger_input)
 	if exit_trigger:
 		exit_trigger.input_event.connect(_on_exit_trigger_input)
-	
+
 	# Check for low-conviction intrusive thought
 	call_deferred("_check_intrusive_thought")
 
@@ -32,26 +34,37 @@ func _configure_ambient_audio() -> void:
 
 
 func _configure_environmental_text() -> void:
-	var tone := _get_tone()
+	var tone: String = _get_tone_for_scene(scene_id)
 	_set_environment_text(tone)
 
 
-func _get_tone() -> String:
-	var ss: Node = get_node_or_null("/root/StateSystem")
-	if not ss:
-		return "neutral"
-	var will_val: float = ss.will if ss else 5.0
-	if will_val <= 3.0: return "tired"
-	elif will_val >= 7.0: return "determined"
-	else: return "neutral"
+## Handle dynamic tone updates from NarrativeManager (Issue #154).
+func _on_narrative_tone_changed(scene_id_emitted: String, tone: String) -> void:
+	super._on_narrative_tone_changed(scene_id_emitted, tone)
+	if scene_id_emitted != scene_id:
+		return
+	_set_environment_text(tone)
 
 
+## Set all bridge environment text based on 5-state tone.
 func _set_environment_text(tone: String) -> void:
 	match tone:
 		"tired":
 			traffic_text.text = "The cars blur past.\nYou've seen them a thousand times."
 			homeless_text.text = "A homeless person sits by the railing.\nThey don't look at you."
 			rain_bridge_text.text = "The rain is heavier here.\nYour coat is soaked."
+		"heavy":
+			traffic_text.text = "Traffic crawls below.\nExhaust fumes rise through the rain."
+			homeless_text.text = "A homeless person shivers under cardboard.\nYou look away."
+			rain_bridge_text.text = "Sheets of rain.\nThe asphalt gleams like an oil spill."
+		"neutral":
+			traffic_text.text = "Traffic flows below the bridge.\nRed tail lights stretch into the distance."
+			homeless_text.text = "A homeless person sits near the railing,\nwrapped in a dirty coat."
+			rain_bridge_text.text = "Rain falls steadily.\nThe wind picks up."
+		"hopeful":
+			traffic_text.text = "The city moves beneath you.\nRed lights pulse like a heartbeat."
+			homeless_text.text = "A homeless person looks up and nods.\nYou nod back."
+			rain_bridge_text.text = "Rain drums on the asphalt.\nYou pull your coat tighter."
 		"determined":
 			traffic_text.text = "The city moves beneath you.\nYou're part of it."
 			homeless_text.text = "A homeless person is humming a tune.\nIt sounds familiar."

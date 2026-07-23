@@ -2,7 +2,8 @@ extends SceneBase
 class_name StoreScene
 
 # Store scene script
-# Configures OPEN sign text, triggers store exit.
+# Configures OPEN sign text via 5-state tone lookup (Issue #154).
+# Supports dynamic text updates when state changes mid-scene.
 # Clerk interaction is handled by NPC.tscn (NPCNode) instance.
 
 @onready var open_sign: Node3D = $Environments/OpenSign
@@ -23,18 +24,33 @@ func _configure_ambient_audio() -> void:
 
 
 func _configure_environmental_text() -> void:
-	var gm: Node = get_node_or_null("/root/GameManager")
-	if not gm:
-		return
-	var hope: float = gm.get_slider("hope")
-	var conviction: float = gm.get_slider("conviction")
+	var tone: String = _get_tone_for_scene(scene_id)
+	_set_open_sign_text(tone)
 
-	# Always show "OPEN"
-	# Show Stranger foreshadowing subtitle if both hope >= 5 and conviction >= 4
-	if hope >= 5.0 and conviction >= 4.0:
-		open_sign.text = "OPEN\n⌈He was here tonight.⌋"
-	else:
-		open_sign.text = "OPEN"
+
+## Handle dynamic tone updates from NarrativeManager (Issue #154).
+func _on_narrative_tone_changed(scene_id_emitted: String, tone: String) -> void:
+	super._on_narrative_tone_changed(scene_id_emitted, tone)
+	if scene_id_emitted != scene_id:
+		return
+	_set_open_sign_text(tone)
+
+
+## Set open sign text based on 5-state tone.
+func _set_open_sign_text(tone: String) -> void:
+	match tone:
+		"cold":
+			open_sign.text = "OPEN\n(24h)"
+		"distant":
+			open_sign.text = "OPEN\n⌈Hollow light.⌋"
+		"neutral":
+			open_sign.text = "OPEN"
+		"warm":
+			open_sign.text = "OPEN\n⌈He was here tonight.⌋"
+		"glowing":
+			open_sign.text = "OPEN\n⌈He was here. He left a light on.⌋"
+		_:
+			open_sign.text = "OPEN"
 
 
 func _on_exit_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:

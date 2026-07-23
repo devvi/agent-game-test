@@ -2,6 +2,8 @@ extends SceneBase
 class_name UnderpassScene
 
 # Underpass scene — Stranger (echo dialogue), graffiti wall (memory flashback), echo triggers.
+# Uses 5-state tone lookup for environmental text (Issue #154).
+# Supports dynamic text updates when state changes mid-scene.
 
 @onready var graffiti_text: Node3D = $Environments/GraffitiText
 @onready var echo_text: Node3D = $Environments/EchoText
@@ -20,7 +22,7 @@ func _ready() -> void:
 		stranger_echo_trigger.input_event.connect(_on_stranger_echo_trigger_input)
 	if exit_trigger:
 		exit_trigger.input_event.connect(_on_exit_trigger_input)
-	
+
 	# Check for echo triggers
 	call_deferred("_check_echoes")
 	# Check AC3 hidden text condition
@@ -34,33 +36,36 @@ func _configure_ambient_audio() -> void:
 
 
 func _configure_environmental_text() -> void:
-	var tone := _get_tone()
+	var tone: String = _get_tone_for_scene(scene_id)
 	_set_environment_text(tone)
 
 
-func _get_tone() -> String:
-	var ss: Node = get_node_or_null("/root/StateSystem")
-	if not ss:
-		return "neutral"
-	var state := ss.get_state()
-	var hope_val: float = state.get("hope", 5.0)
-	var conviction_val: float = state.get("conviction", 5.0)
-	if hope_val <= 4.0 and conviction_val <= 4.0:
-		return "despair"
-	elif hope_val >= 6.0 and conviction_val >= 6.0:
-		return "resolute"
-	else:
-		return "neutral"
+## Handle dynamic tone updates from NarrativeManager (Issue #154).
+func _on_narrative_tone_changed(scene_id_emitted: String, tone: String) -> void:
+	super._on_narrative_tone_changed(scene_id_emitted, tone)
+	if scene_id_emitted != scene_id:
+		return
+	_set_environment_text(tone)
 
 
+## Set all underpass environment text based on 5-state tone.
 func _set_environment_text(tone: String) -> void:
 	match tone:
 		"despair":
 			graffiti_text.text = "The walls are covered in faded tags.\nNone of them say anything you remember."
 			underpass_light.text = "The flickering light casts long shadows."
+		"hollow":
+			graffiti_text.text = "Scratched initials on the wall.\nYou don't recognize them."
+			underpass_light.text = "A single bulb buzzes.\nThe tunnel stretches into nothing."
+		"neutral":
+			graffiti_text.text = "Graffiti covers the underpass walls.\nTags and faded messages."
+			underpass_light.text = "A single fluorescent light buzzes overhead."
 		"resolute":
 			graffiti_text.text = "Colorful tags cover the walls.\nSomeone wrote 'keep going' in red."
 			underpass_light.text = "The tunnel is dim but clear.\nYou can see the other end."
+		"transcendent":
+			graffiti_text.text = "The walls breathe with color.\nEvery tag tells a story.\nYou are part of this city."
+			underpass_light.text = "Light pools at the tunnel's end.\nYou walk toward it."
 		_:
 			graffiti_text.text = "Graffiti covers the underpass walls.\nTags and faded messages."
 			underpass_light.text = "A single fluorescent light buzzes overhead."
@@ -72,7 +77,7 @@ func _check_echoes() -> void:
 		# Trigger screensaver echo if not yet triggered
 		if not nm.echo_flags.get("screensaver_echo", false):
 			nm.trigger_echo("screensaver_echo")
-		
+
 		# Set echo text if echo was triggered
 		if nm.echo_flags.get("rain_echo", false) or nm.echo_flags.get("screensaver_echo", false):
 			if echo_text:
@@ -91,7 +96,7 @@ func _check_hidden_text() -> void:
 		return
 	var hope_val: float = ss.hope if ss else 5.0
 	var conviction_val: float = ss.conviction if ss else 5.0
-	
+
 	if hope_val <= 2.0 and conviction_val <= 2.0:
 		if echo_text:
 			echo_text.visible = true
@@ -115,14 +120,14 @@ func _on_stranger_echo_trigger_input(camera: Node, event: InputEvent, position: 
 		var nm: Node = get_node_or_null("/root/NarrativeManager")
 		if nm and nm.has_method("trigger_echo"):
 			nm.trigger_echo("rain_echo")
-		
+
 		# AC3: Set is_new_game_plus flag for dialogue conditions (Issue #59)
 		var gm: Node = get_node_or_null("/root/GameManager")
 		if gm and gm.has_method("get_playthrough_count"):
 			if gm.get_playthrough_count() >= 2:
 				if nm and nm.has_method("set_flag"):
 					nm.set_flag("is_new_game_plus", true)
-		
+
 		# Set extreme-state flags for AC2 dialogue variants
 		var ss: Node = get_node_or_null("/root/StateSystem")
 		if ss:
@@ -132,7 +137,7 @@ func _on_stranger_echo_trigger_input(camera: Node, event: InputEvent, position: 
 				nm.set_flag("underpass_hope_high", true)
 			if hope_val <= 2.0 and nm and nm.has_method("set_flag"):
 				nm.set_flag("underpass_hope_low", true)
-		
+
 		start_dialogue("res://dialogues/underpass_stranger_echo.json", "underpass_stranger_echo")
 
 
