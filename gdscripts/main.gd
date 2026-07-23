@@ -9,6 +9,7 @@ extends Node3D
 @onready var dialogue_runner: Node = $Dialogue/DialoguePanel
 @onready var dialogue_debug: Node = $DialogueDebug
 @onready var dialogue_display_3d: Node3D = $Dialogue3D
+@onready var status_bar: CanvasLayer = $StatusBar
 
 var _dialogue_active: bool = false
 
@@ -34,6 +35,15 @@ func _ready() -> void:
 		dialogue_runner.node_changed.connect(dialogue_display_3d.on_node_changed)
 		dialogue_runner.choices_available.connect(dialogue_display_3d.on_choices_available)
 		dialogue_runner.dialogue_ended.connect(dialogue_display_3d.on_dialogue_ended)
+
+	# Connect status bar to state changes
+	if state_system != null and status_bar != null:
+		state_system.state_changed.connect(status_bar._on_state_changed)
+
+	# Connect viewport size changes to UIConfig
+	var ui_config := get_node_or_null("/root/UIConfig")
+	if ui_config != null:
+		get_tree().root.size_changed.connect(_on_viewport_size_changed)
 
 	# Delegate to SceneManager to load the starting scene
 	call_deferred("_load_starting_scene")
@@ -96,7 +106,8 @@ func _input(event: InputEvent) -> void:
 					dialogue_runner.select_choice(digit)
 
 func _on_state_changed(state: Dictionary) -> void:
-	world_label.text = "Hope: " + str(state["hope"]) + "  Despair: " + str(state["despair"])
+	# Status bar is updated via signal connection — world_label is deprecated
+	pass
 
 # ===== Dialogue Integration =====
 
@@ -119,3 +130,9 @@ func _on_choices_available(choices: Array) -> void:
 	print("Choices available: ", choices.size())
 	for i in range(choices.size()):
 		print("  %d. %s" % [i + 1, choices[i].get("text", "")])
+
+
+func _on_viewport_size_changed() -> void:
+	var ui_config := get_node_or_null("/root/UIConfig")
+	if ui_config != null and is_instance_valid(ui_config):
+		ui_config.recalculate()

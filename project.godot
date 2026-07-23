@@ -24,6 +24,7 @@ GameManager="*res://gdscripts/game_manager.gd"
 NarrativeManager="*res://gdscripts/narrative_manager.gd"
 AudioManager="*res://gdscripts/audio_manager.gd"
 GameState="*res://gdscripts/game_state.gd"
+UIConfig="*res://gdscripts/ui_config.gd"
 
 [editor_plugins]
 enabled=PackedStringArray()

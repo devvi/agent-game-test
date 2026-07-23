@@ -35,6 +35,7 @@ var _dialogue_runner: Node
 var _greeting_override: String = ""
 
 const _DialogueConditionEvaluator := preload("res://gdscripts/dialogue_condition_evaluator.gd")
+const _DialogueRunnerScript := preload("res://gdscripts/dialogue_runner.gd")
 
 
 func _ready() -> void:
@@ -78,7 +79,7 @@ func _find_parent_dialogue_runner() -> Node:
 			return panel
 	var parent := get_parent()
 	while parent:
-		if parent is DialogueRunner:
+		if is_instance_of(parent, _DialogueRunnerScript):
 			return parent
 		parent = parent.get_parent()
 	return null

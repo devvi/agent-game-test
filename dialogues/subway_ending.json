@@ -85,6 +85,14 @@
       "text": "下次再见。",
       "choices": [
         {
+          "text": "「下次再见。……或者说，下次再见自己。」",
+          "next_node": "kw_stranger_meta",
+          "condition": { "type": "flag", "flag": "stranger_revealed", "value": true },
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 1.0 }
+          ]
+        },
+        {
           "text": "「再见。」",
           "next_node": "kw_train",
           "effects": [
@@ -176,6 +184,12 @@
       "text": "你确定？",
       "choices": [
         {
+          "text": "「你知道我在想什么？」",
+          "next_node": "tb_stranger_meta",
+          "condition": { "type": "flag", "flag": "stranger_revealed", "value": true },
+          "effects": []
+        },
+        {
           "text": "「我确定。」",
           "next_node": "tb_final",
           "effects": [
@@ -265,6 +279,12 @@
       "text": "………",
       "choices": [
         {
+          "text": "（点头）",
+          "next_node": "st_stranger_meta",
+          "condition": { "type": "flag", "flag": "stranger_revealed", "value": true },
+          "effects": []
+        },
+        {
           "text": "Watch them go.",
           "next_node": "st_final",
           "effects": [
@@ -283,6 +303,46 @@
           "next_node": null,
           "effects": [
             { "type": "set_flag", "flag": "ending_stay", "value": true }
+          ]
+        }
+      ]
+    },
+    "kw_stranger_meta": {
+      "speaker": "Stranger",
+      "text": "下次再见。\n……或者说，\n下次再见自己。",
+      "choices": [
+        {
+          "text": "「再见。」",
+          "next_node": "kw_train",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 1.0 }
+          ]
+        }
+      ]
+    },
+    "tb_stranger_meta": {
+      "speaker": "Stranger",
+      "text": "你确定？\n我知道你在想什么。\n⌈因为我就是你。⌋",
+      "choices": [
+        {
+          "text": "「……我确定。」",
+          "next_node": "tb_final",
+          "effects": [
+            { "type": "set_flag", "flag": "stranger_meta_ending", "value": true }
+          ]
+        }
+      ]
+    },
+    "st_stranger_meta": {
+      "speaker": "Stranger",
+      "text": "………\n⌈你懂了吗？⌋",
+      "choices": [
+        {
+          "text": "（看着他们离开）",
+          "next_node": "st_final",
+          "effects": [
+            { "type": "slider_delta", "axis": "conviction", "delta": 1.0 },
+            { "type": "slider_delta", "axis": "hope", "delta": 1.0 }
           ]
         }
       ]
