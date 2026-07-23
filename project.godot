@@ -4,7 +4,7 @@
 [application]
 config/name="Agent Game Test"
 config/description="A test of game developing based on full agent workflow using Godot 4"
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/title_screen.tscn"
 config/icon="res://assets/icon.png"
 config/features=PackedStringArray("4.7")
 

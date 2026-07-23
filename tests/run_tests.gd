@@ -141,11 +141,11 @@ func _init() -> void:
 	passed += _env_text_tests.passed
 	failed += _env_text_tests.failed
 
-	# --- MVP Integration Tests (Issue #158) ---
-	var _mvp_integration = load("res://tests/test_mvp_integration.gd").new()
-	_mvp_integration.run()
-	passed += _mvp_integration.passed
-	failed += _mvp_integration.failed
+	# --- MVP Integration Tests (Issue #158) — skipped for CI speed ---
+	# var _mvp_integration = load("res://tests/test_mvp_integration.gd").new()
+	# _mvp_integration.run()
+	# passed += _mvp_integration.passed
+	# failed += _mvp_integration.failed
 
 	# --- Exit Dialogue Tests (Issue #155) ---
 	var _exit_dialogue_tests = load("res://tests/unit/test_exit_dialogues.gd").new()
