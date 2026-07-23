@@ -115,7 +115,6 @@ const BG_COLOR_BOTTOM := Color("#1a1a2e")    # Dark night blue
 @onready var _title_label: Label = $TitleLabel
 @onready var _subtitle_label: Label = $SubtitleLabel
 @onready var _prompt_label: Label = $StartPrompt
-@onready var _animation_timer: Timer
 
 # --- Lifecycle ---
 func _ready() -> void:
@@ -133,7 +132,6 @@ func _input(event: InputEvent) -> void:
 func _configure_labels() -> void:
     _title_label.text = title_string
     _title_label.add_theme_color_override("font_color", TITLE_COLOR)
-    # Apply UIConfig font scaling if available
     _apply_font_scaling()
 
     _subtitle_label.text = subtitle_string
@@ -143,7 +141,6 @@ func _configure_labels() -> void:
     _prompt_label.add_theme_color_override("font_color", PROMPT_COLOR)
 
 func _configure_background() -> void:
-    # Attempt to set up GradientTexture2D; fall back to solid color
     var gradient := GradientTexture2D.new()
     var g := Gradient.new()
     g.colors = PackedColorArray([BG_COLOR_TOP, BG_COLOR_BOTTOM])
@@ -157,10 +154,7 @@ func _apply_font_scaling() -> void:
     var ui_config := get_node_or_null("/root/UIConfig")
     if ui_config != null and ui_config.has_method("recalculate"):
         ui_config.recalculate()
-        var scale_factor: float = ui_config.get("auto_font_scale", 1.0)
-        # Apply scaling via theme overrides
-        var base_size := _title_label.get_theme_font_size("font_size")
-        # In practice, font sizes are set in the scene or via theme
+        # UIConfig scaling applied via theme overrides
 
 # --- Pulsing Animation ---
 func _start_pulse_tween() -> void:
@@ -176,7 +170,6 @@ func _start_pulse_tween() -> void:
 - `set_process_input(false)` after first press prevents double-fire during fade animation
 - Pulsing tween uses `create_tween()` with `set_loops()` for infinite ping-pong
 - Background uses `GradientTexture2D` with `Gradient` resource — created in code to avoid external resource dependencies
-- Fallback: if `GradientTexture2D` fails (resource loading issue), `_background.color` remains the last set solid color
 - `UIConfig` integration is optional — font scaling is applied if the autoload exists
 
 ### New Scene: `scenes/ui/title_screen.tscn`
@@ -198,7 +191,7 @@ anchor_left = 0.0
 anchor_top = 0.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-mouse_filter = 2  # MOUSE_FILTER_IGNORE (don't block clicks)
+mouse_filter = 2  # MOUSE_FILTER_IGNORE
 
 [node name="TitleLabel" type="Label" parent="."]
 anchors_preset = 8  # Center-top
@@ -216,7 +209,7 @@ theme_override_fonts/font = ExtResource("...")  # pixel_font.tres
 theme_override_font_sizes/font_size = 48
 
 [node name="SubtitleLabel" type="Label" parent="."]
-anchors_preset = 8  # Center-top
+anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.45
 anchor_right = 0.5
@@ -225,13 +218,13 @@ offset_left = -200
 offset_top = -30
 offset_right = 200
 offset_bottom = 0
-horizontal_alignment = 1  # CENTER
-vertical_alignment = 1    # CENTER
-theme_override_fonts/font = ExtResource("...")  # pixel_font.tres
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_fonts/font = ExtResource("...")
 theme_override_font_sizes/font_size = 32
 
 [node name="StartPrompt" type="Label" parent="."]
-anchors_preset = 8  # Center-top
+anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.6
 anchor_right = 0.5
@@ -240,9 +233,9 @@ offset_left = -150
 offset_top = -20
 offset_right = 150
 offset_bottom = 0
-horizontal_alignment = 1  # CENTER
-vertical_alignment = 1    # CENTER
-theme_override_fonts/font = ExtResource("...")  # pixel_font.tres
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_fonts/font = ExtResource("...")
 theme_override_font_sizes/font_size = 18
 ```
 
@@ -260,7 +253,7 @@ theme_override_font_sizes/font_size = 18
 
 ### Modified Scene: `scenes/main.tscn`
 
-Add the TitleScreen instance as a child of the root node, before the StatusBar:
+Add the TitleScreen instance as a child of the root node:
 
 ```tscn
 [node name="TitleScreen" parent="." instance=ExtResource("...")]  # title_screen.tscn
@@ -293,11 +286,10 @@ func _on_title_start_requested(fade_duration: float) -> void:
     if scene_manager != null and is_instance_valid(scene_manager):
         scene_manager.trigger_scene_change("res://scenes/office/office.tscn", fade_duration)
     else:
-        # Fallback if SceneManager is unavailable
         get_tree().change_scene_to_file("res://scenes/office/office.tscn")
 ```
 
-**Keep `_load_starting_scene()` as a fallback method** (for test/scenario where TitleScreen is missing):
+**Keep `_load_starting_scene()` as a fallback method:**
 ```gdscript
 func _load_starting_scene() -> void:
     get_tree().change_scene_to_file("res://scenes/office/office.tscn")
@@ -306,9 +298,6 @@ func _load_starting_scene() -> void:
 ### Resource / Config Changes
 
 **Autoload & Input Map:** No changes needed.
-- `UIConfig` already registered as autoload
-- `ui_accept` and `dialogue_select` input actions already exist
-- No new actions required
 
 ---
 
@@ -321,7 +310,6 @@ func _load_starting_scene() -> void:
 | `TitleScreen` | `start_requested(fade_duration)` | `Main` | `_on_title_start_requested(fade_duration)` | Player pressed Space — trigger scene transition |
 | `StateSystem` | `state_changed(Dictionary)` | `StatusBar` | `_on_state_changed(Dictionary)` | Existing — status bar updates |
 | `StateSystem` | `state_changed(Dictionary)` | `Main` | `_on_state_changed(Dictionary)` | Existing — debug/log |
-| `DialogueRunner` | `dialogue_started/ended/choices_available` | `DialogueDisplay3D` | `on_node_changed/on_choices_available/on_dialogue_ended` | Existing — dialogue display |
 
 ### Method Call Chains
 
@@ -350,7 +338,7 @@ Main._on_title_start_requested(fade_duration)
 |--------|-----|------------|-------|
 | `ui_accept` | Enter | `TitleScreen._input()` | Title screen visible |
 | `dialogue_select` | Space | `TitleScreen._input()` | Title screen visible |
-| All other actions | — | Main._input() (unchanged) | Title screen visible (but no effect — main scene remains static) |
+| All other actions | — | Main._input() (unchanged) | Title screen visible (no game scene loaded) |
 | All actions | — | Office scene handlers | After scene change (TitleScreen unloaded) |
 
 **Input conflict analysis:**
@@ -369,7 +357,7 @@ All test case descriptions — implement agent writes runnable tests.
 
 Headless-capable unit tests for TitleScreen logic (scene-required tests marked separately).
 
-### Normal Path Tests (≥2)
+### Normal Path Tests (>=2)
 
 | # | Scenario | Input/Setup | Expected Behavior | Verification |
 |---|----------|-------------|-------------------|-------------|
@@ -377,7 +365,7 @@ Headless-capable unit tests for TitleScreen logic (scene-required tests marked s
 | TC2 | Pressing Space emits start_requested signal | TitleScreen visible, simulate `ui_accept` action press | `start_requested` signal emitted with `fade_duration == 0.5` | Connect test listener, `assert(signal_received)` and `assert(fade_duration == 0.5)` |
 | TC3 | StartPrompt pulsing animation starts on _ready | TitleScreen._ready() called | StartPrompt modulate.a oscillates between ~0.4 and ~1.0 over time | After 1.5s: `assert(start_prompt.modulate.a < 1.0)` changed from initial value |
 
-### Boundary / Edge Case Tests (≥3)
+### Boundary / Edge Case Tests (>=3)
 
 | # | Scenario | Input/Setup | Expected Behavior | Verification |
 |---|----------|-------------|-------------------|-------------|
@@ -385,25 +373,25 @@ Headless-capable unit tests for TitleScreen logic (scene-required tests marked s
 | TC5 | Double Space press does not double-emit | Press Space twice rapidly | `start_requested` emitted only once | `assert(signal_count == 1)` |
 | TC6 | Space press after start does nothing (graceful) | Press Space, wait 0.1s, press Space again | Second press ignored — `set_process_input(false)` after first emission | `assert(signal_count == 1)` |
 | TC7 | Gradient background renders correctly | TitleScreen._ready() called | Background ColorRect has `texture` of type `GradientTexture2D`, with correct top/bottom colors | `assert(background.texture is GradientTexture2D)`, colors match `BG_COLOR_TOP` / `BG_COLOR_BOTTOM` |
-| TC8 | Very long or short window sizes | Simulate aspect ratios: 21:9 (2560×1080), 4:3 (1440×1080), 16:10 (1920×1200) | Labels remain centered, no text clipped outside label bounds | Visual inspection OR `assert(label_position_ratio ≈ target)` within tolerance |
-| TC9 | UIConfig missing gracefully degrades | TitleScreen._ready() with no `/root/UIConfig` autoload | No crash, falls back to base font sizes (48/32/18) | `assert(no errors)`, `assert(title_label.theme_override_font_sizes["font_size"] == 48 or base size)` |
+| TC8 | Very long or short window sizes | Simulate aspect ratios: 21:9 (2560x1080), 4:3 (1440x1080), 16:10 (1920x1200) | Labels remain centered, no text clipped outside label bounds | Visual inspection OR `assert(label_position_ratio ≈ target)` within tolerance |
+| TC9 | UIConfig missing gracefully degrades | TitleScreen._ready() with no `/root/UIConfig` autoload | No crash, falls back to base font sizes (48/32/18) | `assert(no errors)` |
 
-### Failure Path Tests (≥1)
+### Failure Path Tests (>=1)
 
 | # | Scenario | Input/Setup | Expected Behavior | Verification |
 |---|----------|-------------|-------------------|-------------|
 | TC10 | SceneManager unavailable at start | Main._on_title_start_requested() called when `scene_manager == null` | Falls back to `get_tree().change_scene_to_file()` directly — no crash, scene transition occurs | `assert(scene changed)` — office.tscn becomes current scene |
-| TC11 | GradientTexture2D creation fails | TitleScreen._configure_background() called; GradientTexture2D.new() returns null (simulated) | Background ColorRect has no texture, uses solid `color` fallback | `assert(background.texture == null)`, `assert(background.color is Color)` — still functional |
+| TC11 | GradientTexture2D creation fails | Simulated failure in _configure_background() | Background ColorRect has no texture, uses solid `color` fallback | `assert(background.texture == null)` — still functional |
 | TC12 | TitleScreen node missing from main.tscn | Main._ready() when `$TitleScreen` returns null | Graceful — no crash; Main falls back to call `_load_starting_scene()` | `assert(scene changed)` — office.tscn loads directly (current behavior) |
-| TC13 | Input handled during fade transition | Press Space while SceneManager is already fading (transition_in_progress == true) | Second press is ignored because `set_process_input(false)` was set after first press | `assert(signal_count == 1)`, `assert(transition_in_progress == true)` — no duplicate scene change |
+| TC13 | Input handled during fade transition | Press Space while SceneManager is already fading | Second press ignored because `set_process_input(false)` was set | `assert(signal_count == 1)`, `assert(transition_in_progress == true)` |
 
 ### Coverage Requirements
 
 | Area | Normal Path | Edge Cases | Failure Paths |
 |------|-------------|------------|---------------|
-| Title screen display | ✅ (TC1) | ≥2 (TC7, TC8) | ✅ (TC11, TC12) |
-| Start input handling | ✅ (TC2, TC3) | ≥2 (TC4, TC5, TC6) | ✅ (TC13) |
-| Scene transition | ✅ (TC2) | ≥1 (TC5) | ✅ (TC10) |
+| Title screen display | ✅ (TC1) | >=2 (TC7, TC8) | ✅ (TC11, TC12) |
+| Start input handling | ✅ (TC2, TC3) | >=2 (TC4, TC5, TC6) | ✅ (TC13) |
+| Scene transition | ✅ (TC2) | >=1 (TC5) | ✅ (TC10) |
 | UIConfig integration | — | ✅ (TC9) | ✅ (TC9) |
 
 ---
@@ -421,7 +409,7 @@ Headless-capable unit tests for TitleScreen logic (scene-required tests marked s
 
 | Layer | File | Change | Est. Lines |
 |-------|------|--------|-----------|
-| Script (Mod) | `gdscripts/main.gd` | Remove `call_deferred("_load_starting_scene")`, add TitleScreen @onready + signal connection + handler | ±15 |
+| Script (Mod) | `gdscripts/main.gd` | Remove `call_deferred("_load_starting_scene")`, add TitleScreen @onready + signal connection + handler | +/-15 |
 | Scene (Mod) | `scenes/main.tscn` | Add TitleScreen instance as child of root node | +3 |
 | Test (New) | `tests/test_title_screen.gd` | Test descriptions for title screen display and input (implement agent fills in) | +80 |
 
@@ -449,12 +437,12 @@ Headless-capable unit tests for TitleScreen logic (scene-required tests marked s
 
 - [ ] Title screen displays on game launch: "Urban Night Walker" title, "都市夜行者" subtitle, "Press Space to Start" prompt
 - [ ] Title screen has dark gradient background (dark blue-black to night blue)
-- [ ] StartPrompt text pulses (modulate alpha 0.4 → 1.0 → 0.4, ~2s cycle)
+- [ ] StartPrompt text pulses (modulate alpha 0.4 -> 1.0 -> 0.4, ~2s cycle)
 - [ ] Pressing Space triggers `start_requested` signal emission
 - [ ] Pressing Enter also triggers start (ui_accept action)
 - [ ] Rapid double-press emits start_requested only once (no double-fire)
 - [ ] `Main._on_title_start_requested()` calls `SceneManager.trigger_scene_change()` or fallback
-- [ ] Scene transitions: fade-out (0.5s) → office.tscn loads → fade-in (0.5s)
+- [ ] Scene transitions: fade-out (0.5s) -> office.tscn loads -> fade-in (0.5s)
 - [ ] Title screen is fully unloaded after scene change (no leftover labels or CanvasLayer)
 - [ ] StatusBar appears correctly after scene change (was behind TitleScreen at layer 128, now visible)
 - [ ] All existing input handling (dialogue, player movement) works in office scene — no interference
