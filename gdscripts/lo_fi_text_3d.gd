@@ -1,4 +1,5 @@
 extends Label3D
+class_name LoFiText3D
 
 # --- Exported Parameters ---
 

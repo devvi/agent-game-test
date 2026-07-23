@@ -8,7 +8,7 @@ extends Node3D
 @onready var state_system: Node = get_node("/root/GameState")
 @onready var dialogue_runner: Node = $Dialogue/DialoguePanel
 @onready var dialogue_debug: Node = $DialogueDebug
-@onready var dialogue_display_3d: Node3D = $Dialogue3D
+@onready var dialogue_display_3d = $Dialogue3D
 @onready var status_bar: CanvasLayer = $StatusBar
 
 var _dialogue_active: bool = false

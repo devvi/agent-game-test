@@ -57,8 +57,6 @@ func _create_fade_curtain() -> CanvasLayer:
 	anim_out.track_set_path(track_out, "ColorRect:modulate")
 	anim_out.track_insert_key(track_out, 0.0, Color(0, 0, 0, 0))
 	anim_out.track_insert_key(track_out, 0.5, Color(0, 0, 0, 1))
-	anim.add_animation("fade_out", anim_out)
-
 	# Create fade_in animation (reverse of fade_out)
 	var anim_in := Animation.new()
 	anim_in.length = 0.5
@@ -66,7 +64,11 @@ func _create_fade_curtain() -> CanvasLayer:
 	anim_in.track_set_path(track_in, "ColorRect:modulate")
 	anim_in.track_insert_key(track_in, 0.0, Color(0, 0, 0, 1))
 	anim_in.track_insert_key(track_in, 0.5, Color(0, 0, 0, 0))
-	anim.add_animation("fade_in", anim_in)
+
+	var library := AnimationLibrary.new()
+	library.add_animation("fade_out", anim_out)
+	library.add_animation("fade_in", anim_in)
+	anim.add_animation_library("", library)
 
 	return cl
 
