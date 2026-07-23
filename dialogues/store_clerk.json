@@ -279,6 +279,259 @@
           "effects": []
         }
       ]
+    },
+    "clerk_greet_cynical": {
+      "speaker": "Store Clerk",
+      "text": "Late again. What is it this time?",
+      "choices": [
+        {
+          "text": "买杯咖啡。",
+          "next_node": "coffee_offer_cynical",
+          "effects": []
+        },
+        {
+          "text": "随便看看。",
+          "next_node": "clerk_look",
+          "effects": []
+        },
+        {
+          "text": "聊工作的事。",
+          "next_node": "clerk_office_sigh",
+          "effects": [],
+          "condition": {
+            "type": "flag",
+            "flag": "office_exit_sigh",
+            "op": "eq",
+            "value": true
+          }
+        },
+        {
+          "text": "聊工作的事。",
+          "next_node": "clerk_office_neutral",
+          "effects": [],
+          "condition": {
+            "type": "flag",
+            "flag": "office_exit_neutral",
+            "op": "eq",
+            "value": true
+          }
+        },
+        {
+          "text": "聊工作的事。",
+          "next_node": "clerk_office_determined",
+          "effects": [],
+          "condition": {
+            "type": "flag",
+            "flag": "office_exit_determined",
+            "op": "eq",
+            "value": true
+          }
+        },
+        {
+          "text": "聊工作的事。",
+          "next_node": "clerk_office_no_flag",
+          "effects": []
+        }
+      ]
+    },
+    "clerk_greet_systemic": {
+      "speaker": "Store Clerk",
+      "text": "You're back. I know that look.",
+      "choices": [
+        {
+          "text": "买杯咖啡。",
+          "next_node": "coffee_offer_systemic",
+          "effects": []
+        },
+        {
+          "text": "随便看看。",
+          "next_node": "clerk_look",
+          "effects": []
+        },
+        {
+          "text": "老样子。",
+          "next_node": "clerk_office_sigh",
+          "effects": [],
+          "condition": {
+            "type": "flag",
+            "flag": "office_exit_sigh",
+            "op": "eq",
+            "value": true
+          }
+        },
+        {
+          "text": "老样子。",
+          "next_node": "clerk_office_neutral",
+          "effects": [],
+          "condition": {
+            "type": "flag",
+            "flag": "office_exit_neutral",
+            "op": "eq",
+            "value": true
+          }
+        },
+        {
+          "text": "老样子。",
+          "next_node": "clerk_office_determined",
+          "effects": [],
+          "condition": {
+            "type": "flag",
+            "flag": "office_exit_determined",
+            "op": "eq",
+            "value": true
+          }
+        },
+        {
+          "text": "老样子。",
+          "next_node": "clerk_office_no_flag",
+          "effects": []
+        }
+      ]
+    },
+    "clerk_office_sigh": {
+      "speaker": "Store Clerk",
+      "text": "I heard that sigh from across the store. That's the 'I give up' sigh.",
+      "choices": [
+        {
+          "text": "买杯咖啡。",
+          "next_node": "coffee_offer_cynical",
+          "effects": []
+        },
+        {
+          "text": "随便看看。",
+          "next_node": "clerk_look",
+          "effects": []
+        }
+      ]
+    },
+    "clerk_office_neutral": {
+      "speaker": "Store Clerk",
+      "text": "One more day, huh? I know the feeling.",
+      "choices": [
+        {
+          "text": "买杯咖啡。",
+          "next_node": "coffee_offer",
+          "effects": []
+        },
+        {
+          "text": "随便看看。",
+          "next_node": "clerk_look",
+          "effects": []
+        }
+      ]
+    },
+    "clerk_office_determined": {
+      "speaker": "Store Clerk",
+      "text": "You still got fight in you. Good. Hold onto that.",
+      "choices": [
+        {
+          "text": "买杯咖啡。",
+          "next_node": "coffee_offer",
+          "effects": []
+        },
+        {
+          "text": "随便看看。",
+          "next_node": "clerk_look",
+          "effects": []
+        }
+      ]
+    },
+    "clerk_office_no_flag": {
+      "speaker": "Store Clerk",
+      "text": "The usual late-night crowd. You fit right in.",
+      "choices": [
+        {
+          "text": "买杯咖啡。",
+          "next_node": "coffee_offer",
+          "effects": []
+        },
+        {
+          "text": "随便看看。",
+          "next_node": "clerk_look",
+          "effects": []
+        }
+      ]
+    },
+    "coffee_offer_cynical": {
+      "speaker": "Store Clerk",
+      "text": "Same as always? Figured.",
+      "choices": [
+        {
+          "text": "一杯就好。",
+          "next_node": "coffee_buy",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": 1.0 },
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "算了，不买了。",
+          "next_node": "clerk_no_coffee",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": -0.5 },
+            { "type": "slider_delta", "axis": "hope", "delta": -0.5 }
+          ]
+        }
+      ]
+    },
+    "coffee_offer_systemic": {
+      "speaker": "Store Clerk",
+      "text": "Coffee machine knows your order by now.",
+      "choices": [
+        {
+          "text": "一杯就好。",
+          "next_node": "coffee_buy",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": 1.0 },
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+          ]
+        },
+        {
+          "text": "算了，不买了。",
+          "next_node": "clerk_no_coffee",
+          "effects": [
+            { "type": "slider_delta", "axis": "will", "delta": -0.5 },
+            { "type": "slider_delta", "axis": "hope", "delta": -0.5 }
+          ]
+        }
+      ]
+    },
+    "clerk_chat_cynical": {
+      "speaker": "Store Clerk",
+      "text": "You know this is the third time this week. Not judging.",
+      "choices": [
+        {
+          "text": "……是啊。",
+          "next_node": "exit_after_coffee",
+          "effects": [
+            { "type": "set_flag", "flag": "chatted_with_clerk", "value": true }
+          ]
+        },
+        {
+          "text": "我知道。",
+          "next_node": "exit_after_coffee",
+          "effects": []
+        }
+      ]
+    },
+    "clerk_chat_systemic": {
+      "speaker": "Store Clerk",
+      "text": "It never really helps, does it? But you keep trying.",
+      "choices": [
+        {
+          "text": "不然呢。",
+          "next_node": "exit_after_coffee",
+          "effects": [
+            { "type": "slider_delta", "axis": "hope", "delta": 0.5 },
+            { "type": "set_flag", "flag": "chatted_with_clerk", "value": true }
+          ]
+        },
+        {
+          "text": "你说得对。",
+          "next_node": "exit_after_coffee",
+          "effects": []
+        }
+      ]
     }
   }
 }

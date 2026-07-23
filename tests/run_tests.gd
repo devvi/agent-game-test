@@ -71,6 +71,27 @@ func _init() -> void:
 	passed += _hemingway_tests.passed
 	failed += _hemingway_tests.failed
 
+	# --- NPC Framework Tests (Issue #54) ---
+	var _npc_node_tests = load("res://tests/unit/test_npc_node.gd").new()
+	_npc_node_tests.run()
+	passed += _npc_node_tests.passed
+	failed += _npc_node_tests.failed
+
+	var _npc_personality_tests = load("res://tests/unit/test_npc_personality.gd").new()
+	_npc_personality_tests.run()
+	passed += _npc_personality_tests.passed
+	failed += _npc_personality_tests.failed
+
+	var _dr_ext_tests = load("res://tests/unit/test_dialogue_runner_extension.gd").new()
+	_dr_ext_tests.run()
+	passed += _dr_ext_tests.passed
+	failed += _dr_ext_tests.failed
+
+	var _npc_integration_tests = load("res://tests/integration/test_npc_in_scene.gd").new()
+	_npc_integration_tests.run()
+	passed += _npc_integration_tests.passed
+	failed += _npc_integration_tests.failed
+
 	# --- Stranger Dialogue Tests (Issue #59) ---
 	var _stranger_dialogue = load("res://tests/test_stranger_dialogue.gd").new()
 	_stranger_dialogue.run()
