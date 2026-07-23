@@ -1,6 +1,7 @@
 extends RefCounted
 
 # Unit tests for GameManager player state variables (Issue #142).
+# Extended with autoload verification tests (Issue #153).
 
 var passed: int = 0
 var failed: int = 0
@@ -14,6 +15,11 @@ func run() -> void:
 	_test_gm_n_1_vars_exist()
 	_test_gm_n_2_set_position()
 	_test_gm_n_2_set_rotation()
+
+	# TC-GM-AL (Autoload Verification)
+	print("  --- TC-GM-AL: Autoload Verification ---")
+	_test_gm_al_1_verify_autoloads_tolerates_missing()
+	_test_gm_al_2_verify_autoloads_no_crash()
 
 	print("  GameManager Player State: %d passed, %d failed" % [passed, failed])
 
@@ -54,3 +60,19 @@ func _test_gm_n_2_set_rotation() -> void:
 	gm.player_rotation = Vector3(0.0, 1.57, 0.0)
 	_assert(abs(gm.player_rotation.y - 1.57) < 0.01,
 		"TC-GM-N-2-2: Set player_rotation.y ≈ 1.57")
+
+
+# ===== TC-GM-AL: Autoload Verification =====
+
+func _test_gm_al_1_verify_autoloads_tolerates_missing() -> void:
+	var gm = _make_gm()
+	# In headless mode, no autoloads are present. Verify no crash.
+	gm._verify_autoloads()
+	_assert(true, "TC-GM-AL-1: _verify_autoloads() tolerates missing autoloads (no crash)")
+
+
+func _test_gm_al_2_verify_autoloads_no_crash() -> void:
+	var gm = _make_gm()
+	# Verify _verify_input_map() doesn't crash either
+	gm._verify_input_map()
+	_assert(true, "TC-GM-AL-2: _verify_input_map() does not crash in headless mode")

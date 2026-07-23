@@ -24,14 +24,14 @@ func _ready() -> void:
 		dialogue_runner.hide()
 	
 	# Connect dialogue signals
-	if dialogue_runner != null:
+	if dialogue_runner != null and is_instance_valid(dialogue_runner):
 		dialogue_runner.dialogue_started.connect(_on_dialogue_started)
 		dialogue_runner.dialogue_ended.connect(_on_dialogue_ended)
 		dialogue_runner.node_changed.connect(_on_node_changed)
 		dialogue_runner.choices_available.connect(_on_choices_available)
 	
 	# Wire up dialogue display 3D to dialogue runner signals
-	if dialogue_runner != null and dialogue_display_3d != null:
+	if dialogue_runner != null and is_instance_valid(dialogue_runner) and dialogue_display_3d != null and is_instance_valid(dialogue_display_3d):
 		dialogue_runner.node_changed.connect(dialogue_display_3d.on_node_changed)
 		dialogue_runner.choices_available.connect(dialogue_display_3d.on_choices_available)
 		dialogue_runner.dialogue_ended.connect(dialogue_display_3d.on_dialogue_ended)

@@ -108,6 +108,12 @@ func _on_choice_made(choice_index: int, choice_text: String) -> void:
 func trigger_scene_change(target_scene: String, fade_duration: float = 0.5) -> void:
 	if transition_in_progress:
 		return
+	if target_scene.is_empty():
+		push_warning("SceneManager.trigger_scene_change: target scene path is empty")
+		return
+	if not FileAccess.file_exists(target_scene):
+		push_error("SceneManager.trigger_scene_change: scene file not found: ", target_scene)
+		return
 	transition_in_progress = true
 	var gm := get_node_or_null("/root/GameManager")
 	if gm:
