@@ -165,6 +165,12 @@ func _init() -> void:
 	passed += _exit_zone_tests.passed
 	failed += _exit_zone_tests.failed
 
+	# --- Camera Follow Tests (Issue #150) ---
+	var _camera_follow_tests = load("res://tests/unit/test_camera_follow.gd").new()
+	_camera_follow_tests.run()
+	passed += _camera_follow_tests.passed
+	failed += _camera_follow_tests.failed
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)
