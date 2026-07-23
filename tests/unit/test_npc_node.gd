@@ -15,6 +15,10 @@ func run() -> void:
 	_test_input_ignored_while_cooldown()
 	_test_dialogue_runner_not_available()
 
+	_test_start_npc_interaction_public_method()
+	_test_start_npc_interaction_respects_state()
+	_test_start_npc_interaction_vs_input_event()
+
 	print("  NPCNode State Machine: %d passed, %d failed" % [passed, failed])
 
 
@@ -130,3 +134,54 @@ func _test_dialogue_runner_not_available() -> void:
 	npc._dialogue_runner = null  # No dialogue runner
 
 	_assert(not npc.is_interactable(), "TC8: Not interactable when dialogue_runner is null")
+
+
+# T1: start_npc_interaction transitions to TALKING and calls dialogue_runner.start()
+func _test_start_npc_interaction_public_method() -> void:
+	var npc = _make_npc()
+	npc.current_state = 0  # IDLE
+	var call_count: int = 0
+	var mock_runner = Node.new()
+	mock_runner.start = func(_a, _b, _c=""): call_count += 1
+	npc._dialogue_runner = mock_runner
+
+	npc.start_npc_interaction()
+
+	_assert(npc.current_state == 1, "T1: State is TALKING after start_npc_interaction()")
+	_assert(call_count == 1, "T1: dialogue_runner.start() called once")
+
+
+# T2: start_npc_interaction respects state — blocked in COOLDOWN and EXHAUSTED
+func _test_start_npc_interaction_respects_state() -> void:
+	var npc = _make_npc()
+	var call_count: int = 0
+	var mock_runner = Node.new()
+	mock_runner.start = func(_a, _b, _c=""): call_count += 1
+	npc._dialogue_runner = mock_runner
+
+	npc.current_state = 2
+	npc.start_npc_interaction()
+	_assert(npc.current_state == 2, "T2a: State unchanged when COOLDOWN")
+	_assert(call_count == 0, "T2a: start() not called in COOLDOWN")
+
+	npc.current_state = 3
+	npc.start_npc_interaction()
+	_assert(npc.current_state == 3, "T2b: State unchanged when EXHAUSTED")
+	_assert(call_count == 0, "T2b: start() not called in EXHAUSTED")
+
+
+# T3: start_npc_interaction is idempotent — second call is no-op
+func _test_start_npc_interaction_vs_input_event() -> void:
+	var npc = _make_npc()
+	npc.current_state = 0  # IDLE
+	var call_count: int = 0
+	var mock_runner = Node.new()
+	mock_runner.start = func(_a, _b, _c=""): call_count += 1
+	npc._dialogue_runner = mock_runner
+
+	npc.start_npc_interaction()
+	_assert(npc.current_state == 1, "T3a: First call transitions to TALKING")
+	_assert(call_count == 1, "T3a: start() called once")
+
+	npc.start_npc_interaction()
+	_assert(call_count == 1, "T3b: Second call is no-op (call_count still 1)")
