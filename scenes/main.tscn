@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://dialogue_debug_overlay" path="res://scenes/dialogue/dialogue_debug_overlay.tscn" id="3_dialogue_debug"]
 [ext_resource type="Script" path="res://gdscripts/dialogue_display_3d.gd" id="4_dialogue_3d"]
 [ext_resource type="Script" path="res://gdscripts/scene_manager.gd" id="4_scene_manager"]
+[ext_resource type="PackedScene" uid="uid://status_bar_scene" path="res://scenes/ui/status_bar.tscn" id="5_status_bar"]
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main")
@@ -13,6 +14,7 @@ script = ExtResource("1_main")
 position = Vector3(0, 0, -5)
 text = "Hope: 100  Despair: 0"
 horizontal_alignment = 1
+visible = false
 
 [node name="Camera3D" type="Camera3D" parent="."]
 position = Vector3(0, 2, 5)
@@ -33,3 +35,5 @@ position = Vector3(0, 1.5, -3)
 script = ExtResource("4_dialogue_3d")
 
 [node name="DialogueDebug" parent="." instance=ExtResource("3_dialogue_debug")]
+
+[node name="StatusBar" parent="." instance=ExtResource("5_status_bar")]

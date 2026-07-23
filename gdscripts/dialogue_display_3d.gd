@@ -29,6 +29,11 @@ var _tween: Tween = null
 func _ready() -> void:
 	_setup_choice_pool()
 	hide_dialogue()
+	# Apply responsive layout from UIConfig if available
+	var ui_config := get_node_or_null("/root/UIConfig")
+	if ui_config != null:
+		if ui_config.has_method("recalculate"):
+			ui_config.recalculate()
 
 
 func _setup_choice_pool() -> void:
@@ -86,6 +91,16 @@ func on_node_changed(node_id: String, speaker: String, text: String) -> void:
 		dialogue_text.set_meta("hemingway_truncated", true)
 		dialogue_text.set_meta("hemingway_original", result["original_text"])
 
+	# Apply responsive font scaling from UIConfig
+	var ui_config := get_node_or_null("/root/UIConfig")
+	if ui_config != null:
+		var scale_factor: float = ui_config.get("auto_font_scale", 1.0)
+		# Apply font scale to LoFiText3D nodes (pixel_size property)
+		if "pixel_size" in speaker_label:
+			speaker_label.pixel_size = 0.02 * scale_factor
+		if "pixel_size" in dialogue_text:
+			dialogue_text.pixel_size = 0.02 * scale_factor
+
 	# Hide choices and continue prompt until on_choices_available fires
 	for label in _choice_labels:
 		label.visible = false
@@ -119,7 +134,13 @@ func on_choices_available(choices: Array) -> void:
 func show_choices_immediate(choices: Array) -> void:
 	_current_choices = choices
 	var count: int = mini(choices.size(), max_choices)
-	
+
+	# Apply responsive choice_spacing from UIConfig
+	var spacing: float = choice_spacing
+	var ui_config := get_node_or_null("/root/UIConfig")
+	if ui_config != null:
+		spacing = ui_config.get("choice_spacing", choice_spacing)
+
 	for i in range(_choice_labels.size()):
 		var label = _choice_labels[i]
 		if i < count:
@@ -128,6 +149,8 @@ func show_choices_immediate(choices: Array) -> void:
 			label.emissive_color = Color(0, 0, 0, 0)
 			var choice_text: String = choices[i].get("text", "")
 			label.text = "(%s) %s" % [_prefix_letter(i), choice_text]
+			# Choice labels positioned ABOVE dialogue text => negative Y offset
+			label.position.y = -(i + 1) * spacing - 0.1
 		else:
 			label.visible = false
 	
