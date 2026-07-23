@@ -17,6 +17,9 @@ var _fade_anim: AnimationPlayer
 
 func _ready() -> void:
 	_setup_fade_curtain()
+	var gm := get_node_or_null("/root/GameManager")
+	if gm and gm.get("transition_in_progress"):
+		transition_in_progress = true
 	_connect_to_dialogue()
 
 
@@ -106,6 +109,9 @@ func trigger_scene_change(target_scene: String, fade_duration: float = 0.5) -> v
 	if transition_in_progress:
 		return
 	transition_in_progress = true
+	var gm := get_node_or_null("/root/GameManager")
+	if gm:
+		gm.set("transition_in_progress", true)
 	transition_started.emit(target_scene)
 
 	var target_scene_id := target_scene.get_file().get_basename()
@@ -125,6 +131,8 @@ func trigger_scene_change(target_scene: String, fade_duration: float = 0.5) -> v
 	if err != OK:
 		push_error("SceneManager: Failed to change to scene: ", target_scene)
 		transition_in_progress = false
+		if gm:
+			gm.set("transition_in_progress", false)
 		return
 
 	# Fade-in is handled by the new scene's SceneManager
@@ -148,4 +156,7 @@ func fade_in(fade_duration: float = 0.5) -> void:
 	_fade_anim.play("fade_in", -1, 1.0, false)
 	await _fade_anim.animation_finished
 	transition_in_progress = false
+	var gm := get_node_or_null("/root/GameManager")
+	if gm:
+		gm.set("transition_in_progress", false)
 	transition_completed.emit()
