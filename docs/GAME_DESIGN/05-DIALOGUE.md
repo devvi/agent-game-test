@@ -327,3 +327,40 @@ const FLAG_OFFICE_EXIT_DETERMINED: String = "office_exit_determined"
 # Clerk dialogue path
 const DIALOGUE_STORE_CLERK_EXPANDED: String = "res://dialogues/store_clerk.json"
 ```
+
+### 9.8 E-Key Activation Path (Issue #152)
+
+> Implemented: 2026-07-23 (PR #182)
+> Files: `gdscripts/npc_node.gd`, `scenes/street/street.tscn`, `gdscripts/street.gd`
+
+The NPC Framework originally supported only mouse-click (`input_event`) activation. Issue #152 added a **programmatic activation path** via `start_npc_interaction()` that enables the E-key interaction pathway:
+
+| Addition | File | Description |
+|----------|------|-------------|
+| `start_npc_interaction()` | `npc_node.gd` | Public method mirroring the core activation block of `_on_interaction()` without requiring an InputEvent |
+| Test NPC instance | `street.tscn` | NPC.tscn placed at `InteractionZones/TestNPC` (position `(4, 0, 0)`) with EKeyTrigger child |
+| Wiring handler | `street.gd` | `_on_test_npc_interact()` connects `EKeyTrigger.e_key_interacted` → `NPCNode.start_npc_interaction()` |
+| Test dialogue | `dialogues/npc_test.json` | 2-node Hemingway-conforming test dialogue (speaker: "???") |
+| Constant | `constants.gd` | `DIALOGUE_NPC_TEST: String = "res://dialogues/npc_test.json"` |
+
+**Activation flow:**
+
+```
+Player presses E → PlayerController._try_interact()
+                     ↓ pops from LIFO stack
+                  interaction_requested.emit(EKeyTrigger)
+                     ↓
+                  SceneBase._on_player_interaction(target)
+                     ↓ has_method("start_npc_interaction")?
+                  → NPCNode.start_npc_interaction()
+                       ↓ is_interactable() guard
+                    evaluate_personality_layer()
+                    set_state(NPCState.TALKING)
+                    _dialogue_runner.start(...)
+```
+
+**Key design decisions:**
+- `start_npc_interaction()` mirrors `_on_interaction()` exactly — same state transitions, personality evaluation, and dialogue call — without needing an InputEvent
+- `is_interactable()` guard prevents both paths (mouse-click and E-key) from activating simultaneously
+- The EKeyTrigger is a child of `InteractionTrigger` Area3D (sharing its CollisionShape3D), not a sibling — ensuring both proximity detection and E-key range match
+- SceneBase already had the `has_method("start_npc_interaction")` routing since PR #149, so only the method addition on NPCNode was needed
