@@ -7,18 +7,19 @@ uniform float color_bits : hint_range(2.0, 24.0) = 8.0;
 uniform float scanline_intensity : hint_range(0.0, 1.0) = 0.15;
 uniform vec4 emissive_color : source_color = vec4(0.0);
 uniform float emissive_strength : hint_range(0.0, 5.0) = 0.0;
+uniform sampler2D albedo_texture : source_color;
 
 // --- Fragment Shader ---
 void fragment() {
     // 1. Sample the font atlas texture
-    vec4 tex_color = texture(TEXTURE, UV);
+    vec4 tex_color = texture(albedo_texture, UV);
 
     // 2. Pixelation: quantize UV coordinates
     vec2 uv_pixel = UV;
     if (pixel_factor > 0.001) {
         float steps = mix(256.0, 16.0, pixel_factor);
         uv_pixel = floor(UV * steps) / steps;
-        tex_color = texture(TEXTURE, uv_pixel);
+        tex_color = texture(albedo_texture, uv_pixel);
     }
 
     // 3. Color quantization: reduce per-channel bit depth
