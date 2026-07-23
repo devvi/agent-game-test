@@ -117,6 +117,23 @@ func _on_stranger_echo_trigger_input(camera: Node, event: InputEvent, position: 
 		if nm and nm.has_method("trigger_echo"):
 			nm.trigger_echo("rain_echo")
 		
+		# AC3: Set is_new_game_plus flag for dialogue conditions (Issue #59)
+		var gm: Node = get_node_or_null("/root/GameManager")
+		if gm and gm.has_method("get_playthrough_count"):
+			if gm.get_playthrough_count() >= 2:
+				if nm and nm.has_method("set_flag"):
+					nm.set_flag("is_new_game_plus", true)
+		
+		# Set extreme-state flags for AC2 dialogue variants
+		var ss: Node = get_node_or_null("/root/StateSystem")
+		if ss:
+			var hope_val: float = ss.get("hope", 5.0)
+			var conviction_val: float = ss.get("conviction", 5.0)
+			if hope_val >= 9.0 and nm and nm.has_method("set_flag"):
+				nm.set_flag("underpass_hope_high", true)
+			if hope_val <= 2.0 and nm and nm.has_method("set_flag"):
+				nm.set_flag("underpass_hope_low", true)
+		
 		start_dialogue("res://dialogues/underpass_stranger_echo.json", "underpass_stranger_echo")
 
 

@@ -186,3 +186,9 @@ func reset() -> void:
 	current_scene_index = 0
 	echo_flags.clear()
 	echo_variants.clear()
+
+## Set a narrative flag via GameManager.
+## Used by scene scripts to set flags before dialogue starts.
+func set_flag(flag_name: String, value: bool) -> void:
+	if _game_manager and _game_manager.has_method("set_flag"):
+		_game_manager.set_flag(flag_name, value)
