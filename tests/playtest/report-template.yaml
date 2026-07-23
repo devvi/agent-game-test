@@ -1,0 +1,70 @@
+# Playtest Report Template
+# One YAML file per tester per play session.
+# Use this to record structured observations across all 3 layers.
+
+tester_id: "agent-cua-{1..3}"        # Unique tester identifier
+date: "2026-07-23"                  # Date of playtest (ISO 8601)
+playthrough_path: "office→lobby→street→store→bridge→underpass→subway_station"
+tester_scenario: "neutral"           # Options: neutral, high-hope, low-hope
+state_preset_used: null              # e.g. {hope: 5.0, conviction: 5.0, will: 5.0}
+
+shallow:
+  total: 47
+  passed: 0
+  failed: 0
+  failures:
+    - id: "S-XX"
+      description: "Brief description of what was checked"
+      reproduction: "Steps to reproduce the failure"
+      observed: "What actually happened"
+      expected: "What should have happened"
+      severity: "blocking"           # blocking | major | minor
+
+middle:
+  total: 40
+  passed: 0
+  failed: 0
+  excluded: []                       # Items excluded from scoring (see below)
+  exclusions:
+    - id: "M-XX"
+      reason: "Why this item could not be tested (e.g. didn't reach that scene)"
+  failures:
+    - id: "M-XX"
+      description: "Brief description of what was checked"
+      state_used:                     # Values used when testing
+        axis: value
+      observed: "What actually happened"
+      expected: "What should have happened"
+      suggestion: "Suggested fix or investigation direction"
+      severity: "blocking"           # blocking | major | minor
+
+deep:
+  likert:
+    D-01: 0
+    D-02: 0
+    D-03: 0
+    D-04: 0
+    D-05: 0
+    D-06: 0
+    D-07: 0
+    D-08: 0
+    D-09: 0
+    D-10: 0
+  free_text:
+    D-Q1: ""
+    D-Q2: ""
+    D-Q3: ""
+    D-Q4: ""
+    D-Q5: ""
+    D-Q6: ""
+
+# Engine/build info
+engine_version: "Godot 4.7.1"
+godot_log_snippet: ""                # Paste any notable console output here
+crash_occurred: false
+crash_details: ""
+
+# Overall assessment
+overall_verdict: "PASS"              # PASS | CONDITIONAL | FAIL
+blocking_issues_count: 0
+recommendation: ""
