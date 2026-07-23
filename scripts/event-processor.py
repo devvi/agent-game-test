@@ -278,8 +278,8 @@ def parse_dependencies(body: str) -> list[dict]:
     in_deps_section = False
     for line in body.split("\n"):
         stripped = line.strip()
-        # Detect ## Dependencies heading (case-insensitive)
-        if re.match(r'^#{2,3}\s+Dependencies', stripped, re.IGNORECASE):
+        # Detect ## Dependencies or ## 前置依赖 heading (case-insensitive)
+        if re.match(r'^#{2,3}\s+(?:Dependencies|前置依赖)', stripped, re.IGNORECASE):
             in_deps_section = True
             continue
         # Exit section at next heading (## or deeper)
@@ -297,6 +297,12 @@ def parse_dependencies(body: str) -> list[dict]:
             if dep_type not in ("full", "design"):
                 dep_type = "full"  # unknown type → treat as full
             deps.append({"issue": int(m.group(2)), "type": dep_type})
+        # Fallback: bare #N references inside deps section (Chinese format: #42, #43)
+        elif re.search(r'#\d+', stripped):
+            refs = re.findall(r'#(\d+)', stripped)
+            for ref in refs:
+                if not any(d["issue"] == int(ref) for d in deps):
+                    deps.append({"issue": int(ref), "type": "full"})
     return deps
 
 
