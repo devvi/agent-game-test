@@ -147,6 +147,18 @@ func _init() -> void:
 	passed += _mvp_integration.passed
 	failed += _mvp_integration.failed
 
+	# --- Exit Dialogue Tests (Issue #155) ---
+	var _exit_dialogue_tests = load("res://tests/unit/test_exit_dialogues.gd").new()
+	_exit_dialogue_tests.run()
+	passed += _exit_dialogue_tests.passed
+	failed += _exit_dialogue_tests.failed
+
+	# --- End Credits Tests (Issue #155) ---
+	var _end_credits_tests = load("res://tests/unit/test_end_credits.gd").new()
+	_end_credits_tests.run()
+	passed += _end_credits_tests.passed
+	failed += _end_credits_tests.failed
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)

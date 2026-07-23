@@ -1,0 +1,32 @@
+{
+  "entry_node_id": "lobby_exit_prompt",
+  "nodes": {
+    "lobby_exit_prompt": {
+      "speaker": "Narrator",
+      "text": "The revolving door catches the light.\nOutside, the street is quiet.\nThe convenience store sign glows down the block.",
+      "choices": [
+        {
+          "text": "Walk toward the store.",
+          "effects": [],
+          "scene": "res://scenes/store/convenience_store.tscn"
+        },
+        {
+          "text": "Stand in the doorway a moment.",
+          "next_node": "lobby_exit_stand",
+          "effects": []
+        }
+      ]
+    },
+    "lobby_exit_stand": {
+      "speaker": "Narrator",
+      "text": "A car passes. The rain has stopped.\nThe store is still open.",
+      "choices": [
+        {
+          "text": "Go now.",
+          "effects": [],
+          "scene": "res://scenes/store/convenience_store.tscn"
+        }
+      ]
+    }
+  }
+}

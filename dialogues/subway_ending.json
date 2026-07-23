@@ -13,8 +13,18 @@
           "condition": {
             "type": "and",
             "conditions": [
-              { "type": "slider", "axis": "hope", "op": "gte", "value": 6 },
-              { "type": "slider", "axis": "will", "op": "gte", "value": 5 }
+              {
+                "type": "slider",
+                "axis": "hope",
+                "op": "gte",
+                "value": 6
+              },
+              {
+                "type": "slider",
+                "axis": "will",
+                "op": "gte",
+                "value": 5
+              }
             ]
           }
         },
@@ -44,7 +54,11 @@
           "text": "Step to the edge.",
           "next_node": "kw_edge",
           "effects": [
-            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "will",
+              "delta": 0.5
+            }
           ]
         }
       ]
@@ -62,7 +76,11 @@
           "text": "Face forward.",
           "next_node": "kw_stranger",
           "effects": [
-            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "conviction",
+              "delta": 0.5
+            }
           ]
         }
       ]
@@ -75,7 +93,11 @@
           "text": "Turn forward.",
           "next_node": "kw_stranger",
           "effects": [
-            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "will",
+              "delta": 0.5
+            }
           ]
         }
       ]
@@ -87,16 +109,28 @@
         {
           "text": "「下次再见。……或者说，下次再见自己。」",
           "next_node": "kw_stranger_meta",
-          "condition": { "type": "flag", "flag": "stranger_revealed", "value": true },
+          "condition": {
+            "type": "flag",
+            "flag": "stranger_revealed",
+            "value": true
+          },
           "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 1.0 }
+            {
+              "type": "slider_delta",
+              "axis": "hope",
+              "delta": 1.0
+            }
           ]
         },
         {
           "text": "「再见。」",
           "next_node": "kw_train",
           "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 1.0 }
+            {
+              "type": "slider_delta",
+              "axis": "hope",
+              "delta": 1.0
+            }
           ]
         }
       ]
@@ -120,8 +154,13 @@
           "text": "— Keep Walking —",
           "next_node": null,
           "effects": [
-            { "type": "set_flag", "flag": "ending_keep_walking", "value": true }
-          ]
+            {
+              "type": "set_flag",
+              "flag": "ending_keep_walking",
+              "value": true
+            }
+          ],
+          "scene": "res://scenes/end_credits.tscn"
         }
       ]
     },
@@ -133,14 +172,22 @@
           "text": "Walk down anyway.",
           "next_node": "tb_gate",
           "effects": [
-            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "will",
+              "delta": 0.5
+            }
           ]
         },
         {
           "text": "Turn around now.",
           "next_node": "tb_street",
           "effects": [
-            { "type": "slider_delta", "axis": "conviction", "delta": -0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "conviction",
+              "delta": -0.5
+            }
           ]
         }
       ]
@@ -153,14 +200,22 @@
           "text": "Reach for the gate.",
           "next_node": "tb_decision",
           "effects": [
-            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "will",
+              "delta": 0.5
+            }
           ]
         },
         {
           "text": "Pull your hand back.",
           "next_node": "tb_decision",
           "effects": [
-            { "type": "slider_delta", "axis": "conviction", "delta": -0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "conviction",
+              "delta": -0.5
+            }
           ]
         }
       ]
@@ -173,8 +228,16 @@
           "text": "Walk back.",
           "next_node": "tb_street",
           "effects": [
-            { "type": "slider_delta", "axis": "conviction", "delta": -0.5 },
-            { "type": "slider_delta", "axis": "hope", "delta": -0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "conviction",
+              "delta": -0.5
+            },
+            {
+              "type": "slider_delta",
+              "axis": "hope",
+              "delta": -0.5
+            }
           ]
         }
       ]
@@ -186,21 +249,33 @@
         {
           "text": "「你知道我在想什么？」",
           "next_node": "tb_stranger_meta",
-          "condition": { "type": "flag", "flag": "stranger_revealed", "value": true },
+          "condition": {
+            "type": "flag",
+            "flag": "stranger_revealed",
+            "value": true
+          },
           "effects": []
         },
         {
           "text": "「我确定。」",
           "next_node": "tb_final",
           "effects": [
-            { "type": "slider_delta", "axis": "conviction", "delta": -0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "conviction",
+              "delta": -0.5
+            }
           ]
         },
         {
           "text": "「……不。」",
           "next_node": "tb_final",
           "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": -0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "hope",
+              "delta": -0.5
+            }
           ]
         }
       ]
@@ -213,8 +288,13 @@
           "text": "— Turn Back —",
           "next_node": null,
           "effects": [
-            { "type": "set_flag", "flag": "ending_turn_back", "value": true }
-          ]
+            {
+              "type": "set_flag",
+              "flag": "ending_turn_back",
+              "value": true
+            }
+          ],
+          "scene": "res://scenes/end_credits.tscn"
         }
       ]
     },
@@ -226,7 +306,11 @@
           "text": "Look around.",
           "next_node": "st_bench",
           "effects": [
-            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "will",
+              "delta": 0.5
+            }
           ]
         },
         {
@@ -244,14 +328,22 @@
           "text": "Close your eyes.",
           "next_node": "st_train_passes",
           "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "hope",
+              "delta": 0.5
+            }
           ]
         },
         {
           "text": "Watch the tunnel.",
           "next_node": "st_train_passes",
           "effects": [
-            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "conviction",
+              "delta": 0.5
+            }
           ]
         }
       ]
@@ -269,7 +361,11 @@
           "text": "Stay seated.",
           "next_node": "st_stranger",
           "effects": [
-            { "type": "slider_delta", "axis": "will", "delta": 0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "will",
+              "delta": 0.5
+            }
           ]
         }
       ]
@@ -281,15 +377,27 @@
         {
           "text": "（点头）",
           "next_node": "st_stranger_meta",
-          "condition": { "type": "flag", "flag": "stranger_revealed", "value": true },
+          "condition": {
+            "type": "flag",
+            "flag": "stranger_revealed",
+            "value": true
+          },
           "effects": []
         },
         {
           "text": "Watch them go.",
           "next_node": "st_final",
           "effects": [
-            { "type": "slider_delta", "axis": "conviction", "delta": 0.5 },
-            { "type": "slider_delta", "axis": "hope", "delta": 0.5 }
+            {
+              "type": "slider_delta",
+              "axis": "conviction",
+              "delta": 0.5
+            },
+            {
+              "type": "slider_delta",
+              "axis": "hope",
+              "delta": 0.5
+            }
           ]
         }
       ]
@@ -302,8 +410,13 @@
           "text": "— Stay —",
           "next_node": null,
           "effects": [
-            { "type": "set_flag", "flag": "ending_stay", "value": true }
-          ]
+            {
+              "type": "set_flag",
+              "flag": "ending_stay",
+              "value": true
+            }
+          ],
+          "scene": "res://scenes/end_credits.tscn"
         }
       ]
     },
@@ -315,7 +428,11 @@
           "text": "「再见。」",
           "next_node": "kw_train",
           "effects": [
-            { "type": "slider_delta", "axis": "hope", "delta": 1.0 }
+            {
+              "type": "slider_delta",
+              "axis": "hope",
+              "delta": 1.0
+            }
           ]
         }
       ]
@@ -328,7 +445,11 @@
           "text": "「……我确定。」",
           "next_node": "tb_final",
           "effects": [
-            { "type": "set_flag", "flag": "stranger_meta_ending", "value": true }
+            {
+              "type": "set_flag",
+              "flag": "stranger_meta_ending",
+              "value": true
+            }
           ]
         }
       ]
@@ -341,8 +462,16 @@
           "text": "（看着他们离开）",
           "next_node": "st_final",
           "effects": [
-            { "type": "slider_delta", "axis": "conviction", "delta": 1.0 },
-            { "type": "slider_delta", "axis": "hope", "delta": 1.0 }
+            {
+              "type": "slider_delta",
+              "axis": "conviction",
+              "delta": 1.0
+            },
+            {
+              "type": "slider_delta",
+              "axis": "hope",
+              "delta": 1.0
+            }
           ]
         }
       ]

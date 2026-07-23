@@ -150,6 +150,21 @@ func get_next_scene_id() -> String:
 func get_playthrough_count() -> int:
 	return playthrough_count
 
+## Reset game state for a new playthrough.
+## Preserves playthrough_count for meta-narrative detection.
+func reset() -> void:
+	game_started = false
+	current_scene_id = "office"
+	scene_visited = {}
+	choices_made = 0
+	dialogue_history = []
+	player_position = Vector3.ZERO
+	player_rotation = Vector3.ZERO
+	player_head_rotation = 0.0
+	target_spawn_point = Vector3.ZERO
+	transition_in_progress = false
+	_flags = {}
+
 ## Track a scene as visited.
 func mark_scene_visited(scene_id: String) -> void:
 	scene_visited[scene_id] = true

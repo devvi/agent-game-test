@@ -104,6 +104,4 @@ func _on_homeless_trigger_input(camera: Node, event: InputEvent, position: Vecto
 
 func _on_exit_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		var nm: Node = get_node_or_null("/root/NarrativeManager")
-		if nm and nm.has_method("advance_scene"):
-			nm.advance_scene()
+		start_dialogue("res://dialogues/bridge_exit.json", "bridge_exit")
