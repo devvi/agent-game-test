@@ -135,6 +135,12 @@ func _init() -> void:
 	passed += _input_map_tests.passed
 	failed += _input_map_tests.failed
 
+	# --- MVP Integration Tests (Issue #158) ---
+	var _mvp_integration = load("res://tests/test_mvp_integration.gd").new()
+	_mvp_integration.run()
+	passed += _mvp_integration.passed
+	failed += _mvp_integration.failed
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)
