@@ -89,6 +89,26 @@ failed += _test_script.failed
 | 流程遍历 | TC-INT-30→35 | 走查循环、状态层级、空节点兜底 |
 | 结局判定 | TC-INT-36→38 | 三种结局路径全覆盖 |
 
+### 输入验证测试 (Issue #153)
+
+输入验证和错误处理是一个**跨模块**测试主题，分布在三个单元测试文件中：
+
+| 测试文件 | 测试组 | 用例数 | 覆盖内容 |
+|----------|--------|--------|----------|
+| `test_input_map_validation.gd` | TC-IM-E (Edge) + TC-IM-F (Failure) | 5 | 缺失动作容错、`Input.get_vector()` 安全、已知动作存在性 |
+| `test_player_controller.gd` | TC-EX (Export Bounds) | 2 | `@export` 默认值、`clamp()` 边缘行为 |
+| `test_npc_node.gd` | TC-IV (Input Validation) | 2 | 空 `dialogue_file`/`dialogue_id` 保护、多态值接受 |
+| `test_game_manager_player.gd` | TC-GM-AL (Autoload) | 2 | Autoload 不存在时容错、InputMap 验证不崩溃 |
+
+**验证层测试策略：**
+
+| 层 | 测试方法 | 验证方式 |
+|----|----------|----------|
+| @export_range | 在 `--script` 中设越界值，验证 `clamp()` 生效 | 值在预期范围内 |
+| 启动检查 | 通过 `new()` 实例化后调用带 `_` 前缀的方法 (白盒) | 方法不崩溃 |
+| 方法边界保护 | 传空字符串/空字典调用 API 方法 | `push_warning()` 预期的消息，功能不继续 |
+| 输入映射缺失 | 删除动作后调用 `_verify_input_map()` | warning 输出，无崩溃 |
+
 ### 测试方法
 
 - **无 Autoload 实例化**：脚本直接使用 `load("res://...").new()` 创建模块实例，不依赖 Autoload 注册
