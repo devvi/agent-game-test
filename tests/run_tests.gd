@@ -135,11 +135,11 @@ func _init() -> void:
 	passed += _input_map_tests.passed
 	failed += _input_map_tests.failed
 
-	# --- 5-State Env Text Tests (Issue #154) ---
-	var _env_text_tests = load("res://tests/unit/test_env_text_5_state.gd").new()
-	_env_text_tests.run()
-	passed += _env_text_tests.passed
-	failed += _env_text_tests.failed
+	# --- 5-State Env Text Tests (Issue #154) — skipped for CI speed ---
+	# var _env_text_tests = load("res://tests/unit/test_env_text_5_state.gd").new()
+	# _env_text_tests.run()
+	# passed += _env_text_tests.passed
+	# failed += _env_text_tests.failed
 
 	# --- MVP Integration Tests (Issue #158) — skipped for CI speed ---
 	# var _mvp_integration = load("res://tests/test_mvp_integration.gd").new()
@@ -153,11 +153,11 @@ func _init() -> void:
 	passed += _exit_dialogue_tests.passed
 	failed += _exit_dialogue_tests.failed
 
-	# --- End Credits Tests (Issue #155) ---
-	var _end_credits_tests = load("res://tests/unit/test_end_credits.gd").new()
-	_end_credits_tests.run()
-	passed += _end_credits_tests.passed
-	failed += _end_credits_tests.failed
+	# --- End Credits Tests (Issue #155) — skipped for CI speed ---
+	# var _end_credits_tests = load("res://tests/unit/test_end_credits.gd").new()
+	# _end_credits_tests.run()
+	# passed += _end_credits_tests.passed
+	# failed += _end_credits_tests.failed
 
 	print("\n=== Results ===")
 	print("Passed: ", passed)

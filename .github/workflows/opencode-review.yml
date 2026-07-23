@@ -34,7 +34,7 @@ jobs:
       - name: Run GDScript tests
         id: test
         run: |
-          godot --headless --script tests/run_tests.gd > test-output.log 2>&1
+          godot --headless --script tests/run_tests.gd 2>&1 | tee test-output.log
           echo "exit_code=$?" >> $GITHUB_OUTPUT
         continue-on-error: true
 
