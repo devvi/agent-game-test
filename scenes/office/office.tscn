@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3 uid="uid://office_scene"]
+[gd_scene load_steps=8 format=3 uid="uid://office_scene"]
 
 [ext_resource type="Script" path="res://gdscripts/office.gd" id="1_office"]
 [ext_resource type="Script" path="res://gdscripts/scene_manager.gd" id="2_scene_manager"]
@@ -32,6 +32,9 @@ tracks/0/keys = {
 "values": [Color(0, 0, 0, 1), Color(0, 0, 0, 0)]
 }
 
+[sub_resource type="StandardMaterial3D" id="Material_desk"]
+albedo_color = Color(0.3, 0.2, 0.1, 1.0)
+
 [node name="OfficeRoot" type="Node3D"]
 script = ExtResource("1_office")
 
@@ -43,12 +46,12 @@ environment = SubResource("Environment_office")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
 rotation = Vector3(-0.5, 0.3, 0)
-light_color = Color(0.9, 0.7, 0.4)
+light_color = Color(0.9, 0.7, 0.4, 1.0)
 light_energy = 0.6
 
 [node name="OmniLight3D" type="OmniLight3D" parent="."]
 position = Vector3(-1.5, 1.5, 0.5)
-light_color = Color(1, 0.8, 0.5)
+light_color = Color(1, 0.8, 0.5, 1.0)
 light_energy = 0.8
 light_range = 5
 
@@ -79,9 +82,6 @@ position = Vector3(0, 0, -1)
 [node name="CSGBox3D" type="CSGBox3D" parent="Environments/Desk"]
 size = Vector3(3, 1, 1.5)
 material = SubResource("Material_desk")
-
-[sub_resource type="StandardMaterial3D" id="Material_desk"]
-albedo_color = Color(0.3, 0.2, 0.1)
 
 [node name="WindowText" type="Label3D" parent="Environments"]
 position = Vector3(0, 0.5, -3.9)
