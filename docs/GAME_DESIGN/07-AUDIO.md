@@ -103,6 +103,17 @@ despair_norm   = clamp(despair / 10, 0, 1)           # despair ≤ 10
 - 根据 surface_type 选择对应脚步音资源（office / street / underpass）
 - 支持对话效果 `play_sound`：当未指定 surface 时，自动从当前场景推断
 
+#### 3.5.1 移动触发脚步 (#157)
+
+PlayerController 在 `_physics_process()` 中检测 WASD 方向向量非零时，以 `FOOTSTEP_INTERVAL = 0.5s` 为间隔调用 `AudioManager.play_footstep(surface)`。表面类型通过 `AudioManager.get_surface_for_scene(get_tree().current_scene.name)` 自动推断。
+
+| 触发类型 | 调用位置 | 接口 | 间隔 |
+|----------|---------|------|------|
+| 对话触发 | dialogue_runner.gd | `play_sound` → `play_footstep(surface)` | 对话序列点 |
+| 移动触发 (#157) | PlayerController._physics_process() | `_trigger_footstep()` → `play_footstep(surface)` | 0.5s (FOOTSTEP_INTERVAL) |
+
+静止或对话模式时脚步积累器归零，避免停顿时播放多余脚步。无需 AudioManager 修改 — 复用 `FOOTSTEP_COOLDOWN` (0.3s)、`SCENE_TO_SURFACE` 映射等现有机制。
+
 ### 3.6 信号
 
 | 信号 | 参数 | 触发时机 |
