@@ -9,10 +9,9 @@ class_name OfficeScene
 @onready var desktop_text: Node3D = $Environments/DesktopText
 @onready var door_trigger: Area3D = $InteractionZones/OfficeDoorTrigger
 
-var scene_id: String = "office"
-
 
 func _ready() -> void:
+	scene_id = "office"
 	super._ready()
 	door_trigger.input_event.connect(_on_door_trigger_input)
 
@@ -29,7 +28,7 @@ func _configure_environmental_text() -> void:
 	if not ss and not gm:
 		return
 
-	var hope_val: float = ss.get("hope", 5.0) if ss else (gm.get_slider("hope") if gm else 5.0)
+	var hope_val: float = ss.hope if ss else (gm.get_slider("hope") if gm else 5.0)
 	var tone: String = "neutral"
 	if hope_val <= 3.0:
 		tone = "despair"
@@ -50,7 +49,7 @@ func _configure_environmental_text() -> void:
 	# Desktop — deadline display
 	var day: int = 0
 	if ss and ss.has_method("get"):
-		day = int(ss.get("day", 0)) if ss.has("day") else 0
+		day = int(ss.get("day")) if ss.has("day") else 0
 	elif gm:
 		day = int(gm.get_slider("day"))
 	desktop_text.text = "Deadline: Day %d / 90" % day

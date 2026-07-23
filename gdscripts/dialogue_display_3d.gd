@@ -41,6 +41,8 @@ func _ready() -> void:
 
 func _setup_choice_pool() -> void:
 	_choice_labels.clear()
+	if choice_container == null:
+		return
 	for child in choice_container.get_children():
 		if child is Label3D:
 			_choice_labels.append(child)
