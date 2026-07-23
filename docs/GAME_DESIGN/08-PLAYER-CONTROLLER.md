@@ -1,6 +1,7 @@
 # 08 — 玩家控制器 (Player Controller)
 
 > 首次记录：2026-07-23 (Issue #142)
+> 更新：2026-07-23 (Issue #149 — 程序化节点树构建、碰撞体)
 > 更新日志：[INDEX](INDEX.md)
 
 ---
@@ -73,9 +74,20 @@
 
 ```
 PlayerController (CharacterBody3D)
-    └── Head (Node3D)         ← 俯仰旋转节点
-        └── Camera3D          ← current=true, 位置 (0, 1.6, 0)
+    ├── Head (Node3D)         ← 俯仰旋转节点
+    │   └── Camera3D          ← current=true, 位置 (0, 1.6, 0)
+    ├── PlayerCollisionShape (CollisionShape3D)  ← CapsuleShape3D, position.y=0.7
+    ├── InteractionArea (Area3D)                 ← SphereShape3D, radius=2m
+    └── FallReset (Area3D)                       ← BoxShape3D 1000×0.5×1000 at y=-100
 ```
+
+### 程序化节点树构建 (#149)
+
+PlayerController 使用 `PlayerControllerScript.new()` 实例化（无 .tscn 场景文件），因此子节点在 `_ready()` 中通过 `_build_node_tree()` 和 `_build_collision_shape()` 程序化创建。关键逻辑：
+
+- **守卫模式**：`if not has_node("X"): create` — 向后兼容手动预创建子节点的测试
+- **@onready 重赋值**：创建节点后重新赋值 `head = $Head` 等变量，因第一次 @onready 解析时节点尚不存在
+- **幂等性**：`_ready()` 可多次调用而不产生重复节点
 
 ---
 
@@ -161,6 +173,20 @@ PlayerController (CharacterBody3D)
 ---
 
 ## 7. 碰撞配置
+
+### 碰撞体
+
+#149 为 PlayerController 添加了程序化创建的 CapsuleShape3D：
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| `radius` | 0.3 | 胶囊体半径 (m) |
+| `height` | 1.4 | 胶囊体高度 (m) |
+| `shape.position.y` | 0.7 | 半高偏移，使底部平贴地面 |
+
+节点名：`PlayerCollisionShape`（`has_node("PlayerCollisionShape")` 守卫）。
+
+### 碰撞层与掩码
 
 | 层 (Layer) | 用途 | 碰撞掩码 |
 |------------|------|----------|
