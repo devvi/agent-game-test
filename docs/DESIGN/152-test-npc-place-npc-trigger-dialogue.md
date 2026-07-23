@@ -46,7 +46,7 @@ StreetScene._ready()
     │   │               ├── update_name_label()
     │   │               └── dialogue_runner.start("res://dialogues/npc_test.json", "npc_test")
     │   └── EKeyTrigger also receives interaction_requested → e_key_interacted.emit()
-    │       └── (Treated as alternative activation path - both converge on start_npc_interaction)
+    │       └── (Treated as alternative activation path — both converge on start_npc_interaction)
 
     ├── DialogueRunner loads npc_test.json:
     │   ├── dialogue_started signal → DialogueDisplay3D.show_dialogue()
@@ -72,13 +72,13 @@ StreetRoot (SceneBase)
 │   ├── StoreEntranceTrigger (existing)
 │   ├── StoreLabel (existing)
 │   └── TestNPC (NPC.tscn instance)  ← NEW
-│       ├── NPC (Node3D) [NPCNode script]
-│       │   ├── InteractionTrigger (Area3D)
-│       │   │   ├── CollisionShape3D
-│       │   │   └── EKeyTrigger (EKeyTrigger)  ← NEW child node
-│       │   ├── VisualName (Label3D)
-│       │   ├── InteractionPrompt (Label3D)
-│       │   └── CooldownTimer (Timer)
+│       └── NPC (Node3D) [NPCNode script]
+│           ├── InteractionTrigger (Area3D)
+│           │   ├── CollisionShape3D
+│           │   └── EKeyTrigger (EKeyTrigger)  ← NEW child node
+│           ├── VisualName (Label3D)
+│           ├── InteractionPrompt (Label3D)
+│           └── CooldownTimer (Timer)
 ├── SceneManager (existing)
 └── CanvasLayer (existing)
     ├── DialoguePanel (DialogueRunner)
@@ -177,7 +177,7 @@ The `e_key_interacted` → `street.gd` → `NPCNode.start_npc_interaction()` pat
   "nodes": {
     "test_greet": {
       "speaker": "???",
-      "text": "Hey.\\nYou're still here.",
+      "text": "Hey.\nYou're still here.",
       "choices": [
         {
           "text": "Who are you?",
@@ -194,7 +194,7 @@ The `e_key_interacted` → `street.gd` → `NPCNode.start_npc_interaction()` pat
     },
     "test_answer": {
       "speaker": "???",
-      "text": "Just a test.\\nNothing more.",
+      "text": "Just a test.\nNothing more.",
       "choices": [
         {
           "text": "...",
