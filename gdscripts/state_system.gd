@@ -73,6 +73,11 @@ var _choice_history: Array[Dictionary] = []
 # ===== Core API =====
 
 func apply_choice(effect: Dictionary) -> void:
+	if effect.is_empty():
+		push_warning("StateSystem.apply_choice: effect is empty, emitting state_changed with no changes")
+		state_changed.emit(get_state())
+		return
+
 	var old_state_id: int = get_state_id()
 
 	# Handle hope_despair delta with emotional resistance
@@ -141,6 +146,9 @@ func get_state_id() -> int:
 
 ## Set a boolean flag. Creates the flag key if it doesn't exist.
 func set_flag(name: String, value: bool) -> void:
+	if name.is_empty():
+		push_warning("StateSystem.set_flag: flag name is empty")
+		return
 	_flags[name] = value
 
 ## Check if a named flag is set (true). Returns false for unset flags.
@@ -155,6 +163,12 @@ func get_flags() -> Dictionary:
 
 ## Record a dialogue choice in history. Caps at 200 entries (oldest dropped).
 func record_choice(node_id: String, choice_index: int, choice_text: String) -> void:
+	if node_id.is_empty():
+		push_warning("StateSystem.record_choice: node_id is empty")
+		return
+	if choice_text.is_empty():
+		push_warning("StateSystem.record_choice: choice_text is empty")
+		return
 	var record: Dictionary = {
 		"node_id": node_id,
 		"choice_index": choice_index,
@@ -179,6 +193,10 @@ func get_choice_count() -> int:
 ## Returns true on success, false on failure.
 ## Creates parent directories automatically.
 func save_state_to_file(path: String) -> bool:
+	if path.is_empty():
+		push_warning("StateSystem.save_state_to_file: path is empty")
+		return false
+
 	var save_dict: Dictionary = _to_save_dict()
 	var json_string: String = JSON.stringify(save_dict, "\t")
 

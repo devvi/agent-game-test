@@ -65,6 +65,9 @@ func get_state() -> Dictionary:
 
 ## Start a dialogue via the dialogue runner.
 func start_dialogue(file_path: String, dialogue_id: String) -> void:
+	if file_path.is_empty() or dialogue_id.is_empty():
+		push_warning("SceneBase.start_dialogue: file_path or dialogue_id is empty")
+		return
 	if dialogue_runner and dialogue_runner.has_method("start"):
 		dialogue_runner.start(file_path, dialogue_id)
 
@@ -111,6 +114,7 @@ func _get_player_spawn_position() -> Vector3:
 	var sp := get_node_or_null("SpawnPoint")
 	if sp:
 		return sp.global_position
+	push_warning("SceneBase._get_player_spawn_position: SpawnPoint node not found, using Vector3.ZERO")
 	return Vector3.ZERO
 
 

@@ -25,10 +25,30 @@ var choices_made: int = 0                 # Total choices made this run
 var player_position: Vector3 = Vector3.ZERO
 var player_rotation: Vector3 = Vector3.ZERO
 var player_head_rotation: float = 0.0
+# Player spawn point set by ExitZone for zone-to-zone transitions (Issue #156)
+var target_spawn_point: Vector3 = Vector3.ZERO
 
 func _ready() -> void:
 	print("Agent Game Test — Godot 4.7")
 	print("GameManager initialized.")
+	_verify_input_map()
+	_verify_autoloads()
+
+
+func _verify_input_map() -> void:
+	var actions := ["move_forward", "move_backward", "move_left", "move_right", "interact",
+		"dialogue_up", "dialogue_down", "dialogue_select", "dialogue_skip", "toggle_dialogue"]
+	for action in actions:
+		if not InputMap.has_action(action):
+			push_warning("GameManager: Input action '%s' not found in InputMap" % action)
+
+
+func _verify_autoloads() -> void:
+	var autoloads := ["/root/StateSystem", "/root/NarrativeManager", "/root/AudioManager"]
+	for autoload_path in autoloads:
+		if not get_node_or_null(autoload_path):
+			push_warning("GameManager: Autoload '%s' not found" % autoload_path)
+
 
 func start_game() -> void:
 	game_started = true

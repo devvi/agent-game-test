@@ -116,6 +116,9 @@ func _on_interaction(camera: Camera3D, event: InputEvent, position: Vector3, nor
 func start_npc_interaction() -> void:
 	if not is_interactable():
 		return
+	if dialogue_file.is_empty() or dialogue_id.is_empty():
+		push_warning("NPCNode.start_npc_interaction: dialogue_file or dialogue_id is empty")
+		return
 	evaluate_personality_layer()
 	set_state(NPCState.TALKING)
 	update_name_label()

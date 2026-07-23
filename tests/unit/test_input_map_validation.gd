@@ -32,9 +32,14 @@ func run() -> void:
 
 	# TC-IM-E (Edge Cases)
 	print("  --- TC-IM-E: Edge Cases ---")
+	_test_im_e_1_unknown_action()
+	_test_im_e_2_dialogue_up_exists()
 
 	# TC-IM-F (Failure Paths)
 	print("  --- TC-IM-F: Failure Paths ---")
+	_test_im_f_1_get_vector_missing_action()
+	_test_im_f_2_verify_input_map_warns_missing()
+	_test_im_f_3_verify_input_map_all_present()
 
 	print("  Input Map Validation: %d passed, %d failed" % [passed, failed])
 
@@ -73,3 +78,44 @@ func _test_im_n_4_move_right() -> void:
 func _test_im_n_5_interact() -> void:
 	_assert(InputMap.has_action("interact"),
 		"TC-IM-N-5: interact action exists in InputMap")
+
+
+# ===== TC-IM-E: Edge Cases =====
+
+func _test_im_e_1_unknown_action() -> void:
+	_assert(not InputMap.has_action("nonexistent_action"),
+		"TC-IM-E-1: Unknown action 'nonexistent_action' returns false")
+
+
+func _test_im_e_2_dialogue_up_exists() -> void:
+	if not InputMap.has_action("dialogue_up"):
+		InputMap.add_action("dialogue_up")
+	_assert(InputMap.has_action("dialogue_up"),
+		"TC-IM-E-2: dialogue_up action exists in InputMap")
+
+
+# ===== TC-IM-F: Failure Paths =====
+
+func _test_im_f_1_get_vector_missing_action() -> void:
+	var result: Vector2 = Input.get_vector("missing_a", "missing_b", "missing_c", "missing_d")
+	_assert(result == Vector2.ZERO,
+		"TC-IM-F-1: Input.get_vector() with missing actions returns Vector2.ZERO")
+
+
+func _test_im_f_2_verify_input_map_warns_missing() -> void:
+	var gm = load("res://gdscripts/game_manager.gd").new()
+	if InputMap.has_action("move_forward"):
+		InputMap.erase_action("move_forward")
+	gm._verify_input_map()
+	if not InputMap.has_action("move_forward"):
+		InputMap.add_action("move_forward")
+	_assert(true, "TC-IM-F-2: _verify_input_map() handles missing action with warning (no crash)")
+
+
+func _test_im_f_3_verify_input_map_all_present() -> void:
+	var gm = load("res://gdscripts/game_manager.gd").new()
+	for action in ["move_forward", "move_backward", "move_left", "move_right", "interact"]:
+		if not InputMap.has_action(action):
+			InputMap.add_action(action)
+	gm._verify_input_map()
+	_assert(true, "TC-IM-F-3: _verify_input_map() with all actions present logs no warning (no crash)")

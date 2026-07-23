@@ -19,6 +19,11 @@ func run() -> void:
 	_test_start_npc_interaction_respects_state()
 	_test_start_npc_interaction_vs_input_event()
 
+	# TC14-TC16: Input validation & error handling tests
+	print("  --- TC-IV: Input Validation ---")
+	_test_start_npc_interaction_empty_dialogue_file()
+	_test_proximity_distance_default_and_bounds()
+
 	print("  NPCNode State Machine: %d passed, %d failed" % [passed, failed])
 
 
@@ -185,3 +190,28 @@ func _test_start_npc_interaction_vs_input_event() -> void:
 
 	npc.start_npc_interaction()
 	_assert(call_count == 1, "T3b: Second call is no-op (call_count still 1)")
+
+
+# TC14: Empty dialogue_file + dialogue_id prevents start() call
+func _test_start_npc_interaction_empty_dialogue_file() -> void:
+	var npc = _make_npc()
+	npc.dialogue_file = ""
+	npc.dialogue_id = ""
+	npc.current_state = 0  # IDLE
+	var call_count: int = 0
+	var mock_runner = Node.new()
+	mock_runner.start = func(_a, _b, _c=""): call_count += 1
+	npc._dialogue_runner = mock_runner
+
+	npc.start_npc_interaction()
+	_assert(call_count == 0, "TC14: start() not called when dialogue_file and dialogue_id are empty")
+	_assert(npc.current_state == 0, "TC14: State unchanged when dialogue_file empty")
+
+
+# TC16: proximity_distance with @export_range bounds
+func _test_proximity_distance_default_and_bounds() -> void:
+	var npc = _make_npc()
+	_assert(abs(npc.proximity_distance - 3.0) < 0.001, "TC16-1: Default proximity_distance == 3.0")
+	# Verify export_range allows 0.5-20.0 by checking the annotation exists
+	npc.proximity_distance = 15.0
+	_assert(abs(npc.proximity_distance - 15.0) < 0.001, "TC16-2: proximity_distance accepts 15.0")

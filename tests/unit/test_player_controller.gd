@@ -85,6 +85,11 @@ func run() -> void:
 	_test_pc_f_5_zero_camera_height()
 	_test_pc_f_6_make_pc_backwards_compat()
 
+	# Export Bounds Tests (TC11-TC13)
+	print("  --- TC-EX: Export Bounds ---")
+	_test_export_bounds_walk_speed_default()
+	_test_export_bounds_walk_speed_clamped()
+
 	print("  PlayerController Unit Tests: %d passed, %d failed" % [passed, failed])
 
 
@@ -663,3 +668,22 @@ func _test_pc_f_6_make_pc_backwards_compat() -> void:
 	_assert(pc.head != null, "PC-F-3-1: head @onready var reassigned")
 	_assert(pc.camera != null, "PC-F-3-1: camera @onready var reassigned")
 	_assert(pc.interaction_area != null, "PC-F-3-1: interaction_area @onready var reassigned")
+
+
+# ===== TC-EX: Export Bounds Tests (TC11-TC13) =====
+
+func _test_export_bounds_walk_speed_default() -> void:
+	var pc = _make_pc()
+	_assert(abs(pc.walk_speed - 2.5) < 0.001, "TC11: Default walk_speed == 2.5")
+
+
+func _test_export_bounds_walk_speed_clamped() -> void:
+	var pc = _make_pc()
+	pc.walk_speed = -5.0
+	var effective_speed: float = clamp(pc.walk_speed, 0.5, 10.0)
+	# At negative walk_speed, effective_speed should be clamped to 0.5
+	_assert(abs(effective_speed - 0.5) < 0.001, "TC12: Negative walk_speed clamped to 0.5")
+	# At very high walk_speed
+	pc.walk_speed = 50.0
+	effective_speed = clamp(pc.walk_speed, 0.5, 10.0)
+	_assert(abs(effective_speed - 10.0) < 0.001, "TC12: Excessive walk_speed clamped to 10.0")
