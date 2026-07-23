@@ -59,6 +59,16 @@ func _init() -> void:
 	else:
 		print("  ⚠️ Integration test script not found (res://tests/test_integration.gd)")
 
+	# --- MVP Integration Tests (Issue #158) ---
+	var _mvp_script = load("res://tests/test_mvp_integration.gd")
+	if _mvp_script != null:
+		var _mvp = _mvp_script.new()
+		_mvp.run()
+		passed += _mvp.passed
+		failed += _mvp.failed
+	else:
+		print("  ⚠️ MVP integration test not found (res://tests/test_mvp_integration.gd)")
+
 	# --- UI Config Tests (Issue #53) ---
 	run_ui_config_tests()
 

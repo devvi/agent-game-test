@@ -9,12 +9,15 @@ class_name StreetScene
 @onready var graffiti: Node3D = $Environments/Graffiti
 @onready var street_sign: Node3D = $Environments/StreetSign
 @onready var store_entrance: Area3D = $InteractionZones/StoreEntranceTrigger
+@onready var test_npc_interact: Node = $InteractionZones/TestNPC/InteractionTrigger/EKeyTrigger
 
 
 func _ready() -> void:
 	scene_id = "street"
 	super._ready()
 	store_entrance.input_event.connect(_on_store_entrance_input)
+	if test_npc_interact and test_npc_interact.has_signal("e_key_interacted"):
+		test_npc_interact.e_key_interacted.connect(_on_test_npc_interact)
 
 
 func _configure_ambient_audio() -> void:
@@ -53,6 +56,12 @@ func _configure_environmental_text() -> void:
 func _on_store_entrance_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		dialogue_runner.start("res://dialogues/office_door.json", "store_entrance")
+
+
+func _on_test_npc_interact() -> void:
+	var npc_node: Node = $InteractionZones/TestNPC/NPC
+	if npc_node and npc_node.has_method("start_npc_interaction"):
+		npc_node.start_npc_interaction()
 
 
 func _restore_dialogue_state() -> void:

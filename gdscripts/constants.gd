@@ -88,6 +88,7 @@ const DIALOGUE_STORE_CLERK: String = "res://dialogues/store_clerk.json"
 const DIALOGUE_BRIDGE_HOMELESS: String = "res://dialogues/bridge_homeless.json"
 const DIALOGUE_UNDERPASS_ECHO: String = "res://dialogues/underpass_stranger_echo.json"
 const DIALOGUE_SUBWAY_ENDING: String = "res://dialogues/subway_ending.json"
+const DIALOGUE_NPC_TEST: String = "res://dialogues/npc_test.json"
 
 # Narrative effects deltas (choice point effects)
 const DELTA_RESPOND_STRANGER_HOPE: float = 0.5

@@ -15,6 +15,18 @@ func run() -> void:
 	_test_input_ignored_while_cooldown()
 	_test_dialogue_runner_not_available()
 
+	# T1-T3: start_npc_interaction tests
+	print("  --- NPCNode start_npc_interaction Tests ---")
+	_test_start_npc_interaction_public_method()
+	_test_start_npc_interaction_respects_state()
+	_test_start_npc_interaction_vs_input_event()
+
+	# TC14-TC16: Input Validation Tests
+	print("  --- TC14-TC16: Input Validation ---")
+	_test_tc14_empty_dialogue_guards()
+	_test_tc15_valid_dialogue_triggers()
+	_test_tc16_proximity_default()
+
 	print("  NPCNode State Machine: %d passed, %d failed" % [passed, failed])
 
 
@@ -130,3 +142,99 @@ func _test_dialogue_runner_not_available() -> void:
 	npc._dialogue_runner = null  # No dialogue runner
 
 	_assert(not npc.is_interactable(), "TC8: Not interactable when dialogue_runner is null")
+
+
+# T1: start_npc_interaction() exists and invokes dialogue
+func _test_start_npc_interaction_public_method() -> void:
+	var npc = _make_npc()
+	npc.current_state = 0  # IDLE
+	var mock_runner = Node.new()
+	mock_runner.start = func(_a, _b, _c=""): return true
+	var start_called = false
+	mock_runner.start = func(_a, _b, _c=""): start_called = true; return true
+	npc._dialogue_runner = mock_runner
+	var signal_emitted = false
+	npc.npc_interacted.connect(func(_id): signal_emitted = true)
+
+	npc.start_npc_interaction()
+
+	_assert(npc.current_state == 1, "T1: State is TALKING after start_npc_interaction()")
+	_assert(start_called, "T1: dialogue_runner.start() was called")
+	_assert(signal_emitted, "T1: npc_interacted signal emitted")
+
+
+# T2: start_npc_interaction() respects cooldown/exhausted states
+func _test_start_npc_interaction_respects_state() -> void:
+	var npc = _make_npc()
+	var mock_runner = Node.new()
+	mock_runner.start = func(_a, _b, _c=""): return true
+	npc._dialogue_runner = mock_runner
+
+	# Try while COOLDOWN
+	npc.current_state = 2
+	npc.start_npc_interaction()
+	_assert(npc.current_state == 2, "T2: State unchanged when COOLDOWN")
+
+	# Try while EXHAUSTED
+	npc.current_state = 3
+	npc.start_npc_interaction()
+	_assert(npc.current_state == 3, "T2: State unchanged when EXHAUSTED")
+
+	# Try while TALKING
+	npc.current_state = 1
+	npc.start_npc_interaction()
+	_assert(npc.current_state == 1, "T2: State unchanged when TALKING")
+
+
+# T3: start_npc_interaction() vs input_event — idempotent
+func _test_start_npc_interaction_vs_input_event() -> void:
+	var npc = _make_npc()
+	npc.current_state = 0
+	var start_count = 0
+	var mock_runner = Node.new()
+	mock_runner.start = func(_a, _b, _c=""): start_count += 1; return true
+	npc._dialogue_runner = mock_runner
+
+	# First call via start_npc_interaction
+	npc.start_npc_interaction()
+	_assert(start_count == 1, "T3: First activation starts dialogue")
+
+	# Second call via simulated input_event (bypasses check via direct call)
+	# Since is_interactable() now returns false, directly calling won't start
+	npc.start_npc_interaction()
+	_assert(start_count == 1, "T3: Second activation blocked by is_interactable()")
+
+
+# TC14: Empty dialogue_file + dialogue_id prevents start() call
+func _test_tc14_empty_dialogue_guards() -> void:
+	var npc = _make_npc()
+	npc.dialogue_file = ""
+	npc.dialogue_id = ""
+	var start_called = false
+	var mock_runner = Node.new()
+	mock_runner.start = func(_a, _b, _c=""): start_called = true; return true
+	npc._dialogue_runner = mock_runner
+	npc.start_npc_interaction()
+	_assert(not start_called,
+		"TC14: Empty dialogue_file + dialogue_id prevents start() call")
+
+
+# TC15: Valid dialogue_file + dialogue_id triggers start()
+func _test_tc15_valid_dialogue_triggers() -> void:
+	var npc = _make_npc()
+	npc.dialogue_file = "res://dialogues/test.json"
+	npc.dialogue_id = "test_dialogue"
+	var start_called = false
+	var mock_runner = Node.new()
+	mock_runner.start = func(_a, _b, _c=""): start_called = true; return true
+	npc._dialogue_runner = mock_runner
+	npc.start_npc_interaction()
+	_assert(start_called,
+		"TC15: Valid dialogue_file + dialogue_id triggers start()")
+
+
+# TC16: proximity_distance default is 3.0
+func _test_tc16_proximity_default() -> void:
+	var npc = _make_npc()
+	_assert(abs(npc.proximity_distance - 3.0) < 0.001,
+		"TC16: proximity_distance default is 3.0")

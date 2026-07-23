@@ -29,6 +29,8 @@ var player_head_rotation: float = 0.0
 func _ready() -> void:
 	print("Agent Game Test — Godot 4.7")
 	print("GameManager initialized.")
+	_verify_input_map()
+	_verify_autoloads()
 
 func start_game() -> void:
 	game_started = true
@@ -137,6 +139,26 @@ func mark_scene_visited(scene_id: String) -> void:
 ## Check if a scene was visited.
 func is_scene_visited(scene_id: String) -> bool:
 	return scene_visited.get(scene_id, false)
+
+## Verify that all gameplay input actions are registered in the InputMap.
+func _verify_input_map() -> void:
+	var actions: Array[String] = [
+		"move_forward", "move_backward", "move_left", "move_right",
+		"interact", "dialogue_up", "dialogue_down", "dialogue_select",
+		"dialogue_skip", "toggle_dialogue"
+	]
+	for action in actions:
+		if not InputMap.has_action(action):
+			push_warning("GameManager: input action '%s' not found in InputMap" % action)
+
+
+## Verify that required autoloads are present at /root/.
+func _verify_autoloads() -> void:
+	var required: Array[String] = ["StateSystem", "NarrativeManager", "AudioManager"]
+	for name in required:
+		if get_node_or_null("/root/" + name) == null:
+			push_warning("GameManager: required autoload '/root/%s' not found" % name)
+
 
 ## Restore previously saved choices.
 ## Delegates to StateSystem for choice history.

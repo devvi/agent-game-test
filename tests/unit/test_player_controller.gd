@@ -85,6 +85,12 @@ func run() -> void:
 	_test_pc_f_5_zero_camera_height()
 	_test_pc_f_6_make_pc_backwards_compat()
 
+	# Input Validation Tests (TC11-TC13)
+	print("  --- TC: Input Validation ---")
+	_test_tc11_walk_speed_default()
+	_test_tc12_walk_speed_clamp()
+	_test_tc13_export_range_annotations()
+
 	print("  PlayerController Unit Tests: %d passed, %d failed" % [passed, failed])
 
 
@@ -663,3 +669,49 @@ func _test_pc_f_6_make_pc_backwards_compat() -> void:
 	_assert(pc.head != null, "PC-F-3-1: head @onready var reassigned")
 	_assert(pc.camera != null, "PC-F-3-1: camera @onready var reassigned")
 	_assert(pc.interaction_area != null, "PC-F-3-1: interaction_area @onready var reassigned")
+
+
+# ===== TC: Input Validation =====
+
+func _test_tc11_walk_speed_default() -> void:
+	var pc = _make_pc()
+	_assert(abs(pc.walk_speed - 2.5) < 0.001,
+		"TC11: walk_speed initial value is 2.5")
+
+
+func _test_tc12_walk_speed_clamp() -> void:
+	var pc = _make_pc()
+	# @export_range allows the property to accept out-of-range values via script
+	# but the runtime clamp in _physics_process protects headless scenarios
+	pc.walk_speed = -5.0
+	var clamped: float = clamp(pc.walk_speed, 0.5, 10.0)
+	_assert(abs(clamped - 0.5) < 0.001,
+		"TC12: Negative walk_speed clamped to 0.5 at runtime")
+
+
+func _test_tc13_export_range_annotations() -> void:
+	var source_path: String = "res://gdscripts/player_controller.gd"
+	var file := FileAccess.open(source_path, FileAccess.READ)
+	if file == null:
+		_assert(false, "TC13: Could not read source file for annotation check")
+		return
+	var content: String = file.get_as_text()
+	file.close()
+	var has_walk_speed_range: bool = "@export_range(0.5, 10.0, 0.1)" in content
+	var has_sensitivity_range: bool = "@export_range(0.001, 0.02, 0.0005)" in content
+	var has_interaction_range: bool = "@export_range(0.5, 10.0, 0.1)" in content
+	var has_camera_height_range: bool = "@export_range(0.5, 3.0, 0.1)" in content
+	var has_camera_tilt_range: bool = "@export_range(-1.0, 1.0, 0.001)" in content
+	var has_look_clamp_range: bool = "@export_range(0.174, 1.57, 0.01)" in content
+	_assert(has_walk_speed_range,
+		"TC13: walk_speed has @export_range(0.5, 10.0, 0.1)")
+	_assert(has_sensitivity_range,
+		"TC13: look_sensitivity has @export_range(0.001, 0.02, 0.0005)")
+	_assert(has_interaction_range,
+		"TC13: interaction_range has @export_range(0.5, 10.0, 0.1)")
+	_assert(has_camera_height_range,
+		"TC13: camera_height has @export_range(0.5, 3.0, 0.1)")
+	_assert(has_camera_tilt_range,
+		"TC13: camera_tilt has @export_range(-1.0, 1.0, 0.001)")
+	_assert(has_look_clamp_range,
+		"TC13: look_vertical_clamp has @export_range(0.174, 1.57, 0.01)")

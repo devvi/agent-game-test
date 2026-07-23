@@ -1,0 +1,33 @@
+{
+  "entry_node_id": "test_greet",
+  "nodes": {
+    "test_greet": {
+      "speaker": "???",
+      "text": "Hey.\nYou're still here.",
+      "choices": [
+        {
+          "text": "Who are you?",
+          "next_node": "test_answer",
+          "condition": null,
+          "effects": []
+        },
+        {
+          "text": "...",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    },
+    "test_answer": {
+      "speaker": "???",
+      "text": "Just a test.\nNothing more.",
+      "choices": [
+        {
+          "text": "...",
+          "next_node": null,
+          "effects": []
+        }
+      ]
+    }
+  }
+}

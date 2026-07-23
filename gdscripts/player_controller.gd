@@ -2,12 +2,12 @@ extends CharacterBody3D
 class_name PlayerController
 
 # ── Exports ──
-@export var walk_speed: float = 2.5            # m/s — leisurely narrative pace
-@export var look_sensitivity: float = 0.003     # radians per pixel
-@export var interaction_range: float = 2.0      # meters — E-key proximity
-@export var camera_height: float = 1.6          # meters — eye level
-@export var camera_tilt: float = -0.087         # radians (~-5°) slight downward tilt
-@export var look_vertical_clamp: float = 1.047  # radians (60°) — ±60° vertical look
+@export_range(0.5, 10.0, 0.1) var walk_speed: float = 2.5            # m/s — leisurely narrative pace
+@export_range(0.001, 0.02, 0.0005) var look_sensitivity: float = 0.003     # radians per pixel
+@export_range(0.5, 10.0, 0.1) var interaction_range: float = 2.0      # meters — E-key proximity
+@export_range(0.5, 3.0, 0.1) var camera_height: float = 1.6          # meters — eye level
+@export_range(-1.0, 1.0, 0.001) var camera_tilt: float = -0.087         # radians (~-5°) slight downward tilt
+@export_range(0.174, 1.57, 0.01) var look_vertical_clamp: float = 1.047  # radians (60°) — ±60° vertical look
 
 # ── Nodes ──
 @onready var head: Node3D = $Head
@@ -110,6 +110,9 @@ func _ready() -> void:
 	# Set camera current and disable other cameras
 	_disable_other_cameras()
 
+	# Verify input map actions exist
+	_verify_input_map()
+
 	# Connect to dialogue runner for mode changes
 	_connect_dialogue_signals()
 
@@ -173,6 +176,13 @@ func _handle_mouse_look(delta: Vector2) -> void:
 	)
 
 
+func _verify_input_map() -> void:
+	var actions: Array[String] = ["move_forward", "move_backward", "move_left", "move_right", "interact"]
+	for action in actions:
+		if not InputMap.has_action(action):
+			push_warning("Input action '%s' not found in InputMap — player controller may not respond" % action)
+
+
 func _try_interact() -> void:
 	if _nearby_interactables.is_empty():
 		return
@@ -225,13 +235,13 @@ func _physics_process(delta: float) -> void:
 	direction += right * input_dir.x     # move_left/right
 	direction = direction.normalized()
 
+	var effective_speed: float = clamp(walk_speed, 0.5, 10.0)
 	if direction != Vector3.ZERO:
-		velocity.x = direction.x * walk_speed
-		velocity.z = direction.z * walk_speed
+		velocity.x = direction.x * effective_speed
+		velocity.z = direction.z * effective_speed
 	else:
-		# Deceleration
-		velocity.x = move_toward(velocity.x, 0.0, walk_speed)
-		velocity.z = move_toward(velocity.z, 0.0, walk_speed)
+		velocity.x = move_toward(velocity.x, 0.0, effective_speed)
+		velocity.z = move_toward(velocity.z, 0.0, effective_speed)
 
 	move_and_slide()
 
