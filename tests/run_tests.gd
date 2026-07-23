@@ -135,6 +135,12 @@ func _init() -> void:
 	passed += _input_map_tests.passed
 	failed += _input_map_tests.failed
 
+	# --- Title Screen Tests (Issue #147) ---
+	var _title_screen_tests = load("res://tests/unit/test_title_screen.gd").new()
+	_title_screen_tests.run()
+	passed += _title_screen_tests.passed
+	failed += _title_screen_tests.failed
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)

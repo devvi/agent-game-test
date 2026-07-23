@@ -10,6 +10,7 @@ extends Node3D
 @onready var dialogue_debug: Node = $DialogueDebug
 @onready var dialogue_display_3d = $Dialogue3D
 @onready var status_bar: CanvasLayer = $StatusBar
+@onready var title_screen: CanvasLayer = $TitleScreen
 
 var _dialogue_active: bool = false
 
@@ -45,12 +46,21 @@ func _ready() -> void:
 	if ui_config != null:
 		get_tree().root.size_changed.connect(_on_viewport_size_changed)
 
-	# Delegate to SceneManager to load the starting scene
-	call_deferred("_load_starting_scene")
+	# Connect title screen start signal
+	if title_screen != null and title_screen.has_signal("start_requested"):
+		title_screen.start_requested.connect(_on_title_start_requested)
 
 
 func _load_starting_scene() -> void:
 	get_tree().change_scene_to_file("res://scenes/office/office.tscn")
+
+
+func _on_title_start_requested(fade_duration: float) -> void:
+	if scene_manager != null and is_instance_valid(scene_manager):
+		scene_manager.trigger_scene_change("res://scenes/office/office.tscn", fade_duration)
+	else:
+		get_tree().change_scene_to_file("res://scenes/office/office.tscn")
+
 
 func _input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_up"):

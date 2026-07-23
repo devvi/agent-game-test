@@ -6,6 +6,7 @@
 [ext_resource type="PackedScene" uid="uid://dialogue_display_3d" path="res://scenes/dialogue/Dialouge3D.tscn" id="4_dialogue_3d"]
 [ext_resource type="Script" path="res://gdscripts/scene_manager.gd" id="4_scene_manager"]
 [ext_resource type="PackedScene" uid="uid://status_bar_scene" path="res://scenes/ui/status_bar.tscn" id="5_status_bar"]
+[ext_resource type="PackedScene" uid="uid://title_screen" path="res://scenes/ui/title_screen.tscn" id="6_title_screen"]
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main")
@@ -37,3 +38,5 @@ position = Vector3(0, 1.5, -3)
 [node name="DialogueDebug" parent="." instance=ExtResource("3_dialogue_debug")]
 
 [node name="StatusBar" parent="." instance=ExtResource("5_status_bar")]
+
+[node name="TitleScreen" parent="." instance=ExtResource("6_title_screen")]
