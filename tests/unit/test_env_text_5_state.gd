@@ -70,7 +70,15 @@ func _on_tone_changed(scene_id: String, tone: String) -> void:
 
 func _test_variant_index_for_state_id() -> void:
 	var tcb = load("res://gdscripts/text_component_base.gd").new()
-	# Keep only the base class — no autoload dependencies
+	# Set up variant_data with 5 entries so clamping uses the full range
+	var VData := load("res://gdscripts/text_variant_data.gd")
+	var d0 = VData.new(); d0.text = "v0"
+	var d1 = VData.new(); d1.text = "v1"
+	var d2 = VData.new(); d2.text = "v2"
+	var d3 = VData.new(); d3.text = "v3"
+	var d4 = VData.new(); d4.text = "v4"
+	tcb.variant_data = [d0, d1, d2, d3, d4]
+	# Test raw index mapping (only after variant_data is populated — method clamps to available entries)
 	_assert(tcb._variant_index_for_state_id(1) == 0, "ET-01: state_id=1 → variant index 0")
 	_assert(tcb._variant_index_for_state_id(2) == 1, "ET-01: state_id=2 → variant index 1")
 	_assert(tcb._variant_index_for_state_id(3) == 2, "ET-01: state_id=3 → variant index 2")
