@@ -88,8 +88,8 @@ func _test_int_n_3_dialogue_ends_resumes() -> void:
 func _test_int_e_2_rotation_persists() -> void:
 	var pc = _make_pc()
 	var test_rot = Vector3(0.0, 1.57, 0.0)
-	pc.global_rotation = test_rot
-	_assert(abs(pc.global_rotation.y - 1.57) < 0.1,
+	pc.rotation = test_rot
+	_assert(abs(pc.rotation.y - 1.57) < 0.01,
 		"TC-INT-E-2: Rotation persists — rotation.y ≈ 90°")
 
 

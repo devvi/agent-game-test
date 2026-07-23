@@ -38,9 +38,7 @@ func _assert(condition: bool, label: String) -> void:
 # Helper: create a minimal SceneBase inheritor for testing
 func _make_scene_base() -> Node:
 	var SceneBaseScript = load("res://gdscripts/scene_base.gd")
-	var sb = Node.new()
-	sb.set_script(SceneBaseScript)
-	sb.scene_id = "test_scene"
+	var sb = SceneBaseScript.new()
 	return sb
 
 

@@ -5,7 +5,7 @@ class_name SceneBase
 # Provides common behavior: fade-in, player instantiation, state-aware text config,
 # dialogue state restoration, and player state persistence across scene transitions.
 
-const PLAYER_CONTROLLER := preload("res://gdscripts/player_controller.gd")
+const PLAYER_CONTROLLER: GDScript = preload("res://gdscripts/player_controller.gd")
 
 @onready var scene_manager: Node = $SceneManager
 @onready var dialogue_runner: Node = $CanvasLayer/DialoguePanel
@@ -75,24 +75,27 @@ func start_dialogue(file_path: String, dialogue_id: String) -> void:
 func _instantiate_player() -> void:
 	if _player and is_instance_valid(_player):
 		return  # Already exists
-	_player = PLAYER_CONTROLLER.instantiate()
+	_player = PLAYER_CONTROLLER.new()
 	_player.name = "PlayerController"
 	add_child(_player)
 
 	# Restore position from GameManager
 	var gm: Node = get_node_or_null("/root/GameManager")
 	if gm:
-		var saved_pos: Variant = gm.get("player_position", null)
-		if saved_pos != null and saved_pos is Vector3:
-			_player.global_position = saved_pos
-		var saved_rot: Variant = gm.get("player_rotation", null)
-		if saved_rot != null and saved_rot is Vector3:
-			_player.global_rotation = saved_rot
-		var saved_head_rot: Variant = gm.get("player_head_rotation", null)
-		if saved_head_rot != null and saved_head_rot is float:
-			var head := _player.get_node_or_null("Head")
-			if head:
-				head.rotation.x = saved_head_rot
+		if "player_position" in gm:
+			var saved_pos = gm.get("player_position")
+			if saved_pos != null and saved_pos is Vector3:
+				_player.global_position = saved_pos
+		if "player_rotation" in gm:
+			var saved_rot = gm.get("player_rotation")
+			if saved_rot != null and saved_rot is Vector3:
+				_player.global_rotation = saved_rot
+		if "player_head_rotation" in gm:
+			var saved_head_rot = gm.get("player_head_rotation")
+			if saved_head_rot != null and saved_head_rot is float:
+				var head := _player.get_node_or_null("Head")
+				if head:
+					head.rotation.x = saved_head_rot
 
 	# Connect interaction_requested signal
 	if _player.has_signal("interaction_requested"):
