@@ -23,6 +23,7 @@ tests/
 │   ├── test_dialogue_runner_extension.gd
 │   ├── test_game_manager_player.gd
 │   ├── test_e_key_trigger.gd
+│   ├── test_exit_zone.gd           # ExitZone 区域传送单元测试 (Issue #156)
 │   └── test_input_map_validation.gd
 ├── integration/                 # 集成测试（多模块协作测试）
 │   ├── test_npc_in_scene.gd

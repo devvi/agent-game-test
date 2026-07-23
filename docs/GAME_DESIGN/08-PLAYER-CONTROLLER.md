@@ -1,7 +1,7 @@
 # 08 — 玩家控制器 (Player Controller)
 
 > 首次记录：2026-07-23 (Issue #142)
-> 更新：2026-07-23 (Issue #149 — 程序化节点树构建、碰撞体)
+> 更新：2026-07-24 (Issue #156 — ExitZone 区域传送组件)
 > 更新日志：[INDEX](INDEX.md)
 
 ---
@@ -169,6 +169,36 @@ PlayerController 使用 `PlayerControllerScript.new()` 实例化（无 .tscn 场
 首次进入游戏（无持久化状态）：
 - `player_position` 默认为 `Vector3.ZERO` → 使用 SpawnPoint 标记位置
 - 场景若无 SpawnPoint → 原点 `(0, 0, 0)`
+
+### 区域传送 (Zone Transition, Issue #156)
+
+**ExitZone 组件** (`gdscripts/exit_zone.gd`) 是放置在场景出口的 Area3D 组件，当玩家走入区域时自动触发场景切换。提供了两种传送模式：
+
+| 模式 | 触发方式 | 适用场景 |
+|------|----------|----------|
+| AUTO (默认) | 玩家走入 CollisionShape3D → 自动淡出 → 切换场景 | 单向出口、走廊、门框 |
+| EKEY | 玩家走入 → 显示提示标签 → 按 E 键 → 切换场景 | 需要玩家确认的出口、对话触发点 |
+
+**传送流程：**
+- ExitZone 检测到玩家进入 → 检查 `GameManager.transition_in_progress` 防止重复触发
+- AUTO 模式：1 秒冷却定时器防止物理引擎重复碰撞误触发
+- EKEY 模式：离开区域时自动断开信号连接，防止场景外误触
+- 最后通过 SceneManager 的淡入/淡出管线完成场景切换
+
+**Spawn Point 定向传送到目标场景：**
+- ExitZone 将 `GameManager.target_spawn_point` 设为目标坐标
+- 目标场景的 SceneBase._instantiate_player() 优先读取此值
+- 读取后立刻清零，防止后续对话切换误用
+- 无 target_spawn_point 时回退到 SpawnPoint Marker3D 或原点
+
+**故障保护：**
+| 故障场景 | 防护措施 |
+|----------|----------|
+| SceneManager 缺失 | `get_node_or_null()` + `has_method()` 双重检查 → push_error |
+| GameManager 缺失 | `get_node_or_null()` 跳过 → 使用 SpawnPoint 回退位 |
+| 空 `target_scene` | `_transition()` 检查 `is_empty()` → push_warning |
+| 无 CollisionShape3D | `_validate_config()` 推警告 |
+| 物体进入（非玩家） | `is_in_group("player")` 过滤 → 忽略 NPC/道具 |
 
 ---
 
