@@ -51,11 +51,11 @@
 地下通道 (underpass)
   │ 交互: Stranger(回声对话)、涂鸦墙(回忆闪回)、出口
   ▼
-地铁站 (subway_station) ═══ 终局
+|地铁站 (subway_station) ═══ 终局
   │ 结局: 基于三轴状态判定
-  ├── Keep Walking
-  ├── Turn Back
-  └── Stay
+  ├── Keep Walking   ─┐
+  ├── Turn Back       ├──→ end_credits.tscn → 显示结局标题 + 尾声文字 → GameManager.reset()
+  └── Stay           ─┘    → StateSystem.reset() → main.tscn (重新开始)
 ```
 
 ---
@@ -126,8 +126,9 @@ func _ready():
 | lobby.gd | SceneBase | 大厅 | 保安(闲聊)、Stranger(关键选择)、出口 |
 | store.gd | SceneBase | 便利店 | NPC.tscn (店员: 咖啡/聊天/3层人格)、Stranger 脚印文本 |
 | bridge.gd | SceneBase | 天桥 | 栏杆(俯瞰)、流浪汉(echo镜像)、低信念内心独白 |
-| underpass.gd | SceneBase | 地下通道 | 涂鸦(回忆)、Stranger(echo对话)、出口 |
-| subway_station.gd | SceneBase | 地铁站 | 检票口(KW)、转身(TB)、长椅(Stay) |
+|| underpass.gd | SceneBase | 地下通道 | 涂鸦(回忆)、Stranger(echo对话)、出口 |
+|| subway_station.gd | SceneBase | 地铁站 | 检票口(KW)、转身(TB)、长椅(Stay) |
+|| end_credits.gd | Node3D (class_name EndCredits) | 片尾 | 3 个 Label3D（标题、尾声、The End）、Timer 自动返回、鼠标点击返回 |
 
 ---
 
@@ -164,16 +165,19 @@ func trigger_echo(echo_id: String) -> void:
 
 ## 5. 对话系统
 
-7 个 JSON 对话文件，使用现有对话引擎格式（Issue #46），支持状态条件分支:
+	10 个 JSON 对话文件，使用现有对话引擎格式（Issue #46），支持状态条件分支。7 个原有 + 3 个出口对话（Issue #155）：
 
 | 文件 | 对话 | NPC | 场景 |
 |------|------|-----|------|
 | office_door.json | 办公室出口 | Narrator | 办公室 |
 | lobby_stranger.json | 初次相遇 | Stranger | 大厅 |
 | lobby_guard.json | 保安闲聊 | Security Guard | 大厅 |
+| lobby_exit.json | 大厅 → 便利店出口 | Narrator | 大厅 |
 | store_clerk.json | 店员对话 (3层人格 — Tired Worker/Cynical Veteran/Systemic Exhaustion + 办公室引用) | Store Clerk | 便利店 |
 | bridge_homeless.json | 流浪汉回声 | Homeless Person | 天桥 |
+| bridge_exit.json | 天桥 → 地下通道出口 | Narrator | 天桥 |
 | underpass_stranger_echo.json | 回声对话 | Stranger | 地下通道 |
+| underpass_exit.json | 地下通道 → 地铁站出口 | Narrator | 地下通道 |
 | subway_ending.json | 终局三结局 | Narrator/Stranger | 地铁站 |
 
 ### 条件选择示例（store_clerk.json）
@@ -225,9 +229,16 @@ Stranger 不是普通 NPC，而是玩家内心状态的物理投射。
 | gdscripts/bridge.gd | 场景脚本 | 87 |
 | gdscripts/underpass.gd | 场景脚本 | 104 |
 | gdscripts/subway_station.gd | 场景脚本 | 116 |
-| gdscripts/constants.gd (扩展) | 常量 | 119 |
-| gdscripts/npc_node.gd | NPC 框架核心脚本 | 201 |
-| scenes/components/NPC.tscn | NPC 组件场景 | 33 |
-| dialogues/*.json (7 个) | 对话数据 | ~750 |
-| dialogues/store_clerk.json (扩展) | 店员对话 (3层人格) | ~536 |
-| tests/test_narrative_architecture.gd | 测试 | 281 |
+|| gdscripts/end_credits.gd | 片尾场景脚本 | 75 |
+|| gdscripts/constants.gd (扩展) | 常量 | 119 |
+|| gdscripts/npc_node.gd | NPC 框架核心脚本 | 201 |
+|| scenes/end_credits.tscn | 片尾场景 | ~20 |
+|| scenes/components/NPC.tscn | NPC 组件场景 | 33 |
+|| dialogues/*.json (10 个) | 对话数据 | ~830 |
+|| dialogues/store_clerk.json (扩展) | 店员对话 (3层人格) | ~536 |
+|| dialogues/lobby_exit.json | 大厅出口对话 | 32 |
+|| dialogues/bridge_exit.json | 天桥出口对话 | 16 |
+|| dialogues/underpass_exit.json | 地下通道出口对话 | 16 |
+|| tests/test_narrative_architecture.gd | 测试 | 281 |
+|| tests/unit/test_exit_dialogues.gd | 出口对话 JSON 测试 | 199 |
+|| tests/unit/test_end_credits.gd | 片尾场景测试 | 107 |
