@@ -21,6 +21,11 @@ var current_scene_id: String = "office"  # Current scene in the narrative path
 var scene_visited: Dictionary = {}        # {scene_id: bool} — track visited scenes
 var choices_made: int = 0                 # Total choices made this run
 
+# Player position/rotation across scene transitions (Issue #142)
+var player_position: Vector3 = Vector3.ZERO
+var player_rotation: Vector3 = Vector3.ZERO
+var player_head_rotation: float = 0.0
+
 func _ready() -> void:
 	print("Agent Game Test — Godot 4.7")
 	print("GameManager initialized.")

@@ -104,6 +104,37 @@ func _init() -> void:
 	passed += _stranger_scene.passed
 	failed += _stranger_scene.failed
 
+	# --- Player Controller Tests (Issue #142) ---
+	var _player_controller_tests = load("res://tests/unit/test_player_controller.gd").new()
+	_player_controller_tests.run()
+	passed += _player_controller_tests.passed
+	failed += _player_controller_tests.failed
+
+	var _e_key_trigger_tests = load("res://tests/unit/test_e_key_trigger.gd").new()
+	_e_key_trigger_tests.run()
+	passed += _e_key_trigger_tests.passed
+	failed += _e_key_trigger_tests.failed
+
+	var _scene_base_player_tests = load("res://tests/unit/test_scene_base_player.gd").new()
+	_scene_base_player_tests.run()
+	passed += _scene_base_player_tests.passed
+	failed += _scene_base_player_tests.failed
+
+	var _game_manager_player_tests = load("res://tests/unit/test_game_manager_player.gd").new()
+	_game_manager_player_tests.run()
+	passed += _game_manager_player_tests.passed
+	failed += _game_manager_player_tests.failed
+
+	var _player_integration_tests = load("res://tests/integration/test_player_in_scene.gd").new()
+	_player_integration_tests.run()
+	passed += _player_integration_tests.passed
+	failed += _player_integration_tests.failed
+
+	var _input_map_tests = load("res://tests/unit/test_input_map_validation.gd").new()
+	_input_map_tests.run()
+	passed += _input_map_tests.passed
+	failed += _input_map_tests.failed
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)

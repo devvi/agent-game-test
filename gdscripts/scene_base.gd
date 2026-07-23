@@ -2,20 +2,29 @@ extends Node
 class_name SceneBase
 
 # SceneBase — Base class for all scene scripts (Issue #45)
-# Provides common behavior: fade-in, state-aware text config, dialogue state restoration.
+# Provides common behavior: fade-in, player instantiation, state-aware text config,
+# dialogue state restoration, and player state persistence across scene transitions.
+
+const PLAYER_CONTROLLER := preload("res://gdscripts/player_controller.gd")
 
 @onready var scene_manager: Node = $SceneManager
 @onready var dialogue_runner: Node = $CanvasLayer/DialoguePanel
 
 var scene_id: String = ""  # Override in subclass
+var _player: Node = null   # PlayerController instance (Issue #142)
 
 
 func _ready() -> void:
 	if scene_manager and scene_manager.has_method("fade_in"):
 		scene_manager.fade_in()
+	_instantiate_player()
 	_configure_environmental_text()
 	_configure_ambient_audio()
 	_restore_dialogue_state()
+
+
+func _exit_tree() -> void:
+	_save_player_state()
 
 
 ## Override in subclass: configure all environmental text for this scene (state-aware).
@@ -58,3 +67,70 @@ func get_state() -> Dictionary:
 func start_dialogue(file_path: String, dialogue_id: String) -> void:
 	if dialogue_runner and dialogue_runner.has_method("start"):
 		dialogue_runner.start(file_path, dialogue_id)
+
+
+# ── Player Controller (Issue #142) ──
+
+## Instantiate PlayerController as a child of this scene root.
+func _instantiate_player() -> void:
+	if _player and is_instance_valid(_player):
+		return  # Already exists
+	_player = PLAYER_CONTROLLER.instantiate()
+	_player.name = "PlayerController"
+	add_child(_player)
+
+	# Restore position from GameManager
+	var gm: Node = get_node_or_null("/root/GameManager")
+	if gm:
+		var saved_pos: Variant = gm.get("player_position", null)
+		if saved_pos != null and saved_pos is Vector3:
+			_player.global_position = saved_pos
+		var saved_rot: Variant = gm.get("player_rotation", null)
+		if saved_rot != null and saved_rot is Vector3:
+			_player.global_rotation = saved_rot
+		var saved_head_rot: Variant = gm.get("player_head_rotation", null)
+		if saved_head_rot != null and saved_head_rot is float:
+			var head := _player.get_node_or_null("Head")
+			if head:
+				head.rotation.x = saved_head_rot
+
+	# Connect interaction_requested signal
+	if _player.has_signal("interaction_requested"):
+		_player.interaction_requested.connect(_on_player_interaction)
+
+	# Set fall reset position to spawn point
+	if _player.has_method("set_fall_reset_position"):
+		_player.set_fall_reset_position(_get_player_spawn_position())
+
+
+## Get the player spawn position. Default: SpawnPoint Marker3D or origin.
+func _get_player_spawn_position() -> Vector3:
+	var sp := get_node_or_null("SpawnPoint")
+	if sp:
+		return sp.global_position
+	return Vector3.ZERO
+
+
+## Handle player interaction with a target node (NPC or EKeyTrigger).
+func _on_player_interaction(target: Node) -> void:
+	if target.has_method("start_npc_interaction"):
+		target.start_npc_interaction()
+		return
+	if target.has_method("start_dialogue"):
+		target.start_dialogue()
+		return
+	push_warning("SceneBase._on_player_interaction: unhandled target '%s'" % target.name)
+
+
+## Save player position/rotation to GameManager before scene unload.
+func _save_player_state() -> void:
+	if not _player or not is_instance_valid(_player):
+		return
+	var gm: Node = get_node_or_null("/root/GameManager")
+	if not gm:
+		return
+	gm.set("player_position", _player.global_position)
+	gm.set("player_rotation", _player.global_rotation)
+	var head := _player.get_node_or_null("Head")
+	if head:
+		gm.set("player_head_rotation", head.rotation.x)
