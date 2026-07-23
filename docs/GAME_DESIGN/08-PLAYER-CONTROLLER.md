@@ -196,7 +196,48 @@ PlayerController 使用 `PlayerControllerScript.new()` 实例化（无 .tscn 场
 
 ---
 
-## 8. 故障恢复
+## 8. 输入验证 (Issue #153)
+
+### @export_range 约束
+
+所有 PlayerController 的可调节参数使用 `@export_range` 在 Godot 编辑器中提供可视化的滑动条约束，防止在场景编辑器中误输入不合理值：
+
+| 参数 | 默认值 | 范围 | 步长 | 说明 |
+|------|--------|------|------|------|
+| `walk_speed` | 2.5 | [0.5 — 10.0] | 0.1 | 叙事步行速度 (m/s) |
+| `look_sensitivity` | 0.003 | [0.001 — 0.02] | 0.0005 | 每像素旋转弧度 |
+| `interaction_range` | 2.0 | [0.5 — 10.0] | 0.1 | E 键交互探测半径 (m) |
+| `camera_height` | 1.6 | [0.5 — 3.0] | 0.1 | 视线高度 (m) |
+| `camera_tilt` | -0.087 | [-1.0 — 1.0] | 0.001 | 默认俯仰角 (rad) |
+| `look_vertical_clamp` | 1.047 | [0.174 — 1.57] | 0.01 | 垂直视角 ± 限制 (rad) |
+
+### 运行时钳位 (Runtime Clamping)
+
+`@export_range` 仅在 Godot 编辑器中有效。在 `--headless --script` 测试模式下，脚本直接创建实例，不经过编辑器约束。因此 `_physics_process()` 中使用 `clamp(walk_speed, 0.5, 10.0)` 进行运行时钳位：
+
+```gdscript
+var effective_speed: float = clamp(walk_speed, 0.5, 10.0)
+velocity.x = direction.x * effective_speed
+velocity.z = direction.z * effective_speed
+```
+
+### 启动时输入映射验证
+
+`PlayerController._ready()` 调用 `_verify_input_map()` 检查输入动作是否在 InputMap 中注册：
+
+| 动作 (Action) | 用途 |
+|---------------|------|
+| `move_forward` | 向前移动 |
+| `move_backward` | 向后移动 |
+| `move_left` | 向左平移 |
+| `move_right` | 向右平移 |
+| `interact` | E 键交互 |
+
+缺失动作通过 `push_warning()` 报告，不阻断游戏启动 — 设计上允许缺少部分输入动作时仍可运行（例如缺少 `interact` 不会影响移动），但会在日志中清晰指出。
+
+---
+
+## 9. 故障恢复
 
 ### 掉落世界重置
 
