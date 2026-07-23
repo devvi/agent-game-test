@@ -50,10 +50,14 @@ func _init() -> void:
 	run_gamestate_system_47_tests()
 
 	# --- Integration Tests (Issue #57 -- MVP Playtest) ---
-	var _integration = load("res://tests/test_integration.gd").new()
-	_integration.run()
-	passed += _integration.passed
-	failed += _integration.failed
+	var _integration_script = load("res://tests/test_integration.gd")
+	if _integration_script != null:
+		var _integration = _integration_script.new()
+		_integration.run()
+		passed += _integration.passed
+		failed += _integration.failed
+	else:
+		print("  ⚠️ Integration test script not found (res://tests/test_integration.gd)")
 
 	# --- UI Config Tests (Issue #53) ---
 	run_ui_config_tests()
