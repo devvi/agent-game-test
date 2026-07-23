@@ -29,7 +29,7 @@ func _setup_fade_curtain() -> void:
 		_fade_curtain = scene_root.get_node("FadeCurtain")
 	else:
 		_fade_curtain = _create_fade_curtain()
-		scene_root.add_child(_fade_curtain)
+		scene_root.add_child.call_deferred(_fade_curtain)
 	_fade_anim = _fade_curtain.get_node("AnimationPlayer")
 
 

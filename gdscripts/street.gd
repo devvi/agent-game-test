@@ -10,10 +10,9 @@ class_name StreetScene
 @onready var street_sign: Node3D = $Environments/StreetSign
 @onready var store_entrance: Area3D = $InteractionZones/StoreEntranceTrigger
 
-var scene_id: String = "street"
-
 
 func _ready() -> void:
+	scene_id = "street"
 	super._ready()
 	store_entrance.input_event.connect(_on_store_entrance_input)
 
@@ -59,5 +58,5 @@ func _on_store_entrance_input(camera: Node, event: InputEvent, position: Vector3
 func _restore_dialogue_state() -> void:
 	var gm: Node = get_node_or_null("/root/GameManager")
 	if gm and dialogue_runner.choices_made.is_empty():
-		if gm.has("choices_history") and not gm.choices_history.is_empty():
+		if "choices_history" in gm and not gm.choices_history.is_empty():
 			dialogue_runner.choices_made = gm.choices_history.duplicate()

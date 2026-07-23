@@ -49,7 +49,7 @@ func _configure_environmental_text() -> void:
 	# Desktop — deadline display
 	var day: int = 0
 	if ss and ss.has_method("get"):
-		day = int(ss.get("day")) if ss.has("day") else 0
+		day = int(ss.day) if "day" in ss else 0
 	elif gm:
 		day = int(gm.get_slider("day"))
 	desktop_text.text = "Deadline: Day %d / 90" % day
@@ -67,5 +67,5 @@ func _start_door_dialogue() -> void:
 func _restore_dialogue_state() -> void:
 	var gm: Node = get_node_or_null("/root/GameManager")
 	if gm and dialogue_runner.choices_made.is_empty():
-		if gm.has("choices_history") and not gm.choices_history.is_empty():
+		if "choices_history" in gm and not gm.choices_history.is_empty():
 			dialogue_runner.choices_made = gm.choices_history.duplicate()

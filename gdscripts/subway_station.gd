@@ -11,12 +11,12 @@ class_name SubwayStationScene
 @onready var turn_back_trigger: Area3D = $InteractionZones/TurnBackTrigger
 @onready var bench_trigger: Area3D = $InteractionZones/BenchTrigger
 
-var scene_id: String = "subway_station"
 var _ending: String = ""
 var _ending_determined: bool = false
 
 
 func _ready() -> void:
+	scene_id = "subway_station"
 	super._ready()
 	if gate_trigger:
 		gate_trigger.input_event.connect(_on_gate_trigger_input)
@@ -47,7 +47,7 @@ func _get_tone() -> String:
 	var hope_val: float = state.get("hope", 5.0)
 	if hope_val >= 6.0:
 		return "forward"
-	elif ss.get("conviction", 5.0) <= 3.0:
+	elif ss.conviction if ss else 5.0 <= 3.0:
 		return "backward"
 	else:
 		return "waiting"
