@@ -32,7 +32,7 @@ Propagate the `transition_in_progress` flag across scene changes by storing it i
 | 2 | `scene_manager.gd` `_ready()` | Read `GameManager.transition_in_progress` into local `transition_in_progress` | The new instance picks up the flag before `fade_in()` is called |
 | 3 | `scene_manager.gd` `fade_in()` | After animation completes, set `GameManager.transition_in_progress = false` | Clears the flag so subsequent `fade_in()` calls on non-transition paths are guarded correctly |
 
-No changes to `GameManager.gd` are required — it already supports dynamic properties via GDScript's dynamic dispatch (`set("transition_in_progress", value)` / `get("transition_in_progress")`) since it's a plain `Node` with no declared variable named `transition_in_progress`, which means GDScript will create a dynamic property on first write.
+No changes to `GameManager.gd` are required — it already supports dynamic properties via GDScript's dynamic dispatch (`set("transition_in_progress", value)` / `get("transition_in_progress", false)`) since it's a plain `Node` subclass.
 
 ### Data Flow (Fixed)
 
@@ -93,17 +93,17 @@ if gm:
     gm.set("transition_in_progress", false)
 ```
 
-**Error handling:** All GameManager accesses use `get_node_or_null()` — if GameManager is absent (testing), the code paths degrade gracefully: no flag propagation (fade-in skips), no flag clearing (stale but harmless since GameManager is present in production).
+**Error handling:** All GameManager accesses use `get_node_or_null()` — if GameManager is absent (testing), the code paths degrade gracefully: no flag propagation (fade-in skips), no flag clearing (stale but harmless since GameManager is present in production). Additionally, the failed-scene-change path (line 127) should also clear `GameManager.transition_in_progress` to prevent stale state.
 
 ### 2.2 `gdscripts/game_manager.gd` — GameManager (indirectly affected)
 
 **Current state:** 148 lines. Autoload registered at `/root/GameManager`. Already stores `choices_history`, `player_position`, `player_rotation`, `scene_visited`, etc. across scene transitions.
 
-**No changes needed.** GDScript allows writing to undeclared properties on `Node`-derived classes — `gm.set("transition_in_progress", value)` works at runtime without any declaration in `game_manager.gd`. This is the same pattern already used at line 141 (`gm.set("choices_history", ...)`) where `choices_history` is a declared variable (line 17), but the property-writing pattern is identical.
+**No changes needed.** GDScript allows writing to undeclared properties on `Node`-derived classes — `gm.set("transition_in_progress", value)` works at runtime without any declaration in `game_manager.gd`. This is the same pattern already used at line 141 (`gm.set("choices_history", ...)`).
 
 ### 2.3 `gdscripts/scene_base.gd` — SceneBase (indirectly affected)
 
-**Current state:** 139 lines. Calls `scene_manager.fade_in()` in `_ready()` at line 18-19. No changes needed — the fix is transparent to SceneBase. Its `_ready()` already calls `fade_in()` and the guard in SceneManager now correctly decides whether to play the animation.
+**Current state:** 139 lines. Calls `scene_manager.fade_in()` in `_ready()` at line 18-19. **No changes needed** — the fix is transparent to SceneBase.
 
 ### 2.4 Scene scripts extending SceneBase (indirectly affected)
 
@@ -220,9 +220,8 @@ Each criterion below has an embedded test case description (format: **TC-XXX**).
 
 **TC-007 — Failed scene change (change_scene_to_file returns error)**
 1. Call `trigger_scene_change("res://nonexistent_scene.tscn")`.
-2. **Verify:** Line 125-128 catches error `!= OK`. `transition_in_progress` resets to `false`. `GameManager.transition_in_progress` is NOT set to true (we only set it before the call, but if it was set, it stays `true` — edge: we should also clear it on error path).
-3. **Design note:** The `gm.set("transition_in_progress", true)` in `trigger_scene_change()` is called before the `change_scene_to_file()` call. If the scene change fails, we should clear both the local flag AND the autoload flag. The existing error handler (line 127: `transition_in_progress = false`) should also clear `GameManager.transition_in_progress`.
-4. **GDScript test (headless):** Pass an invalid path to `trigger_scene_change()`. Assert that both `transition_in_progress` and `GameManager.transition_in_progress` are `false` after the error return.
+2. **Verify:** Line 125-128 catches error `!= OK`. `transition_in_progress` resets to `false`. `GameManager.transition_in_progress` is also cleared.
+3. **GDScript test (headless):** Pass an invalid path to `trigger_scene_change()`. Assert that both `transition_in_progress` and `GameManager.transition_in_progress` are `false` after the error return.
 
 **TC-008 — GameManager unavailable (rare, e.g., headless test without autoloads)**
 1. Simulate `SceneManager` in an environment where `/root/GameManager` does not exist.
@@ -248,15 +247,12 @@ Each criterion below has an embedded test case description (format: **TC-XXX**).
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| GameManager dynamic property fails silently | Very Low | Low | GDScript dynamic property dispatch on `Node` subclasses is well-tested; existing `choices_history` (declared var) uses `set()` pattern but dynamic props work identically |
-| `_ready()` runs `_setup_fade_curtain()` before reading GameManager flag | Low | Low — flag is read after curtain setup, so `_fade_anim` exists | Sequence is: `_ready()` → `_setup_fade_curtain()` → read GM flag → `fade_in()` from SceneBase. `_fade_anim` is always set before `fade_in()` is called. |
-| `change_scene_to_file()` fails — stale flag remains in GameManager | Medium | Medium | Added mitigation: clear `GameManager.transition_in_progress` in the error handler (see TC-007) |
-| Multiple SceneManager instances in same tree (should not exist by design) | Low | Low | Each scene has exactly one `SceneManager` child (attached by scene convention). No code path creates additional instances. |
-| Timing: `call_deferred` add_child vs synchronous fade_in | Very Low | Low | `_fade_anim` is set synchronously at line 33 (before `call_deferred` returns). Even though the `ColorRect` isn't in the tree yet, the AnimationPlayer reference is valid and animations play correctly on scheduled nodes. |
+| GameManager dynamic property fails silently | Very Low | Low | GDScript dynamic property dispatch on `Node` subclasses is well-tested |
+| `_ready()` runs `_setup_fade_curtain()` before reading GameManager flag | Low | Low | Flag is read after curtain setup, so `_fade_anim` exists. Sequence is: `_ready()` → `_setup_fade_curtain()` → read GM flag → `fade_in()` from SceneBase. `_fade_anim` is always set before `fade_in()` is called. |
+| `change_scene_to_file()` fails — stale flag remains in GameManager | Medium | Medium | Clear `GameManager.transition_in_progress` in the error handler (see TC-007) |
+| Timing: `call_deferred` add_child vs synchronous fade_in | Very Low | Low | `_fade_anim` is set synchronously at line 33 (before `call_deferred` returns). Even though the `ColorRect` isn't in the tree yet, the AnimationPlayer reference is valid. |
 
-### Risk Summary
-
-**Overall risk: Very Low.** The fix is 3 small additions (≈6 lines total) to `scene_manager.gd` with no architectural changes, no new dependencies, no TSCN modifications, and the same error-handling pattern already established in the codebase.
+**Overall risk: Very Low.** The fix is 3 small additions (≈6 lines total) to `scene_manager.gd` with no architectural changes, no new dependencies, no TSCN modifications.
 
 ---
 
@@ -275,7 +271,7 @@ Revert the commit. The previous state (commit `3a7242c`, PR #141, Issue #138) wo
 
 ### No TASKS doc required
 
-This is a bug fix with depth/light. The 3 changes are small and co-located in a single file. No additional task breakdown is needed.
+This is a bug fix with depth/light. The 3 changes are small and co-located in a single file.
 
 ---
 
@@ -291,13 +287,13 @@ This is a bug fix with depth/light. The 3 changes are small and co-located in a 
 
 | Measure | When | Who |
 |---------|------|-----|
-| **Add GDScript headless test** for `fade_in()` guard + GameManager flag propagation | This PR | plan-agent |
+| **Add GDScript headless test** for `fade_in()` guard + GameManager flag propagation | This PR | implement-agent |
 | **Code review checklist item for transition guards:** Verify that any state guard that survives `change_scene_to_file()` is propagated via autoload, not an instance variable | Going forward | All reviewers |
-| **Visual regression script:** Add a simple `print()` statement after `fade_in()` animation completes (or emits `transition_completed`) so CI headless tests can assert the event fires | This PR (implement phase) | implement-agent |
-| **Document in REFERENCE:** Scene transition flow diagram showing the complete fade-out → tree replacement → fade-in lifecycle, with the autoload propagation path | This PR | plan-agent |
+| **Visual regression script:** Add a simple `print()` statement after `fade_in()` animation completes (or emits `transition_completed`) so CI headless tests can assert the event fires | This PR | implement-agent |
+| **Document in REFERENCE:** Scene transition flow diagram showing the complete fade-out → tree replacement → fade-in lifecycle | This PR | plan-agent |
 
 ### Second-Order Effects
 
 With this fix, the full fade-out + fade-in lifecycle works correctly. Future changes to the transition system (e.g., loading screens, cross-fades, preload-on-fade-out) should extend the `GameManager` property pattern rather than adding new mechanisms.
 
-**Watch for:** If `GameManager` ever refactors to a static class or `RefCounted` (which does not support dynamic property dispatch), the `set()` calls will need to reference declared properties. This is a low-risk concern — `GameManager` is a stable autoload and unlikely to change its type.
+**Watch for:** If `GameManager` ever refactors to a static class or `RefCounted` (which does not support dynamic property dispatch), the `set()` calls will need to reference declared properties. Low risk — `GameManager` is a stable autoload.
