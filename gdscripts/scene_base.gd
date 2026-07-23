@@ -4,6 +4,8 @@ class_name SceneBase
 # SceneBase — Base class for all scene scripts (Issue #45)
 # Provides common behavior: fade-in, player instantiation, state-aware text config,
 # dialogue state restoration, and player state persistence across scene transitions.
+#
+# Extended for Issue #154: Adds 5-state tone lookup helpers and dynamic state signal wiring.
 
 const PLAYER_CONTROLLER: GDScript = preload("res://gdscripts/player_controller.gd")
 
@@ -21,6 +23,7 @@ func _ready() -> void:
 	_configure_environmental_text()
 	_configure_ambient_audio()
 	_restore_dialogue_state()
+	_connect_state_signals()
 
 
 func _exit_tree() -> void:
@@ -37,6 +40,82 @@ func _configure_ambient_audio() -> void:
 	var am := get_node_or_null("/root/AudioManager")
 	if am and am.has_method("register_scene"):
 		am.register_scene(scene_id)
+
+
+## Connect to scene_text_changed signal for dynamic text updates (Issue #154).
+## Subclasses can override to add custom signal connections.
+func _connect_state_signals() -> void:
+	var nm := get_node_or_null("/root/NarrativeManager")
+	if nm and nm.has_signal("scene_text_changed"):
+		nm.scene_text_changed.connect(_on_narrative_tone_changed)
+
+
+## Handle scene_text_changed from NarrativeManager for dynamic text updates (Issue #154).
+## Subclasses should override to apply new tone to scene-specific environmental text nodes.
+func _on_narrative_tone_changed(scene_id_emmited: String, tone: String) -> void:
+	if scene_id_emmited != scene_id:
+		return
+	# Default: no-op. Subclasses connect specific text nodes here.
+
+
+## Get the tone string for the current scene and state.
+## Queries NarrativeManager's per-scene tone table for 5-state.
+## Returns a tone string like "despair", "low", "neutral", "buoyant", "hope".
+func _get_tone_for_scene(scene_id_query: String) -> String:
+	var nm := get_node_or_null("/root/NarrativeManager")
+	if nm and nm.has_method("_calculate_tone_for_scene"):
+		var ss: Node = get_node_or_null("/root/StateSystem")
+		if ss and ss.has_method("get_state"):
+			var state: Dictionary = ss.get_state()
+			var scene_idx: int = nm.SCENE_ORDER.find(scene_id_query)
+			if scene_idx >= 0:
+				return nm._calculate_tone_for_scene(scene_idx, state)
+	# Fallback: use WorldviewController for global tone
+	var wv := get_node_or_null("/root/WorldviewController")
+	if wv and wv.has_method("get_tone_for_state"):
+		var ss: Node = get_node_or_null("/root/StateSystem")
+		if ss and ss.has_method("get_state"):
+			return wv.get_tone_for_state(ss.get_state())
+	return "neutral"
+
+
+## Get the tone string for a specific scene + state combination.
+## Useful for previewing what text would look like at a given state.
+func _get_tone_for_scene_state(scene_id_query: String, state_id: int) -> String:
+	var nm := get_node_or_null("/root/NarrativeManager")
+	if nm:
+		var scene_idx: int = nm.SCENE_ORDER.find(scene_id_query)
+		if scene_idx >= 0:
+			var scene_tones: Dictionary = nm.SCENE_TONES.get(scene_idx, {})
+			return scene_tones.get(state_id, "neutral")
+	return "neutral"
+
+
+## Get the current state ID (1-5) from StateSystem.
+func _get_current_state_id() -> int:
+	var ss: Node = get_node_or_null("/root/StateSystem")
+	if ss and ss.has_method("get_state_id"):
+		return ss.get_state_id()
+	# Fallback: derive from hope value
+	if ss and ss.has_method("get_state"):
+		var state: Dictionary = ss.get_state()
+		var hope_val: float = state.get("hope", 5.0)
+		return _hope_to_state_id(hope_val)
+	return 3
+
+
+## Convert hope (0-10) to discrete state ID (1-5).
+static func _hope_to_state_id(hope: float) -> int:
+	if hope <= 2.0:
+		return 1
+	elif hope <= 4.0:
+		return 2
+	elif hope <= 6.0:
+		return 3
+	elif hope <= 8.0:
+		return 4
+	else:
+		return 5
 
 
 ## Restore dialogue state from GameManager's choices_history.
@@ -65,9 +144,6 @@ func get_state() -> Dictionary:
 
 ## Start a dialogue via the dialogue runner.
 func start_dialogue(file_path: String, dialogue_id: String) -> void:
-	if file_path.is_empty() or dialogue_id.is_empty():
-		push_warning("SceneBase.start_dialogue: file_path or dialogue_id is empty")
-		return
 	if dialogue_runner and dialogue_runner.has_method("start"):
 		dialogue_runner.start(file_path, dialogue_id)
 
@@ -114,7 +190,6 @@ func _get_player_spawn_position() -> Vector3:
 	var sp := get_node_or_null("SpawnPoint")
 	if sp:
 		return sp.global_position
-	push_warning("SceneBase._get_player_spawn_position: SpawnPoint node not found, using Vector3.ZERO")
 	return Vector3.ZERO
 
 
