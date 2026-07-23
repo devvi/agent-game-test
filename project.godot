@@ -67,6 +67,28 @@ digit_3={
 "events": [{"keycode": 51, "type": 0}]
 }
 digit_4={
-"deadzone": 0.5,
-"events": [{"keycode": 52, "type": 0}]
+	"deadzone": 0.5,
+	"events": [{"keycode": 52, "type": 0}]
+}
+
+# --- Player Controller Input (Issue #142) ---
+move_forward={
+	"deadzone": 0.5,
+	"events": [{"keycode": 87, "type": 0}, {"keycode": 4194320, "type": 0}]
+}
+move_backward={
+	"deadzone": 0.5,
+	"events": [{"keycode": 83, "type": 0}, {"keycode": 4194322, "type": 0}]
+}
+move_left={
+	"deadzone": 0.5,
+	"events": [{"keycode": 65, "type": 0}, {"keycode": 4194319, "type": 0}]
+}
+move_right={
+	"deadzone": 0.5,
+	"events": [{"keycode": 68, "type": 0}, {"keycode": 4194321, "type": 0}]
+}
+interact={
+	"deadzone": 0.5,
+	"events": [{"keycode": 69, "type": 0}]
 }
