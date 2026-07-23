@@ -159,6 +159,12 @@ func _init() -> void:
 	# passed += _end_credits_tests.passed
 	# failed += _end_credits_tests.failed
 
+	# --- ExitZone Tests (Issue #156) ---
+	var _exit_zone_tests = load("res://tests/unit/test_exit_zone.gd").new()
+	_exit_zone_tests.run()
+	passed += _exit_zone_tests.passed
+	failed += _exit_zone_tests.failed
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)
