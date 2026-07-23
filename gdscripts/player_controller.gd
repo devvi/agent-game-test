@@ -20,6 +20,10 @@ var _mouse_dragging: bool = false
 var _last_mouse_pos: Vector2 = Vector2.ZERO
 var _nearby_interactables: Array[Node] = []  # LIFO stack of nearby interactable nodes
 var _fall_reset_position: Vector3 = Vector3.ZERO
+var _footstep_accumulator: float = 0.0      # elapsed time since last footstep
+
+# ── Constants ──
+const FOOTSTEP_INTERVAL: float = 0.5         # seconds between movement footsteps
 
 # ── Signals ──
 signal interaction_requested(target: Node)
@@ -238,6 +242,16 @@ func _physics_process(delta: float) -> void:
 	direction += right * input_dir.x     # move_left/right
 	direction = direction.normalized()
 
+	# ── Footstep trigger ──
+	if direction != Vector3.ZERO and not _dialogue_active:
+		_footstep_accumulator += delta
+		if _footstep_accumulator >= FOOTSTEP_INTERVAL:
+			_trigger_footstep()
+			_footstep_accumulator = 0.0
+	else:
+		# Reset accumulator when stationary or in dialogue
+		_footstep_accumulator = 0.0
+
 	if direction != Vector3.ZERO:
 		velocity.x = direction.x * effective_speed
 		velocity.z = direction.z * effective_speed
@@ -282,3 +296,17 @@ func _on_fall_detector_body_entered(body: Node) -> void:
 	if body == self:
 		global_position = _fall_reset_position
 		velocity = Vector3.ZERO
+
+
+# ── Footstep Audio ──
+
+func _trigger_footstep() -> void:
+	var am := get_node_or_null("/root/AudioManager")
+	if not am or not am.has_method("play_footstep"):
+		return
+	var scene_id: String = ""
+	var scene_root := get_tree().current_scene
+	if scene_root:
+		scene_id = scene_root.name
+	var surface: String = am.get_surface_for_scene(scene_id)
+	am.play_footstep(surface)
