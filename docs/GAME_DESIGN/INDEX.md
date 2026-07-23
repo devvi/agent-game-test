@@ -12,6 +12,7 @@
 | [05-DIALOGUE](05-DIALOGUE.md) | 对话引擎 — 数据模型、条件分支、运行时 |
 | [06-NARRATIVE](06-NARRATIVE.md) | 叙事架构 — 场景序列、回声系统、结局判定、5态基调 (Issue #50) |
 | [07-AUDIO](07-AUDIO.md) | 音频系统 — 环境音循环、总线配置、状态调制、场景过渡 |
+| [08-PLAYER-CONTROLLER](08-PLAYER-CONTROLLER.md) | 玩家控制器 — WASD 移动、鼠标视角、E 键交互、场景切换持久化 |
 
 ---
 
