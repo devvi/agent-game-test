@@ -67,7 +67,7 @@ func _update_bar(target_ratio: float) -> void:
 		 .set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_SINE)
 
 	# Update fill bar to gradient colour based on ratio
-	var fill_color: Color = HOPE_COLOR.lerp(DESPAIR_COLOR, target_ratio)
+	var fill_color: Color = DESPAIR_COLOR.lerp(HOPE_COLOR, target_ratio)
 	_bar_fill.color = fill_color
 
 	_current_ratio = target_ratio
@@ -83,7 +83,7 @@ func _update_bar_immediate(ratio: float) -> void:
 	var target_width: float = ratio * _bar_max_width
 	_bar_fill.size.x = target_width
 	_indicator.position.x = target_width - _indicator.size.x / 2.0
-	_bar_fill.color = HOPE_COLOR.lerp(DESPAIR_COLOR, ratio)
+	_bar_fill.color = DESPAIR_COLOR.lerp(HOPE_COLOR, ratio)
 	_current_ratio = ratio
 
 

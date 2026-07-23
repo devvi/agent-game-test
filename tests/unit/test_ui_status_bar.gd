@@ -18,8 +18,8 @@ func run() -> void:
 	_test_tc5_hope_color_constant()
 	_test_tc6_despair_color_constant()
 	_test_tc7_color_lerp_at_neutral()
-	_test_tc8_color_lerp_at_hope()
-	_test_tc9_color_lerp_at_despair()
+	_test_tc8_color_lerp_at_despair()
+	_test_tc9_color_lerp_at_hope()
 	_test_tc10_ratio_mapping_linearity()
 
 	print("StatusBar Unit — Passed: ", passed, " Failed: ", failed)
@@ -83,31 +83,35 @@ func _test_tc4_state_changed_missing_field_defaults() -> void:
 
 
 func _test_tc5_hope_color_constant() -> void:
+	var sb = _make_status_bar()
 	_assert(sb.HOPE_COLOR.to_html() == "ffb000", "TC5-1: HOPE_COLOR = #FFB000")
 
 
 func _test_tc6_despair_color_constant() -> void:
+	var sb = _make_status_bar()
 	_assert(sb.DESPAIR_COLOR.to_html() == "2a2a4a", "TC6-1: DESPAIR_COLOR = #2A2A4A")
 
 
 func _test_tc7_color_lerp_at_neutral() -> void:
 	var sb = _make_status_bar()
-	var neutral_color := sb.HOPE_COLOR.lerp(sb.DESPAIR_COLOR, 0.5)
-	# Neutral should be a midpoint between amber and dark blue
+	var neutral_color := sb.DESPAIR_COLOR.lerp(sb.HOPE_COLOR, 0.5)
+	# Neutral should be a midpoint between dark blue and amber
 	_assert(neutral_color.r > 0.3, "TC7-1: neutral colour has r > 0.3 (warm component)")
 	_assert(neutral_color.b > neutral_color.r * 0.5, "TC7-2: neutral colour has b > r/2 (cool component)")
 
 
-func _test_tc8_color_lerp_at_hope() -> void:
+func _test_tc8_color_lerp_at_despair() -> void:
 	var sb = _make_status_bar()
-	var hope_color := sb.HOPE_COLOR.lerp(sb.DESPAIR_COLOR, 0.0)
-	_assert(hope_color.to_html() == "ffb000", "TC8-1: ratio=0.0 gives HOPE_COLOR (#FFB000)")
+	# ratio=0.0 (max despair) → DESPAIR_COLOR (dark blue)
+	var despair_color := sb.DESPAIR_COLOR.lerp(sb.HOPE_COLOR, 0.0)
+	_assert(despair_color.to_html() == "2a2a4a", "TC8-1: ratio=0.0 gives DESPAIR_COLOR (#2A2A4A)")
 
 
-func _test_tc9_color_lerp_at_despair() -> void:
+func _test_tc9_color_lerp_at_hope() -> void:
 	var sb = _make_status_bar()
-	var despair_color := sb.HOPE_COLOR.lerp(sb.DESPAIR_COLOR, 1.0)
-	_assert(despair_color.to_html() == "2a2a4a", "TC9-1: ratio=1.0 gives DESPAIR_COLOR (#2A2A4A)")
+	# ratio=1.0 (max hope) → HOPE_COLOR (amber)
+	var hope_color := sb.DESPAIR_COLOR.lerp(sb.HOPE_COLOR, 1.0)
+	_assert(hope_color.to_html() == "ffb000", "TC9-1: ratio=1.0 gives HOPE_COLOR (#FFB000)")
 
 
 func _test_tc10_ratio_mapping_linearity() -> void:
