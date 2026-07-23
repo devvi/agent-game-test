@@ -33,8 +33,7 @@ var _bar_max_width: float = 0.0
 
 # --- Lifecycle ---
 func _ready() -> void:
-	_tween = Tween.new()
-	add_child(_tween)
+	_tween = create_tween()
 	_update_layout()
 	_update_bar_immediate(0.5)  # Start neutral
 
@@ -96,7 +95,7 @@ func _update_layout() -> void:
 	var ui_config := get_node_or_null("/root/UIConfig")
 	var scale_factor: float = 1.0
 	if ui_config != null:
-		scale_factor = ui_config.get("auto_font_scale", 1.0)
+		scale_factor = ui_config.get("auto_font_scale") if "auto_font_scale" in ui_config else 1.0
 
 	var bar_height := bar_height_px * scale_factor
 	var bar_x := (viewport_size.x - bar_width) / 2.0

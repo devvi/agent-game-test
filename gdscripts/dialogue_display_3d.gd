@@ -1,6 +1,9 @@
 extends Node3D
 class_name DialogueDisplay3D
 
+# Preload for class_name scripts to ensure parse-time resolution
+const _LoFiText3D = preload("res://gdscripts/lo_fi_text_3d.gd")
+
 # --- Exported Parameters ---
 
 @export var max_choices: int = 4
@@ -44,7 +47,7 @@ func _setup_choice_pool() -> void:
 	# Ensure we have exactly max_choices slots
 	while _choice_labels.size() < max_choices:
 		# In case scene doesn't have enough, create programmatically (shouldn't happen with proper scene)
-		var label := LoFiText3D.new()
+		var label = _LoFiText3D.new()
 		label.name = "Choice" + str(_choice_labels.size())
 		label.position = Vector3(0, -0.3 - (_choice_labels.size() * choice_spacing), 0)
 		label.pixel_factor = 0.3
@@ -94,7 +97,7 @@ func on_node_changed(node_id: String, speaker: String, text: String) -> void:
 	# Apply responsive font scaling from UIConfig
 	var ui_config := get_node_or_null("/root/UIConfig")
 	if ui_config != null:
-		var scale_factor: float = ui_config.get("auto_font_scale", 1.0)
+		var scale_factor: float = ui_config.get("auto_font_scale") if "auto_font_scale" in ui_config else 1.0
 		# Apply font scale to LoFiText3D nodes (pixel_size property)
 		if "pixel_size" in speaker_label:
 			speaker_label.pixel_size = 0.02 * scale_factor
@@ -139,7 +142,7 @@ func show_choices_immediate(choices: Array) -> void:
 	var spacing: float = choice_spacing
 	var ui_config := get_node_or_null("/root/UIConfig")
 	if ui_config != null:
-		spacing = ui_config.get("choice_spacing", choice_spacing)
+		spacing = ui_config.get("choice_spacing") if "choice_spacing" in ui_config else choice_spacing
 
 	for i in range(_choice_labels.size()):
 		var label = _choice_labels[i]
@@ -234,4 +237,4 @@ static func _prefix_letter(index: int) -> String:
 		3:
 			return "D"
 		_:
-			return chr(65 + index)
+			return String.chr(65 + index)
