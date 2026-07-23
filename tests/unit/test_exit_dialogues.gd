@@ -41,7 +41,7 @@ func _load_json(path: String) -> Dictionary:
 	if file == null:
 		return {}
 	var text := file.get_as_text()
-	var result := JSON.parse_string(text)
+	var result = JSON.parse_string(text)
 	if result is Dictionary:
 		return result
 	return {}

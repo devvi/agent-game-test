@@ -255,3 +255,39 @@ velocity.z = direction.z * effective_speed
 | Head 节点缺失 | `get_node_or_null()` → 跳过俯仰 |
 | 重复实例化 | `is_instance_valid(_player)` 提前返回 |
 | 两个 Camera 冲突 | `_disable_other_cameras()` 强制唯一 current |
+
+---
+
+## 10. 脚步音频 (#157)
+
+### 10.1 移动触发
+
+PlayerController 在 `_physics_process()` 中，当 WASD 方向向量非零且不在对话模式时，通过积累器 (0.5s 间隔) 触发 `_trigger_footstep()`：
+
+| 参数 | 值 | 说明 |
+|------|-----|------|
+| `FOOTSTEP_INTERVAL` | 0.5s | 移动脚步间隔 |
+| `_footstep_accumulator` | float | 累计帧时间，达阈值触发后归零 |
+| 对话抑制 | 条件块 `not _dialogue_active` | 对话中静默，积累器归零 |
+
+### 10.2 表面推断
+
+`_trigger_footstep()` 通过 `AudioManager` 查询当前场景的表面类型：
+
+```gdscript
+var scene_id := get_tree().current_scene.name if get_tree().current_scene else ""
+var surface := am.get_surface_for_scene(scene_id)
+am.play_footstep(surface)
+```
+
+- 无 AudioManager 时静默降级 (`get_node_or_null` + `has_method` 守卫)
+- 未知场景 ID 返回 `\"office\"` 默认表面
+- 复用 AudioManager 的 `FOOTSTEP_COOLDOWN (0.3s)` 全局冷却
+
+### 10.3 测试覆盖 (TC-FS)
+
+| 类型 | 用例数 | 覆盖场景 |
+|------|--------|----------|
+| Normal | 4 | 脚步间隔、静止无脚步、表面推断 |
+| Edge | 3 | 积累器归零、对话抑制、空转循环 |
+| Failure | 3 | 无 AudioManager、未知场景、表面回退 |

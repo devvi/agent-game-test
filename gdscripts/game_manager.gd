@@ -160,9 +160,10 @@ func reset() -> void:
 	dialogue_history = []
 	player_position = Vector3.ZERO
 	player_rotation = Vector3.ZERO
-	player_head_rotation = 0.0
-	target_spawn_point = Vector3.ZERO
-	transition_in_progress = false
+	var player_head_rotation: float = 0.0
+	var target_spawn_point: Vector3 = Vector3.ZERO
+	var transition_in_progress: bool = false
+	var _flags: Dictionary = {}
 	_flags = {}
 
 ## Track a scene as visited.

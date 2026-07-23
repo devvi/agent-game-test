@@ -87,7 +87,7 @@ func _test_stay_flag() -> void:
 func _test_default_stay() -> void:
 	var ec := EndCreditsScript.new()
 	# No injection — system would fall through to "stay"
-	if ec.get(\"_ending_id\") == null or ec._ending_id == "":
+	if ec.get("_ending_id") == null or ec._ending_id == "":
 		# Simulate what happens when no flags are set
 		ec._ending_id = "stay"
 	_assert(ec._ending_id == "stay", "TC14: default ending_id is 'stay'")
@@ -96,11 +96,11 @@ func _test_default_stay() -> void:
 func _test_reset_calls() -> void:
 	var ec := EndCreditsScript.new()
 	# Verify the script compiles and methods exist
-	_assert(ec.has_method(\"_return_to_start\"), "TC15: _return_to_start method exists")
-	_assert(ec.has_method(\"_determine_ending\"), "TC15: _determine_ending method exists")
-	_assert(ec.has_method(\"_set_epilogue\"), "TC15: _set_epilogue method exists")
-	_assert(ec.has_method(\"_fade_in\"), "TC15: _fade_in method exists")
-
+	_assert(ec.has_method("_return_to_start"), "TC15: _return_to_start method exists")
+	_assert(ec.has_method("_determine_ending"), "TC15: _determine_ending method exists")
+	_assert(ec.has_method("_set_epilogue"), "TC15: _set_epilogue method exists")
+	_assert(ec.has_method("_fade_in"), "TC15: _fade_in method exists")
+	_assert(gm.has_method("reset"), "TC15: GameManager has reset method")
 	# Test that _return_to_start calls gm.reset and ss.reset
 	# by verifying the code pattern (method exists on GameManager)
 	var gm := TestGameManager.new()
