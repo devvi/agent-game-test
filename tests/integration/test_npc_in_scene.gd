@@ -24,8 +24,8 @@ func _assert(condition: bool, label: String) -> void:
 
 
 func _make_npc() -> Node:
-	var NPCNodeScript = load("res://gdscripts/npc_node.gd")
-	var npc = NPCNodeScript.new()
+	var npc = Node3D.new()
+	npc.set_script(load("res://gdscripts/npc_node.gd"))
 	npc.dialogue_file = "res://dialogues/store_clerk.json"
 	npc.dialogue_id = "store_clerk"
 	npc.speaker_name = "⌈Clerk⌋"
