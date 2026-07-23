@@ -67,6 +67,7 @@ dialogue JSON → DialogueParser (validate + index)
 | `set_flag` | `flag`, `value` | Set a named boolean flag |
 | `trigger_event` | `event` | Narratively-trigger event (placeholder) |
 | `advance_clock` | — | Advance game clock (placeholder) |
+| `scene` | (key on choice object) | **Scene transition key** — when present, triggers cross-scene navigation instead of continuing dialogue. Value is a Godot scene path (e.g. `\"res://scenes/lobby/lobby.tscn\"`). Parsed by `SceneManager._on_choice_made()`. Expects `choice.has(\"scene\") == true` for terminal choices, which pairs with `next_node: null`. Added in Issue #155. |
 
 ## 3. Key Implementation Details
 

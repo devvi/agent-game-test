@@ -51,11 +51,11 @@
 地下通道 (underpass)
   │ 交互: Stranger(回声对话)、涂鸦墙(回忆闪回)、出口
   ▼
-地铁站 (subway_station) ═══ 终局
+|地铁站 (subway_station) ═══ 终局
   │ 结局: 基于三轴状态判定
-  ├── Keep Walking
-  ├── Turn Back
-  └── Stay
+  ├── Keep Walking   ─┐
+  ├── Turn Back       ├──→ end_credits.tscn → 显示结局标题 + 尾声文字 → GameManager.reset()
+  └── Stay           ─┘    → StateSystem.reset() → main.tscn (重新开始)
 ```
 
 ---
@@ -99,9 +99,10 @@
 
 ### 3.2 SceneBase（`gdscripts/scene_base.gd` — class_name SceneBase）
 
-所有场景脚本的基类，提供公共行为。
+所有场景脚本的基类，提供公共行为。扩展于 Issue #154：5 态基调查找与动态信号连接。
 
-**公共方法：**
+**公共方法（原 + Issue #154 扩展）：**
+
 | 方法 | 说明 |
 |------|------|
 | `_configure_environmental_text()` | 子类重写：配置状态感知环境文本 |
@@ -109,6 +110,21 @@
 | `get_state_tier(axis: String) -> String` | 获取状态区间标签（delegate to StateSystem） |
 | `get_state() -> Dictionary` | 获取当前状态字典 |
 | `start_dialogue(file_path, dialogue_id)` | 启动对话面板 |
+| `_get_tone_for_scene(scene_id)` | 从 NarrativeManager 查询场景的 5 态基调字符串 |
+| `_get_tone_for_scene_state(scene_id, state_id)` | 预览指定状态的基调字符串 |
+| `_get_current_state_id() -> int` | 返回当前状态 ID（1-5） |
+| `_connect_state_signals()` | 连接 NarrativeManager.scene_text_changed 信号 |
+| `_on_narrative_tone_changed(scene_id, tone)` | 基调动态更新处理（子类重写） |
+
+**Issue #154 扩展的生命周期：**
+
+```gdscript
+func _ready():
+    scene_manager.fade_in()
+    _configure_environmental_text()  # 使用 _get_tone_for_scene()
+    _restore_dialogue_state()
+    _connect_state_signals()         # 新增：订阅动态基调更新
+```
 
 **生命周期：**
 ```gdscript
@@ -128,6 +144,57 @@ func _ready():
 | bridge.gd | SceneBase | 天桥 | 栏杆(俯瞰)、流浪汉(echo镜像)、低信念内心独白 |
 | underpass.gd | SceneBase | 地下通道 | 涂鸦(回忆)、Stranger(echo对话)、出口 |
 | subway_station.gd | SceneBase | 地铁站 | 检票口(KW)、转身(TB)、长椅(Stay) |
+| end_credits.gd | Node3D (class_name EndCredits) | 片尾 | 3 个 Label3D（标题、尾声、The End）、Timer 自动返回、鼠标点击返回 |
+
+### 3.4 环境文本组件系统（Issue #154）
+
+5 态环境文本系统将 TextComponentBase 从 3 档（low/mid/high）扩展为 5 态（state ID 1-5）变体选择，使每个场景文本对象根据玩家情感状态显示不同的文字内容。
+
+**TextComponentBase（`gdscripts/text_component_base.gd`）：**
+
+核心控制器，继承 LoFiText3D。核心映射方法：
+
+| 方法 | 输入 | 输出 | 说明 |
+|------|------|------|------|
+| `_calculate_state_id(state)` | state Dictionary | int (1-5) | 子类可重写以使用不同轴（默认 hope） |
+| `_variant_index_for_state_id(state_id)` | state_id (1-5) | int (0-4) | 映射状态 ID → 变体数组索引 |
+| `_apply_variant_for_state(state_id)` | state_id | void | 应用变体并触发 Tween 淡转 |
+| `_start_transition(data)` | TextVariantData | void | 淡出 (0.12s) → 切换 → 淡入 (0.18s) |
+| `_hope_to_state_id(hope)` | float (0-10) | int (1-5) | 静态工具函数 |
+
+**子类轴映射：**
+
+| 子类 | 轴（State 轴） | 语义 |
+|------|---------------|------|
+| LamppostText | will（意志） | 意志力决定路灯文字的亮暗 |
+| NeonSign | conviction（信念） | 信念决定霓虹灯的暖度 |
+| PuddleText | hope（希望） | 继承基类默认 hope 轴 |
+| RainText | hope（希望） | 继承基类 + 状态 1 时自发光加倍（绝望倍增器） |
+
+**变体资源（.tres 文件）：**
+
+每个文本组件类型有两个新的极端变体文件：
+
+| 文件 | 状态 | 视觉特征 |
+|------|------|----------|
+| `lamppost_text_very_low.tres` | 1 (Despair) | 暗沉、高像素化、强扫描线 |
+| `lamppost_text_very_high.tres` | 5 (Hope) | 明亮、清晰、"Elm Street — Home" |
+| `neon_sign_very_low.tres` | 1 (Despair) | 暗红 "CLOSED"、强扫描线、深色 |
+| `neon_sign_very_high.tres` | 5 (Hope) | 明亮 "WELCOME HOME"、高色深 |
+| `puddle_text_very_low.tres` | 1 (Despair) | 暗色、低分辨率、"The street drowns" |
+| `puddle_text_very_high.tres` | 5 (Hope) | 明亮 "Stars in the water" |
+| `rain_text_very_low.tres` | 1 (Despair) | 暗色 "The rain won't stop" |
+| `rain_text_very_high.tres` | 5 (Hope) | 明亮 "The rain sounds like music" |
+
+**动态更新流程：**
+
+所有场景脚本通过 `_on_narrative_tone_changed(scene_id, tone)` 接收 NarrativeManager 发出的基调更新，然后调用各自的 `_set_environment_text(tone)` 或 `_set_*_text(tone)` 方法更新特定文本节点的文字内容。
+
+**过渡动画：**
+
+- 使用 Tween 实现 0.3 秒淡转（导出属性 `transition_duration`，默认 0.3s）
+- 40% 时间淡出 → 交换文本/视觉属性 → 60% 时间淡入
+- 快速状态变化时旧 tween 自动取消
 
 ---
 
@@ -164,16 +231,19 @@ func trigger_echo(echo_id: String) -> void:
 
 ## 5. 对话系统
 
-7 个 JSON 对话文件，使用现有对话引擎格式（Issue #46），支持状态条件分支:
+	10 个 JSON 对话文件，使用现有对话引擎格式（Issue #46），支持状态条件分支。7 个原有 + 3 个出口对话（Issue #155）：
 
 | 文件 | 对话 | NPC | 场景 |
 |------|------|-----|------|
 | office_door.json | 办公室出口 | Narrator | 办公室 |
 | lobby_stranger.json | 初次相遇 | Stranger | 大厅 |
 | lobby_guard.json | 保安闲聊 | Security Guard | 大厅 |
+| lobby_exit.json | 大厅 → 便利店出口 | Narrator | 大厅 |
 | store_clerk.json | 店员对话 (3层人格 — Tired Worker/Cynical Veteran/Systemic Exhaustion + 办公室引用) | Store Clerk | 便利店 |
 | bridge_homeless.json | 流浪汉回声 | Homeless Person | 天桥 |
+| bridge_exit.json | 天桥 → 地下通道出口 | Narrator | 天桥 |
 | underpass_stranger_echo.json | 回声对话 | Stranger | 地下通道 |
+| underpass_exit.json | 地下通道 → 地铁站出口 | Narrator | 地下通道 |
 | subway_ending.json | 终局三结局 | Narrator/Stranger | 地铁站 |
 
 ### 条件选择示例（store_clerk.json）
@@ -225,9 +295,23 @@ Stranger 不是普通 NPC，而是玩家内心状态的物理投射。
 | gdscripts/bridge.gd | 场景脚本 | 87 |
 | gdscripts/underpass.gd | 场景脚本 | 104 |
 | gdscripts/subway_station.gd | 场景脚本 | 116 |
-| gdscripts/constants.gd (扩展) | 常量 | 119 |
-| gdscripts/npc_node.gd | NPC 框架核心脚本 | 201 |
-| scenes/components/NPC.tscn | NPC 组件场景 | 33 |
-| dialogues/*.json (7 个) | 对话数据 | ~750 |
-| dialogues/store_clerk.json (扩展) | 店员对话 (3层人格) | ~536 |
-| tests/test_narrative_architecture.gd | 测试 | 281 |
+|| gdscripts/end_credits.gd | 片尾场景脚本 | 75 |
+|| gdscripts/constants.gd (扩展) | 常量 | 119 |
+|| gdscripts/npc_node.gd | NPC 框架核心脚本 | 201 |
+|| scenes/end_credits.tscn | 片尾场景 | ~20 |
+|| scenes/components/NPC.tscn | NPC 组件场景 | 33 |
+|| dialogues/*.json (10 个) | 对话数据 | ~830 |
+|| dialogues/store_clerk.json (扩展) | 店员对话 (3层人格) | ~536 |
+|| dialogues/lobby_exit.json | 大厅出口对话 | 32 |
+|| dialogues/bridge_exit.json | 天桥出口对话 | 16 |
+|| dialogues/underpass_exit.json | 地下通道出口对话 | 16 |
+|| tests/test_narrative_architecture.gd | 测试 | 281 |
+|| tests/unit/test_exit_dialogues.gd | 出口对话 JSON 测试 | 199 |
+|| tests/unit/test_end_credits.gd | 片尾场景测试 | 107 |
+|| gdscripts/text_component_base.gd | 环境文本组件基类（5 态） | 224 |
+|| gdscripts/lamppost_text.gd | 路灯文本（will 轴） | 26 |
+|| gdscripts/neon_sign.gd | 霓虹灯文本（conviction 轴） | 26 |
+|| gdscripts/puddle_text.gd | 水坑文本（hope 轴） | 6 |
+|| gdscripts/rain_text.gd | 雨文本（hope 轴 + 绝望倍增器） | 19 |
+|| scenes/components/variants/*.tres (8 个) | 5 态变体资源文件 | ~13 each |
+|| tests/unit/test_env_text_5_state.gd | 5 态环境文本测试（20 用例） | 369 |

@@ -2,6 +2,8 @@ extends SceneBase
 class_name SubwayStationScene
 
 # Subway Station — Final scene. Ticket gate, clock, Stranger farewell, 3 ending paths.
+# Uses 5-state tone lookup for environmental text (Issue #154).
+# Supports dynamic text updates when state changes mid-scene.
 
 @onready var ticket_gate_text: Node3D = $Environments/TicketGateText
 @onready var clock_text: Node3D = $Environments/ClockText
@@ -24,7 +26,7 @@ func _ready() -> void:
 		turn_back_trigger.input_event.connect(_on_turn_back_trigger_input)
 	if bench_trigger:
 		bench_trigger.input_event.connect(_on_bench_trigger_input)
-	
+
 	call_deferred("_determine_ending")
 
 
@@ -35,34 +37,39 @@ func _configure_ambient_audio() -> void:
 
 
 func _configure_environmental_text() -> void:
-	var tone := _get_tone()
+	var tone: String = _get_tone_for_scene(scene_id)
 	_set_environment_text(tone)
 
 
-func _get_tone() -> String:
-	var ss: Node = get_node_or_null("/root/StateSystem")
-	if not ss:
-		return "waiting"
-	var state := ss.get_state()
-	var hope_val: float = state.get("hope", 5.0)
-	if hope_val >= 6.0:
-		return "forward"
-	elif ss.conviction if ss else 5.0 <= 3.0:
-		return "backward"
-	else:
-		return "waiting"
+## Handle dynamic tone updates from NarrativeManager (Issue #154).
+func _on_narrative_tone_changed(scene_id_emitted: String, tone: String) -> void:
+	super._on_narrative_tone_changed(scene_id_emitted, tone)
+	if scene_id_emitted != scene_id:
+		return
+	# Only update if ending hasn't been determined yet
+	if not _ending_determined:
+		_set_environment_text(tone)
 
 
+## Set all subway station environment text based on 5-state tone.
 func _set_environment_text(tone: String) -> void:
 	match tone:
-		"forward":
-			ticket_gate_text.text = "The gate is open.\nYour ticket is ready."
-			clock_text.text = "11:47 PM — Last train inbound."
-			broadcast_text.text = "Next train: arriving."
 		"backward":
 			ticket_gate_text.text = "The gate reads 'CLOSED'.\nYou hesitate."
 			clock_text.text = "11:47 PM — You still have time."
 			broadcast_text.text = "Final boarding call."
+		"hesitant":
+			ticket_gate_text.text = "The gate looms.\nYou're not sure you should go."
+			clock_text.text = "11:47 PM — The clock waits.\nYou don't."
+			broadcast_text.text = "Train approaching."
+		"waiting":
+			ticket_gate_text.text = "The ticket gate stands before you.\nOne way in. No way back."
+			clock_text.text = "11:47 PM — The clock ticks."
+			broadcast_text.text = "Please mind the gap."
+		"forward":
+			ticket_gate_text.text = "The gate is open.\nYour ticket is ready."
+			clock_text.text = "11:47 PM — Last train inbound."
+			broadcast_text.text = "Next train: arriving."
 		_:
 			ticket_gate_text.text = "The ticket gate stands before you.\nOne way in. No way back."
 			clock_text.text = "11:47 PM — The clock ticks."
@@ -72,10 +79,10 @@ func _set_environment_text(tone: String) -> void:
 func _determine_ending() -> void:
 	if _ending_determined:
 		return
-	
+
 	var nm: Node = get_node_or_null("/root/NarrativeManager")
 	var ss: Node = get_node_or_null("/root/StateSystem")
-	
+
 	if nm and nm.has_method("determine_ending") and ss:
 		_ending = nm.determine_ending(ss.get_state())
 		_ending_determined = true

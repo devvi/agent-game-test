@@ -1,0 +1,16 @@
+{
+  "entry_node_id": "underpass_exit_prompt",
+  "nodes": {
+    "underpass_exit_prompt": {
+      "speaker": "Narrator",
+      "text": "The tunnel opens into a wider space.\nStairs descend.\nA sign reads 'SUBWAY →'. The air is still.",
+      "choices": [
+        {
+          "text": "Take the stairs down.",
+          "effects": [],
+          "scene": "res://scenes/subway_station/subway_station.tscn"
+        }
+      ]
+    }
+  }
+}

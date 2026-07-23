@@ -1,0 +1,47 @@
+[gd_scene load_steps=3 format=3 uid="uid://d2p5x7kmrhwh5"]
+
+[ext_resource type="Script" path="res://gdscripts/end_credits.gd" id="1_end_credits"]
+
+[sub_resource type="AnimationLibrary" id="AnimationLibrary_r3x51"]
+_resource_name = ""
+
+[resource]
+script = ExtResource("1_end_credits")
+
+[node name="EndCredits" type="Node3D"]
+
+[node name="TitleLabel" type="Label3D" parent="."]
+visible = false
+position = Vector3(0, 2.5, 0)
+text = "Title"
+font_size = 48
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="EpilogueLabel" type="Label3D" parent="."]
+visible = false
+position = Vector3(0, 1, 0)
+text = "Epilogue"
+font_size = 24
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TheEndLabel" type="Label3D" parent="."]
+visible = false
+position = Vector3(0, -1.5, 0)
+text = "— The End —"
+font_size = 32
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ReturnTimer" type="Timer" parent="."]
+wait_time = 10.0
+one_shot = true
+autostart = false
+
+[node name="SceneManager" type="Node" parent="."]
+script = ExtResource("1_end_credits")
+
+[node name="SpawnPoint" type="Marker3D" parent="."]
+
+[connection signal="timeout" from="ReturnTimer" to="." method="_on_return_timer_timeout"]

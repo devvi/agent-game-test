@@ -1,0 +1,16 @@
+{
+  "entry_node_id": "bridge_exit_prompt",
+  "nodes": {
+    "bridge_exit_prompt": {
+      "speaker": "Narrator",
+      "text": "The bridge ends at a tunnel entrance.\nGraffiti covers the concrete walls.\nA single light flickers inside.",
+      "choices": [
+        {
+          "text": "Enter the underpass.",
+          "effects": [],
+          "scene": "res://scenes/underpass/underpass.tscn"
+        }
+      ]
+    }
+  }
+}
