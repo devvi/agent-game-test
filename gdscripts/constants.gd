@@ -104,6 +104,86 @@ const DELTA_NO_COFFEE_HOPE: float = -0.5
 const DESPAIR_HOPE_THRESHOLD: float = 2.0
 const DESPAIR_CONVICTION_THRESHOLD: float = 2.0
 
+# --- Hallucination Level Constants (Issue #214) ---
+
+# Hallucination level range
+const HALLUCINATION_MIN: int = 0
+const HALLUCINATION_MAX: int = 10
+
+# Base hallucination level per scene (distance-based: office=0 → subway=9)
+const HALLUCINATION_BASE_LEVELS: Dictionary = {
+	"office": 0,
+	"lobby": 1,
+	"convenience_store": 2,
+	"bridge": 4,
+	"underpass": 7,
+	"subway_station": 9
+}
+
+# State modifier thresholds
+const HALLUCINATION_HOPE_HIGH: float = 8.0  # hope >= 8 → -1 modifier
+const HALLUCINATION_HOPE_LOW: float = 2.0   # hope <= 2 → +1 modifier
+
+# Route ID constants (matching state_system route_flag values)
+const ROUTE_KEEP_WALKING: String = "keep_walking"
+const ROUTE_TURN_BACK: String = "turn_back"
+const ROUTE_STAY: String = "stay"
+const VALID_ROUTES: Array[String] = ["keep_walking", "turn_back", "stay"]
+
+# Flashback thresholds
+const FLASHBACK_MIN_LEVEL: int = 5  # hallucination >= 5 enables flashbacks
+
+# B1 constraint: unreliable narration ratio targets
+const B1_UNRELIABLE_RATIO_LOW: float = 0.3   # hallucination < 5: ≥30% unreliable
+const B1_UNRELIABLE_RATIO_HIGH: float = 0.7  # hallucination ≥ 5: ≥70% unreliable
+
+# --- L3 Echo Table (Issue #214) ---
+# Each echo: {id, source_scene, target_scene, condition, text_variants}
+const ECHO_DEFINITIONS: Array[Dictionary] = [
+	{
+		"id": "handprint_echo",
+		"source_scene": "office",
+		"target_scene": "bridge",
+		"condition": "always",
+		"description": "Office window handprint reappears on bridge railing"
+	},
+	{
+		"id": "clock_loop_echo",
+		"source_scene": "office",
+		"target_scene": "subway_station",
+		"condition": "route == turn_back",
+		"description": "Office clock reading returns at subway station for Turn Back route"
+	},
+	{
+		"id": "stranger_gaze_echo",
+		"source_scene": "lobby",
+		"target_scene": "underpass",
+		"condition": "always",
+		"description": "Stranger's lobby gaze echoes in underpass"
+	},
+	{
+		"id": "rain_constancy_echo",
+		"source_scene": "office",
+		"target_scene": "bridge",
+		"condition": "always",
+		"description": "Rain sound constancy across scenes — never stops"
+	},
+	{
+		"id": "door_threshold_echo",
+		"source_scene": "office",
+		"target_scene": "subway_station",
+		"condition": "always",
+		"description": "Office door threshold mirrors subway station gate"
+	},
+	{
+		"id": "coffee_cold_echo",
+		"source_scene": "convenience_store",
+		"target_scene": "bridge",
+		"condition": "hope <= 2",
+		"description": "Cold coffee remembered on bridge in low-hope state"
+	}
+]
+
 # --- NPC Framework Constants (Issue #54) ---
 
 # NPC defaults

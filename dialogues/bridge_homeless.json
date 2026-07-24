@@ -1,4 +1,23 @@
 {
+  "_meta": {
+    "choice_point": "C04",
+    "scene": "bridge",
+    "constraints": {
+      "B1_unreliable_ratio_target": 0.3,
+      "B2_mirror_count": 2,
+      "B3_no_metanarrative": true,
+      "B4_loop_element": false,
+      "B5_text_overlay": false,
+      "B6_paradox": true
+    },
+    "L2_annotations": {
+      "homeless_greet": ["你做游戏有什么用 = challenge to identity", "question echoes office doubt"],
+      "homeless_talk": ["Ten years = infinite-seeming repetition (B6)", "same at 2 AM = cyclical return (B4)"],
+      "homeless_story": ["Paper boats = fragile creations, finite forms", "stopped = finite act, infinite consequence"],
+      "homeless_deep_question": ["bridge knows the answer = environment speaks (B2 mirror)"],
+      "homeless_farewell": ["Rain or no rain = eternal recurrence (B4)", "That's all any of us can do = limited agency (B6)"]
+    }
+  },
   "entry_node_id": "homeless_greet",
   "nodes": {
     "homeless_greet": {
@@ -65,7 +84,7 @@
     },
     "homeless_story": {
       "speaker": "Homeless Person",
-      "text": "I made things too.\nSmall things. Paper boats.\nThen I just stopped.",
+      "text": "I made things too.\nSmall things. Paper boats.\nThen I just stopped—like infinite potential sealed in finite form.",
       "choices": [
         {
           "text": "「为什么？」",
@@ -99,7 +118,7 @@
     },
     "homeless_deep_question": {
       "speaker": "Homeless Person",
-      "text": "Why do you make games?\nAsk yourself that.\nThe bridge knows the answer.",
+      "text": "Why do you make games?\nAsk yourself that.\nThe infinite question meets a finite answer on this bridge.",
       "choices": [
         {
           "text": "「…也许吧。」",
@@ -113,7 +132,7 @@
     },
     "homeless_farewell": {
       "speaker": "Homeless Person",
-      "text": "Keep making things.\nRain or no rain.\nThat's all any of us can do.",
+      "text": "Keep making things.\nRain or no rain.\nThat's all any of us can do within our finite nights.",
       "choices": [
         {
           "text": "「谢谢。」",
@@ -128,7 +147,8 @@
     },
     "homeless_low_will": {
       "speaker": "Narrator",
-      "text": "You sit on wet concrete.\nThe city hums below.\nYour legs refuse to move.",
+      "text": "You sit on wet concrete.\nThe city hums below.\nIt might be the same hum you heard in the office.",
+      "reliable": false,
       "choices": [
         {
           "text": "Get up. Keep going.",
@@ -141,7 +161,8 @@
     },
     "homeless_ignore": {
       "speaker": "Narrator",
-      "text": "You walk past.\nTheir gaze follows you.\nThe question lingers.",
+      "text": "You walk past.\nTheir gaze follows you through the rain.\nThe question might echo forever.",
+      "reliable": false,
       "choices": [
         {
           "text": "(Continue to the underpass)",

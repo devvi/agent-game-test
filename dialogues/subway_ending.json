@@ -1,4 +1,22 @@
 {
+  "_meta": {
+    "choice_point": "C07",
+    "scene": "subway_station",
+    "constraints": {
+      "B1_unreliable_ratio_target": 0.7,
+      "B2_mirror_count": 3,
+      "B3_no_metanarrative": true,
+      "B4_loop_element": true,
+      "B5_text_overlay": true,
+      "B6_paradox": true
+    },
+    "L2_annotations": {
+      "station_arrive": ["empty station = liminal space", "clock 11:47 = frozen time (B4)", "train hums = threshold"],
+      "kw_final": ["train pulls away = forward movement", "streaks past glass = rain as time (B4)", "first time you breathe = release"],
+      "tb_final": ["night never ends = infinite loop (B4/B6)", "rain continues = cyclical eternity"],
+      "st_final": ["clock ticks 11:48 = one minute forward (B6 finite)", "still here = acceptance (B4 loop broke)"]
+    }
+  },
   "entry_node_id": "station_arrive",
   "nodes": {
     "station_arrive": {
@@ -158,6 +176,10 @@
               "type": "set_flag",
               "flag": "ending_keep_walking",
               "value": true
+            },
+            {
+              "type": "set_route_flag",
+              "route": "keep_walking"
             }
           ],
           "scene": "res://scenes/end_credits.tscn"
@@ -292,6 +314,10 @@
               "type": "set_flag",
               "flag": "ending_turn_back",
               "value": true
+            },
+            {
+              "type": "set_route_flag",
+              "route": "turn_back"
             }
           ],
           "scene": "res://scenes/end_credits.tscn"
@@ -414,6 +440,10 @@
               "type": "set_flag",
               "flag": "ending_stay",
               "value": true
+            },
+            {
+              "type": "set_route_flag",
+              "route": "stay"
             }
           ],
           "scene": "res://scenes/end_credits.tscn"

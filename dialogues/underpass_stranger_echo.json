@@ -1,4 +1,22 @@
 {
+  "_meta": {
+    "choice_point": "C06",
+    "scene": "underpass",
+    "constraints": {
+      "B1_unreliable_ratio_target": 0.7,
+      "B2_mirror_count": 2,
+      "B3_no_metanarrative": true,
+      "B4_loop_element": true,
+      "B5_text_overlay": true,
+      "B6_paradox": true
+    },
+    "L2_annotations": {
+      "echo_entry": ["雨这么大 = nature as mirror (B2)", "不想走太远 = warning from self (mirror motif)"],
+      "echo_acknowledge": ["知道我在想什么吗 = stranger knows thoughts (B2 mirror)"],
+      "echo_meta_reveal": ["⌈我就是你⌋ = ultimate B2 mirror reveal"],
+      "echo_acknowledge_echo": ["那条声音 = cross-scene echo (L3)", "不该在这里 = existential displacement"]
+    }
+  },
   "entry_node_id": "echo_entry",
   "nodes": {
     "echo_entry": {
