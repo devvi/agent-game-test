@@ -45,6 +45,8 @@ func _input(event: InputEvent) -> void:
 		var tween = create_tween()
 		tween.tween_method(_set_alpha, 1.0, 0.0, 1.0)
 		tween.tween_callback(_start_game)
+	if event.is_action_pressed("ui_cancel"):
+		get_tree().quit()
 
 func _start_game() -> void:
 	get_tree().change_scene_to_file("res://scenes/main.tscn")
