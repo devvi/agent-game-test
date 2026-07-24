@@ -26,6 +26,10 @@ const TRANSITION_MODE_EKEY := 1
 @export var prompt_text: String = ""
 ## Seconds to ignore re-trigger after auto-trigger fires
 @export var cooldown: float = 1.0
+## Scene name for title card (e.g., "街道")
+@export var exit_label: String = ""
+## Route context text (e.g., "Keep walking — the light ahead.")
+@export var route_hint: String = ""
 
 var _prompt_label: Label3D = null
 var _cooldown_timer: Timer = null
@@ -116,6 +120,11 @@ func _transition() -> void:
 	var gm := get_node_or_null("/root/GameManager")
 	if gm:
 		gm.set("target_spawn_point", spawn_point)
+		gm.set("navigation_context", {
+			"exit_label": exit_label,
+			"route_hint": route_hint,
+			"next_scene_id": target_scene.get_file().get_basename()
+		})
 
 	sm.trigger_zone_transition(target_scene)
 

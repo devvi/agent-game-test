@@ -31,6 +31,11 @@ var camera_orbit_pitch: float = -0.2
 # Player spawn point set by ExitZone for zone-to-zone transitions (Issue #156)
 var target_spawn_point: Vector3 = Vector3.ZERO
 
+# Navigation context for scene transitions (Issue #221)
+var navigation_context: Dictionary = {}  # {exit_label, route_hint, next_scene_id}
+# Consecutive fallbacks in current scene (Issue #221)
+var fallback_count: int = 0
+
 func _ready() -> void:
 	print("Agent Game Test — Godot 4.7")
 	print("GameManager initialized.")
@@ -40,7 +45,8 @@ func _ready() -> void:
 
 func _verify_input_map() -> void:
 	var actions := ["move_forward", "move_backward", "move_left", "move_right", "interact",
-		"dialogue_up", "dialogue_down", "dialogue_select", "dialogue_skip", "toggle_dialogue"]
+		"dialogue_up", "dialogue_down", "dialogue_select", "dialogue_skip", "toggle_dialogue",
+		"navigate_hint"]
 	for action in actions:
 		if not InputMap.has_action(action):
 			push_warning("GameManager: Input action '%s' not found in InputMap" % action)
@@ -168,6 +174,8 @@ func reset() -> void:
 	var transition_in_progress: bool = false
 	var _flags: Dictionary = {}
 	_flags = {}
+	navigation_context = {}
+	fallback_count = 0
 
 ## Track a scene as visited.
 func mark_scene_visited(scene_id: String) -> void:

@@ -166,3 +166,62 @@ func fade_in(fade_duration: float = 0.5) -> void:
 	if gm:
 		gm.set("transition_in_progress", false)
 	transition_completed.emit()
+
+
+## Zone-to-zone transition: called by ExitZone.
+## Reads NavigationContext from GameManager and shows title overlay during fade.
+func trigger_zone_transition(target_scene: String, fade_duration: float = 0.5) -> void:
+	if transition_in_progress:
+		return
+	if target_scene.is_empty() or not FileAccess.file_exists(target_scene):
+		push_error("SceneManager: Invalid target scene: ", target_scene)
+		return
+	transition_in_progress = true
+	var gm := get_node_or_null("/root/GameManager")
+	if gm:
+		gm.set("transition_in_progress", true)
+		# ExitZone may have already set navigation_context; if not, set defaults
+		var ctx = gm.get("navigation_context")
+		if ctx == null or (ctx is Dictionary and ctx.is_empty()):
+			var scene_id := target_scene.get_file().get_basename()
+			gm.set("navigation_context", {
+				"exit_label": "",
+				"route_hint": "",
+				"next_scene_id": scene_id
+			})
+	transition_started.emit(target_scene)
+
+	# Persist dialogue state
+	_persist_dialogue_state()
+
+	# Show title overlay during fade
+	_show_title_overlay(target_scene)
+
+	# Fade out
+	_fade_anim.play("fade_out", -1, 1.0, false)
+	await _fade_anim.animation_finished
+
+	# Change scene
+	var err: int = get_tree().change_scene_to_file(target_scene)
+	if err != OK:
+		push_error("SceneManager: Failed to change to scene: ", target_scene)
+		transition_in_progress = false
+		if gm:
+			gm.set("transition_in_progress", false)
+		return
+
+
+## Create and show the SceneTitleOverlay during fade transition.
+func _show_title_overlay(target_scene: String) -> void:
+	var scene_id := target_scene.get_file().get_basename()
+	var gm := get_node_or_null("/root/GameManager")
+	var ctx = gm.get("navigation_context") if gm else {}
+	if ctx == null:
+		ctx = {}
+	var route_hint: String = ctx.get("route_hint", "")
+
+	var title_overlay = load("res://gdscripts/scene_title_overlay.gd").new(scene_id, route_hint)
+	title_overlay.name = "SceneTitleOverlay"
+	add_child(title_overlay)
+	title_overlay.show_title()
+	title_overlay.start_auto_dismiss()

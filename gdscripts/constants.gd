@@ -198,3 +198,24 @@ const FLAG_OFFICE_EXIT_DETERMINED: String = "office_exit_determined"
 
 # Expanded clerk dialogue file constant
 const DIALOGUE_STORE_CLERK_EXPANDED: String = "res://dialogues/store_clerk.json"
+
+# --- Navigation System Constants (Issue #221) ---
+
+# Navigation condition thresholds
+const NAV_STAY_THRESHOLD: float = 60.0           # Seconds before stay-warning text triggers
+const NAV_WRONG_DIR_THRESHOLD: float = 30.0      # Seconds before wrong-direction text triggers
+const NAV_STUCK_VELOCITY_THRESHOLD: float = 0.01 # Max velocity (m/s) considered "stuck"
+const NAV_STUCK_DURATION: float = 3.0            # Consecutive seconds stuck before fallback
+
+# Hint system
+const NAV_HINT_COOLDOWN: float = 8.0            # Seconds minimum between H-key hints
+const NAV_HINT_DISPLAY_DURATION: float = 5.0    # Seconds hint text stays visible
+const NAV_TITLE_DISPLAY_DURATION: float = 3.0   # Seconds scene title card stays visible
+
+# Fallback system
+const NAV_FALLBACK_Y_THRESHOLD: float = -10.0   # Y position below this triggers fallback
+const NAV_FALLBACK_MAX: int = 3                 # Max consecutive fallbacks before title screen
+const NAV_FALLBACK_FADE_DURATION: float = 0.3   # Quick fade duration for fallback teleport
+
+# Title screen scene path
+const SCENE_TITLE: String = "res://scenes/title_screen.tscn"
