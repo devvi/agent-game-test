@@ -77,24 +77,28 @@ position = Vector3(0, -0.5, 0)
 [node name="CSGBox3D" type="CSGBox3D" parent="Environments/StreetSurface"]
 size = Vector3(12, 0.2, 10)
 material = ExtResource("4_road_mat")
+use_collision = true
 
 [node name="BuildingLeft" type="StaticBody3D" parent="Environments"]
 position = Vector3(-5, 1, 0)
 
 [node name="CSGBox3D" type="CSGBox3D" parent="Environments/BuildingLeft"]
 size = Vector3(2, 4, 10)
+use_collision = true
 
 [node name="BuildingRight" type="StaticBody3D" parent="Environments"]
 position = Vector3(5, 1, 2)
 
 [node name="CSGBox3D" type="CSGBox3D" parent="Environments/BuildingRight"]
 size = Vector3(2, 4, 10)
+use_collision = true
 
 [node name="StoreFront" type="StaticBody3D" parent="Environments"]
 position = Vector3(4, 1, 2)
 
 [node name="CSGBox3D" type="CSGBox3D" parent="Environments/StoreFront"]
 size = Vector3(1, 3, 4)
+use_collision = true
 
 [node name="Streetlamp" type="StaticBody3D" parent="Environments"]
 position = Vector3(3, 0, -3)

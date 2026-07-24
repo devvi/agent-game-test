@@ -69,6 +69,7 @@ position = Vector3(0, -0.5, 0)
 [node name="CSGBox3D" type="CSGBox3D" parent="Environments/TunnelFloor"]
 size = Vector3(8, 0.3, 14)
 material = ExtResource("5")
+use_collision = true
 
 [node name="TunnelWallLeft" type="StaticBody3D" parent="Environments"]
 position = Vector3(-4, 1.5, 0)
@@ -76,6 +77,7 @@ position = Vector3(-4, 1.5, 0)
 [node name="CSGBox3D" type="CSGBox3D" parent="Environments/TunnelWallLeft"]
 size = Vector3(0.3, 3.5, 14)
 material = ExtResource("4")
+use_collision = true
 
 [node name="TunnelWallRight" type="StaticBody3D" parent="Environments"]
 position = Vector3(4, 1.5, 0)
@@ -83,6 +85,7 @@ position = Vector3(4, 1.5, 0)
 [node name="CSGBox3D" type="CSGBox3D" parent="Environments/TunnelWallRight"]
 size = Vector3(0.3, 3.5, 14)
 material = ExtResource("4")
+use_collision = true
 
 [node name="TunnelCeiling" type="StaticBody3D" parent="Environments"]
 position = Vector3(0, 3.3, 0)
@@ -90,6 +93,7 @@ position = Vector3(0, 3.3, 0)
 [node name="CSGBox3D" type="CSGBox3D" parent="Environments/TunnelCeiling"]
 size = Vector3(8, 0.3, 14)
 material = ExtResource("4")
+use_collision = true
 
 [node name="TunnelEndArch" type="StaticBody3D" parent="Environments"]
 position = Vector3(0, 0, -7)
@@ -97,6 +101,7 @@ position = Vector3(0, 0, -7)
 [node name="CSGBox3D" type="CSGBox3D" parent="Environments/TunnelEndArch"]
 size = Vector3(8, 3.5, 0.3)
 material = ExtResource("4")
+use_collision = true
 
 [node name="GraffitiText" type="Label3D" parent="Environments"]
 position = Vector3(-3.8, 1.5, 0)

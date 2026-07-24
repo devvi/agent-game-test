@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" uid="uid://dialogue_panel" path="res://scenes/dialogue/dialogue_panel.tscn" id="3_dialogue_panel"]
 [ext_resource type="Material" path="res://assets/materials/floor_concrete.tres" id="4_floor_mat"]
 [ext_resource type="Script" path="res://gdscripts/lo_fi_text_3d.gd" id="5_lofi_text"]
+[ext_resource type="Script" path="res://gdscripts/e_key_trigger.gd" id="6_e_key_trigger"]
 
 [sub_resource type="Environment" id="Environment_office"]
 background_color = Color(0.1, 0.1, 0.18, 1)
@@ -50,6 +51,12 @@ size = Vector3(0.2, 2.5, 1)
 
 [sub_resource type="BoxShape3D" id="BoxShape_door_trigger"]
 size = Vector3(2, 2.5, 0.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape_sidewall"]
+size = Vector3(0.2, 3, 8)
+
+[sub_resource type="BoxShape3D" id="BoxShape_frontwall_section"]
+size = Vector3(3.5, 3, 0.2)
 
 [node name="OfficeRoot" type="Node3D"]
 script = ExtResource("1_office")
@@ -147,10 +154,37 @@ shape = SubResource("BoxShape_door_trigger")
 [node name="CSGBox3D" type="CSGBox3D" parent="InteractionZones/OfficeDoorTrigger"]
 size = Vector3(2, 2.5, 0.5)
 
+[node name="EKeyTrigger" type="Area3D" parent="InteractionZones/OfficeDoorTrigger"]
+script = ExtResource("6_e_key_trigger")
+
 [node name="DoorLabel" type="Label3D" parent="InteractionZones"]
 position = Vector3(0, 2.5, 4.5)
 text = "→ 走廊 (E)"
 modulate = Color(0.5, 0.8, 1.0, 0.8)
+
+[node name="LeftWall" type="StaticBody3D" parent="Environments"]
+position = Vector3(-4, 0, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Environments/LeftWall"]
+shape = SubResource("BoxShape_sidewall")
+
+[node name="RightWall" type="StaticBody3D" parent="Environments"]
+position = Vector3(4, 0, 0)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Environments/RightWall"]
+shape = SubResource("BoxShape_sidewall")
+
+[node name="FrontWallLeft" type="StaticBody3D" parent="Environments"]
+position = Vector3(-2.25, 0, 4)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Environments/FrontWallLeft"]
+shape = SubResource("BoxShape_frontwall_section")
+
+[node name="FrontWallRight" type="StaticBody3D" parent="Environments"]
+position = Vector3(2.25, 0, 4)
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Environments/FrontWallRight"]
+shape = SubResource("BoxShape_frontwall_section")
 
 [node name="SceneManager" type="Node" parent="."]
 script = ExtResource("2_scene_manager")

@@ -16,6 +16,12 @@ func _ready() -> void:
 	scene_id = "office"
 	super._ready()
 	door_trigger.input_event.connect(_on_door_trigger_input)
+	
+	# Connect E-key interaction (Issue #142)
+	var ekey := $InteractionZones/OfficeDoorTrigger/EKeyTrigger
+	if ekey and ekey.has_signal("e_key_interacted"):
+		if not ekey.e_key_interacted.is_connected(_start_door_dialogue):
+			ekey.e_key_interacted.connect(_start_door_dialogue)
 
 
 func _configure_ambient_audio() -> void:

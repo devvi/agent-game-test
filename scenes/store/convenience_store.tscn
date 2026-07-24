@@ -59,6 +59,7 @@ light_range = 8
 position = Vector3(0, -0.5, 0)
 
 [node name="CSGBox3D" type="CSGBox3D" parent="Environments/Floor"]
+use_collision = true
 size = Vector3(10, 0.2, 8)
 material = ExtResource("4_floor_mat")
 
@@ -66,18 +67,21 @@ material = ExtResource("4_floor_mat")
 position = Vector3(0, 0.5, -2)
 
 [node name="CSGBox3D" type="CSGBox3D" parent="Environments/Counter"]
+use_collision = true
 size = Vector3(4, 1, 1)
 
 [node name="Shelving" type="StaticBody3D" parent="Environments"]
 position = Vector3(-3, 0.5, 1)
 
 [node name="CSGBox3D" type="CSGBox3D" parent="Environments/Shelving"]
+use_collision = true
 size = Vector3(1.5, 2, 4)
 
 [node name="ShelvingRight" type="StaticBody3D" parent="Environments"]
 position = Vector3(3, 0.5, 1)
 
 [node name="CSGBox3D" type="CSGBox3D" parent="Environments/ShelvingRight"]
+use_collision = true
 size = Vector3(1.5, 2, 4)
 
 [node name="OpenSign" type="Label3D" parent="Environments"]
