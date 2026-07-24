@@ -40,6 +40,49 @@ from collections import defaultdict
 _GH_CACHE: dict = {}
 _GH_CACHE_TTL = 30
 
+# ── Issue list cache: fetch ALL open issues once per tick ────────────
+# Replaces N separate `gh issue list --label <x>` calls with one fetch
+# and in-memory filtering. Dramatically reduces gh API latency.
+_ISSUES_CACHE: dict = {}  # {"fetched_at": ts, "issues": [...]}
+
+def _ensure_issues_cache(force_refresh=False) -> list:
+    """Fetch ALL open issues once per tick, return list of issue dicts.
+    
+    Each dict: {"number": N, "labels": [...], "title": "..."}
+    """
+    now = time.time()
+    cached = _ISSUES_CACHE.get("issues")
+    fetched_at = _ISSUES_CACHE.get("fetched_at", 0)
+    if not force_refresh and cached and (now - fetched_at) < _GH_CACHE_TTL:
+        return cached
+    raw = gh(
+        "issue", "list", "--state", "open",
+        "--json", "number,labels,title",
+        "--limit", "100",
+    )
+    if not raw:
+        _ISSUES_CACHE["issues"] = []
+        _ISSUES_CACHE["fetched_at"] = now
+        return []
+    try:
+        issues = json.loads(raw)
+    except json.JSONDecodeError:
+        issues = []
+    _ISSUES_CACHE["issues"] = issues
+    _ISSUES_CACHE["fetched_at"] = now
+    return issues
+
+
+def _invalidate_issues_cache_for(issue_num: int):
+    """Remove an issue from the cache after a label edit.
+    Prevents _pick_candidate() from re-picking the same issue
+    within the same tick."""
+    cached = _ISSUES_CACHE.get("issues")
+    if cached is None:
+        return
+    _ISSUES_CACHE["issues"] = [i for i in cached if i.get("number") != issue_num]
+
+
 PENDING_FILE = os.environ.get("EVENT_PROCESSOR_PENDING_FILE") or os.path.expanduser("~/.hermes/workflow-pending.json")
 WORKFLOW_CONFIG = os.path.expanduser("~/.hermes/workflow-config.json")
 
@@ -137,7 +180,20 @@ PRIORITY_LABEL_ORDER = [
 
 def issue_priority_sort_key(issue_num: int) -> int:
     """Return sort index for an issue's priority label. Lower = higher priority.
-    Caches results to avoid redundant gh calls per tick."""
+    Uses cached open issues first; falls back to gh view for closed issues."""
+    # Check open issues cache first (saves a gh call)
+    try:
+        issues = _ensure_issues_cache()
+        for iss in issues:
+            if iss["number"] == issue_num:
+                label_names = [l.get("name", "") for l in iss.get("labels", [])]
+                for idx, p in enumerate(PRIORITY_LABEL_ORDER):
+                    if p in label_names:
+                        return idx
+                return PRIORITY_LABEL_ORDER.index("priority/medium")
+    except Exception:
+        pass
+    # Fallback: direct gh view (for closed issues not in cache)
     raw = gh("issue", "view", str(issue_num), "--json", "labels")
     if not raw:
         return PRIORITY_LABEL_ORDER.index("priority/medium")
@@ -277,8 +333,20 @@ def gh(*args: str) -> str:
 
 
 def get_issue_body(issue_num: int) -> str:
-    """Fetch issue body via gh CLI."""
-    return gh("issue", "view", str(issue_num), "--json", "body", "--jq", ".body")
+    """Fetch issue body via gh CLI (cached per tick)."""
+    return _get_issue_body_cached(issue_num)
+
+
+# ── Body cache: avoid redundant gh issue view calls within one tick ────
+_BODY_CACHE: dict = {}
+
+def _get_issue_body_cached(issue_num: int) -> str:
+    """Fetch issue body with tick-level caching."""
+    if issue_num in _BODY_CACHE:
+        return _BODY_CACHE[issue_num]
+    body = gh("issue", "view", str(issue_num), "--json", "body", "--jq", ".body")
+    _BODY_CACHE[issue_num] = body
+    return body
 
 
 def parse_dependencies(body: str) -> list[dict]:
@@ -357,6 +425,7 @@ def check_dependency_resolved(dep: dict) -> bool:
 
 def _has_unresolved_dependencies(issue_num: int) -> list[dict]:
     """Check if an issue has unresolved dependencies.
+    Uses cached issue labels instead of gh API calls.
     Returns list of unresolved deps, or empty list if none.
     """
     body = get_issue_body(issue_num)
@@ -365,7 +434,41 @@ def _has_unresolved_dependencies(issue_num: int) -> list[dict]:
     deps = parse_dependencies(body)
     if not deps:
         return []
-    unresolved = [d for d in deps if not check_dependency_resolved(d)]
+    # Use cached issue labels to check resolution status
+    issues = _ensure_issues_cache()
+    issue_map = {i["number"]: i for i in issues}
+    unresolved = []
+    for dep in deps:
+        dep_num = dep["issue"]
+        dep_type = dep.get("type", "full")
+        cached = issue_map.get(dep_num)
+        if cached is None:
+            # Not in cache — check via API
+            raw = gh("issue", "view", str(dep_num), "--json", "state,labels")
+            if not raw:
+                unresolved.append(dep)
+                continue
+            try:
+                data = json.loads(raw)
+            except:
+                unresolved.append(dep)
+                continue
+        else:
+            data = cached
+        
+        # Closed issue = always resolved
+        if data.get("state", "").lower() == "closed":
+            continue
+        # design dependency: plan stage or beyond = resolved
+        if dep_type == "design":
+            dep_labels = [l.get("name","") for l in data.get("labels",[])]
+            if any(l.startswith("workflow/plan") or l.startswith("workflow/implement") or l == "status/done" for l in dep_labels):
+                continue
+        # full dependency: done label = resolved
+        dep_labels = [l.get("name","") for l in data.get("labels",[])]
+        if "status/done" in dep_labels:
+            continue
+        unresolved.append(dep)
     return unresolved
 
 
@@ -556,18 +659,12 @@ WORKFLOW_LABELS = set(ACTIVE_STAGE_LABELS + ["workflow/available", "workflow/bac
 
 
 def current_workflow_count() -> int:
-    """Count how many issues are currently in active stages."""
-    raw = gh(
-        "issue", "list",
-        "--label", ",".join(ACTIVE_STAGE_LABELS),
-        "--state", "open",
-        "--json", "number",
-        "--jq", "length",
+    """Count how many issues are currently in active stages (from cache)."""
+    issues = _ensure_issues_cache()
+    return sum(
+        1 for iss in issues
+        if any(l.get("name", "") in ACTIVE_STAGE_LABELS for l in iss.get("labels", []))
     )
-    try:
-        return int(raw) if raw else 0
-    except (ValueError, TypeError):
-        return 0
 
 
 def get_issue_target_files(issue_num: int) -> set:
@@ -591,39 +688,24 @@ def get_issue_target_files(issue_num: int) -> set:
 
 
 def _get_active_issue_target_files() -> set:
-    """Get target files for all currently active (impl stage) issues."""
+    """Get target files for all currently active (impl stage) issues (from cache)."""
+    issues = _ensure_issues_cache()
     all_files = set()
-    for label in ACTIVE_STAGE_LABELS:
-        raw = gh(
-            "issue", "list",
-            "--label", label, "--state", "open",
-            "--json", "number",
-            "--jq", ".[].number",
-        )
-        if raw:
-            for n in raw.strip().split("\n"):
-                try:
-                    all_files |= get_issue_target_files(int(n.strip()))
-                except ValueError:
-                    pass
+    for iss in issues:
+        labels = [l.get("name", "") for l in iss.get("labels", [])]
+        if any(l in ACTIVE_STAGE_LABELS for l in labels):
+            all_files |= get_issue_target_files(iss["number"])
     return all_files
 
 
 def _count_active_phase_agents() -> int:
-    """Count how many phase agents (research/plan/implement) are currently
-    running on GitHub by checking issue labels. Returns count of issues
-    in any active phase stage."""
-    phase_labels = ["workflow/research", "workflow/plan", "workflow/implement"]
-    total = 0
-    for label in phase_labels:
-        raw = gh("issue", "list", "--state", "open",
-                 "--label", label,
-                 "--json", "number",
-                 "--jq", "length",
-                 "--limit", "50")
-        if raw and raw.strip().isdigit():
-            total += int(raw.strip())
-    return total
+    """Count phase agents (research/plan/implement) from cache."""
+    issues = _ensure_issues_cache()
+    phase_labels = {"workflow/research", "workflow/plan", "workflow/implement"}
+    return sum(
+        1 for iss in issues
+        if any(l.get("name", "") in phase_labels for l in iss.get("labels", []))
+    )
 
 
 def _has_file_conflict(issue_num: int, active_files: set) -> bool:
@@ -637,32 +719,21 @@ def _has_file_conflict(issue_num: int, active_files: set) -> bool:
 
 
 def _pick_candidate() -> Optional[int]:
-    """Scan backlog and pick the best candidate issue to start.
+    """Scan backlog and pick the best candidate issue to start (from cache).
     
     Criteria (in order):
-    1. No workflow/* label
+    1. In workflow/backlog (not already at workflow/available)
     2. Has priority label (critical > high > medium > low)
     3. Dependencies resolved
     4. No file conflict with current implement-stage issues
-    5. Within concurrency limit
     """
     active_files = _get_active_issue_target_files()
     
-    # Fetch all OPEN issues without workflow labels
-    raw = gh(
-        "issue", "list", "--state", "open",
-        "--json", "number,labels,title",
-        "--limit", "30",
-    )
-    if not raw:
+    issues = _ensure_issues_cache()
+    if not issues:
         return None
     
-    try:
-        issues = json.loads(raw)
-    except json.JSONDecodeError:
-        return None
-    
-    # Filter: only pick from workflow/backlog
+    # Filter: only pick from workflow/backlog, not already available
     candidates = []
     for iss in issues:
         label_names = [l.get("name", "") for l in iss.get("labels", [])]
@@ -681,23 +752,18 @@ def _pick_candidate() -> Optional[int]:
         for idx, p in enumerate(PRIORITY_LABEL_ORDER):
             if p in label_names:
                 return idx
-        return len(PRIORITY_LABEL_ORDER)  # lowest priority if no label
+        return len(PRIORITY_LABEL_ORDER)
     
     candidates.sort(key=_sort_key)
     
     # Try each candidate
     for candidate in candidates:
         n = candidate["number"]
-        
-        # Check dependencies
         unresolved = _has_unresolved_dependencies(n)
         if unresolved:
             continue
-        
-        # Check file conflict (only against implement-stage issues)
         if _has_file_conflict(n, active_files):
             continue
-        
         return n
     
     return None
@@ -705,7 +771,8 @@ def _pick_candidate() -> Optional[int]:
 
 def pick_next_issue():
     """Entry point: called after slot freed or at window entry.
-    Fills up to MAX_CONCURRENT issues."""
+    Fills up to MAX_CONCURRENT issues.
+    Invalidates cache after each pick to prevent stale re-picks."""
     if is_paused():
         return
     
@@ -716,13 +783,17 @@ def pick_next_issue():
             break
         gh("issue", "edit", str(candidate), "--add-label", "workflow/available")
         gh("issue", "edit", str(candidate), "--remove-label", "workflow/backlog")
+        # Invalidate this issue in the cache so _pick_candidate()
+        # won't re-pick it on the next loop iteration.
+        _invalidate_issues_cache_for(candidate)
         print(f"[PICKER] marked #{candidate} as workflow/available", file=sys.stderr)
         current += 1
 
 
 def reconcile():
     """After crash or pause resume: check GitHub state vs pending events.
-    Finds issues with workflow labels but no corresponding pending event."""
+    Uses cached issue list — iterates open issues once instead of
+    5 separate gh issue list calls."""
     events = []
     try:
         events = read_pending()
@@ -730,24 +801,20 @@ def reconcile():
         pass
     existing_keys = {e.get("_key") for e in events}
     
-    for label in ("workflow/available", "workflow/research", "workflow/plan",
-                  "workflow/implement", "workflow/self-correct"):
-        raw = gh(
-            "issue", "list",
-            "--label", label, "--state", "open",
-            "--json", "number",
-            "--jq", ".[].number",
-        )
-        if not raw:
-            continue
-        for n_str in raw.strip().split("\n"):
-            try:
-                n = int(n_str.strip())
-            except ValueError:
+    reconcile_labels = [
+        "workflow/available", "workflow/research", "workflow/plan",
+        "workflow/implement", "workflow/self-correct",
+    ]
+    
+    issues = _ensure_issues_cache()
+    for iss in issues:
+        label_names = [l.get("name", "") for l in iss.get("labels", [])]
+        n = iss["number"]
+        for label in reconcile_labels:
+            if label not in label_names:
                 continue
             event_key = f"issues.labeled#{n}:{label}"
             if event_key not in existing_keys:
-                # Missing event — add a synthetic one
                 events.append({
                     "_key": event_key,
                     "type": "issues.labeled",
@@ -934,6 +1001,13 @@ def main():
         # Pause check
         if is_paused():
             return
+
+        # ── Flush per-tick caches ──
+        # These caches are valid only within one tick.
+        # The gh() call cache (30s TTL) is separate and persists
+        # for cross-call dedup within the tick.
+        _ISSUES_CACHE.clear()
+        _BODY_CACHE.clear()
 
         # Clean expired locks unconditionally (every tick, regardless of work hours)
         _clean_expired_locks()
