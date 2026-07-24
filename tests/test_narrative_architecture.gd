@@ -12,6 +12,11 @@ var _echo_signal_count: int = 0
 var _last_echo_id: String = ""
 var _last_echo_variant: int = 0
 
+# --- Issue #214 test capture state ---
+var _hallucination_signal_level: int = -1
+var _flashback_scene: String = ""
+var _flashback_text: String = ""
+
 # ===== NarrativeManager Tests =====
 
 func run() -> void:
@@ -60,6 +65,20 @@ func run() -> void:
 	# TC-N8: SceneBase common behavior
 	_test_n8_get_state_tier()
 	_test_n8_get_state()
+
+	# Issue #214: Hallucination Engine
+	_test_214_hallucination_base_levels()
+	_test_214_hallucination_state_modifier()
+	_test_214_hallucination_clamp()
+	_test_214_hallucination_params_structure()
+	_test_214_b1_tracking()
+	_test_214_b3_no_metanarrative()
+	_test_214_b6_paradox_check()
+	_test_214_flashback_trigger()
+	_test_214_echo_definitions_count()
+	_test_214_route_flag_default()
+	_test_214_route_flag_set_get()
+	_test_214_reality_signal_emitted()
 
 	print("Narrative Architecture — Passed: ", passed, " Failed: ", failed)
 
@@ -279,3 +298,131 @@ func _test_n8_get_state() -> void:
 	_assert(state.get("hope", 0.0) == 5.0, "TC-N8-2: get_state fallback hope=5.0")
 	_assert(state.get("conviction", 0.0) == 5.0, "TC-N8-2: get_state fallback conviction=5.0")
 	_assert(state.get("will", 0.0) == 5.0, "TC-N8-2: get_state fallback will=5.0")
+
+
+# ===== Issue #214: Hallucination Engine & Narrative Architecture Tests =====
+
+func _make_state(hope: float, conviction: float = 5.0, will: float = 5.0) -> Dictionary:
+	return {"hope": hope, "conviction": conviction, "will": will}
+
+func _test_214_hallucination_base_levels() -> void:
+	var nm = _make_nm()
+	_assert(nm.get_hallucination_level("office", _make_state(5.0)) == 0, "TC214-1: office base level = 0")
+	_assert(nm.get_hallucination_level("lobby", _make_state(5.0)) == 1, "TC214-1: lobby base level = 1")
+	_assert(nm.get_hallucination_level("convenience_store", _make_state(5.0)) == 2, "TC214-1: store base level = 2")
+	_assert(nm.get_hallucination_level("bridge", _make_state(5.0)) == 4, "TC214-1: bridge base level = 4")
+	_assert(nm.get_hallucination_level("underpass", _make_state(5.0)) == 7, "TC214-1: underpass base level = 7")
+	_assert(nm.get_hallucination_level("subway_station", _make_state(5.0)) == 9, "TC214-1: subway base level = 9")
+
+func _test_214_hallucination_state_modifier() -> void:
+	var nm = _make_nm()
+	# High hope (-1): lobby base 1 -> 0
+	var high_hope: int = nm.get_hallucination_level("lobby", _make_state(9.0))
+	_assert(high_hope == 0, "TC214-2: lobby hope=9 -> level 0 (base 1 - 1)")
+	# Low hope (+1): lobby base 1 -> 2
+	var low_hope: int = nm.get_hallucination_level("lobby", _make_state(1.0))
+	_assert(low_hope == 2, "TC214-2: lobby hope=1 -> level 2 (base 1 + 1)")
+	# Neutral hope (no modifier): lobby base 1 -> 1
+	var neutral: int = nm.get_hallucination_level("lobby", _make_state(5.0))
+	_assert(neutral == 1, "TC214-2: lobby hope=5 -> level 1 (no modifier)")
+
+func _test_214_hallucination_clamp() -> void:
+	var nm = _make_nm()
+	# Office at hope=10: base 0 - 1 -> -1 clamped to 0
+	var office_high: int = nm.get_hallucination_level("office", _make_state(10.0))
+	_assert(office_high == 0, "TC214-3: office hope=10 -> level 0 (clamped)")
+	# Subway at hope=0: base 9 + 1 -> 10 clamped to 10
+	var subway_low: int = nm.get_hallucination_level("subway_station", _make_state(0.0))
+	_assert(subway_low == 10, "TC214-3: subway hope=0 -> level 10 (clamped)")
+
+func _test_214_hallucination_params_structure() -> void:
+	var nm = _make_nm()
+	var params: Dictionary = nm.get_hallucination_params(5)
+	_assert(params.has("vignette"), "TC214-4: params has vignette")
+	_assert(params.has("rain_density"), "TC214-4: params has rain_density")
+	_assert(params.has("light_flicker"), "TC214-4: params has light_flicker")
+	_assert(params.has("text_drift"), "TC214-4: params has text_drift")
+	_assert(params.has("view_instability"), "TC214-4: params has view_instability")
+	_assert(typeof(params["vignette"]) == TYPE_FLOAT, "TC214-4: vignette is float")
+	_assert(typeof(params["rain_density"]) == TYPE_FLOAT, "TC214-4: rain_density is float")
+	# Level 0 should have vignette=0.0
+	var zero_params: Dictionary = nm.get_hallucination_params(0)
+	_assert(zero_params["vignette"] < 0.001, "TC214-4: level 0 vignette ~ 0")
+	# Level 10 should have vignette close to 0.8
+	var ten_params: Dictionary = nm.get_hallucination_params(10)
+	_assert(ten_params["vignette"] > 0.7, "TC214-4: level 10 vignette > 0.7")
+
+func _test_214_b1_tracking() -> void:
+	var nm = _make_nm()
+	nm.check_b1_constraint("office", "The door is heavy.", true)
+	nm.check_b1_constraint("office", "Perhaps it's nothing.", false)
+	nm.check_b1_constraint("office", "Maybe the night is long.", false)
+	var ratio: float = nm.get_b1_ratio("office")
+	_assert(abs(ratio - 0.666) < 0.01, "TC214-5: office B1 ratio = 2/3 (~0.667)")
+	_assert(not nm.check_b1_ratio_met("office", 2), "TC214-5: office ratio 0.667 < 0.70 threshold for hallucination < 5")
+	_assert(nm.check_b1_ratio_met("bridge", 0), "TC214-5: unknown scene ratio = 0 < 0.30 threshold returns false")
+
+func _test_214_b3_no_metanarrative() -> void:
+	var nm = _make_nm()
+	# B3: should pass (no banned words)
+	_assert(nm.evaluate_borgesian_rule("B3", "The rain falls steadily."), "TC214-6: B3 passes clean text")
+	# B3: should fail (contains "hallucination")
+	_assert(not nm.evaluate_borgesian_rule("B3", "This is a hallucination."), "TC214-6: B3 fails with 'hallucination'")
+	# B3: should fail (contains "illusion")
+	_assert(not nm.evaluate_borgesian_rule("B3", "It's just an illusion."), "TC214-6: B3 fails with 'illusion'")
+
+func _test_214_b6_paradox_check() -> void:
+	var nm = _make_nm()
+	# B6: should pass (contains infinite + finite concepts)
+	_assert(nm.evaluate_borgesian_rule("B6", "The infinite question meets a finite answer."), "TC214-7: B6 passes with 'infinite' + 'finite'")
+	# B6: should fail (only infinite)
+	_assert(not nm.evaluate_borgesian_rule("B6", "The endless night goes on forever."), "TC214-7: B6 fails without finite concept")
+	# B6: should fail (only finite)
+	_assert(not nm.evaluate_borgesian_rule("B6", "Everything has an end."), "TC214-7: B6 fails without infinite concept")
+
+func _test_214_flashback_trigger() -> void:
+	var nm = _make_nm()
+	_flashback_scene = ""
+	_flashback_text = ""
+	nm.reality_flashback.connect(_on_214_flashback)
+	nm.trigger_reality_flashback("office")
+	_assert(_flashback_scene != "", "TC214-8: flashback signal emitted with scene")
+	_assert(_flashback_text != "", "TC214-8: flashback signal emitted with text")
+	# Should pick a different scene than current
+	_assert(_flashback_scene != "office", "TC214-8: flashback scene != current scene")
+
+func _on_214_flashback(scene: String, text: String) -> void:
+	_flashback_scene = scene
+	_flashback_text = text
+
+func _test_214_echo_definitions_count() -> void:
+	var count: int = Constants.ECHO_DEFINITIONS.size()
+	_assert(count >= 5, "TC214-9: Echo definitions count >= 5 (found %d)" % [count])
+	for def in Constants.ECHO_DEFINITIONS:
+		_assert(def.has("echo_id"), "TC214-9: each echo definition has echo_id")
+		_assert(def.has("source_scene"), "TC214-9: each echo definition has source_scene")
+		_assert(def.has("target_scenes"), "TC214-9: each echo definition has target_scenes")
+		var targets: Array = def.get("target_scenes", [])
+		_assert(targets.size() >= 1, "TC214-9: each echo has at least 1 target scene")
+
+func _test_214_route_flag_default() -> void:
+	var ss = _make_ss()
+	_assert(ss.get_route_flag() == "", "TC214-10: default route_flag is empty string")
+
+func _test_214_route_flag_set_get() -> void:
+	var ss = _make_ss()
+	ss.set_route_flag("keep_walking")
+	_assert(ss.get_route_flag() == "keep_walking", "TC214-11: set_route_flag('keep_walking') -> get_route_flag() returns it")
+	ss.set_route_flag("turn_back")
+	_assert(ss.get_route_flag() == "turn_back", "TC214-11: set_route_flag('turn_back') works")
+	ss.set_route_flag("stay")
+	_assert(ss.get_route_flag() == "stay", "TC214-11: set_route_flag('stay') works")
+	# Verify route_flag is in get_state()
+	var state: Dictionary = ss.get_state()
+	_assert(state.get("route_flag", "") == "stay", "TC214-11: get_state() includes route_flag")
+
+func _test_214_reality_signal_emitted() -> void:
+	# Verifies the reality_flashback signal exists on NarrativeManager
+	var nm = _make_nm()
+	_assert(nm.has_signal("reality_flashback"), "TC214-12: NarrativeManager has reality_flashback signal")
+	_assert(nm.has_signal("hallucination_level_changed"), "TC214-12: NarrativeManager has hallucination_level_changed signal")

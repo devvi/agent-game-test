@@ -62,6 +62,11 @@ var will: float = 5.0:
 	set(value):
 		will = clamp(value, 0.0, 10.0)
 
+# ── Route Flag (Issue #214) ──
+var route_flag: String = "":
+	set(value):
+		route_flag = value
+
 # ── Flags ──
 
 var _flags: Dictionary = {}
@@ -113,13 +118,15 @@ func get_state() -> Dictionary:
 		"will": will,
 		"state_id": get_state_id(),
 		"flags": get_flags(),
-		"choice_count": get_choice_count()
+		"choice_count": get_choice_count(),
+		"route_flag": route_flag
 	}
 
 func reset() -> void:
 	hope_despair = 0.0
 	conviction = 5.0
 	will = 5.0
+	route_flag = ""
 	_flags = {}
 	_choice_history = []
 	state_changed.emit(get_state())
@@ -150,6 +157,19 @@ func set_flag(name: String, value: bool) -> void:
 		push_warning("StateSystem.set_flag: flag name is empty")
 		return
 	_flags[name] = value
+
+## Set the route flag for narrative branching (Issue #214 Phase 2.1).
+## Valid values: "keep_walking", "turn_back", "stay"
+func set_route_flag(route: String) -> void:
+	var valid_routes: Array[String] = ["keep_walking", "turn_back", "stay"]
+	if route not in valid_routes:
+		push_warning("StateSystem.set_route_flag: invalid route '%s'" % route)
+		return
+	route_flag = route
+
+## Get the current route flag value.
+func get_route_flag() -> String:
+	return route_flag
 
 ## Check if a named flag is set (true). Returns false for unset flags.
 func has_flag(name: String) -> bool:
@@ -250,6 +270,7 @@ func _to_save_dict() -> Dictionary:
 		"hope_despair": hope_despair,
 		"conviction": conviction,
 		"will": will,
+		"route_flag": route_flag,
 		"flags": _flags.duplicate(),
 		"choice_history": _choice_history.duplicate()
 	}
@@ -259,6 +280,7 @@ func _from_save_dict(data: Dictionary) -> void:
 	hope_despair = float(data.get("hope_despair", 0.0))
 	conviction = float(data.get("conviction", 5.0))
 	will = float(data.get("will", 5.0))
+	route_flag = str(data.get("route_flag", ""))
 	_flags = (data.get("flags", {})).duplicate()
 	_choice_history.clear()
 	for entry in data.get("choice_history", []):

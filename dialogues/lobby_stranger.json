@@ -1,4 +1,23 @@
 {
+  "_meta": {
+    "choice_point": "C02",
+    "scene": "lobby",
+    "constraints": {
+      "B1_unreliable_ratio_target": 0.3,
+      "B2_mirror_count": 2,
+      "B3_no_metanarrative": true,
+      "B4_loop_element": true,
+      "B5_text_overlay": false,
+      "B6_paradox": false
+    },
+    "L2_annotations": {
+      "stranger_greet": ["又一个加班的 = stranger knows your routine", "question as mirror = reflecting your own doubt"],
+      "stranger_talk": ["这条路我走过很多次 = recursive journey", "今晚不太一样 = subtle premonition"],
+      "stranger_dejavu": ["也许你见过我 = direct mirror/B2", "也许没有 = uncertainty (B1 unreliable)"],
+      "stranger_continue": ["encounter lingers = memory overlay (B5 hint)"],
+      "stranger_high_hope": ["你在办公室时可不是这样 = cross-scene echo (L3)"]
+    }
+  },
   "entry_node_id": "stranger_greet",
   "nodes": {
     "stranger_greet": {
@@ -26,7 +45,7 @@
     },
     "stranger_talk": {
       "speaker": "Stranger",
-      "text": "这条路我走过很多次。\n今晚不太一样。",
+      "text": "这条路我走过很多次。\n今晚似乎不太一样。",
       "on_enter": [],
       "choices": [
         {
@@ -52,7 +71,7 @@
     },
     "stranger_dejavu": {
       "speaker": "Stranger",
-      "text": "也许你见过我。\n也许没有。",
+      "text": "也许你见过我。\n也许没有。\n也许两者都是镜中的倒影。",
       "on_enter": [],
       "choices": [
         {
@@ -103,7 +122,7 @@
     },
     "stranger_dejavu_dialogue": {
       "speaker": "Stranger",
-      "text": "也许我们真的见过。\n在另一个夜晚。",
+      "text": "也许我们真的见过。\n在另一个夜晚。\n在某个终止的梦里。",
       "choices": [
         {
           "text": "「也许吧。」",
@@ -117,12 +136,13 @@
     },
     "stranger_continue": {
       "speaker": "Narrator",
-      "text": "You walk past toward the exit.\nThe encounter lingers.",
+      "text": "You walk past toward the exit.\nThe encounter lingers like a reflection.\nYou're not sure which side is real.",
+      "reliable": false,
       "on_enter": [],
       "choices": [
         {
           "text": "(Continue to the store)",
-          "next_node": "stranger_after_ignore",
+          "next_node": null,
           "effects": [
             { "type": "set_flag", "flag": "met_stranger", "value": true }
           ]
@@ -131,34 +151,16 @@
     },
     "stranger_leave": {
       "speaker": "Narrator",
-      "text": "You walk past without a word.\nThe figure shifts in dim light.",
+      "text": "You walk past without a word.\nThe figure shifts in dim light.\nA version of you, perhaps.",
+      "reliable": false,
       "on_enter": [],
       "choices": [
         {
           "text": "(Continue to the store)",
-          "next_node": "stranger_after_ignore",
+          "next_node": null,
           "effects": [
             { "type": "set_flag", "flag": "met_stranger", "value": true }
           ]
-        }
-      ]
-    },
-    "stranger_after_ignore": {
-      "speaker": "Narrator",
-      "text": "你走了。\n我也该走了。",
-      "condition": {
-        "type": "not",
-        "condition": {
-          "type": "flag",
-          "flag": "met_stranger",
-          "value": true
-        }
-      },
-      "choices": [
-        {
-          "text": "(Continue to the store)",
-          "next_node": null,
-          "effects": []
         }
       ]
     },

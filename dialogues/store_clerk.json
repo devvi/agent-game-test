@@ -1,4 +1,23 @@
 {
+  "_meta": {
+    "choice_point": "C03",
+    "scene": "convenience_store",
+    "constraints": {
+      "B1_unreliable_ratio_target": 0.3,
+      "B2_mirror_count": 1,
+      "B3_no_metanarrative": true,
+      "B4_loop_element": false,
+      "B5_text_overlay": true,
+      "B6_paradox": false
+    },
+    "L2_annotations": {
+      "clerk_greet": ["Late night shopping = routine as trap", "Welcome = artificial warmth"],
+      "coffee_buy": ["warmth spreads through hands = fleeting comfort", "Small things = finding meaning in trivial"],
+      "look_window": ["rain streams down glass = barrier (B2 reflection)", "orange streetlight = lonely beacon"],
+      "look_window_hope": ["light exists = hope (B4 cyclical)"],
+      "look_window_despair": ["rain never stops = infinite despair (B6)", "night never ends = eternal return (B4)"]
+    }
+  },
   "entry_node_id": "clerk_greet",
   "nodes": {
     "clerk_greet": {
