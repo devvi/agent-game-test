@@ -8,8 +8,8 @@
 |------|:----:|
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
-| 可玩 | ⚠️ 有标题画面和移动控制，但场景布局和 NPC 交互未完整 |
-| 最近构建 | `2026-07-24` |
+| 可玩 | ⚠️ 有标题画面和移动控制，叙事架构已实现，场景布局和 NPC 交互未完整 |
+| 最近构建 | `2026-07-25` |
 | 开放 Issues | {N} |
 
 ## 架构总览
@@ -44,6 +44,8 @@ flowchart LR
 | DialogueParser | `gdscripts/dialogue_parser.gd` | ✅ | — |
 | SceneBase | `gdscripts/scene_base.gd` | ✅ | — |
 | NPCNode | `gdscripts/npc_node.gd` | ✅ | — |
+| NarrativeManager | `gdscripts/narrative_manager.gd` | ✅ | GDD |
+| WorldviewController | `gdscripts/worldview_controller.gd` | ✅ | GDD |
 | TextComponentBase | `gdscripts/text_component_base.gd` | ✅ | — |
 | TitleScreen | `gdscripts/title_screen.gd` | ✅ | — |
 | RainyNightPrometheus | `rainy-night-prometheus/` | ✅ | GDD |
@@ -86,6 +88,7 @@ flowchart LR
 | 12 | MVP 集成测试 | ✅ 已合并 | — |
 | 13 | Escape 退出提示 | ✅ 已合并 | — |
 | 14 | 雨夜普罗摩茨项目骨架 | ✅ 已合并 | GDD |
+| 15 | 叙事架构 — 幻觉引擎与博尔赫斯约束 | ✅ 已合并 | GDD |
 
 ## 已知问题
 
@@ -95,4 +98,4 @@ flowchart LR
 | — | 对话文本在某些场景字体重叠 | low | 待修复 |
 
 > 本文档由 Review Agent 在每次 implement PR 合并后自动更新。
-> 最后更新: {date}
+> 最后更新: 2026-07-25
