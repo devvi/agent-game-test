@@ -186,7 +186,7 @@ func _ready() -> void:
 	_build_camera_system()
 	if camera_mode == "third_person":
 		_build_player_visual()
-
+	
 	# Reassign @onready vars since they were set to null before nodes existed
 	head = $Head
 	if camera_mode == "third_person":
@@ -196,24 +196,49 @@ func _ready() -> void:
 	else:
 		camera = $Head/Camera3D
 	interaction_area = $InteractionArea
-
+	
 	add_to_group("player")
 	camera.current = true
 	head.rotation.x = camera_tilt  # slight downward tilt
-
-	# Verify required InputMap actions exist
-	_verify_input_map()
-
+	
+	# Force-set InputMap actions (workaround for Godot 4.7 project.godot [input] parsing)
+	_setup_input_actions()
+	
 	# Interaction area setup
 	if interaction_area:
 		interaction_area.body_entered.connect(_on_interaction_body_entered)
 		interaction_area.body_exited.connect(_on_interaction_body_exited)
-
+	
 	# Set camera current and disable other cameras
 	_disable_other_cameras()
-
+	
 	# Connect to dialogue runner for mode changes
 	_connect_dialogue_signals()
+
+
+## Force-set InputMap actions at runtime (workaround for Godot 4.7 INI parsing issue).
+func _setup_input_actions() -> void:
+	var bindings := {
+		"move_forward": [KEY_W, KEY_UP],
+		"move_backward": [KEY_S, KEY_DOWN],
+		"move_left": [KEY_A, KEY_LEFT],
+		"move_right": [KEY_D, KEY_RIGHT],
+		"interact": [KEY_E],
+	}
+	for action_name in bindings:
+		if not InputMap.has_action(action_name):
+			InputMap.add_action(action_name)
+		else:
+			# Clear any existing (possibly broken) events
+			var existing = InputMap.action_get_events(action_name)
+			for e in existing:
+				InputMap.action_erase_event(action_name, e)
+		# Add key events
+		for keycode in bindings[action_name]:
+			var ev := InputEventKey.new()
+			ev.keycode = keycode
+			InputMap.action_add_event(action_name, ev)
+	print("PlayerController: InputMap actions set up at runtime (%d actions)" % bindings.size())
 
 
 func _disable_other_cameras() -> void:
