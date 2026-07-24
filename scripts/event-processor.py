@@ -974,6 +974,10 @@ def main():
         if in_window:
             reconcile()
         
+        # Pick from backlog every in-window tick (was dead code — never called)
+        if in_window and not is_paused():
+            pick_next_issue()
+        
         lines = preprocess()
         
         # Filter lines by window/pause state
