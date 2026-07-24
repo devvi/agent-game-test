@@ -20,9 +20,8 @@ window/dpi/allow_hidpi=true
 
 [autoload]
 StateSystem="*res://gdscripts/state_system.gd"
-DialogueRunner="*res://gdscripts/dialogue_runner.gd"
-DialogueParser="*res://gdscripts/dialogue_parser.gd"
 SceneManager="*res://gdscripts/scene_manager.gd"
+Constants="*res://gdscripts/constants.gd"
 
 [editor_plugins]
 enabled=PackedStringArray()

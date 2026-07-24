@@ -115,7 +115,7 @@ func test_tc03_git_symlink_tracking() -> void:
 # --- TC-4: Headless Godot Compilation ---
 func test_tc04_godot_headless_compilation() -> void:
 	print("--- TC-4: Headless Godot Compilation ---")
-	var autoloads: Array[String] = ["StateSystem", "DialogueRunner", "DialogueParser", "SceneManager", "SceneBase"]
+	var autoloads: Array[String] = ["StateSystem", "SceneManager", "Constants"]
 	var all_ok: bool = true
 	for al in autoloads:
 		if has_node("/root/" + al):
@@ -164,10 +164,8 @@ func test_tc05_project_godot_config() -> void:
 
 	var expected_autoloads: Dictionary = {
 		"StateSystem": "*res://gdscripts/state_system.gd",
-		"DialogueRunner": "*res://gdscripts/dialogue_runner.gd",
-		"DialogueParser": "*res://gdscripts/dialogue_parser.gd",
 		"SceneManager": "*res://gdscripts/scene_manager.gd",
-		"SceneBase": "*res://gdscripts/scene_base.gd",
+		"Constants": "*res://gdscripts/constants.gd",
 	}
 	for al_name in expected_autoloads:
 		checks += 1
@@ -182,7 +180,7 @@ func test_tc06_autoload_dependencies() -> void:
 	print("--- TC-6: Autoload Script Dependencies ---")
 	var all_ok: bool = true
 
-	var autoload_names: Array[String] = ["StateSystem", "DialogueRunner", "DialogueParser", "SceneManager"]
+	var autoload_names: Array[String] = ["StateSystem", "SceneManager", "Constants"]
 	for al_name in autoload_names:
 		var node = get_node_or_null("/root/" + al_name)
 		if node != null:
