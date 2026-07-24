@@ -45,10 +45,17 @@ jobs:
           echo "exit_code=$?" >> $GITHUB_OUTPUT
         continue-on-error: true
 
-      - name: Test gate — block merge on failure
-        if: steps.test.outputs.exit_code != '0' || steps.smoke.outputs.exit_code != '0'
+      - name: Validate RNP scaffold sub-project
+        id: rnp
         run: |
-          echo "❌ Tests FAILED (unit exit: ${{ steps.test.outputs.exit_code }}, smoke exit: ${{ steps.smoke.outputs.exit_code }}). Blocking merge."
+          godot --path rainy-night-prometheus/ --headless --quit > rnp-output.log 2>&1
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
+      - name: Test gate — block merge on failure
+        if: steps.test.outputs.exit_code != '0' || steps.smoke.outputs.exit_code != '0' || steps.rnp.outputs.exit_code != '0'
+        run: |
+          echo "❌ Tests FAILED (unit exit: ${{ steps.test.outputs.exit_code }}, smoke exit: ${{ steps.smoke.outputs.exit_code }}, RNP scaffold exit: ${{ steps.rnp.outputs.exit_code }}). Blocking merge."
           exit 1
 
       - name: Upload test output artifacts
@@ -59,6 +66,7 @@ jobs:
           path: |
             test-output.log
             smoke-output.log
+            rnp-output.log
           retention-days: 3
 
       - name: Comment failure summary on PR
