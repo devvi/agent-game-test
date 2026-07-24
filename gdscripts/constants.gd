@@ -81,14 +81,14 @@ const ECHO_RAIN_VARIATION: String = "rain_variation_echo"
 const ECHO_STRANGER: String = "stranger_echo"
 
 # Dialogue file paths
-const DIALOGUE_OFFICE_DOOR: String = "res://dialogues/office_door.json"
-const DIALOGUE_LOBBY_STRANGER: String = "res://dialogues/lobby_stranger.json"
-const DIALOGUE_LOBBY_GUARD: String = "res://dialogues/lobby_guard.json"
-const DIALOGUE_STORE_CLERK: String = "res://dialogues/store_clerk.json"
-const DIALOGUE_BRIDGE_HOMELESS: String = "res://dialogues/bridge_homeless.json"
-const DIALOGUE_UNDERPASS_ECHO: String = "res://dialogues/underpass_stranger_echo.json"
-const DIALOGUE_SUBWAY_ENDING: String = "res://dialogues/subway_ending.json"
-const DIALOGUE_NPC_TEST: String = "res://dialogues/npc_test.json"
+const DIALOGUE_OFFICE_DOOR: String = "res://dialogues/office_door.dialogue"
+const DIALOGUE_LOBBY_STRANGER: String = "res://dialogues/lobby_stranger.dialogue"
+const DIALOGUE_LOBBY_GUARD: String = "res://dialogues/lobby_guard.dialogue"
+const DIALOGUE_STORE_CLERK: String = "res://dialogues/store_clerk.dialogue"
+const DIALOGUE_BRIDGE_HOMELESS: String = "res://dialogues/bridge_homeless.dialogue"
+const DIALOGUE_UNDERPASS_ECHO: String = "res://dialogues/underpass_stranger_echo.dialogue"
+const DIALOGUE_SUBWAY_ENDING: String = "res://dialogues/subway_ending.dialogue"
+const DIALOGUE_NPC_TEST: String = "res://dialogues/npc_test.dialogue"
 
 # Narrative effects deltas (choice point effects)
 const DELTA_RESPOND_STRANGER_HOPE: float = 0.5
@@ -197,7 +197,7 @@ const FLAG_OFFICE_EXIT_NEUTRAL: String = "office_exit_neutral"
 const FLAG_OFFICE_EXIT_DETERMINED: String = "office_exit_determined"
 
 # Expanded clerk dialogue file constant
-const DIALOGUE_STORE_CLERK_EXPANDED: String = "res://dialogues/store_clerk.json"
+const DIALOGUE_STORE_CLERK_EXPANDED: String = "res://dialogues/store_clerk.dialogue"
 
 # --- Navigation System Constants (Issue #221) ---
 

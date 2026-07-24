@@ -48,7 +48,7 @@ func _assert(condition: bool, name: String) -> void:
 
 # TC1: All 3 paths visible on first playthrough with neutral state
 func _test_tc1_3_paths_visible() -> void:
-	var result = DialogueParserScript.load_dialogue("res://dialogues/underpass_stranger_echo.json")
+	var result = DialogueParserScript.load_dialogue("res://dialogues/backup/underpass_stranger_echo.json")
 	_assert(result.get("ok", false), "TC1: Dialogue file loads successfully")
 	
 	if result.get("ok", false):
@@ -83,7 +83,7 @@ func _test_tc1_3_paths_visible() -> void:
 
 # TC2: Acknowledge path applies +stats
 func _test_tc2_acknowledge_effects() -> void:
-	var result = DialogueParserScript.load_dialogue("res://dialogues/underpass_stranger_echo.json")
+	var result = DialogueParserScript.load_dialogue("res://dialogues/backup/underpass_stranger_echo.json")
 	_assert(result.get("ok", false), "TC2: Dialogue file loads")
 	if result.get("ok", false):
 		var data = result["data"]
@@ -99,7 +99,7 @@ func _test_tc2_acknowledge_effects() -> void:
 
 # TC3: Deny path applies -stats
 func _test_tc3_deny_effects() -> void:
-	var result = DialogueParserScript.load_dialogue("res://dialogues/underpass_stranger_echo.json")
+	var result = DialogueParserScript.load_dialogue("res://dialogues/backup/underpass_stranger_echo.json")
 	_assert(result.get("ok", false), "TC3: Dialogue file loads")
 	if result.get("ok", false):
 		var data = result["data"]
@@ -115,7 +115,7 @@ func _test_tc3_deny_effects() -> void:
 
 # TC4: Silent path is neutral
 func _test_tc4_silent_neutral() -> void:
-	var result = DialogueParserScript.load_dialogue("res://dialogues/underpass_stranger_echo.json")
+	var result = DialogueParserScript.load_dialogue("res://dialogues/backup/underpass_stranger_echo.json")
 	_assert(result.get("ok", false), "TC4: Dialogue file loads")
 	if result.get("ok", false):
 		var data = result["data"]
@@ -133,7 +133,7 @@ func _test_tc4_silent_neutral() -> void:
 
 # TC5: screensaver_echo_heard variant exists and has condition
 func _test_tc5_screensaver_variant() -> void:
-	var result = DialogueParserScript.load_dialogue("res://dialogues/underpass_stranger_echo.json")
+	var result = DialogueParserScript.load_dialogue("res://dialogues/backup/underpass_stranger_echo.json")
 	if result.get("ok", false):
 		var data = result["data"]
 		var nodes = data["nodes"]
@@ -183,7 +183,7 @@ func _test_tc8_low_hope_variant() -> void:
 
 # TC9: Office sigh flag triggers cross-reference
 func _test_tc9_office_flag_cross_reference() -> void:
-	var result = DialogueParserScript.load_dialogue("res://dialogues/underpass_stranger_echo.json")
+	var result = DialogueParserScript.load_dialogue("res://dialogues/backup/underpass_stranger_echo.json")
 	if result.get("ok", false):
 		var data = result["data"]
 		var nodes = data["nodes"]
@@ -227,7 +227,7 @@ func _test_tc11_is_new_game_plus_unlocks_meta() -> void:
 	_assert(result == true, "TC11: is_new_game_plus flag set => condition true")
 	
 	# Verify the dialogue file has the meta choice
-	var parse_result = DialogueParserScript.load_dialogue("res://dialogues/underpass_stranger_echo.json")
+	var parse_result = DialogueParserScript.load_dialogue("res://dialogues/backup/underpass_stranger_echo.json")
 	if parse_result.get("ok", false):
 		var entry = parse_result["data"]["nodes"].get("echo_entry", {})
 		var choices = entry.get("choices", [])
@@ -242,7 +242,7 @@ func _test_tc11_is_new_game_plus_unlocks_meta() -> void:
 
 # TC12: Meta reveal node shows "I am you"
 func _test_tc12_meta_reveal_content() -> void:
-	var result = DialogueParserScript.load_dialogue("res://dialogues/underpass_stranger_echo.json")
+	var result = DialogueParserScript.load_dialogue("res://dialogues/backup/underpass_stranger_echo.json")
 	if result.get("ok", false):
 		var nodes = result["data"]["nodes"]
 		var reveal_node = nodes.get("echo_meta_reveal", {})
@@ -252,7 +252,7 @@ func _test_tc12_meta_reveal_content() -> void:
 
 # TC13: Meta choice affects ending flags
 func _test_tc13_meta_choice_affects_flags() -> void:
-	var result = DialogueParserScript.load_dialogue("res://dialogues/underpass_stranger_echo.json")
+	var result = DialogueParserScript.load_dialogue("res://dialogues/backup/underpass_stranger_echo.json")
 	if result.get("ok", false):
 		var nodes = result["data"]["nodes"]
 		

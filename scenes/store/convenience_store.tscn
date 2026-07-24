@@ -101,7 +101,7 @@ modulate = Color(0.7, 0.7, 0.7, 0.6)
 # Store Clerk NPC — uses reusable NPC.tscn component
 [node name="StoreClerk" parent="Environments" instance=ExtResource("5_npc")]
 position = Vector3(0, 1, -2)
-dialogue_file = "res://dialogues/store_clerk.json"
+dialogue_file = "res://dialogues/store_clerk.dialogue"
 dialogue_id = "store_clerk"
 speaker_name = "⌈Clerk⌋"
 mood_axis = "hope_despair"

@@ -1,0 +1,176 @@
+using StateSystem
+
+~ echo_entry
+Stranger: 雨这么大，你不会想走太远的。
+- 「我知道。但我还是得走。」
+	=> echo_acknowledge
+- 「不关你的事。」
+	=> echo_deny
+- （沉默地走过）
+	=> echo_silent
+- 「你知道我是谁，对吧。」 [if StateSystem.has_flag("is_new_game_plus")]
+	=> echo_meta_entry
+
+~ echo_acknowledge
+Stranger: ……好。那就走吧。
+- (Continue to the station)
+	do StateSystem.apply_choice({"hope_despair": 2, "conviction": 1.0, "will": 1.0})
+	=> echo_tunnel_walk
+
+~ echo_deny
+Stranger: ……你说得对。不关我的事。
+- (Continue to the station)
+	do StateSystem.apply_choice({"hope_despair": -2, "conviction": -1.0, "will": -1.0})
+	=> echo_deny_followup
+
+~ echo_silent
+Narrator: You walk past without a word.\nThe tunnel stretches ahead.
+- (Continue to the station)
+	=> END
+
+~ echo_tunnel_walk
+Narrator: They walk beside you.\nNo words, just steps.\nFor a moment, not alone.
+- (Continue to the station)
+	do StateSystem.apply_choice({"hope_despair": 1})
+	do StateSystem.set_flag("stranger_walked_with", true)
+	=> END
+
+~ echo_deny_followup
+Narrator: Their footsteps fade.\nYou're alone again.\nThe tunnel swallows the sound.
+- (Continue to the station)
+	do StateSystem.set_flag("stranger_denied", true)
+	=> END
+
+~ echo_acknowledge_echo [if StateSystem.has_flag("screensaver_echo_heard")]
+Stranger: ……你听到了，是吧。那条声音。\n它说你不该在这里。
+- (Continue to the station)
+	do StateSystem.apply_choice({"hope_despair": 3, "conviction": 1.5, "will": 1.5})
+	=> END
+
+~ echo_deny_echo [if StateSystem.has_flag("screensaver_echo_heard")]
+Stranger: ……你不承认，但我知道你听到了。\n⌈你也跑不掉。⌋
+- (Continue to the station)
+	do StateSystem.apply_choice({"hope_despair": -3, "conviction": -1.5, "will": -1.5})
+	=> END
+
+~ echo_silent_echo [if StateSystem.has_flag("screensaver_echo_heard")]
+Stranger: ……沉默也是一种回答。\n⌈但沉默不会救你。⌋
+- (Continue to the station)
+	do StateSystem.apply_choice({"hope_despair": -0.6, "conviction": -0.3})
+	=> END
+
+~ echo_acknowledge_low_conviction [if StateSystem.hope_despair <= -4]
+Stranger: 你连自己都不信，却说要走？\n……行吧。我不拦你。
+- (Continue to the station)
+	do StateSystem.apply_choice({"hope_despair": 1, "will": 0.5})
+	=> END
+
+~ echo_deny_low_conviction [if StateSystem.hope_despair <= -4]
+Stranger: ……你的声音在发抖。\n你说不关我的事，可你也不相信这句话。
+- (Continue to the station)
+	do StateSystem.apply_choice({"hope_despair": -1, "will": -0.5})
+	=> END
+
+~ echo_silent_low_conviction [if StateSystem.hope_despair <= -4]
+Narrator: They watch you pass.\nTheir gaze lingers.\nYou feel seen.
+- (Continue to the station)
+	do StateSystem.apply_choice({"hope_despair": -1})
+	=> END
+
+~ echo_acknowledge_high_hope [if StateSystem.hope_despair >= 8 or StateSystem.has_flag("underpass_hope_high")]
+Stranger: 你眼里的光\n没熄。\n走吧。
+- (Continue to the station)
+	do StateSystem.apply_choice({"hope_despair": 1, "will": 0.5})
+	=> END
+
+~ echo_deny_high_hope [if StateSystem.hope_despair >= 8 or StateSystem.has_flag("underpass_hope_high")]
+Stranger: 你的嘴很硬。\n但眼睛\n说了真话。
+- (Continue to the station)
+	do StateSystem.apply_choice({"conviction": 0.5})
+	=> END
+
+~ echo_silent_high_hope [if StateSystem.hope_despair >= 8 or StateSystem.has_flag("underpass_hope_high")]
+Narrator: They nod.\nThe corner lifts.\nAlmost a smile.
+- (Continue to the station)
+	do StateSystem.apply_choice({"hope_despair": 1, "conviction": 0.5})
+	=> END
+
+~ echo_acknowledge_low_hope [if StateSystem.hope_despair <= -6 or StateSystem.has_flag("underpass_hope_low")]
+Stranger: 你累了。\n我知道。\n路还远。
+- (Continue to the station)
+	do StateSystem.apply_choice({"hope_despair": 0.6})
+	=> END
+
+~ echo_deny_low_hope [if StateSystem.hope_despair <= -6 or StateSystem.has_flag("underpass_hope_low")]
+Stranger: 你连生气\n的力气\n都没了。
+- (Continue to the station)
+	do StateSystem.apply_choice({"hope_despair": -1, "will": -0.5})
+	=> END
+
+~ echo_silent_low_hope [if StateSystem.hope_despair <= -6 or StateSystem.has_flag("underpass_hope_low")]
+Narrator: They wait.\nYou don't move.\nRain eats the sound.
+- (Continue to the station)
+	do StateSystem.apply_choice({"hope_despair": -0.6, "will": -0.3})
+	=> END
+
+~ echo_office_sigh [if StateSystem.has_flag("office_exit_sigh")]
+Stranger: 那声叹息\n我听到了。\n你也是吧。
+- (Continue to the station)
+	do StateSystem.apply_choice({"hope_despair": 0.6, "conviction": 0.3})
+	=> END
+
+~ echo_office_determined [if StateSystem.has_flag("office_exit_determined")]
+Stranger: 你走出来的时候\n眼神很坚定。\n我看到了。
+- (Continue to the station)
+	do StateSystem.apply_choice({"conviction": 0.5, "will": 0.5})
+	=> END
+
+~ echo_bought_coffee [if StateSystem.has_flag("bought_coffee")]
+Stranger: 那杯咖啡还好吗？
+- 「还不错。」
+	do StateSystem.apply_choice({"hope_despair": 1, "conviction": 0.5})
+	=> END
+- （沉默地继续走）
+	=> END
+
+~ echo_meta_entry
+Stranger: 你知道我是谁，对吧。
+- 「告诉我。」
+	do StateSystem.apply_choice({"conviction": 0.5})
+	=> echo_meta_reveal
+
+~ echo_meta_reveal
+Stranger: ⌈我就是你。⌋
+- （接受）
+	=> echo_meta_accept
+- 「不。」
+	=> echo_meta_deny
+- （沉默）
+	=> echo_meta_silent
+
+~ echo_meta_accept
+Stranger: 你终于\n愿意看了。
+- (Continue)
+	do StateSystem.set_flag("stranger_meta_accepted", true)
+	do StateSystem.apply_choice({"hope_despair": 2, "conviction": 1.0, "will": 1.0})
+	do StateSystem.set_flag("stranger_revealed", true)
+	=> echo_meta_end
+
+~ echo_meta_deny
+Stranger: ⌈你在骗\n自己。⌋
+- (Continue)
+	do StateSystem.set_flag("stranger_meta_denied", true)
+	do StateSystem.apply_choice({"hope_despair": -2, "conviction": -1.0, "will": -1.0})
+	do StateSystem.set_flag("stranger_revealed", true)
+	=> echo_meta_end
+
+~ echo_meta_silent
+Narrator: ⌈沉默\n也是一种\n答案。⌋
+- (Continue)
+	do StateSystem.set_flag("stranger_revealed", true)
+	=> echo_meta_end
+
+~ echo_meta_end
+Narrator: ⌈隧道空了。⌋\nThe tunnel is empty.
+- (Continue to the station)
+	=> END

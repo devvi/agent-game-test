@@ -1,0 +1,22 @@
+using StateSystem
+
+~ store_exit_prompt
+Narrator: The door swings open. Cold air hits your face.\n⌈The rain has stopped.⌋\nA bridge stretches across the dark canal ahead.
+- Walk toward the bridge.
+	=> END
+- Stand in the doorway a moment longer.
+	do StateSystem.apply_choice({"will": -0.3})
+	=> store_exit_stand
+
+~ store_exit_stand
+Narrator: The night stretches out. Somewhere, a dog barks.\nThe bridge waits.
+- Walk toward the bridge.
+	=> END
+- ...
+	do StateSystem.apply_choice({"hope_despair": -1})
+	=> store_exit_stand_go
+
+~ store_exit_stand_go
+Narrator: You push off the doorframe. The bridge is your only way forward.
+- Go.
+	=> END

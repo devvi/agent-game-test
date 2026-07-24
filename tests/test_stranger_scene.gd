@@ -38,7 +38,7 @@ func _assert(condition: bool, name: String) -> void:
 # ===== Underpass Dialogue =====
 
 func _test_underpass_file_loads() -> void:
-	var result = DialogueParserScript.load_dialogue("res://dialogues/underpass_stranger_echo.json")
+	var result = DialogueParserScript.load_dialogue("res://dialogues/backup/underpass_stranger_echo.json")
 	_assert(result.get("ok", false), "U-1: underpass_stranger_echo.json loads successfully")
 	if result.get("ok", false):
 		var nodes = result["data"]["nodes"]
@@ -46,7 +46,7 @@ func _test_underpass_file_loads() -> void:
 		_assert(count >= 24, "U-1: Has %d nodes (>= 24)" % count)
 
 func _test_shallow_layer_all_nodes() -> void:
-	var result = DialogueParserScript.load_dialogue("res://dialogues/underpass_stranger_echo.json")
+	var result = DialogueParserScript.load_dialogue("res://dialogues/backup/underpass_stranger_echo.json")
 	if result.get("ok", false):
 		var nodes = result["data"]["nodes"]
 		
@@ -55,14 +55,14 @@ func _test_shallow_layer_all_nodes() -> void:
 			_assert(nodes.has(node_id), "U-2: AC1 node '%s' exists" % node_id)
 
 func _test_ac3_nodes_exist() -> void:
-	var result = DialogueParserScript.load_dialogue("res://dialogues/underpass_stranger_echo.json")
+	var result = DialogueParserScript.load_dialogue("res://dialogues/backup/underpass_stranger_echo.json")
 	if result.get("ok", false):
 		var nodes = result["data"]["nodes"]
 		for node_id in ["echo_meta_entry", "echo_meta_reveal", "echo_meta_accept", "echo_meta_deny", "echo_meta_silent", "echo_meta_end"]:
 			_assert(nodes.has(node_id), "U-3: AC3 node '%s' exists" % node_id)
 
 func _test_new_variants_exist() -> void:
-	var result = DialogueParserScript.load_dialogue("res://dialogues/underpass_stranger_echo.json")
+	var result = DialogueParserScript.load_dialogue("res://dialogues/backup/underpass_stranger_echo.json")
 	if result.get("ok", false):
 		var nodes = result["data"]["nodes"]
 		for node_id in ["echo_acknowledge_high_hope", "echo_deny_high_hope", "echo_silent_high_hope",
@@ -73,7 +73,7 @@ func _test_new_variants_exist() -> void:
 # ===== Lobby Expanded Flags =====
 
 func _test_lobby_expanded_flags() -> void:
-	var result = DialogueParserScript.load_dialogue("res://dialogues/lobby_stranger.json")
+	var result = DialogueParserScript.load_dialogue("res://dialogues/backup/lobby_stranger.json")
 	_assert(result.get("ok", false), "L-1: lobby_stranger.json loads")
 	if result.get("ok", false):
 		var nodes = result["data"]["nodes"]
@@ -118,7 +118,7 @@ func _test_lobby_expanded_flags() -> void:
 # ===== Subway Ending Mapping =====
 
 func _test_subway_meta_nodes() -> void:
-	var result = DialogueParserScript.load_dialogue("res://dialogues/subway_ending.json")
+	var result = DialogueParserScript.load_dialogue("res://dialogues/backup/subway_ending.json")
 	_assert(result.get("ok", false), "S-1: subway_ending.json loads")
 	if result.get("ok", false):
 		var nodes = result["data"]["nodes"]

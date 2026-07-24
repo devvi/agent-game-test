@@ -6,9 +6,6 @@ extends Node3D
 @onready var scene_manager: Node = $SceneManager
 @onready var world_label: Label3D = $WorldLabel
 @onready var state_system: Node = get_node("/root/GameState")
-@onready var dialogue_runner: Node = $Dialogue/DialoguePanel
-@onready var dialogue_debug: Node = $DialogueDebug
-@onready var dialogue_display_3d = $Dialogue3D
 @onready var status_bar: CanvasLayer = $StatusBar
 
 var _dialogue_active: bool = false
@@ -18,23 +15,6 @@ func _ready() -> void:
 		state_system.state_changed.connect(_on_state_changed)
 	world_label.text = "Hope: 100  Despair: 0"
 	print("CRPG Main Scene ready.")
-	
-	# Hide dialogue panel initially
-	if dialogue_runner != null:
-		dialogue_runner.hide()
-	
-	# Connect dialogue signals
-	if dialogue_runner != null and is_instance_valid(dialogue_runner):
-		dialogue_runner.dialogue_started.connect(_on_dialogue_started)
-		dialogue_runner.dialogue_ended.connect(_on_dialogue_ended)
-		dialogue_runner.node_changed.connect(_on_node_changed)
-		dialogue_runner.choices_available.connect(_on_choices_available)
-	
-	# Wire up dialogue display 3D to dialogue runner signals
-	if dialogue_runner != null and is_instance_valid(dialogue_runner) and dialogue_display_3d != null and is_instance_valid(dialogue_display_3d):
-		dialogue_runner.node_changed.connect(dialogue_display_3d.on_node_changed)
-		dialogue_runner.choices_available.connect(dialogue_display_3d.on_choices_available)
-		dialogue_runner.dialogue_ended.connect(dialogue_display_3d.on_dialogue_ended)
 
 	# Connect status bar to state changes
 	if state_system != null and status_bar != null:
@@ -73,63 +53,24 @@ func _input(event: InputEvent) -> void:
 	
 	# ----- Dialogue Input Handling -----
 	elif event.is_action_pressed("toggle_dialogue"):
-		# Trigger dialogue for testing (F9)
-		if dialogue_runner != null:
-			dialogue_runner.show()
-			dialogue_runner.start("res://dialogues/bartender.json", "bartender")
-			_dialogue_active = true
-			if dialogue_display_3d != null:
-				dialogue_display_3d.show_dialogue()
-	
-	elif _dialogue_active and event.is_action_pressed("dialogue_up"):
-		if dialogue_display_3d != null and dialogue_display_3d.has_method("navigate_up"):
-			dialogue_display_3d.navigate_up()
-	
-	elif _dialogue_active and event.is_action_pressed("dialogue_down"):
-		if dialogue_display_3d != null and dialogue_display_3d.has_method("navigate_down"):
-			dialogue_display_3d.navigate_down()
-	
-	elif _dialogue_active and event.is_action_pressed("dialogue_select"):
-		if dialogue_display_3d != null and dialogue_runner != null:
-			var focused: int = dialogue_display_3d.get_focused_choice_index()
-			dialogue_runner.select_choice(focused)
-	
-	elif _dialogue_active and event.is_action_pressed("dialogue_skip"):
-		# Skip typewriter animation (placeholder)
-		pass
-	
-	# Digit keys for direct choice selection
-	elif _dialogue_active:
-		for digit in range(4):
-			if event.is_action_pressed("digit_%d" % (digit + 1)):
-				if dialogue_runner != null:
-					dialogue_runner.select_choice(digit)
+		_trigger_test_dialogue()
 
 func _on_state_changed(state: Dictionary) -> void:
-	# Status bar is updated via signal connection — world_label is deprecated
 	pass
 
-# ===== Dialogue Integration =====
 
-func _on_dialogue_started(dialogue_id: String) -> void:
-	print("Dialogue started: ", dialogue_id)
-
-func _on_dialogue_ended() -> void:
-	print("Dialogue ended")
-	_dialogue_active = false
-	if dialogue_runner != null and is_instance_valid(dialogue_runner):
-		dialogue_runner.hide()
-
-func _on_node_changed(node_id: String, speaker: String, text: String) -> void:
-	print("[%s] %s: %s" % [node_id, speaker, text])
-	# Update debug overlay
-	if dialogue_debug != null and is_instance_valid(dialogue_debug):
-		dialogue_debug.update_display(dialogue_runner)
-
-func _on_choices_available(choices: Array) -> void:
-	print("Choices available: ", choices.size())
-	for i in range(choices.size()):
-		print("  %d. %s" % [i + 1, choices[i].get("text", "")])
+func _trigger_test_dialogue() -> void:
+	var resource = load("res://dialogues/bartender.dialogue")
+	if resource == null:
+		push_error("Main: Could not load test dialogue resource")
+		return
+	var balloon_scene := preload("res://scenes/dialogue/dialogue_balloon.tscn")
+	var balloon := balloon_scene.instantiate() as DialogueBalloon
+	var canvas_layer := CanvasLayer.new()
+	canvas_layer.name = "DialogueBalloonLayer"
+	add_child(canvas_layer)
+	canvas_layer.add_child(balloon)
+	balloon.start(resource, "bartender", [get_node_or_null("/root/StateSystem")])
 
 
 func _on_viewport_size_changed() -> void:

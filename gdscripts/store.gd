@@ -55,11 +55,8 @@ func _set_open_sign_text(tone: String) -> void:
 
 func _on_exit_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		dialogue_runner.start("res://dialogues/store_exit.json", "store_exit")
+		_show_dialogue_balloon("res://dialogues/store_exit.dialogue", "store_exit")
 
 
 func _restore_dialogue_state() -> void:
-	var gm: Node = get_node_or_null("/root/GameManager")
-	if gm and dialogue_runner.choices_made.is_empty():
-		if "choices_history" in gm and not gm.choices_history.is_empty():
-			dialogue_runner.choices_made = gm.choices_history.duplicate()
+	pass

@@ -2,7 +2,28 @@
 
 > Parent Issues: #46, #52
 > Added: 2026-07-22 (post-merge GDD updates)
-> Updated: 2026-07-22 (added runtime + visual layer — PR #83)
+> Updated: 2026-07-25 (godot_dialogue_manager migration — Issue #215)
+
+## Migration Notice (Issue #215)
+
+The custom dialogue engine has been **replaced by [godot_dialogue_manager](https://github.com/nathanhoad/godot_dialogue_manager)** (v2.x). All 13 `.json` dialogue files have been migrated to `.dialogue` format and moved to `dialogues/backup/`.
+
+| Old System | New System |
+|------------|------------|
+| `dialogue_runner.gd` | `DialogueBalloon` (dialogue_balloon.gd + dialogue_balloon.tscn) |
+| `dialogue_parser.gd` | DialogueManager addon — native `.dialogue` resource parsing |
+| `dialogue_condition_evaluator.gd` | DialogueManager `extra_game_states` + `using StateSystem` |
+| `dialogues/*.json` | `dialogues/*.dialogue` (moved to `dialogues/backup/`) |
+| `start_dialogue(path, id)` → `_show_dialogue_balloon(path, title)` | SceneBase method |
+| `dialogue_runner.start(path, id, override)` → `_show_dm_balloon(path, title)` | NPCNode method |
+
+**Architectural changes:**
+- Dialogue balloon is a self-managed `CanvasLayer` child — no `DialoguePanel` or `Dialogue3D` scene integration needed
+- `.dialogue` files compile to native `DialogueResource` at import time
+- State integration via `using StateSystem` directive + `extra_game_states` array
+- Old `.json` files preserved in `dialogues/backup/` for reference and legacy test support
+
+---
 
 ## 1. Architecture Overview
 
@@ -365,3 +386,81 @@ Player presses E → PlayerController._try_interact()
 - `is_interactable()` guard prevents both paths (mouse-click and E-key) from activating simultaneously
 - The EKeyTrigger is a child of `InteractionTrigger` Area3D (sharing its CollisionShape3D), not a sibling — ensuring both proximity detection and E-key range match
 - SceneBase already had the `has_method("start_npc_interaction")` routing since PR #149, so only the method addition on NPCNode was needed
+
+## 10. Dialogue Manager Integration (Issue #215)
+
+> Implemented: 2026-07-25
+> Files: `gdscripts/dialogue_balloon.gd`, `gdscripts/response_button.gd`, `scenes/dialogue/dialogue_balloon.tscn`, `scenes/dialogue/response_panel.tscn`, `dialogues/*.dialogue`
+
+### 10.1 DialogueBalloon Architecture
+
+The `DialogueBalloon` replaces the old `DialogueRunner` + `DialoguePanel` + `Dialogue3D` combination:
+
+```
+DialogueBalloon (CanvasLayer child)
+├── MarginContainer
+│   ├── RichTextLabel (character name — amber)
+│   ├── RichTextLabel (dialogue text — amber)
+│   └── ResponsePanel (VBoxContainer)
+│       └── ResponseButton (custom Button — amber theme)
+```
+
+**Control flow:**
+1. `balloon.start(resource, title, extra_game_states)` loads the `.dialogue` resource
+2. DM internally calls `get_next_dialogue_line()` against the resource
+3. `DialogueLabel` processes typewriter reveal on text display
+4. `DialogueResponsesMenu` renders response buttons with condition filtering
+5. On choice: mutation effects (`do` lines) are applied to `extra_game_states` (StateSystem)
+6. `dialogue_ended` signal emitted on `=> END` or `=> END` with mutations
+
+### 10.2 StateSystem Integration
+
+`.dialogue` files declare `using StateSystem` at the top, enabling:
+- **Conditions**: `[if StateSystem.hope_despair >= 2]` on response lines
+- **Mutations**:
+  - `do StateSystem.apply_choice({"hope_despair": 2})` — slider deltas
+  - `do StateSystem.set_flag("flag_name", true)` — boolean flags
+  - `do StateSystem.set_route_flag("keep_walking")` — ending route flags
+
+StateSystem is passed as an `extra_game_states` array to `balloon.start()`.
+
+### 10.3 Dialogue File Format
+
+```
+using StateSystem
+
+~ title_name
+Speaker: Dialogue text here.
+- Response text here.
+	do StateSystem.apply_choice({"axis": 1.0})
+	=> next_title
+- Gated response. [if StateSystem.hope_despair >= 5]
+	=> END
+```
+
+See [DM docs](https://github.com/nathanhoad/godot_dialogue_manager) for full format reference.
+
+### 10.4 File Inventory
+
+| `.dialogue` File | Source JSON | NPC / Scene |
+|-----------------|-------------|-------------|
+| `bartender.dialogue` | `bartender.json` | Main scene (F9 test) |
+| `store_clerk.dialogue` | `store_clerk.json` | Convenience store clerk |
+| `store_exit.dialogue` | `store_exit.json` | Store exit trigger |
+| `office_door.dialogue` | `office_door.json` | Office door trigger |
+| `lobby_guard.dialogue` | `lobby_guard.json` | Lobby security guard |
+| `lobby_stranger.dialogue` | `lobby_stranger.json` | Lobby stranger (first meeting) |
+| `lobby_exit.dialogue` | `lobby_exit.json` | Lobby exit trigger |
+| `bridge_homeless.dialogue` | `bridge_homeless.json` | Bridge homeless NPC |
+| `bridge_exit.dialogue` | `bridge_exit.json` | Bridge exit trigger |
+| `underpass_stranger_echo.dialogue` | `underpass_stranger_echo.json` | Underpass stranger echo |
+| `underpass_exit.dialogue` | `underpass_exit.json` | Underpass exit trigger |
+| `subway_ending.dialogue` | `subway_ending.json` | Subway station ending |
+| `npc_test.dialogue` | `npc_test.json` | Street test NPC |
+| `_test_state.dialogue` | — | StateSystem integration test |
+
+### 10.5 Scene Script Changes
+
+All scene scripts now call `start_dialogue(path, title)` or `_show_dialogue_balloon(path, title)` with `.dialogue` paths instead of `.json` paths. See `scene_base.gd` and `npc_node.gd` for the implementation.
+
+`main.gd`'s dialogue input handling (F9 key) has been simplified to instantiate a `DialogueBalloon` directly instead of managing `dialogue_runner` signals.

@@ -27,7 +27,7 @@ func _assert(condition: bool, label: String) -> void:
 # TC18: entry_override with valid override
 func _test_entry_override_valid() -> void:
 	var dr = load("res://gdscripts/dialogue_runner.gd").new()
-	var ok = dr.start("res://dialogues/store_clerk.json", "test_clerk", "clerk_greet_cynical")
+	var ok = dr.start("res://dialogues/store_clerk.dialogue", "test_clerk", "clerk_greet_cynical")
 	_assert(ok, "TC18: start() returned true")
 	_assert(dr.current_node_id == "clerk_greet_cynical", "TC18: Entry node is clerk_greet_cynical (override)")
 
@@ -35,7 +35,7 @@ func _test_entry_override_valid() -> void:
 # TC19: entry_override empty uses default entry_node_id
 func _test_entry_override_empty_uses_default() -> void:
 	var dr = load("res://gdscripts/dialogue_runner.gd").new()
-	var ok = dr.start("res://dialogues/store_clerk.json", "test_clerk", "")
+	var ok = dr.start("res://dialogues/store_clerk.dialogue", "test_clerk", "")
 	_assert(ok, "TC19: start() returned true")
 	_assert(dr.current_node_id == "clerk_greet", "TC19: Entry node is clerk_greet (default entry_node_id)")
 
@@ -43,7 +43,7 @@ func _test_entry_override_empty_uses_default() -> void:
 # TC20: has_unvisited_branches returns true when branches remain
 func _test_has_unvisited_branches_true() -> void:
 	var dr = load("res://gdscripts/dialogue_runner.gd").new()
-	var ok = dr.start("res://dialogues/store_clerk.json", "test_clerk", "clerk_greet_cynical")
+	var ok = dr.start("res://dialogues/store_clerk.dialogue", "test_clerk", "clerk_greet_cynical")
 	_assert(ok, "TC20: Loaded dialogue")
 	# After visiting clerk_greet_cynical (has non-terminal choices), unvisited terminal nodes remain
 	var has_branches = dr.has_unvisited_branches("test_clerk")
@@ -53,7 +53,7 @@ func _test_has_unvisited_branches_true() -> void:
 # TC21: has_unvisited_branches returns false when all branches visited
 func _test_has_unvisited_branches_false() -> void:
 	var dr = load("res://gdscripts/dialogue_runner.gd").new()
-	var ok = dr.start("res://dialogues/store_clerk.json", "test_clerk")
+	var ok = dr.start("res://dialogues/store_clerk.dialogue", "test_clerk")
 	_assert(ok, "TC21: Loaded dialogue")
 	# Mark a terminal node as visited — e.g. exit_after_coffee is terminal
 	dr.visited_nodes["exit_after_coffee"] = 1

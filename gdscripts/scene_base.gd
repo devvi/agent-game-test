@@ -11,7 +11,6 @@ class_name SceneBase
 const PLAYER_CONTROLLER: GDScript = preload("res://gdscripts/player_controller.gd")
 
 @onready var scene_manager: Node = $SceneManager
-@onready var dialogue_runner: Node = $CanvasLayer/DialoguePanel
 
 var scene_id: String = ""  # Override in subclass
 var _player: Node = null   # PlayerController instance (Issue #142)
@@ -23,7 +22,6 @@ func _ready() -> void:
 	_instantiate_player()
 	_configure_environmental_text()
 	_configure_ambient_audio()
-	_restore_dialogue_state()
 	_connect_state_signals()
 
 
@@ -120,11 +118,9 @@ static func _hope_to_state_id(hope: float) -> int:
 
 
 ## Restore dialogue state from GameManager's choices_history.
+## Now uses DialogueManager pattern — state persistence handled by StateSystem.
 func _restore_dialogue_state() -> void:
-	var gm: Node = get_node_or_null("/root/GameManager")
-	if gm and dialogue_runner and dialogue_runner.has_method("load_dialogue"):
-		if "choices_history" in gm and not gm.choices_history.is_empty():
-			dialogue_runner.choices_made = gm.choices_history.duplicate()
+	pass
 
 
 ## Get state tier for a given axis.
@@ -143,10 +139,26 @@ func get_state() -> Dictionary:
 	return {"hope": 5.0, "conviction": 5.0, "will": 5.0}
 
 
-## Start a dialogue via the dialogue runner.
+## Start a dialogue via the DialogueManager balloon.
 func start_dialogue(file_path: String, dialogue_id: String) -> void:
-	if dialogue_runner and dialogue_runner.has_method("start"):
-		dialogue_runner.start(file_path, dialogue_id)
+	_show_dialogue_balloon(file_path, dialogue_id)
+
+
+## Helper: Show a DialogueBalloon for the given .dialogue resource and title.
+func _show_dialogue_balloon(resource_path: String, title: String) -> void:
+	if DialogueBalloon._current_balloon and is_instance_valid(DialogueBalloon._current_balloon):
+		return
+	var resource = load(resource_path)
+	if resource == null:
+		push_error("SceneBase: Could not load dialogue resource: ", resource_path)
+		return
+	var balloon_scene := preload("res://scenes/dialogue/dialogue_balloon.tscn")
+	var balloon := balloon_scene.instantiate() as DialogueBalloon
+	var canvas_layer := CanvasLayer.new()
+	canvas_layer.name = "DialogueBalloonLayer"
+	add_child(canvas_layer)
+	canvas_layer.add_child(balloon)
+	balloon.start(resource, title, [get_node_or_null("/root/StateSystem")])
 
 
 # ── Player Controller (Issue #142) ──

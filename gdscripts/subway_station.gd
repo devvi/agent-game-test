@@ -112,18 +112,18 @@ func _on_gate_trigger_input(camera: Node, event: InputEvent, position: Vector3, 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		# Keep Walking path
 		if _ending == "keep_walking" or _ending.is_empty():
-			start_dialogue("res://dialogues/subway_ending.json", "subway_ending_walk")
+			start_dialogue("res://dialogues/subway_ending.dialogue", "subway_ending_walk")
 
 
 func _on_turn_back_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		# Turn Back path
 		if _ending == "turn_back" or _ending.is_empty():
-			start_dialogue("res://dialogues/subway_ending.json", "subway_ending_turnback")
+			start_dialogue("res://dialogues/subway_ending.dialogue", "subway_ending_turnback")
 
 
 func _on_bench_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		# Stay path
 		if _ending == "stay" or _ending.is_empty():
-			start_dialogue("res://dialogues/subway_ending.json", "subway_ending_stay")
+			start_dialogue("res://dialogues/subway_ending.dialogue", "subway_ending_stay")
