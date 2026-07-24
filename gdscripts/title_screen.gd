@@ -22,7 +22,7 @@ func _ready() -> void:
 	tween.tween_callback(_start_prompt_blink)
 	
 	# Set version
-	version_label.text = "v0.1.0 — Literary Micro CRPG"
+	version_label.text = "v0.2.0 — Literary Micro CRPG"
 
 func _set_alpha(a: float) -> void:
 	title_label.modulate.a = a
