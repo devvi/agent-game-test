@@ -1,0 +1,13 @@
+using StateSystem
+
+~ test_greet
+???: ...
+- Who are you?
+	=> test_answer
+- ...
+	=> END
+
+~ test_answer
+???: Just a test. Nothing more.
+- ...
+	=> END

@@ -1,6 +1,11 @@
 extends Node
 class_name DialogueRunner
 
+# DEPRECATED in favor of godot_dialogue_manager (Issue #215).
+# All dialogue content has been migrated to .dialogue files.
+# Dialogue playback uses DialogueBalloon (dialogue_balloon.gd) instead.
+# This file remains as a transitional fallback and for legacy test support.
+
 signal dialogue_started(dialogue_id: String)
 signal dialogue_ended()
 signal node_changed(node_id: String, speaker: String, text: String)

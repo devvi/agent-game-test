@@ -31,7 +31,7 @@ func _assert(condition: bool, label: String) -> void:
 func _make_npc() -> Node:
 	var npc = Node3D.new()
 	npc.set_script(load("res://gdscripts/npc_node.gd"))
-	npc.dialogue_file = "res://dialogues/store_clerk.json"
+	npc.dialogue_file = "res://dialogues/store_clerk.dialogue"
 	npc.dialogue_id = "store_clerk"
 	npc.speaker_name = "⌈Clerk⌋"
 	npc.mood_axis = "hope_despair"
@@ -49,7 +49,7 @@ func _make_npc() -> Node:
 func _test_npc_creation_with_defaults() -> void:
 	var npc = _make_npc()
 	_assert(npc != null, "INT-1: NPCNode instance created")
-	_assert(npc.dialogue_file == "res://dialogues/store_clerk.json", "INT-1: dialogue_file set")
+	_assert(npc.dialogue_file == "res://dialogues/store_clerk.dialogue", "INT-1: dialogue_file set")
 	_assert(npc.speaker_name == "⌈Clerk⌋", "INT-1: speaker_name set")
 	_assert(npc.proximity_distance == 3.0, "INT-1: proximity_distance set")
 	_assert(npc.cooldown_seconds == 2.0, "INT-1: cooldown_seconds set")
@@ -166,7 +166,7 @@ func _test_npc_e_key_during_cooldown() -> void:
 # T9: Invalid dialogue_file → start_npc_interaction proceeds without crash
 func _test_npc_missing_dialogue_file() -> void:
 	var npc = _make_npc()
-	npc.dialogue_file = "res://dialogues/nonexistent.json"
+	npc.dialogue_file = "res://dialogues/backup/nonexistent.json"
 	var mock_runner = Node.new()
 	mock_runner.start = func(_a, _b, _c=""): pass
 	npc._dialogue_runner = mock_runner

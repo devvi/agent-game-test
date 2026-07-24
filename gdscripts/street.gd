@@ -86,7 +86,7 @@ func _set_neon_modulate(tone: String) -> void:
 
 func _on_store_entrance_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		dialogue_runner.start("res://dialogues/office_door.json", "store_entrance")
+		_show_dialogue_balloon("res://dialogues/office_door.dialogue", "store_entrance")
 
 
 func _on_test_npc_interact() -> void:
@@ -96,7 +96,4 @@ func _on_test_npc_interact() -> void:
 
 
 func _restore_dialogue_state() -> void:
-	var gm: Node = get_node_or_null("/root/GameManager")
-	if gm and dialogue_runner.choices_made.is_empty():
-		if "choices_history" in gm and not gm.choices_history.is_empty():
-			dialogue_runner.choices_made = gm.choices_history.duplicate()
+	pass

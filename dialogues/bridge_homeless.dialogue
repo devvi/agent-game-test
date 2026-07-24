@@ -1,0 +1,60 @@
+using StateSystem
+
+~ homeless_greet
+Homeless Person: 你做游戏有什么用？
+- 给零钱
+	do StateSystem.apply_choice({"conviction": 1.0, "hope_despair": 2})
+	=> homeless_talk
+- 停下倾听
+	do StateSystem.apply_choice({"hope_despair": 1, "will": 0.5})
+	=> homeless_talk
+- 快步走过
+	=> homeless_ignore
+- 坐下休息 [if StateSystem.hope_despair <= -4]
+	do StateSystem.apply_choice({"will": 0.5})
+	=> homeless_low_will
+
+~ homeless_talk
+Homeless Person: Ten years on this bridge.\nGame makers, night workers, loners.\nYou all look the same at 2 AM.
+- 「你以前做什么？」
+	do StateSystem.apply_choice({"hope_despair": 1, "conviction": 0.5})
+	=> homeless_story
+- 「我得走了。」
+	=> homeless_farewell
+
+~ homeless_story
+Homeless Person: I made things too.\nSmall things. Paper boats.\nThen I just stopped—like infinite potential sealed in finite form.
+- 「为什么？」
+	do StateSystem.apply_choice({"conviction": 0.5})
+	=> homeless_farewell
+- 「…我懂。」
+	do StateSystem.apply_choice({"hope_despair": 1, "will": 0.5})
+	=> homeless_farewell
+- 「你为什么做游戏？」 [if StateSystem.hope_despair >= 2]
+	do StateSystem.apply_choice({"conviction": 1.0})
+	=> homeless_deep_question
+
+~ homeless_deep_question
+Homeless Person: Why do you make games?\nAsk yourself that.\nThe infinite question meets a finite answer on this bridge.
+- 「…也许吧。」
+	do StateSystem.apply_choice({"conviction": 0.5, "hope_despair": 1})
+	=> homeless_farewell
+
+~ homeless_farewell
+Homeless Person: Keep making things.\nRain or no rain.\nThat's all any of us can do within our finite nights.
+- 「谢谢。」
+	do StateSystem.apply_choice({"hope_despair": 2, "will": 1.0})
+	do StateSystem.set_flag("heard_homeless_story", true)
+	=> END
+
+~ homeless_low_will
+Narrator: You sit on wet concrete.\nThe city hums below.\nIt might be the same hum you heard in the office.
+- Get up. Keep going.
+	do StateSystem.apply_choice({"will": 1.0})
+	=> homeless_farewell
+
+~ homeless_ignore
+Narrator: You walk past.\nTheir gaze follows you through the rain.\nThe question might echo forever.
+- (Continue to the underpass)
+	do StateSystem.set_flag("ignored_homeless", true)
+	=> END

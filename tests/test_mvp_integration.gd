@@ -224,11 +224,11 @@ func _test_npc_framework() -> void:
 
 	# TC-INT-21: NPCNode export defaults
 	var npc = load("res://gdscripts/npc_node.gd").new()
-	npc.dialogue_file = "res://dialogues/stranger.json"
+	npc.dialogue_file = "res://dialogues/backup/stranger.json"
 	npc.dialogue_id = "stranger_greeting"
 	npc.speaker_name = "Stranger"
 	npc.proximity_distance = 3.0
-	_assert(npc.dialogue_file == "res://dialogues/stranger.json", "TC-INT-21: dialogue_file matches")
+	_assert(npc.dialogue_file == "res://dialogues/backup/stranger.json", "TC-INT-21: dialogue_file matches")
 	_assert(npc.dialogue_id == "stranger_greeting", "TC-INT-21: dialogue_id matches")
 	_assert(npc.speaker_name == "Stranger", "TC-INT-21: speaker_name matches")
 	_assert(abs(npc.proximity_distance - 3.0) < 0.001, "TC-INT-21: proximity_distance matches")

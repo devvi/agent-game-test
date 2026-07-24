@@ -29,7 +29,7 @@ func _assert(condition: bool, label: String) -> void:
 func _make_npc() -> Node:
 	var NPCNodeScript = load("res://gdscripts/npc_node.gd")
 	var npc = NPCNodeScript.new()
-	npc.dialogue_file = "res://dialogues/store_clerk.json"
+	npc.dialogue_file = "res://dialogues/store_clerk.dialogue"
 	npc.dialogue_id = "store_clerk"
 	npc.speaker_name = "Clerk"
 	# Add a name label so update_name_label works

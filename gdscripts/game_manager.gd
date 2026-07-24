@@ -177,6 +177,16 @@ func reset() -> void:
 	navigation_context = {}
 	fallback_count = 0
 
+## Stub: trigger a named narrative event.
+func trigger_event(event_name: String) -> void:
+	print("trigger_event not yet implemented: ", event_name)
+
+
+## Stub: advance the game clock.
+func advance_clock() -> void:
+	print("advance_clock not yet implemented")
+
+
 ## Track a scene as visited.
 func mark_scene_visited(scene_id: String) -> void:
 	scene_visited[scene_id] = true

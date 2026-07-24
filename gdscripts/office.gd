@@ -79,11 +79,8 @@ func _on_door_trigger_input(camera: Node, event: InputEvent, position: Vector3, 
 
 
 func _start_door_dialogue() -> void:
-	dialogue_runner.start("res://dialogues/office_door.json", "office_door")
+	_show_dialogue_balloon("res://dialogues/office_door.dialogue", "office_door")
 
 
 func _restore_dialogue_state() -> void:
-	var gm: Node = get_node_or_null("/root/GameManager")
-	if gm and dialogue_runner.choices_made.is_empty():
-		if "choices_history" in gm and not gm.choices_history.is_empty():
-			dialogue_runner.choices_made = gm.choices_history.duplicate()
+	pass

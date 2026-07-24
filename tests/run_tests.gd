@@ -40,6 +40,12 @@ func _init() -> void:
 	# --- State System Slider Tests (Issue #50) ---
 	run_slider_system_tests()
 
+	# --- Dialogue Manager Integration Tests (Issue #215) ---
+	var _dm_integration = load("res://tests/test_dialogue_manager_integration.gd").new()
+	_dm_integration.run()
+	passed += _dm_integration.passed
+	failed += _dm_integration.failed
+
 	# --- Sound System Tests (Issue #48) ---
 	run_sound_system_tests()
 

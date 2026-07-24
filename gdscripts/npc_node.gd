@@ -31,11 +31,9 @@ var _name_label: Label3D
 var _prompt_label: Label3D
 var _cooldown_timer: Timer
 var _player_nearby: bool = false
-var _dialogue_runner: Node
 var _greeting_override: String = ""
 
 const _DialogueConditionEvaluator := preload("res://gdscripts/dialogue_condition_evaluator.gd")
-const _DialogueRunnerScript := preload("res://gdscripts/dialogue_runner.gd")
 
 
 func _ready() -> void:
@@ -61,10 +59,6 @@ func _ready() -> void:
 		_cooldown_timer.one_shot = true
 		_cooldown_timer.wait_time = cooldown_seconds
 
-	_dialogue_runner = _find_parent_dialogue_runner()
-	if _dialogue_runner:
-		_dialogue_runner.dialogue_ended.connect(_on_dialogue_ended)
-
 	if _name_label:
 		_name_label.visible = false
 		_name_label.text = speaker_name
@@ -76,14 +70,9 @@ func _ready() -> void:
 func _find_parent_dialogue_runner() -> Node:
 	var scene_root := get_tree().current_scene
 	if scene_root:
-		var panel := scene_root.get_node_or_null("CanvasLayer/DialoguePanel")
-		if panel:
-			return panel
-	var parent := get_parent()
-	while parent:
-		if is_instance_of(parent, _DialogueRunnerScript):
-			return parent
-		parent = parent.get_parent()
+		var layer := scene_root.get_node_or_null("DialogueBalloonLayer")
+		if layer and layer.get_child_count() > 0:
+			return layer.get_child(0)
 	return null
 
 
@@ -108,8 +97,7 @@ func _on_interaction(camera: Camera3D, event: InputEvent, position: Vector3, nor
 		evaluate_personality_layer()
 		set_state(NPCState.TALKING)
 		update_name_label()
-		if _dialogue_runner:
-			_dialogue_runner.start(dialogue_file, dialogue_id, _greeting_override)
+		_show_dm_balloon(dialogue_file, _greeting_override if not _greeting_override.is_empty() else dialogue_id)
 		npc_interacted.emit(name)
 
 
@@ -122,9 +110,29 @@ func start_npc_interaction() -> void:
 	evaluate_personality_layer()
 	set_state(NPCState.TALKING)
 	update_name_label()
-	if _dialogue_runner:
-		_dialogue_runner.start(dialogue_file, dialogue_id, _greeting_override)
+	_show_dm_balloon(dialogue_file, _greeting_override if not _greeting_override.is_empty() else dialogue_id)
 	npc_interacted.emit(name)
+
+
+func _show_dm_balloon(dialogue_path: String, title: String) -> void:
+	if DialogueBalloon._current_balloon and is_instance_valid(DialogueBalloon._current_balloon):
+		return
+	var resource = load(dialogue_path)
+	if resource == null:
+		push_error("NPCNode: Could not load dialogue resource: ", dialogue_path)
+		set_state(NPCState.IDLE)
+		return
+	var scene_root := get_tree().current_scene
+	if not scene_root:
+		return
+	var balloon_scene := preload("res://scenes/dialogue/dialogue_balloon.tscn")
+	var balloon := balloon_scene.instantiate() as DialogueBalloon
+	var canvas_layer := CanvasLayer.new()
+	canvas_layer.name = "DialogueBalloonLayer"
+	scene_root.add_child(canvas_layer)
+	canvas_layer.add_child(balloon)
+	balloon.dialogue_ended.connect(_on_dialogue_ended)
+	balloon.start(resource, title, [get_node_or_null("/root/StateSystem")])
 
 
 func evaluate_personality_layer() -> void:
@@ -186,7 +194,7 @@ func update_label_visibility() -> void:
 
 
 func is_interactable() -> bool:
-	return current_state == NPCState.IDLE and _dialogue_runner != null
+	return current_state == NPCState.IDLE and not dialogue_file.is_empty()
 
 
 func _on_dialogue_ended() -> void:
@@ -197,13 +205,7 @@ func _on_dialogue_ended() -> void:
 
 
 func _on_cooldown_timeout() -> void:
-	if _dialogue_runner and _dialogue_runner.has_method("has_unvisited_branches"):
-		if _dialogue_runner.has_unvisited_branches(dialogue_id):
-			set_state(NPCState.IDLE)
-		else:
-			set_state(NPCState.EXHAUSTED)
-	else:
-		set_state(NPCState.IDLE)
+	set_state(NPCState.IDLE)
 
 
 func _exit_tree() -> void:
@@ -216,5 +218,3 @@ func _exit_tree() -> void:
 			_trigger_area.input_event.disconnect(_on_interaction)
 	if _cooldown_timer:
 		_cooldown_timer.timeout.disconnect(_on_cooldown_timeout)
-	if _dialogue_runner and _dialogue_runner.dialogue_ended.is_connected(_on_dialogue_ended):
-		_dialogue_runner.dialogue_ended.disconnect(_on_dialogue_ended)

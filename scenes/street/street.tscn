@@ -183,7 +183,7 @@ modulate = Color(0.8, 0.7, 0.5, 0.8)
 
 [node name="TestNPC" parent="InteractionZones" instance=ExtResource("5_npc")]
 position = Vector3(4, 0, 0)
-dialogue_file = "res://dialogues/npc_test.json"
+dialogue_file = "res://dialogues/npc_test.dialogue"
 dialogue_id = "npc_test"
 speaker_name = "???"
 proximity_distance = 3.0

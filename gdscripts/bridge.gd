@@ -99,9 +99,9 @@ func _on_railing_trigger_input(camera: Node, event: InputEvent, position: Vector
 
 func _on_homeless_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		start_dialogue("res://dialogues/bridge_homeless.json", "bridge_homeless")
+		start_dialogue("res://dialogues/bridge_homeless.dialogue", "bridge_homeless")
 
 
 func _on_exit_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		start_dialogue("res://dialogues/bridge_exit.json", "bridge_exit")
+		start_dialogue("res://dialogues/bridge_exit.dialogue", "bridge_exit")

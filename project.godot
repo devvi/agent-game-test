@@ -27,7 +27,7 @@ GameState="*res://gdscripts/game_state.gd"
 UIConfig="*res://gdscripts/ui_config.gd"
 
 [editor_plugins]
-enabled=PackedStringArray()
+enabled=PackedStringArray("dialogue_manager")
 
 [input]
 toggle_debug={

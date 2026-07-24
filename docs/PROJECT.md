@@ -22,12 +22,12 @@ flowchart LR
     MS --> GM[GameManager]
     MS --> SS[StateSystem]
     MS --> SM[SceneManager]
-    MS --> DR[DialogueRunner]
+    MS --> DB[DialogueBalloon]
     MS --> PC[PlayerController]
     GM --> GS[GameState]
     GS --> SS
-    DR --> DP[DialogueParser]
-    DR --> CE[ConditionEvaluator]
+    DB --> DM[DialogueManager]
+    DB --> CE[ConditionEvaluator]
     PC --> Input[InputMap]
 ```
 
@@ -40,8 +40,9 @@ flowchart LR
 | GameState | `gdscripts/game_state.gd` | ✅ | — |
 | SceneManager | `gdscripts/scene_manager.gd` | ✅ | — |
 | PlayerController | `gdscripts/player_controller.gd` | ✅ | GDD |
-| DialogueRunner | `gdscripts/dialogue_runner.gd` | ✅ | GDD |
-| DialogueParser | `gdscripts/dialogue_parser.gd` | ✅ | — |
+| DialogueBalloon | `gdscripts/dialogue_balloon.gd` | ✅ | GDD |
+| DialogueRunner | `gdscripts/dialogue_runner.gd` | ✅ (deprecated) | GDD |
+| DialogueParser | `gdscripts/dialogue_parser.gd` | ✅ (deprecated) | — |
 | SceneBase | `gdscripts/scene_base.gd` | ✅ | — |
 | NPCNode | `gdscripts/npc_node.gd` | ✅ | — |
 | NarrativeManager | `gdscripts/narrative_manager.gd` | ✅ | GDD |
@@ -55,9 +56,9 @@ flowchart LR
 ```
 玩家输入 → PlayerController → GameManager → StateSystem → 场景/NPC/UI
                                               ↓
-                                         DialogueRunner → DialogueParser
+                                         DialogueBalloon → DialogueManager
                                               ↓
-                                        ConditionEvaluator
+                                        extra_game_states (StateSystem)
 ```
 
 ## 关键技术决策
@@ -65,7 +66,7 @@ flowchart LR
 | 决策 | 选择 | 理由 |
 |------|------|------|
 | 渲染方式 | Label3D + 自定义着色器 | 低多边形文学风格 |
-| 对话系统 | JSON 驱动的分支树 | 便于内容迭代和调试 |
+| 对话系统 | godot_dialogue_manager (.dialogue) | 社区标准插件，DSL 格式，条件/突变原生支持 |
 | 状态管理 | 单例 GameManager + StateSystem | 简单、可预测 |
 | 场景切换 | SceneManager + fade curtain | 平滑过渡 |
 | 输入 | Godot InputMap | 标准做法 |

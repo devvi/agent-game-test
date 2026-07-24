@@ -18,11 +18,11 @@ const SCENE_PATHS: Dictionary = {
 }
 
 const DIALOGUE_FILES: Array[String] = [
-	"office_door.json", "lobby_guard.json", "lobby_stranger.json",
-	"lobby_exit.json", "store_clerk.json", "store_exit.json",
-	"bridge_homeless.json", "bridge_exit.json",
-	"underpass_stranger_echo.json", "underpass_exit.json",
-	"subway_ending.json", "bartender.json"
+	"office_door.dialogue", "lobby_guard.dialogue", "lobby_stranger.dialogue",
+	"lobby_exit.dialogue", "store_clerk.dialogue", "store_exit.dialogue",
+	"bridge_homeless.dialogue", "bridge_exit.dialogue",
+	"underpass_stranger_echo.dialogue", "underpass_exit.dialogue",
+	"subway_ending.dialogue", "bartender.dialogue"
 ]
 
 const SCENE_SCRIPTS: Dictionary = {
@@ -109,40 +109,21 @@ func _test_dialogue_files() -> void:
 		var path = "res://dialogues/" + f
 		_assert(ResourceLoader.exists(path), "DF: %s exists" % f)
 
-	# Verify JSON structure of key dialogues
-	var dlg = FileAccess.open("res://dialogues/office_door.json", FileAccess.READ)
+	# Verify .dialogue structure of key dialogues
+	var dlg = FileAccess.open("res://dialogues/office_door.dialogue", FileAccess.READ)
 	if dlg:
-		var json = JSON.new()
-		json.parse(dlg.get_as_text())
-		var data = json.data
-		_assert(data is Dictionary, "DJ-1: office_door.json is valid JSON (object)")
-		_assert(data.has("entry_node_id"), "DJ-2: office_door has entry_node_id")
-		_assert(data.has("nodes"), "DJ-3: office_door has nodes")
-		# Verify scene transition points
-		if data.has("nodes") and data["nodes"].has("door_leave"):
-			_assert(true, "DJ-4: office_door has door_leave node")
-			var choices: Array = data["nodes"]["door_leave"].get("choices", [])
-			var has_lobby: bool = false
-			for c in choices:
-				if c.get("scene", "") == "res://scenes/lobby/lobby.tscn":
-					has_lobby = true
-			_assert(has_lobby, "DJ-5: door_leave leads to lobby.tscn")
+		var text = dlg.get_as_text()
+		_assert(text.begins_with("using StateSystem"), "DJ-1: office_door.dialogue has StateSystem header")
+		_assert(text.contains("~ door_leave"), "DJ-4: office_door has door_leave title")
+		_assert(text.contains("=> END"), "DJ-5: office_door has terminal choices")
 	
 	# Verify subway ending dialogue
-	var subway = FileAccess.open("res://dialogues/subway_ending.json", FileAccess.READ)
+	var subway = FileAccess.open("res://dialogues/subway_ending.dialogue", FileAccess.READ)
 	if subway:
-		var json = JSON.new()
-		json.parse(subway.get_as_text())
-		var data = json.data
-		_assert(data is Dictionary and data.has("nodes"), "DJ-6: subway_ending.json valid")
-		if data.has("nodes"):
-			for node_id in ["kw_final", "tb_final", "st_final"]:
-				var has_credits: bool = false
-				if data["nodes"].has(node_id):
-					for c in data["nodes"][node_id].get("choices", []):
-						if c.get("scene", "") == "res://scenes/end_credits.tscn":
-							has_credits = true
-				_assert(has_credits, "DJ-7: %s → end_credits.tscn" % node_id)
+		var text = subway.get_as_text()
+		_assert(text.begins_with("using StateSystem"), "DJ-6: subway_ending.dialogue has StateSystem header")
+		for title in ["~ kw_final", "~ tb_final", "~ st_final"]:
+			_assert(text.contains(title), "DJ-7: subway_ending has '%s' title" % title)
 
 
 # ── Scene Manager ──

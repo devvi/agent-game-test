@@ -138,9 +138,9 @@ func _on_stranger_echo_trigger_input(camera: Node, event: InputEvent, position: 
 			if hope_val <= 2.0 and nm and nm.has_method("set_flag"):
 				nm.set_flag("underpass_hope_low", true)
 
-		start_dialogue("res://dialogues/underpass_stranger_echo.json", "underpass_stranger_echo")
+		start_dialogue("res://dialogues/underpass_stranger_echo.dialogue", "underpass_stranger_echo")
 
 
 func _on_exit_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		start_dialogue("res://dialogues/underpass_exit.json", "underpass_exit")
+		start_dialogue("res://dialogues/underpass_exit.dialogue", "underpass_exit")

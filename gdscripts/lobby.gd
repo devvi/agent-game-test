@@ -67,14 +67,14 @@ func _set_environment_text(tone: String) -> void:
 
 func _on_guard_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		start_dialogue("res://dialogues/lobby_guard.json", "lobby_guard")
+		start_dialogue("res://dialogues/lobby_guard.dialogue", "lobby_guard")
 
 
 func _on_stranger_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		start_dialogue("res://dialogues/lobby_stranger.json", "lobby_stranger")
+		start_dialogue("res://dialogues/lobby_stranger.dialogue", "lobby_stranger")
 
 
 func _on_exit_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		start_dialogue("res://dialogues/lobby_exit.json", "lobby_exit")
+		start_dialogue("res://dialogues/lobby_exit.dialogue", "lobby_exit")

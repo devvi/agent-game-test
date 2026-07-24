@@ -1,0 +1,6 @@
+using StateSystem
+
+~ underpass_exit_prompt
+Narrator: The tunnel opens into a wider space.\nStairs descend.\nA sign reads 'SUBWAY →'. The air is still.
+- Take the stairs down.
+	=> END
