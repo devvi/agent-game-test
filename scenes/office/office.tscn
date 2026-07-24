@@ -157,6 +157,9 @@ size = Vector3(2, 2.5, 0.5)
 [node name="EKeyTrigger" type="Area3D" parent="InteractionZones/OfficeDoorTrigger"]
 script = ExtResource("6_e_key_trigger")
 
+[node name="CollisionShape3D" type="CollisionShape3D" parent="InteractionZones/OfficeDoorTrigger/EKeyTrigger"]
+shape = SubResource("BoxShape_door_trigger")
+
 [node name="DoorLabel" type="Label3D" parent="InteractionZones"]
 position = Vector3(0, 2.5, 4.5)
 text = "→ 走廊 (E)"
