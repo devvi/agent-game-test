@@ -315,3 +315,110 @@ Stranger 不是普通 NPC，而是玩家内心状态的物理投射。
 || gdscripts/rain_text.gd | 雨文本（hope 轴 + 绝望倍增器） | 19 |
 || scenes/components/variants/*.tres (8 个) | 5 态变体资源文件 | ~13 each |
 || tests/unit/test_env_text_5_state.gd | 5 态环境文本测试（20 用例） | 369 |
+|
+|---|
+|
+|## 8. Issue #214 — 幻觉引擎与博尔赫斯约束 (Hallucination Engine & Borgesian Constraints)|
+|
+|> 状态: ✅ 已合并 (PR #245)|
+|> 实现时间: 2026-07-25|
+|
+|### 8.1 幻觉等级系统 (0–10)|
+|
+|核心原则：**距离即幻觉** — 物理距离（办公室→地铁站）映射为幻觉强度（0→10），营造渐进式现实瓦解。|
+|
+|**场景基础幻觉等级：**|
+|
+|| 场景 | 基础等级 | 距地铁站距离 |
+||:----:|:-------:|:--------:|
+|| 办公室 (office) | 0 | 出发 |
+|| 大厅 (lobby) | 1 | 近距离 |
+|| 便利店 (convenience_store) | 2 | 近距离 |
+|| 天桥 (bridge) | 4 | 中距 |
+|| 地下通道 (underpass) | 7 | 近距 |
+|| 地铁站 (subway_station) | 9 | 到达 |
+|
+|**状态修正：**|
+|- hope ≥ 8 → −1 修正（希望缓解幻觉）|
+|- hope ≤ 2 → +1 修正（绝望加剧幻觉）|
+|- 结果夹紧至 [0, 10] 范围|
+|
+|**参数映射（每级）：**|
+|
+|| 等级 | vignette | rain_density | light_flicker | text_drift | view_instability |
+||:----:|:-------:|:----------:|:------------:|:---------:|:----------------:|
+|| 0 | 0.0 | 0.0 | 0.0 | 0.0 | 0.0 |
+|| 1 | 0.15 | 0.1 | 0.0 | 0.0 | 0.0 |
+|| 2 | 0.2 | 0.1 | 0.0 | 0.0 | 0.0 |
+|| 3 | 0.3 | 0.3 | 0.15 | 0.0 | 0.0 |
+|| 4 | 0.4 | 0.4 | 0.3 | 0.0 | 0.0 |
+|| 5 | 0.5 | 0.5 | 0.4 | 0.1 | 0.0 |
+|| 6 | 0.6 | 0.6 | 0.5 | 0.2 | 0.1 |
+|| 7 | 0.7 | 0.7 | 0.6 | 0.35 | 0.2 |
+|| 8 | 0.8 | 0.8 | 0.7 | 0.5 | 0.3 |
+|| 9 | 0.8 | 0.9 | 0.8 | 0.5 | 0.4 |
+|| 10 | 0.8 | 0.9 | 0.8 | 0.5 | 0.4 |
+|
+|### 8.2 博尔赫斯风格约束 (B1–B6)|
+|
+|6 条约束为所有叙事文本提供风格边界：|
+|
+|| ID | 约束名称 | 规范 |
+||:--:|---------|------|
+|| B1 | 不可靠叙述 | Narrator 文本不能 100% 可靠。幻觉<5: ≥30% 台词含歧义；幻觉≥5: ≥70% |
+|| B2 | 镜像/迷宫意象 | 每场景 ≥1 处镜像/迷宫意象，地铁站 ≥3 处 |
+|| B3 | 现实与幻觉界限模糊 | 不能明确标记哪些是现实/幻觉。无元叙事标签（不出现「幻觉」「illusion」等词） |
+|| B4 | 循环与递归 | 至少一处意象在多个场景重复。Turn Back 结局必须暗示循环 |
+|| B5 | 文本叠加与层叠 | 环境文本产生「层叠」效果——同一位置不同状态叠加而非替换 |
+|| B6 | 无限与有限的悖论 | 至少一处对话引用「无限」与「有限」对比 |
+|
+|### 8.3 L3 回声表 (跨场景象征)|
+|
+|6 条互文性回声定义：|
+|
+|| ID | 源场景 | 目标场景 | 条件 |
+||----|--------|---------|------|
+|| handprint_echo | office | bridge | always |
+|| clock_loop_echo | office | subway_station | route == turn_back |
+|| stranger_gaze_echo | lobby | underpass | always |
+|| rain_constancy_echo | office | bridge | always |
+|| door_threshold_echo | office | subway_station | always |
+|| coffee_cold_echo | convenience_store | bridge | hope <= 2 |
+|
+|### 8.4 路线标记系统 (Route Flag)|
+|
+|`StateSystem.route_flag` 记录玩家最终路线选择：|
+|- 值: `"keep_walking"` / `"turn_back"` / `"stay"`|
+|- 通过 `set_route_flag(route)` 设置，含值校验|
+|- 包含在 `get_state()` 返回字典中，支持存档序列化|
+|- 常量定义于 `constants.gd` (ROUTE_KEEP_WALKING, ROUTE_TURN_BACK, ROUTE_STAY)|
+|
+|### 8.5 幻觉闪切 (Reality Flashback)|
+|
+|- 幻觉等级 ≥5 时，可触发跨场景闪切|
+|- `trigger_reality_flashback(current_scene_id)` 选择不同场景生成闪回文本|
+|- 通过 `reality_flashback` 信号通知下游系统|
+|
+|### 8.6 B1 运行时追踪|
+|
+|- `check_b1_constraint(scene_id, text, is_reliable)` — 注册对话节点​可靠性|
+|- `get_b1_ratio(scene_id)` — 返回该场景不可靠叙述比例|
+|- `check_b1_ratio_met(scene_id, hallucination_level)` — 检查是否满足阈值​|
+
+---
+
+|### 8.7 文件清单 (PR #245 新增/修改)|
+|
+|| 文件 | 类型 | 行数 |
+||------|------|------|
+|| gdscripts/narrative_manager.gd (扩展) | 幻觉引擎 + B1 追踪 + B3/B6 验证 + 闪切 | 194 新增 |
+|| gdscripts/worldview_controller.gd (扩展) | 幻觉参数映射 + signal 扩展 | 72 新增 |
+|| gdscripts/state_system.gd (扩展) | route_flag 系统 | 23 新增 |
+|| gdscripts/constants.gd (扩展) | 幻觉常量 + 回声定义 (6 条) | 80 新增 |
+|| dialogues/bridge_homeless.json | 天桥对话更新 | 27 |
+|| dialogues/lobby_stranger.json | 大厅对话更新 | 29 |
+|| dialogues/office_door.json | 办公室出口对话更新 | 37 |
+|| dialogues/store_clerk.json | 便利店对话更新 | 19 |
+|| dialogues/subway_ending.json | 地铁站结局对话新增 | 30 |
+|| dialogues/underpass_stranger_echo.json | 地下通道回声对话新增 | 18 |
+|| tests/test_narrative_architecture.gd (扩展) | 42 测试（含 12 个 TC214 用例） | 147 新增 |
