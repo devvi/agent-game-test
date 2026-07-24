@@ -179,8 +179,8 @@ func _instantiate_player() -> void:
 
 		# Restore camera orbit state (Issue #150)
 		if _player.has_method("set_camera_orbit"):
-			var yaw: float = gm.get("camera_orbit_yaw", 0.0)
-			var pitch: float = gm.get("camera_orbit_pitch", -0.2)
+			var yaw: float = gm.camera_orbit_yaw if "camera_orbit_yaw" in gm else 0.0
+			var pitch: float = gm.camera_orbit_pitch if "camera_orbit_pitch" in gm else -0.2
 			_player.set_camera_orbit(yaw, pitch)
 
 	# Connect interaction_requested signal

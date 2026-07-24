@@ -55,6 +55,7 @@ func _make_bare_pc() -> Node:
 
 func _test_cam_n_1_camera_hierarchy() -> void:
 	var pc = _make_bare_pc()
+	pc.camera_mode = "third_person"
 	pc._build_node_tree()
 	pc._build_camera_system()
 	pc._build_player_visual()
@@ -73,6 +74,7 @@ func _test_cam_n_1_camera_hierarchy() -> void:
 
 func _test_cam_n_1_spring_arm_margin() -> void:
 	var pc = _make_bare_pc()
+	pc.camera_mode = "third_person"
 	pc.spring_arm_length = 4.0
 	pc._build_camera_system()
 	pc.spring_arm = pc.get_node_or_null("CameraPivot/SpringArm3D")
@@ -87,6 +89,7 @@ func _test_cam_n_1_spring_arm_margin() -> void:
 
 func _test_cam_n_1_camera_position_relative() -> void:
 	var pc = _make_bare_pc()
+	pc.camera_mode = "third_person"
 	pc._build_node_tree()
 	pc._build_camera_system()
 	pc.spring_arm = pc.get_node_or_null("CameraPivot/SpringArm3D")
@@ -104,6 +107,7 @@ func _test_cam_n_2_camera_follows_movement() -> void:
 	# We verify the camera parent-child relationship ensures camera follows player
 	# by testing that camera offset relative to player is maintained.
 	var pc = _make_bare_pc()
+	pc.camera_mode = "third_person"
 	pc._build_node_tree()
 	pc._build_camera_system()
 	pc.camera_pivot = pc.get_node_or_null("CameraPivot")
@@ -208,6 +212,7 @@ func _test_cam_n_5_first_person_fallback() -> void:
 
 func _test_cam_n_6_spring_arm_excluded_object() -> void:
 	var pc = _make_bare_pc()
+	pc.camera_mode = "third_person"
 	pc._build_camera_system()
 	pc.spring_arm = pc.get_node_or_null("CameraPivot/SpringArm3D")
 

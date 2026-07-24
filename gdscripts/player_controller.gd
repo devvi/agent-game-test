@@ -8,7 +8,7 @@ class_name PlayerController
 @export_range(0.5, 3.0, 0.1) var camera_height: float = 1.6          # meters — eye level
 @export_range(-1.0, 1.0, 0.001) var camera_tilt: float = -0.087         # radians (~-5°) slight downward tilt
 @export_range(0.174, 1.57, 0.01) var look_vertical_clamp: float = 1.047  # radians (60°) — ±60° vertical look
-@export var camera_mode: String = "third_person"           # "third_person" or "first_person"
+@export var camera_mode: String = "first_person"            # "third_person" or "first_person"
 @export_range(1.0, 10.0, 0.5) var spring_arm_length: float = 4.0
 @export var orbit_sensitivity: float = 0.003
 @export_range(-1.0, 0.0, 0.01) var orbit_pitch_min: float = -0.523  # -30°
@@ -118,33 +118,44 @@ func _build_collision_shape() -> void:
 
 
 func _build_camera_system() -> void:
-	if not has_node("CameraPivot"):
-		var pivot := Node3D.new()
-		pivot.name = "CameraPivot"
-		add_child(pivot)
-		pivot.owner = self
+	if camera_mode == "third_person":
+		# Third-person: CameraPivot + SpringArm3D behind the player
+		if not has_node("CameraPivot"):
+			var pivot := Node3D.new()
+			pivot.name = "CameraPivot"
+			add_child(pivot)
+			pivot.owner = self
 
-	if not has_node("CameraPivot/SpringArm3D"):
-		var arm := SpringArm3D.new()
-		arm.name = "SpringArm3D"
-		arm.spring_length = spring_arm_length
-		arm.margin = 0.3
-		arm.collision_mask = 0b100
-		arm.add_excluded_object(self)
-		$CameraPivot.add_child(arm)
-		arm.owner = $CameraPivot
+		if not has_node("CameraPivot/SpringArm3D"):
+			var arm := SpringArm3D.new()
+			arm.name = "SpringArm3D"
+			arm.spring_length = spring_arm_length
+			arm.margin = 0.3
+			arm.collision_mask = 0b100
+			arm.add_excluded_object(self)
+			$CameraPivot.add_child(arm)
+			arm.owner = $CameraPivot
 
-	if has_node("Head/Camera3D"):
-		var existing_cam: Camera3D = $Head/Camera3D
-		existing_cam.reparent($CameraPivot/SpringArm3D, false)
-		existing_cam.position = Vector3(0, 2.0, 0)
-	elif not has_node("CameraPivot/SpringArm3D/Camera3D"):
-		var cam := Camera3D.new()
-		cam.name = "Camera3D"
-		cam.position = Vector3(0, 2.0, 0)
-		cam.current = true
-		$CameraPivot/SpringArm3D.add_child(cam)
-		cam.owner = $CameraPivot/SpringArm3D
+		if has_node("Head/Camera3D"):
+			var existing_cam: Camera3D = $Head/Camera3D
+			existing_cam.reparent($CameraPivot/SpringArm3D, false)
+			existing_cam.position = Vector3(0, 2.0, 0)
+		elif not has_node("CameraPivot/SpringArm3D/Camera3D"):
+			var cam := Camera3D.new()
+			cam.name = "Camera3D"
+			cam.position = Vector3(0, 2.0, 0)
+			cam.current = true
+			$CameraPivot/SpringArm3D.add_child(cam)
+			cam.owner = $CameraPivot/SpringArm3D
+	else:
+		# First-person: camera stays at Head (eye level)
+		if not has_node("Head/Camera3D"):
+			var cam := Camera3D.new()
+			cam.name = "Camera3D"
+			cam.position = Vector3(0, camera_height, 0)
+			cam.current = true
+			$Head.add_child(cam)
+			cam.owner = $Head
 
 
 func _build_player_visual() -> void:
@@ -172,13 +183,17 @@ func _ready() -> void:
 	_build_node_tree()
 	_build_collision_shape()
 	_build_camera_system()
-	_build_player_visual()
+	if camera_mode == "third_person":
+		_build_player_visual()
 
 	# Reassign @onready vars since they were set to null before nodes existed
 	head = $Head
-	camera_pivot = $CameraPivot
-	spring_arm = $CameraPivot/SpringArm3D
-	camera = $CameraPivot/SpringArm3D/Camera3D
+	if camera_mode == "third_person":
+		camera_pivot = $CameraPivot
+		spring_arm = $CameraPivot/SpringArm3D
+		camera = $CameraPivot/SpringArm3D/Camera3D
+	else:
+		camera = $Head/Camera3D
 	interaction_area = $InteractionArea
 
 	add_to_group("player")
@@ -303,6 +318,10 @@ func _physics_process(delta: float) -> void:
 	# Use clamped walk_speed for runtime safety (headless mode bypasses @export_range)
 	var effective_speed: float = clamp(walk_speed, 0.5, 10.0)
 
+	# ── Gravity ──
+	if not is_on_floor():
+		velocity.y -= ProjectSettings.get_setting("physics/3d/default_gravity") * delta
+
 	# Skip movement during dialogue
 	if _dialogue_active:
 		# Apply gentle braking if any residual velocity
@@ -321,7 +340,7 @@ func _physics_process(delta: float) -> void:
 	if camera_mode == "third_person" and camera_pivot:
 		camera_basis = camera_pivot.global_transform.basis
 	else:
-		camera_basis = head.global_transform.basis
+		camera_basis = camera.global_transform.basis
 	var forward: Vector3 = -camera_basis.z
 	forward.y = 0.0
 	forward = forward.normalized()
