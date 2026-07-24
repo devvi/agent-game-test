@@ -4,13 +4,37 @@
 
 ## 3.1 项目结构
 
+### 主项目 (urban-night-walker)
+
 ```
-gdscripts/      → GDScript 源码
+gdscripts/      → GDScript 源码（6 个核心脚本被 rainy-night-prometheus 通过 symlink 共享）
 scenes/         → .tscn 场景文件
 assets/         → 资源文件（导入到 .godot/）
 tests/          → GDScript 单元测试
 exports/        → 构建产物输出目录
 ```
+
+### 子项目: Rainy Night Prometheus
+
+`rainy-night-prometheus/` 是仓库中的第二个独立 Godot 4.7.1 子项目，通过 symlink 复用主项目的 6 个核心脚本，实现零代码漂移。
+
+```
+rainy-night-prometheus/
+├── project.godot           ← 独立子项目配置（名称、渲染器、autoload、输入映射）
+├── README.md               ← 项目说明文档
+├── gdscripts/              ← 6 个 symlink → ../gdscripts/*.gd
+├── scenes/                 ← RNP 专有场景
+├── dialogues/json/         ← RNP 对话 JSON 文件
+├── assets/
+│   ├── materials/          ← RNP 材质资源
+│   ├── audio/              ← RNP 音频资源
+│   └── icon.png            ← symlink → ../assets/icon.png
+└── tests/                  ← RNP 测试脚本
+```
+
+**运行方式:** `godot --path rainy-night-prometheus/ --headless --quit`
+**编辑器打开:** `godot --path rainy-night-prometheus/ --editor`
+**symlink 验证:** `git ls-files -s rainy-night-prometheus/gdscripts/` 显示 `120000` 模式
 
 ## 3.2 代码规范
 

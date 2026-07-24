@@ -46,6 +46,7 @@ flowchart LR
 | NPCNode | `gdscripts/npc_node.gd` | ✅ | — |
 | TextComponentBase | `gdscripts/text_component_base.gd` | ✅ | — |
 | TitleScreen | `gdscripts/title_screen.gd` | ✅ | — |
+| RainyNightPrometheus | `rainy-night-prometheus/` | ✅ | GDD |
 
 ### 数据流
 
@@ -84,6 +85,7 @@ flowchart LR
 | 11 | Fade 遮罩 | ✅ 已合并 | — |
 | 12 | MVP 集成测试 | ✅ 已合并 | — |
 | 13 | Escape 退出提示 | ✅ 已合并 | — |
+| 14 | 雨夜普罗摩茨项目骨架 | ✅ 已合并 | GDD |
 
 ## 已知问题
 
