@@ -1,0 +1,1 @@
+../../gdscripts/dialogue_runner.gd
