@@ -14,12 +14,13 @@ class_name PlayerController
 @export_range(-1.0, 0.0, 0.01) var orbit_pitch_min: float = -0.523  # -30°
 @export_range(0.0, 1.57, 0.01) var orbit_pitch_max: float = 0.785   # +45°
 
-# ── Nodes ──
-@onready var head: Node3D = $Head
-@onready var camera_pivot: Node3D = $CameraPivot
-@onready var spring_arm: SpringArm3D = $CameraPivot/SpringArm3D
-@onready var camera: Camera3D = $CameraPivot/SpringArm3D/Camera3D
-@onready var interaction_area: Area3D = $InteractionArea
+# ── Nodes (not @onready — nodes are created dynamically in _ready, see Issue #142)
+# These are reassigned after _build_* calls complete.
+var head: Node3D
+var camera_pivot: Node3D
+var spring_arm: SpringArm3D
+var camera: Camera3D
+var interaction_area: Area3D
 
 # ── State ──
 var _dialogue_active: bool = false
