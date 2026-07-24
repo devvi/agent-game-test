@@ -969,14 +969,14 @@ def main():
             # Only process pipeline events via standard preprocess
             pass  # fall through to preprocess with proper filtering
         
-        # Reconcile every in-window tick: picker may have added workflow/available
-        # mid-window, and without reconcile() the pending file has no event for it.
-        if in_window:
-            reconcile()
-        
-        # Pick from backlog every in-window tick (was dead code — never called)
+        # Pick from backlog FIRST (fast, gh API only for picker)
+        # Then reconcile + preprocess (may be slower)
         if in_window and not is_paused():
             pick_next_issue()
+        
+        # Reconcile every in-window tick
+        if in_window:
+            reconcile()
         
         lines = preprocess()
         
