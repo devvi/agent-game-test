@@ -36,6 +36,10 @@ import urllib.request
 from typing import Optional
 from collections import defaultdict
 
+# gh() call cache — avoids redundant API calls within a single tick
+_GH_CACHE: dict = {}
+_GH_CACHE_TTL = 30
+
 PENDING_FILE = os.environ.get("EVENT_PROCESSOR_PENDING_FILE") or os.path.expanduser("~/.hermes/workflow-pending.json")
 WORKFLOW_CONFIG = os.path.expanduser("~/.hermes/workflow-config.json")
 
@@ -251,11 +255,23 @@ STAGE_BRANCH_PREFIX = {
 
 
 def gh(*args: str) -> str:
-    """Run gh command, return stdout. Returns empty string on error."""
+    """Run gh command, return stdout. Returns empty string on error.
+    Results cached for 30s within a single tick."""
+    cache_key = "|".join(str(a) for a in args)
+    cached = _GH_CACHE.get(cache_key)
+    if cached and time.time() - cached["ts"] < _GH_CACHE_TTL:
+        return cached["data"]
     try:
-        result = subprocess.run(['gh'] + list(args),
+        result = subprocess.run(["gh"] + list(args),
                                 capture_output=True, text=True, timeout=10)
-        return result.stdout.strip() if result.returncode == 0 else ""
+        data = result.stdout.strip() if result.returncode == 0 else ""
+        _GH_CACHE[cache_key] = {"data": data, "ts": time.time()}
+        if len(_GH_CACHE) > 200:
+            now = time.time()
+            for k in list(_GH_CACHE):
+                if now - _GH_CACHE[k]["ts"] > _GH_CACHE_TTL:
+                    del _GH_CACHE[k]
+        return data
     except (subprocess.TimeoutExpired, OSError):
         return ""
 
@@ -743,9 +759,6 @@ def reconcile():
     
     if events:
         write_pending(events)
-    
-    # Clean expired locks
-    _clean_expired_locks()
 
 
 def preprocess():
@@ -921,6 +934,9 @@ def main():
         # Pause check
         if is_paused():
             return
+
+        # Clean expired locks unconditionally (every tick, regardless of work hours)
+        _clean_expired_locks()
         
         # Window entry detection: if we just entered work hours, reconcile + pick
         was_outside = False
