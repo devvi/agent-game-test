@@ -31,6 +31,7 @@ var _fall_reset_position: Vector3 = Vector3.ZERO
 var _footstep_accumulator: float = 0.0      # elapsed time since last footstep
 var _orbit_yaw: float = 0.0
 var _orbit_pitch: float = -0.2  # slight downward default
+var is_navigation_disabled: bool = false    # Set true during transitions
 
 
 # ── Camera Orbit Persistence (Issue #150) ──
@@ -54,6 +55,7 @@ const FOOTSTEP_INTERVAL: float = 0.5         # seconds between movement footstep
 # ── Signals ──
 signal interaction_requested(target: Node)
 signal dialogue_mode_changed(active: bool)
+signal navigation_hint_requested()
 
 
 func _build_node_tree() -> void:
@@ -224,6 +226,7 @@ func _setup_input_actions() -> void:
 		"move_left": [KEY_A, KEY_LEFT],
 		"move_right": [KEY_D, KEY_RIGHT],
 		"interact": [KEY_E],
+		"navigate_hint": [KEY_H],
 	}
 	for action_name in bindings:
 		if not InputMap.has_action(action_name):
@@ -249,7 +252,7 @@ func _disable_other_cameras() -> void:
 
 
 func _verify_input_map() -> void:
-	var actions := ["move_forward", "move_backward", "move_left", "move_right", "interact"]
+	var actions := ["move_forward", "move_backward", "move_left", "move_right", "interact", "navigate_hint"]
 	for action in actions:
 		if not InputMap.has_action(action):
 			push_warning("PlayerController: Input action '%s' not found in InputMap" % action)
@@ -286,6 +289,10 @@ func _input(event: InputEvent) -> void:
 	# E-key interaction (only when not in dialogue)
 	if event.is_action_pressed("interact") and not _dialogue_active:
 		_try_interact()
+
+	# H-key navigation hint (only when not in dialogue and navigation not disabled)
+	if event.is_action_pressed("navigate_hint") and not _dialogue_active and not is_navigation_disabled:
+		navigation_hint_requested.emit()
 
 	# Dialogue mode: route E to dialogue_select
 	if _dialogue_active and event.is_action_pressed("interact"):
