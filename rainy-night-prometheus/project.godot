@@ -23,7 +23,6 @@ StateSystem="*res://gdscripts/state_system.gd"
 DialogueRunner="*res://gdscripts/dialogue_runner.gd"
 DialogueParser="*res://gdscripts/dialogue_parser.gd"
 SceneManager="*res://gdscripts/scene_manager.gd"
-SceneBase="*res://gdscripts/scene_base.gd"
 
 [editor_plugins]
 enabled=PackedStringArray()

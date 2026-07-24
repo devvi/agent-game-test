@@ -182,7 +182,7 @@ func test_tc06_autoload_dependencies() -> void:
 	print("--- TC-6: Autoload Script Dependencies ---")
 	var all_ok: bool = true
 
-	var autoload_names: Array[String] = ["StateSystem", "DialogueRunner", "DialogueParser", "SceneManager", "SceneBase"]
+	var autoload_names: Array[String] = ["StateSystem", "DialogueRunner", "DialogueParser", "SceneManager"]
 	for al_name in autoload_names:
 		var node = get_node_or_null("/root/" + al_name)
 		if node != null:
