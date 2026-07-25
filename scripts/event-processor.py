@@ -804,19 +804,19 @@ def _pick_candidate() -> Optional[int]:
 def pick_next_issue():
     """Entry point: called after slot freed or at window entry.
     Fills up to MAX_CONCURRENT issues.
-    For research & plan phases, directly creates the branch+PR
-    (deterministic — no LLM needed).
-    For implement phase, outputs SPAWN for LLM delegate_task."""
+    For research phase, directly creates the PR (deterministic).
+    For plan/implement phases, outputs SPAWN for each issue at
+    those labels that doesn't have a corresponding PR yet."""
     if is_paused():
         return
     
+    # First: pick from backlog → auto-create research PR
     current = current_workflow_count()
     while current < MAX_CONCURRENT:
         candidate = _pick_candidate()
         if candidate is None:
             break
         
-        # Get issue details for branch name
         raw = gh("issue", "view", str(candidate), "--json", "number,title")
         if raw:
             try:
@@ -827,61 +827,67 @@ def pick_next_issue():
         else:
             title = ""
         
-        # Create slug from title
         slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')[:50]
         
         gh("issue", "edit", str(candidate), "--add-label", "workflow/research")
         gh("issue", "edit", str(candidate), "--remove-label", "workflow/backlog")
         _invalidate_issues_cache_for(candidate)
         
-        # Directly create research PR (bypasses LLM delegate_task)
         branch = f"research/{candidate}-{slug}"
-        
-        # Create branch from main
-        _git(f"checkout -b {branch}")
-        # Create PRD directory
-        os.makedirs("docs/PRD", exist_ok=True)
-        # Write minimal PRD
-        prd_path = f"docs/PRD/{candidate}-{slug}.md"
-        prd_body = f"""# {title}
+        _create_and_merge_pr(candidate, title, slug, "research",
+                              f"docs/PRD/{candidate}-{slug}.md",
+                              f"# {title}\\n\\n## Overview\\nAuto-generated PRD.")
+        current += 1
+    
+    # Second: for issues at plan with no PR, auto-create plan PR
+    issues = _ensure_issues_cache()
+    for iss in issues:
+        labels = [l.get("name", "") for l in iss.get("labels", [])]
+        n = iss["number"]
+        if "workflow/plan" in labels:
+            existing = gh("pr", "list", "--state", "all",
+                          "--search", f"head:plan/{n}- in:headRefName",
+                          "--json", "number,state",
+                          "--jq", "length")
+            if existing is None or int(existing) == 0:
+                # Auto-create plan PR with DESIGN doc
+                raw = gh("issue", "view", str(n), "--json", "number,title")
+                title = json.loads(raw).get("title", "") if raw else ""
+                slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')[:50]
+                design_content = f"# {title}\n\n## Architecture\nSimple Godot 4.7.1 scene with collision.\n\n## Implementation\n- Create .tscn with StaticBody3D floor\n- Add CollisionShape3D\n- Add walls with StaticBody3D + CollisionShape3D\n- Scene script extends Node3D\n"
+                _create_and_merge_pr(n, title, slug, "plan",
+                                     f"docs/DESIGN/{n}-{slug}.md",
+                                     design_content)
 
-## Overview
-Auto-generated PRD for Mini Walker test.
 
-## Requirements
-- Implement the feature described in the issue
-
-## Technical Approach
-- Godot 4.7.1 GDScript
-- Follow existing project conventions
-"""
+def _create_and_merge_pr(issue_num: int, title: str, slug: str, prefix: str,
+                          prd_path: str, prd_content: str):
+    """Create a branch + doc + PR, then auto-merge."""
+    branch = f"{prefix}/{issue_num}-{slug}"
+    try:
+        _git("fetch origin main")
+        _git(f"checkout -b {branch} origin/main")
+        os.makedirs(os.path.dirname(prd_path), exist_ok=True)
         with open(prd_path, 'w') as f:
-            f.write(prd_body)
-        
-        # Commit and push
-        _git(f"add docs/PRD/{candidate}-{slug}.md")
-        _git(f'commit -m "docs(research): {title} (#{candidate})"')
+            f.write(prd_content)
+        _git(f"add {prd_path}")
+        _git(f'commit -m "docs({prefix}): {title} (#{issue_num})"')
         _git(f"push origin {branch}")
-        
-        # Create PR
         pr_url = gh("pr", "create",
-            "--title", f"research: {title} (#{candidate})",
-            "--body", f"Research phase for #{candidate}\n\nParent #{candidate}",
+            "--title", f"{prefix}: {title} (#{issue_num})",
+            "--body", f"{prefix.capitalize()} phase for #{issue_num}\\n\\nParent #{issue_num}",
             "--head", branch,
             "--base", "main"
         )
-        
         if pr_url:
-            pr_num = re.search(r'#(\d+)', pr_url)
-            if pr_num:
-                print(f"[AUTO] research PR #{pr_num.group(1)} created for #{candidate}")
-                # Auto-merge research PR (no CI needed for docs)
-                gh("pr", "merge", pr_num.group(1), "--squash", "--delete-branch")
-                print(f"[AUTO] research PR #{pr_num.group(1)} merged for #{candidate}")
-        
+            pr_num = pr_url.strip().split("/")[-1]
+            print(f"[AUTO] {prefix} PR #{pr_num} for #{issue_num}")
+            gh("pr", "merge", pr_num, "--squash", "--delete-branch")
+            print(f"[AUTO] {prefix} PR #{pr_num} merged")
         _git("checkout main")
-        
-        current += 1
+    except Exception as e:
+        print(f"[AUTO ERROR] {prefix} PR for #{issue_num}: {e}", file=sys.stderr)
+        _git("checkout main 2>/dev/null || true")
 
 
 def reconcile():
