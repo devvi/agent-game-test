@@ -840,6 +840,7 @@ def pick_next_issue():
         current += 1
     
     # Second: for issues at plan with no PR, auto-create plan PR
+    # For issues at implement with no PR, output SPAWN for LLM
     issues = _ensure_issues_cache()
     for iss in issues:
         labels = [l.get("name", "") for l in iss.get("labels", [])]
@@ -850,7 +851,6 @@ def pick_next_issue():
                           "--json", "number,state",
                           "--jq", "length")
             if existing is None or int(existing) == 0:
-                # Auto-create plan PR with DESIGN doc
                 raw = gh("issue", "view", str(n), "--json", "number,title")
                 title = json.loads(raw).get("title", "") if raw else ""
                 slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')[:50]
@@ -858,6 +858,13 @@ def pick_next_issue():
                 _create_and_merge_pr(n, title, slug, "plan",
                                      f"docs/DESIGN/{n}-{slug}.md",
                                      design_content)
+        elif "workflow/implement" in labels:
+            existing = gh("pr", "list", "--state", "all",
+                          "--search", f"head:impl/{n}- in:headRefName",
+                          "--json", "number,state",
+                          "--jq", "length")
+            if existing is None or int(existing) == 0:
+                print(f"SPAWN: implement,issue={n},label=workflow/implement")
 
 
 def _create_and_merge_pr(issue_num: int, title: str, slug: str, prefix: str,
