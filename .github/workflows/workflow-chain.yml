@@ -20,7 +20,7 @@ jobs:
             const pr = context.payload.pull_request;
             const prLabels = pr.labels.map(l => l.name);
 
-            const workflowLabels = ['workflow/research', 'workflow/plan', 'workflow/implement', 'workflow/test'];
+            const workflowLabels = ['workflow/research', 'workflow/plan', 'workflow/implement'];
             let activeLabel = workflowLabels.find(l => prLabels.includes(l));
             if (!activeLabel) {
               const branch = pr.head.ref;
@@ -61,8 +61,7 @@ jobs:
             const nextStage = {
               'workflow/research':  'workflow/plan',
               'workflow/plan':      'workflow/implement',
-              'workflow/implement': 'workflow/test',
-              'workflow/test':      'status/done',
+              'workflow/implement': 'status/done',
               'status/done':        null,
             };
 

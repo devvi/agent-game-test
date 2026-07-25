@@ -1,33 +1,19 @@
-# Godot
-.godot/
-*.import
-*.godot.meta
+# OS
+.DS_Store
+Thumbs.db
 
-# Build exports
-export/
-exports/
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Hermes
+.hermes/tmp/
+.hermes/scripts/__pycache__/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-
-# Python
-__pycache__/
-*.pyc
-
-# Godot auto-generated
-*.uid
-
-# Env
-.env
-.env*

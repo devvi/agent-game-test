@@ -14,6 +14,7 @@ concurrency:
 jobs:
   test-and-report:
     if: startsWith(github.event.pull_request.head.ref, 'impl/')
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,10 +32,25 @@ jobs:
       - name: Verify Godot
         run: godot --version
 
+      - name: Pre-flight compile check
+        id: compile
+        run: |
+          exit_code=0
+          for script in $(find gdscripts/ tests/ -name '*.gd' 2>/dev/null); do
+            output=$(godot --headless --check-only "$script" 2>&1) || true
+            if echo "$output" | grep -q "SCRIPT ERROR"; then
+              echo "❌ COMPILE ERROR: $script"
+              echo "$output" | grep "SCRIPT ERROR"
+              exit_code=1
+            fi
+          done
+          echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
+        continue-on-error: true
+
       - name: Run GDScript tests
         id: test
         run: |
-          godot --headless --script tests/run_tests.gd 2>&1 | tee test-output.log
+          godot --headless --script tests/run_tests.gd > test-output.log 2>&1
           echo "exit_code=$?" >> $GITHUB_OUTPUT
         continue-on-error: true
 
@@ -53,7 +69,7 @@ jobs:
         continue-on-error: true
 
       - name: Test gate — block merge on failure
-        if: steps.test.outputs.exit_code != '0' || steps.smoke.outputs.exit_code != '0' || steps.rnp.outputs.exit_code != '0'
+        if: steps.compile.outputs.exit_code != '0' || steps.test.outputs.exit_code != '0' || steps.smoke.outputs.exit_code != '0' || steps.rnp.outputs.exit_code != '0'
         run: |
           echo "❌ Tests FAILED (unit exit: ${{ steps.test.outputs.exit_code }}, smoke exit: ${{ steps.smoke.outputs.exit_code }}, RNP scaffold exit: ${{ steps.rnp.outputs.exit_code }}). Blocking merge."
           exit 1

@@ -142,8 +142,20 @@ def _time_in_window(cfg: dict) -> bool:
 
 
 def is_paused() -> bool:
-    """Check if workflow is paused via pause file."""
-    return os.path.exists(os.path.expanduser("~/.hermes/workflow-pause"))
+    """Check if workflow is paused via pause file OR workflow-config.json."""
+    # Check pause file first (fastest)
+    if os.path.exists(os.path.expanduser("~/.hermes/workflow-pause")):
+        return True
+    # Fall back to workflow-config.json (written by /workflow pause)
+    try:
+        cfg_path = os.path.expanduser("~/.hermes/workflow-config.json")
+        if os.path.exists(cfg_path):
+            with open(cfg_path) as f:
+                cfg = json.load(f)
+            return not cfg.get("enabled", True)
+    except Exception:
+        pass
+    return False
 
 
 def should_process_event(event_type: str, label: str = "") -> bool:
@@ -657,11 +669,13 @@ WORKFLOW_LABELS = set(ACTIVE_STAGE_LABELS + ["workflow/available", "workflow/bac
 
 
 def current_workflow_count() -> int:
-    """Count how many issues are currently in active stages (from cache)."""
+    """Count how many issues are currently in active stages (from cache).
+    Excludes lock-mbot issues (already have dedicated agents)."""
     issues = _ensure_issues_cache()
     return sum(
         1 for iss in issues
         if any(l.get("name", "") in ACTIVE_STAGE_LABELS for l in iss.get("labels", []))
+        and "workflow/lock-mbot" not in [l.get("name", "") for l in iss.get("labels", [])]
     )
 
 

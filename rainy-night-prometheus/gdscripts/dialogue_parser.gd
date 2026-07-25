@@ -1,1 +1,0 @@
-../../gdscripts/dialogue_parser.gd

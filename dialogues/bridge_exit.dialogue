@@ -1,6 +1,0 @@
-using StateSystem
-
-~ bridge_exit_prompt
-Narrator: The bridge ends at a tunnel entrance.\nGraffiti covers the concrete walls.\nA single light flickers inside.
-- Enter the underpass.
-	=> END

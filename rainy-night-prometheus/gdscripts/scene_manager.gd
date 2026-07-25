@@ -1,1 +1,0 @@
-../../gdscripts/scene_manager.gd
