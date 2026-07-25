@@ -916,14 +916,14 @@ def _create_impl_pr(issue_num: int, title: str, slug: str):
 
 
 # Minimal 3D scene with floor + walls
-_MINIMI_SCENE_SCRIPT = """extends Node3D
+_MINI_SCENE_SCRIPT = """extends Node3D
 
 func _ready() -> void:
 \tprint("Mini World loaded")
 """
 
 
-_MINIMI_SCENE_TSNC = """[gd_scene load_steps=2 format=3]
+_MINI_SCENE_TSCN = """[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="{SCRIPT_PATH}" id="1"]
 
