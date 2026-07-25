@@ -74,13 +74,22 @@ def _ensure_issues_cache(force_refresh=False) -> list:
 
 
 def _invalidate_issues_cache_for(issue_num: int):
-    """Remove an issue from the cache after a label edit.
-    Prevents _pick_candidate() from re-picking the same issue
-    within the same tick."""
+    """Update the issue's label in cache after advancement.
+    Does NOT remove the issue — dependency checks need it.
+    Prevents _pick_candidate() from re-picking by ensuring
+    it no longer has workflow/backlog label."""
     cached = _ISSUES_CACHE.get("issues")
     if cached is None:
         return
-    _ISSUES_CACHE["issues"] = [i for i in cached if i.get("number") != issue_num]
+    for iss in cached:
+        if iss.get("number") == issue_num:
+            # Update labels in-place so dependency checks still find this issue
+            labels = iss.get("labels", [])
+            # Remove workflow/backlog, add workflow/research
+            labels = [l for l in labels if l.get("name") != "workflow/backlog"]
+            labels.append({"name": "workflow/research"})
+            iss["labels"] = labels
+            break
 
 
 PENDING_FILE = os.environ.get("EVENT_PROCESSOR_PENDING_FILE") or os.path.expanduser("~/.hermes/workflow-pending.json")
