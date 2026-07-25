@@ -18,6 +18,15 @@ static func load_dialogue(file_path: String) -> Dictionary:
 		return { "ok": false, "error": "Failed to open file: " + file_path }
 	var json_str := file.get_as_text()
 	file.close()
+	# Strip godot_dialogue_manager header lines (e.g. "using StateSystem")
+	# before passing to JSON parser
+	var lines := json_str.split("\n")
+	var clean_lines: Array[String] = []
+	for line in lines:
+		if line.begins_with("using ") or line.begins_with("#"):
+			continue
+		clean_lines.append(line)
+	json_str = "\n".join(clean_lines)
 	return parse_json_string(json_str)
 
 
