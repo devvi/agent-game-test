@@ -57,7 +57,7 @@ def _ensure_issues_cache(force_refresh=False) -> list:
         return cached
     raw = gh(
         "issue", "list", "--state", "open",
-        "--json", "number,labels,title",
+        "--json", "number,labels,title,body",
         "--limit", "100",
     )
     if not raw:
@@ -425,10 +425,15 @@ def check_dependency_resolved(dep: dict) -> bool:
 
 def _has_unresolved_dependencies(issue_num: int) -> list[dict]:
     """Check if an issue has unresolved dependencies.
-    Uses cached issue labels instead of gh API calls.
+    Uses cached issue data (body + labels) instead of gh API calls.
     Returns list of unresolved deps, or empty list if none.
     """
-    body = get_issue_body(issue_num)
+    issues = _ensure_issues_cache()
+    issue_map = {i["number"]: i for i in issues}
+    cached = issue_map.get(issue_num)
+    if not cached:
+        return []
+    body = cached.get("body", "")
     if not body:
         return []
     deps = parse_dependencies(body)
@@ -442,32 +447,25 @@ def _has_unresolved_dependencies(issue_num: int) -> list[dict]:
         dep_num = dep["issue"]
         dep_type = dep.get("type", "full")
         cached = issue_map.get(dep_num)
-        if cached is None:
-            # Not in cache — check via API
-            raw = gh("issue", "view", str(dep_num), "--json", "state,labels")
-            if not raw:
-                unresolved.append(dep)
-                continue
-            try:
-                data = json.loads(raw)
-            except:
-                unresolved.append(dep)
-                continue
-        else:
-            data = cached
         
-        # Closed issue = always resolved
-        if data.get("state", "").lower() == "closed":
-            continue
-        # design dependency: plan stage or beyond = resolved
-        if dep_type == "design":
-            dep_labels = [l.get("name","") for l in data.get("labels",[])]
-            if any(l.startswith("workflow/plan") or l.startswith("workflow/implement") or l == "status/done" for l in dep_labels):
-                continue
-        # full dependency: done label = resolved
-        dep_labels = [l.get("name","") for l in data.get("labels",[])]
+        # If dependency issue is NOT in the open-issues cache, it must be
+        # CLOSED — only open issues are returned by --state open.
+        if cached is None:
+            continue  # closed = resolved
+        
+        # Got cached data — check labels
+        dep_labels = [l.get("name","") for l in cached.get("labels",[])]
+        
+        # status/done = resolved
         if "status/done" in dep_labels:
             continue
+        
+        # design dependency: plan/implement stages = resolved
+        if dep_type == "design":
+            if any(l.startswith("workflow/plan") or l.startswith("workflow/implement") for l in dep_labels):
+                continue
+        
+        # Not resolved yet
         unresolved.append(dep)
     return unresolved
 
