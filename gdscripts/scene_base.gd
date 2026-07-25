@@ -22,6 +22,7 @@ func _ready() -> void:
 	_instantiate_player()
 	_configure_environmental_text()
 	_configure_ambient_audio()
+	_configure_bgm()
 	_connect_state_signals()
 
 
@@ -39,6 +40,14 @@ func _configure_ambient_audio() -> void:
 	var am := get_node_or_null("/root/AudioManager")
 	if am and am.has_method("register_scene"):
 		am.register_scene(scene_id)
+
+
+## Override in subclass: configure per-scene BGM parameters.
+## Called from _ready() after _configure_ambient_audio().
+func _configure_bgm() -> void:
+	var am := get_node_or_null("/root/AudioManager")
+	if am and am.has_method("_update_bgm_bed"):
+		am._update_bgm_bed(scene_id)
 
 
 ## Connect to scene_text_changed signal for dynamic text updates (Issue #154).

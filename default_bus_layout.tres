@@ -21,6 +21,32 @@ cutoff_hz = 2000.0
 resonance = 0.0
 gain_db = 0.0
 
+[sub_resource type="AudioEffectLowPassFilter" id=5]
+cutoff_hz = 3000.0
+resonance = 0.0
+gain_db = 0.0
+bypass = true
+
+[sub_resource type="AudioEffectReverb" id=6]
+room_size = 0.5
+damping = 0.4
+wet = 0.3
+dry = 0.7
+predelay_msec = 50.0
+bypass = true
+
+[sub_resource type="AudioEffectDelay" id=7]
+delay = 0.15
+feedback = 0.3
+mix = 0.5
+bypass = true
+
+[sub_resource type="AudioEffectPhaser" id=8]
+rate_hz = 0.8
+depth = 0.6
+mix = 0.5
+bypass = true
+
 [resource]
 bus/0/name = "Master"
 bus/0/solo = false
@@ -55,3 +81,25 @@ bus/4/bypass_fx = false
 bus/4/volume_db = 0.0
 bus/4/effect/0 = SubResource(3)
 bus/4/effect/1 = SubResource(4)
+
+bus/5/name = "MusicBus"
+bus/5/solo = false
+bus/5/mute = false
+bus/5/bypass_fx = false
+bus/5/volume_db = 0.0
+
+bus/6/name = "HallucinationFXBus"
+bus/6/solo = false
+bus/6/mute = false
+bus/6/bypass_fx = false
+bus/6/volume_db = 0.0
+bus/6/effect/0 = SubResource(5)
+bus/6/effect/1 = SubResource(6)
+bus/6/effect/2 = SubResource(7)
+bus/6/effect/3 = SubResource(8)
+
+bus/7/name = "CinemaBus"
+bus/7/solo = false
+bus/7/mute = false
+bus/7/bypass_fx = false
+bus/7/volume_db = 0.0

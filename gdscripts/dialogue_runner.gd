@@ -216,7 +216,15 @@ func _apply_effects(effects: Array) -> void:
 				if gm.has_method("set_flag"):
 					gm.set_flag(effect.get("flag", ""), bool(effect.get("value", true)))
 			"trigger_event":
-				push_warning("trigger_event not yet implemented: %s" % effect.get("event", ""))
+				var event_name: String = effect.get("event", "")
+				if event_name == "ending_music":
+					var ending_id: String = effect.get("ending_id", "")
+					if not ending_id.is_empty():
+						var am := get_node_or_null("/root/AudioManager")
+						if am and am.has_method("set_ending_music"):
+							am.set_ending_music(ending_id)
+				else:
+					push_warning("Unknown trigger_event: %s" % event_name)
 			"advance_clock":
 				push_warning("advance_clock not yet implemented")
 			"play_sound":

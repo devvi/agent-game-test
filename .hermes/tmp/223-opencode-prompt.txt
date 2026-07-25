@@ -1,0 +1,173 @@
+Implement the Mysterious Stranger NPC Framework (#223) for this Godot 4.7.1 game.
+
+## Context: Codebase patterns
+- Scene scripts extend `SceneBase` and use `@onready` vars for nodes, `scene_id = "..."`, `super._ready()`
+- Dialogue uses godot_dialogue_manager `.dialogue` format with `using StateSystem` header
+- DialogueParser.load_dialogue(path) strips "using" and "#" header lines, then parses rest as JSON
+  - If content is NOT JSON after stripping headers, parse fails — so NEW .dialogue files MUST be JSON
+- `start_dialogue()` is from SceneBase, calls _show_dialogue_balloon()
+- NarrativeManager is an autoload at /root/NarrativeManager
+- SceneBase is at gdscripts/scene_base.gd
+
+## Files to CREATE (3 files):
+
+### 1. New: dialogues/store_stranger.dialogue
+JSON-format dialogue file (MUST be valid JSON after stripping "using StateSystem" header):
+```
+using StateSystem
+{
+  "entry_node_id": "stranger_store_entry",
+  "nodes": {
+    "stranger_store_entry": {
+      "speaker": "Narrator",
+      "text": "A face in the glass.\nNot your own.",
+      "choices": [
+        {"text": "Look closer.", "effects": [{"type": "set_flag", "flag": "store_stranger_seen", "value": true}], "next_node": "stranger_store_low"}
+      ]
+    },
+    "stranger_store_low": {
+      "speaker": "Stranger",
+      "text": "You see me\neverywhere now.\n(Low hallucination)",
+      "choices": [
+        {"text": "(Move on)", "next_node": "END"}
+      ]
+    },
+    "stranger_store_mid": {
+      "speaker": "Stranger",
+      "text": "The reflection\nwinks at you.\n(Mid hallucination)",
+      "choices": [
+        {"text": "(Move on)", "next_node": "END"}
+      ]
+    },
+    "stranger_store_high": {
+      "speaker": "Stranger",
+      "text": "The glass shows\nyour own face.\n(High hallucination)",
+      "choices": [
+        {"text": "(Move on)", "next_node": "END"}
+      ]
+    }
+  }
+}
+```
+Important: node IDs MUST be exactly "stranger_store_low", "stranger_store_mid", "stranger_store_high" — the test checks these names.
+The entry node MUST show a choice that leads to stranger_store_low, and ALL THREE variant nodes must exist and have the `store_stranger_seen` flag set in their effects chain.
+
+### 2. New: dialogues/bridge_stranger.dialogue
+Same JSON format. Nodes: "stranger_bridge_entry" → leads to "stranger_bridge_low", "stranger_bridge_mid", "stranger_bridge_high".
+All three variant nodes set `bridge_stranger_encountered` flag. Entry choices should have hallucination-level-like conditions.
+
+Example structure:
+```
+using StateSystem
+{
+  "entry_node_id": "stranger_bridge_entry",
+  "nodes": {
+    "stranger_bridge_entry": {
+      "speaker": "Narrator",
+      "text": "A figure at the railing.\nThey turn.\nYou can't see their face.",
+      "choices": [
+        {"text": "Call out.", "effects": [{"type": "set_flag", "flag": "bridge_stranger_encountered", "value": true}], "next_node": "stranger_bridge_low"}
+      ]
+    },
+    "stranger_bridge_low": {
+      "speaker": "Stranger",
+      "text": "The rain is loud.\nYou almost didn't\nhear me.",
+      "choices": [{"text": "(Continue)", "next_node": "END"}]
+    },
+    "stranger_bridge_mid": {
+      "speaker": "Stranger",
+      "text": "The rain blurs\nmy face. You\nknow it anyway.",
+      "choices": [{"text": "(Continue)", "next_node": "END"}]
+    },
+    "stranger_bridge_high": {
+      "speaker": "Stranger",
+      "text": "There is no rain.\nThere never was.\nOnly your reflection.",
+      "choices": [{"text": "(Continue)", "next_node": "END"}]
+    }
+  }
+}
+```
+
+### 3. New: tests/test_stranger_full_scene.gd
+This file ALREADY EXISTS and is complete. Do NOT modify it. Just ensure your implementation satisfies its tests.
+
+## Files to MODIFY (script files):
+
+### Modify: gdscripts/narrative_manager.gd
+ADD the following 3 NEW methods (do NOT modify existing methods):
+
+1. `static func get_hallucination_variant(scene_id: String, base_count: int = 3) -> int:`
+   - Uses HALLUCINATION_BASE_LEVELS to look up the scene's base hallucination level
+   - Returns 0 if base level is 0-3 (low hallucination)
+   - Returns 1 if base level is 4-6 (mid hallucination)
+   - Returns 2 if base level is 7-10 (high hallucination)
+   - The second parameter `base_count` is ignored — the method always uses HALLUCINATION_BASE_LEVELS
+   - Must be `static` because the test calls it without instantiation
+
+2. `static func get_stranger_decal_color(hallucination_level: int) -> Color:`
+   - Maps level (0-10) to a Color using a 5-index gradient:
+     - index 0 (level 0-1): Color(0.5, 0.7, 1.0, 0.3) — blue-tinted, faint
+     - index 1 (level 2-3): Color(0.3, 0.8, 1.0, 0.4) — cyan
+     - index 2 (level 4-5): Color(1.0, 1.0, 1.0, 0.5) — white
+     - index 3 (level 6-7): Color(1.0, 0.7, 0.3, 0.5) — orange
+     - index 4 (level 8-10): Color(1.0, 0.2, 0.2, 0.6) — red-tinted
+   - Use `clampi(hallucination_level / 2, 0, 4)` for the index
+   - Must handle out-of-bounds (negative, >10) gracefully via clampi
+   - Must be static
+
+3. `func get_scene_stranger_flags(scene_id: String) -> Dictionary:`
+   - Returns a Dictionary with all Stranger-related flags for the given scene
+   - Access flags via `_game_manager` or `_state_system`
+   - Return format: {flag_name: bool_value}
+   - NOT static — may need _game_manager reference
+   - If no game_manager available, return empty Dictionary (no crash)
+
+### Modify: gdscripts/office.gd
+ADD to _ready():
+- After `super._ready()`, set flag: `nm.set_flag("stranger_office_glimpsed", true)` if NarrativeManager available
+- You'll need to get NarrativeManager: `var nm := get_node_or_null("/root/NarrativeManager")`
+
+### Modify: gdscripts/store.gd
+ADD to _ready():
+- Connect a new interaction trigger for store stranger reflection
+- On interaction, call start_dialogue("res://dialogues/store_stranger.dialogue", "store_stranger")
+
+### Modify: gdscripts/bridge.gd
+ADD to _ready():
+- Connect a new interaction trigger for bridge stranger figure
+- On interaction, call start_dialogue("res://dialogues/bridge_stranger.dialogue", "bridge_stranger")
+
+### Modify: gdscripts/lobby.gd
+ADD to _configure_environmental_text():
+- After setting existing text, add a hallucination variant for stranger_spotlight:
+  `stranger_spotlight.text += "\n⌈The air shifts around them.⌋"` for high hallucination states
+
+### Modify: gdscripts/subway_station.gd
+ADD to _set_ending_text():
+- After setting the ending text, check if `stranger_revealed` flag is set via GameManager
+- If so, add meta text to stranger_final_text
+
+## Scene files (.tscn):
+Do NOT modify .tscn files — these are binary scene files and cannot be reliably edited by OpenCode. The implementation will work via gdscript alone. The scene-based elements (Area3D triggers, Decal nodes) are handled at runtime by the script modifications.
+
+## Important test requirements (from tests/test_stranger_full_scene.gd):
+- TC15: NarrativeManager must instantiate and have `set_flag` method
+- TC16: store_stranger.dialogue must load via DialogueParser with nodes: stranger_store_low, stranger_store_mid, stranger_store_high, each setting store_stranger_seen flag
+- TC17: bridge_stranger.dialogue must load via DialogueParser with nodes: stranger_bridge_low, stranger_bridge_mid, stranger_bridge_high, each setting bridge_stranger_encountered flag
+- TC18: get_hallucination_variant("office", 3) → 0; get_hallucination_variant("bridge", 3) → 1; get_hallucination_variant("underpass", 3) → 2
+- TC19: get_stranger_decal_color(0) → blue tint; level 4 → white; level 10 → red tint; opacity increases
+- TC20: Color changes at boundaries, handles out-of-bounds gracefully
+- TC21: get_hallucination_variant for all 6 scenes returns expected values
+- TC22: Color gradient blue→white→red, opacity increases
+- TC23: get_scene_stranger_flags returns a Dictionary, doesn't crash
+- TC24: lobby_stranger.dialogue loads and has ALL original nodes plus new "stranger_greet_high" node
+- TC25: Hemingway constraints (≤35 chars per sentence)
+
+## Specific implementation notes:
+- All new methods in NarrativeManager.gd that are TESTED as static MUST be declared static
+- The test calls `NarrativeManagerScript.get_hallucination_variant(...)` — so it must be static
+- The test calls `NarrativeManagerScript.get_stranger_decal_color(...)` — so it must be static
+- The test calls `nm.get_scene_stranger_flags(...)` — NOT static, called on an instance
+- The test calls `nm.has_method("set_flag")` — set_flag already exists on NarrativeManager
+- For lobby_stranger.dialogue, the test TC24 checks node "stranger_greet_high" exists — this is a NEW node that must be ADDED to the existing lobby_stranger.dialogue file
+- Do NOT run `git commit`, `git push`, or any git operations. Just modify the files.

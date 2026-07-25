@@ -23,6 +23,7 @@ enum NPCState {
 signal npc_interacted(npc_id: String)
 signal dialogue_completed(npc_id: String)
 signal npc_state_changed(state: int)
+signal npc_dialogue_started(npc_id: String)  # Player enters proximity + NPC is IDLE
 
 var current_state: int = NPCState.IDLE
 var active_layer: Dictionary = {}
@@ -90,6 +91,8 @@ func _on_body_entered(body: Node) -> void:
 	if body.is_in_group("player"):
 		_player_nearby = true
 		update_label_visibility()
+		if current_state == NPCState.IDLE:
+			npc_dialogue_started.emit(name)
 
 
 func _on_body_exited(body: Node) -> void:
