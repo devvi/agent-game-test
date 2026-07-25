@@ -1,0 +1,34 @@
+using StateSystem
+{
+  "entry_node_id": "stranger_store_entry",
+  "nodes": {
+    "stranger_store_entry": {
+      "speaker": "Narrator",
+      "text": "A face in the glass.\nNot your own.",
+      "choices": [
+        {"text": "Look closer.", "effects": [{"type": "set_flag", "flag": "store_stranger_seen", "value": true}], "next_node": "stranger_store_low"}
+      ]
+    },
+    "stranger_store_low": {
+      "speaker": "Stranger",
+      "text": "You see me\neverywhere now.\n(Low hallucination)",
+      "choices": [
+        {"text": "(Move on)", "effects": [{"type": "set_flag", "flag": "store_stranger_seen", "value": true}], "next_node": "END"}
+      ]
+    },
+    "stranger_store_mid": {
+      "speaker": "Stranger",
+      "text": "The reflection\nwinks at you.\n(Mid hallucination)",
+      "choices": [
+        {"text": "(Move on)", "effects": [{"type": "set_flag", "flag": "store_stranger_seen", "value": true}], "next_node": "END"}
+      ]
+    },
+    "stranger_store_high": {
+      "speaker": "Stranger",
+      "text": "The glass shows\nyour own face.\n(High hallucination)",
+      "choices": [
+        {"text": "(Move on)", "effects": [{"type": "set_flag", "flag": "store_stranger_seen", "value": true}], "next_node": "END"}
+      ]
+    }
+  }
+}

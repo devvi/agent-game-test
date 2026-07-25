@@ -16,6 +16,11 @@ func _ready() -> void:
 	if exit_trigger:
 		exit_trigger.input_event.connect(_on_exit_trigger_input)
 
+	# Store stranger reflection trigger (Issue #223)
+	var stranger_reflection_trigger := get_node_or_null("InteractionZones/StrangerReflectionTrigger")
+	if stranger_reflection_trigger:
+		stranger_reflection_trigger.input_event.connect(_on_stranger_reflection_input)
+
 
 func _configure_ambient_audio() -> void:
 	var am := get_node_or_null("/root/AudioManager")
@@ -56,6 +61,11 @@ func _set_open_sign_text(tone: String) -> void:
 func _on_exit_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		_show_dialogue_balloon("res://dialogues/store_exit.dialogue", "store_exit")
+
+
+func _on_stranger_reflection_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		start_dialogue("res://dialogues/store_stranger.dialogue", "store_stranger")
 
 
 func _restore_dialogue_state() -> void:

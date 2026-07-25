@@ -26,6 +26,11 @@ func _ready() -> void:
 	# Check for low-conviction intrusive thought
 	call_deferred("_check_intrusive_thought")
 
+	# Bridge stranger figure trigger (Issue #223)
+	var stranger_trigger := get_node_or_null("InteractionZones/BridgeStrangerTrigger")
+	if stranger_trigger:
+		stranger_trigger.input_event.connect(_on_bridge_stranger_input)
+
 
 func _configure_ambient_audio() -> void:
 	var am := get_node_or_null("/root/AudioManager")
@@ -105,3 +110,8 @@ func _on_homeless_trigger_input(camera: Node, event: InputEvent, position: Vecto
 func _on_exit_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		start_dialogue("res://dialogues/bridge_exit.dialogue", "bridge_exit")
+
+
+func _on_bridge_stranger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		start_dialogue("res://dialogues/bridge_stranger.dialogue", "bridge_stranger")

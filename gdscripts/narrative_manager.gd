@@ -311,6 +311,57 @@ func _generate_flashback_text(scene_id: String) -> String:
 			return "A memory surfaces. / The details blur at the edges."
 
 
+# ===== Stranger NPC Framework (Issue #223) =====
+
+## Get hallucination variant index for a scene (0=low, 1=mid, 2=high).
+## Maps HALLUCINATION_BASE_LEVELS to a 3-tier variant:
+##   base_level 0-3 → 0 (low)
+##   base_level 4-6 → 1 (mid)
+##   base_level 7-10 → 2 (high)
+static func get_hallucination_variant(scene_id: String, base_count: int = 3) -> int:
+	var base_level: int = HALLUCINATION_BASE_LEVELS.get(scene_id, 0)
+	if base_level <= 3:
+		return 0
+	elif base_level <= 6:
+		return 1
+	else:
+		return 2
+
+
+## Get decal color for a given hallucination level (0-10).
+## Uses a 5-index gradient: blue → cyan → white → orange → red.
+static func get_stranger_decal_color(hallucination_level: int) -> Color:
+	var idx := clampi(hallucination_level / 2, 0, 4)
+	var gradient: Array[Color] = [
+		Color(0.5, 0.7, 1.0, 0.3),
+		Color(0.3, 0.8, 1.0, 0.4),
+		Color(1.0, 1.0, 1.0, 0.5),
+		Color(1.0, 0.7, 0.3, 0.5),
+		Color(1.0, 0.2, 0.2, 0.6)
+	]
+	return gradient[idx]
+
+
+## Get all Stranger-related flags for a given scene.
+## Returns a Dictionary of {flag_name: bool_value}.
+## NOT static — needs _game_manager reference.
+func get_scene_stranger_flags(scene_id: String) -> Dictionary:
+	if not _game_manager or not _game_manager.has_method("get_flag"):
+		return {}
+	var result: Dictionary = {}
+	var known_flags: Array[String] = [
+		"store_stranger_seen",
+		"bridge_stranger_encountered",
+		"stranger_office_glimpsed",
+		"stranger_revealed",
+		"stranger_hinted_meta",
+		"met_stranger"
+	]
+	for flag in known_flags:
+		result[flag] = _game_manager.get_flag(flag)
+	return result
+
+
 # ===== B1 Constraint Runtime Tracking (Issue #214) =====
 
 ## Register a dialogue node for B1 tracking in a specific scene.

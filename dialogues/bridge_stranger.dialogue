@@ -1,0 +1,34 @@
+using StateSystem
+{
+  "entry_node_id": "stranger_bridge_entry",
+  "nodes": {
+    "stranger_bridge_entry": {
+      "speaker": "Narrator",
+      "text": "A figure at the railing.\nThey turn.\nYou can't see their face.",
+      "choices": [
+        {"text": "Call out.", "effects": [{"type": "set_flag", "flag": "bridge_stranger_encountered", "value": true}], "next_node": "stranger_bridge_low"}
+      ]
+    },
+    "stranger_bridge_low": {
+      "speaker": "Stranger",
+      "text": "The rain is loud.\nYou almost didn't\nhear me.",
+      "choices": [
+        {"text": "(Continue)", "effects": [{"type": "set_flag", "flag": "bridge_stranger_encountered", "value": true}], "next_node": "END"}
+      ]
+    },
+    "stranger_bridge_mid": {
+      "speaker": "Stranger",
+      "text": "The rain blurs\nmy face. You\nknow it anyway.",
+      "choices": [
+        {"text": "(Continue)", "effects": [{"type": "set_flag", "flag": "bridge_stranger_encountered", "value": true}], "next_node": "END"}
+      ]
+    },
+    "stranger_bridge_high": {
+      "speaker": "Stranger",
+      "text": "There is no rain.\nThere never was.\nOnly your reflection.",
+      "choices": [
+        {"text": "(Continue)", "effects": [{"type": "set_flag", "flag": "bridge_stranger_encountered", "value": true}], "next_node": "END"}
+      ]
+    }
+  }
+}

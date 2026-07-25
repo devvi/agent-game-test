@@ -183,6 +183,12 @@ func _init() -> void:
 	passed += _interactive_area_tests.passed
 	failed += _interactive_area_tests.failed
 
+	# --- Stranger Full-Scene Framework Tests (Issue #223) ---
+	var _stranger_full_scene = load("res://tests/test_stranger_full_scene.gd").new()
+	_stranger_full_scene.run()
+	passed += _stranger_full_scene.passed
+	failed += _stranger_full_scene.failed
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)

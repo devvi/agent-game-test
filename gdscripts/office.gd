@@ -23,6 +23,11 @@ func _ready() -> void:
 		if not ekey.e_key_interacted.is_connected(_start_door_dialogue):
 			ekey.e_key_interacted.connect(_start_door_dialogue)
 
+	# Stranger office window glimpsed (Issue #223)
+	var nm := get_node_or_null("/root/NarrativeManager")
+	if nm:
+		nm.set_flag("stranger_office_glimpsed", true)
+
 
 func _configure_ambient_audio() -> void:
 	var am := get_node_or_null("/root/AudioManager")

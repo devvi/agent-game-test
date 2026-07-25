@@ -33,6 +33,13 @@ func _configure_environmental_text() -> void:
 	var tone: String = _get_tone_for_scene(scene_id)
 	_set_environment_text(tone)
 
+	# High hallucination variant for stranger spotlight (Issue #223)
+	var nm := get_node_or_null("/root/NarrativeManager")
+	if nm and nm.has_method("get_hallucination_variant"):
+		var variant := nm.get_hallucination_variant(scene_id, 3)
+		if variant >= 2 and stranger_spotlight:
+			stranger_spotlight.text += "\n⌈The air shifts around them.⌋"
+
 
 ## Handle dynamic tone updates from NarrativeManager (Issue #154).
 func _on_narrative_tone_changed(scene_id_emitted: String, tone: String) -> void:

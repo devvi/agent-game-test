@@ -1,68 +1,83 @@
 using StateSystem
-
-~ stranger_greet
-Stranger: 又一个加班的？
-- 「你也是？」
-	do StateSystem.apply_choice({"hope_despair": 1, "conviction": 0.5})
-	=> stranger_talk
-- （沉默离开）
-	do StateSystem.apply_choice({"hope_despair": -1, "conviction": -0.5})
-	=> stranger_leave
-
-~ stranger_talk
-Stranger: 这条路我走过很多次。\n今晚似乎不太一样。
-- 「我认识你吗？」 [if StateSystem.hope_despair >= 2]
-	do StateSystem.apply_choice({"hope_despair": 1, "conviction": 1.0})
-	=> stranger_dejavu
-- 「也许吧。」
-	=> stranger_continue
-
-~ stranger_dejavu
-Stranger: 也许你见过我。\n也许没有。\n也许两者都是镜中的倒影。
-- 「我好像认识你。」 [if StateSystem.hope_despair >= 4]
-	=> stranger_high_hope
-- 「你是谁？」 [if StateSystem.hope_despair <= -2]
-	=> stranger_low_conviction
-- 「我们真的见过吗？」 [if StateSystem.hope_despair >= 2 and StateSystem.hope_despair >= 2]
-	=> stranger_dejavu_deep
-- 「我们真的见过。」 [if StateSystem.hope_despair >= 2 and StateSystem.hope_despair >= 2]
-	do StateSystem.apply_choice({"hope_despair": 1, "conviction": 0.5})
-	=> stranger_dejavu_dialogue
-- （继续走向出口）
-	=> stranger_continue
-
-~ stranger_dejavu_dialogue
-Stranger: 也许我们真的见过。\n在另一个夜晚。\n在某个终止的梦里。
-- 「也许吧。」
-	do StateSystem.apply_choice({"hope_despair": 2, "conviction": 1.0})
-	=> stranger_continue
-
-~ stranger_continue
-Narrator: You walk past toward the exit.\nThe encounter lingers like a reflection.\nYou're not sure which side is real.
-- (Continue to the store)
-	do StateSystem.set_flag("met_stranger", true)
-	=> END
-
-~ stranger_leave
-Narrator: You walk past without a word.\nThe figure shifts in dim light.\nA version of you, perhaps.
-- (Continue to the store)
-	do StateSystem.set_flag("met_stranger", true)
-	=> END
-
-~ stranger_high_hope
-Stranger: 你在办公室时\n可不是这样。\n那时候你更有希望。
-- (Continue to the store)
-	do StateSystem.set_flag("lobby_hope_high", true)
-	=> stranger_continue
-
-~ stranger_low_conviction
-Stranger: 你不确定的事\n太多了。\n从一开始就是。
-- (Continue to the store)
-	do StateSystem.set_flag("lobby_low_conviction", true)
-	=> stranger_continue
-
-~ stranger_dejavu_deep
-Stranger: 也许你还没明白。\n⌈但我告诉过你。⌋
-- 「明白什么？」
-	do StateSystem.set_flag("stranger_hinted_meta", true)
-	=> stranger_continue
+{
+  "entry_node_id": "stranger_greet",
+  "nodes": {
+    "stranger_greet": {
+      "speaker": "Stranger",
+      "text": "又一个加班的？",
+      "choices": [
+        {"text": "「你也是？」", "next_node": "stranger_talk"},
+        {"text": "（沉默离开）", "next_node": "stranger_leave"}
+      ]
+    },
+    "stranger_greet_high": {
+      "speaker": "Stranger",
+      "text": "你加班多久了？\n⌈时间在这里\n没有意义。⌋",
+      "choices": [
+        {"text": "「什么意思？」", "next_node": "stranger_talk"},
+        {"text": "（沉默离开）", "next_node": "stranger_leave"}
+      ]
+    },
+    "stranger_talk": {
+      "speaker": "Stranger",
+      "text": "这条路我走过很多次。\n今晚似乎不太一样。",
+      "choices": [
+        {"text": "「我认识你吗？」", "next_node": "stranger_dejavu"},
+        {"text": "「也许吧。」", "next_node": "stranger_continue"}
+      ]
+    },
+    "stranger_dejavu": {
+      "speaker": "Stranger",
+      "text": "也许你见过我。\n也许没有。\n也许两者都是镜中的倒影。",
+      "choices": [
+        {"text": "「我好像认识你。」", "next_node": "stranger_high_hope"},
+        {"text": "「你是谁？」", "next_node": "stranger_low_conviction"},
+        {"text": "「我们真的见过吗？」", "next_node": "stranger_dejavu_deep"},
+        {"text": "「我们真的见过。」", "next_node": "stranger_dejavu_dialogue"},
+        {"text": "（继续走向出口）", "next_node": "stranger_continue"}
+      ]
+    },
+    "stranger_dejavu_dialogue": {
+      "speaker": "Stranger",
+      "text": "也许我们真的见过。\n在另一个夜晚。\n在某个终止的梦里。",
+      "choices": [
+        {"text": "「也许吧。」", "next_node": "stranger_continue"}
+      ]
+    },
+    "stranger_continue": {
+      "speaker": "Narrator",
+      "text": "You walk toward the exit.\nThe encounter lingers.\nNot sure which side is real.",
+      "choices": [
+        {"text": "(Continue to the store)", "effects": [{"type": "set_flag", "flag": "met_stranger", "value": true}], "next_node": "END"}
+      ]
+    },
+    "stranger_leave": {
+      "speaker": "Narrator",
+      "text": "You walk past without a word.\nThe figure shifts in dim light.\nA version of you, perhaps.",
+      "choices": [
+        {"text": "(Continue to the store)", "effects": [{"type": "set_flag", "flag": "met_stranger", "value": true}], "next_node": "END"}
+      ]
+    },
+    "stranger_high_hope": {
+      "speaker": "Stranger",
+      "text": "你在办公室时\n可不是这样。\n那时候你更有希望。",
+      "choices": [
+        {"text": "(Continue to the store)", "effects": [{"type": "set_flag", "flag": "lobby_hope_high", "value": true}], "next_node": "stranger_continue"}
+      ]
+    },
+    "stranger_low_conviction": {
+      "speaker": "Stranger",
+      "text": "你不确定的事\n太多了。\n从一开始就是。",
+      "choices": [
+        {"text": "(Continue to the store)", "effects": [{"type": "set_flag", "flag": "lobby_low_conviction", "value": true}], "next_node": "stranger_continue"}
+      ]
+    },
+    "stranger_dejavu_deep": {
+      "speaker": "Stranger",
+      "text": "也许你还没明白。\n⌈但我告诉过你。⌋",
+      "choices": [
+        {"text": "「明白什么？」", "effects": [{"type": "set_flag", "flag": "stranger_hinted_meta", "value": true}], "next_node": "stranger_continue"}
+      ]
+    }
+  }
+}

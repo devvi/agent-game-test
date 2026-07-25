@@ -107,6 +107,11 @@ func _set_ending_text(ending: String) -> void:
 			stranger_final_text.text = "The Stranger sits beside you.\nSilence. Then they stand and walk into the maintenance tunnel."
 			broadcast_text.text = "The last train has departed."
 
+	# Stranger revealed meta text (Issue #223)
+	var gm := get_node_or_null("/root/GameManager")
+	if gm and gm.has_method("get_flag") and gm.get_flag("stranger_revealed"):
+		stranger_final_text.text += "\n⌈The Stranger was always there.⌋"
+
 
 func _on_gate_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
