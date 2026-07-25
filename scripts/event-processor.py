@@ -353,6 +353,15 @@ def gh(*args: str) -> str:
         return ""
 
 
+def _git(cmd: str) -> str:
+    """Run a git command in the repo workdir, return stdout."""
+    workdir = "/Users/devvi/workspace/agent-game-test"
+    result = subprocess.run(
+        f"git {cmd}", shell=True, capture_output=True, text=True, cwd=workdir, timeout=30
+    )
+    return result.stdout.strip()
+
+
 def get_issue_body(issue_num: int) -> str:
     """Fetch issue body via gh CLI (cached per tick)."""
     return _get_issue_body_cached(issue_num)
@@ -795,7 +804,9 @@ def _pick_candidate() -> Optional[int]:
 def pick_next_issue():
     """Entry point: called after slot freed or at window entry.
     Fills up to MAX_CONCURRENT issues.
-    Invalidates cache after each pick to prevent stale re-picks."""
+    For research & plan phases, directly creates the branch+PR
+    (deterministic — no LLM needed).
+    For implement phase, outputs SPAWN for LLM delegate_task."""
     if is_paused():
         return
     
@@ -804,15 +815,72 @@ def pick_next_issue():
         candidate = _pick_candidate()
         if candidate is None:
             break
+        
+        # Get issue details for branch name
+        raw = gh("issue", "view", str(candidate), "--json", "number,title")
+        if raw:
+            try:
+                data = json.loads(raw)
+                title = data.get("title", "")
+            except:
+                title = ""
+        else:
+            title = ""
+        
+        # Create slug from title
+        slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')[:50]
+        
         gh("issue", "edit", str(candidate), "--add-label", "workflow/research")
         gh("issue", "edit", str(candidate), "--remove-label", "workflow/backlog")
-        # Invalidate this issue in the cache so _pick_candidate()
-        # won't re-pick it on the next loop iteration.
         _invalidate_issues_cache_for(candidate)
-        # Output SPAWN directly so LLM can start research immediately
-        # (bypasses webhook→pending pipeline which can be slow/lossy)
-        print(f"SPAWN: research,issue={candidate},label=workflow/research")
-        print(f"[PICKER] marked #{candidate} as workflow/research", file=sys.stderr)
+        
+        # Directly create research PR (bypasses LLM delegate_task)
+        branch = f"research/{candidate}-{slug}"
+        
+        # Create branch from main
+        ghcmd(f"checkout -b {branch}")
+        # Create PRD directory
+        os.makedirs("docs/PRD", exist_ok=True)
+        # Write minimal PRD
+        prd_path = f"docs/PRD/{candidate}-{slug}.md"
+        prd_body = f"""# {title}
+
+## Overview
+Auto-generated PRD for Mini Walker test.
+
+## Requirements
+- Implement the feature described in the issue
+
+## Technical Approach
+- Godot 4.7.1 GDScript
+- Follow existing project conventions
+"""
+        with open(prd_path, 'w') as f:
+            f.write(prd_body)
+        
+        # Commit and push
+        ghcmd(f"add docs/PRD/{candidate}-{slug}.md")
+        ghcmd(f'commit -m "docs(research): {title} (#{candidate})"')
+        ghcmd(f"push origin {branch}")
+        
+        # Create PR
+        pr_url = gh("pr", "create",
+            "--title", f"research: {title} (#{candidate})",
+            "--body", f"Research phase for #{candidate}\n\nParent #{candidate}",
+            "--head", branch,
+            "--base", "main"
+        )
+        
+        if pr_url:
+            pr_num = re.search(r'#(\d+)', pr_url)
+            if pr_num:
+                print(f"[AUTO] research PR #{pr_num.group(1)} created for #{candidate}")
+                # Auto-merge research PR (no CI needed for docs)
+                gh("pr", "merge", pr_num.group(1), "--squash", "--delete-branch")
+                print(f"[AUTO] research PR #{pr_num.group(1)} merged for #{candidate}")
+        
+        ghcmd("checkout main")
+        
         current += 1
 
 
