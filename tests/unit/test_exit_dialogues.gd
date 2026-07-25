@@ -87,5 +87,5 @@ func _test_scene_paths_exist() -> void:
 		"EX-6: convenience_store.tscn exists")
 	_assert(FileAccess.file_exists("res://scenes/underpass/underpass.tscn"),
 		"EX-7: underpass.tscn exists")
-	_assert(FileAccess.file_exists("res://scenes/subway/subway_station.tscn"),
+	_assert(FileAccess.file_exists("res://scenes/subway_station/subway_station.tscn"),
 		"EX-8: subway_station.tscn exists")

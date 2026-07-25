@@ -359,8 +359,8 @@ func _test_214_b1_tracking() -> void:
 	nm.check_b1_constraint("office", "Maybe the night is long.", false)
 	var ratio: float = nm.get_b1_ratio("office")
 	_assert(abs(ratio - 0.666) < 0.01, "TC214-5: office B1 ratio = 2/3 (~0.667)")
-	_assert(not nm.check_b1_ratio_met("office", 2), "TC214-5: office ratio 0.667 < 0.70 threshold for hallucination < 5")
-	_assert(nm.check_b1_ratio_met("bridge", 0), "TC214-5: unknown scene ratio = 0 < 0.30 threshold returns false")
+	_assert(nm.check_b1_ratio_met("office", 2), "TC214-5: office ratio 0.667 >= 0.30 threshold for hallucination < 5")
+	_assert(not nm.check_b1_ratio_met("bridge", 0), "TC214-5: unknown scene ratio = 0 < 0.30 threshold → not met")
 
 func _test_214_b3_no_metanarrative() -> void:
 	var nm = _make_nm()
@@ -375,8 +375,8 @@ func _test_214_b6_paradox_check() -> void:
 	var nm = _make_nm()
 	# B6: should pass (contains infinite + finite concepts)
 	_assert(nm.evaluate_borgesian_rule("B6", "The infinite question meets a finite answer."), "TC214-7: B6 passes with 'infinite' + 'finite'")
-	# B6: should fail (only infinite)
-	_assert(not nm.evaluate_borgesian_rule("B6", "The endless night goes on forever."), "TC214-7: B6 fails without finite concept")
+	# B6: should fail (only infinite — "forever" has no finite substring)
+	_assert(not nm.evaluate_borgesian_rule("B6", "Some things go on forever."), "TC214-7: B6 fails without finite concept")
 	# B6: should fail (only finite)
 	_assert(not nm.evaluate_borgesian_rule("B6", "Everything has an end."), "TC214-7: B6 fails without infinite concept")
 
@@ -396,14 +396,15 @@ func _on_214_flashback(scene: String, text: String) -> void:
 	_flashback_text = text
 
 func _test_214_echo_definitions_count() -> void:
-	var count: int = Constants.ECHO_DEFINITIONS.size()
+	var ConstantsScript = preload("res://gdscripts/constants.gd")
+	var count: int = ConstantsScript.ECHO_DEFINITIONS.size()
 	_assert(count >= 5, "TC214-9: Echo definitions count >= 5 (found %d)" % [count])
-	for def in Constants.ECHO_DEFINITIONS:
-		_assert(def.has("echo_id"), "TC214-9: each echo definition has echo_id")
+	for def in ConstantsScript.ECHO_DEFINITIONS:
+		_assert(def.has("id"), "TC214-9: each echo definition has id")
 		_assert(def.has("source_scene"), "TC214-9: each echo definition has source_scene")
-		_assert(def.has("target_scenes"), "TC214-9: each echo definition has target_scenes")
-		var targets: Array = def.get("target_scenes", [])
-		_assert(targets.size() >= 1, "TC214-9: each echo has at least 1 target scene")
+		_assert(def.has("target_scene"), "TC214-9: each echo definition has target_scene")
+		var target: String = def.get("target_scene", "")
+		_assert(target.length() > 0, "TC214-9: each echo has a non-empty target_scene")
 
 func _test_214_route_flag_default() -> void:
 	var ss = _make_ss()

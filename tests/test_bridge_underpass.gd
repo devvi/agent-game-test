@@ -60,9 +60,8 @@ func _assert(condition: bool, label: String) -> void:
 
 func _test_b1_tired_tone() -> void:
 	var bridge = _make_bridge()
-	var method = bridge.get("_get_tone")
-	# We test the _get_tone method indirectly via public API
-	_assert(bridge.has_method("_get_tone"), "TC-B1-0: bridge has _get_tone method")
+	# We test the _get_tone_for_scene method indirectly via public API
+	_assert(bridge.has_method("_get_tone_for_scene"), "TC-B1-0: bridge has _get_tone_for_scene method")
 
 
 func _test_b1_neutral_tone() -> void:
@@ -101,12 +100,12 @@ func _test_b2_boundary_conviction() -> void:
 
 func _test_b3_despair_tone() -> void:
 	var up = _make_underpass()
-	_assert(up.has_method("_get_tone"), "TC-B3-1: underpass has _get_tone method")
+	_assert(up.has_method("_get_tone_for_scene"), "TC-B3-1: underpass has _get_tone_for_scene method")
 
 
 func _test_b3_resolute_tone() -> void:
 	var up = _make_underpass()
-	_assert(up.has_method("_get_tone"), "TC-B3-2: _get_tone exists")
+	_assert(up.has_method("_get_tone_for_scene"), "TC-B3-2: _get_tone_for_scene exists")
 
 
 func _test_b3_neutral_tone() -> void:
