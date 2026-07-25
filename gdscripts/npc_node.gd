@@ -32,6 +32,7 @@ var _prompt_label: Label3D
 var _cooldown_timer: Timer
 var _player_nearby: bool = false
 var _greeting_override: String = ""
+var _feedback_area: InteractiveArea = null
 
 const _DialogueConditionEvaluator := preload("res://gdscripts/dialogue_condition_evaluator.gd")
 
@@ -65,6 +66,15 @@ func _ready() -> void:
 	if _prompt_label:
 		_prompt_label.visible = false
 		_prompt_label.text = interaction_prompt_text
+
+	# Create InteractiveArea child for visual feedback
+	_feedback_area = InteractiveArea.new()
+	_feedback_area.name = "NPCFeedback"
+	_feedback_area.feedback_mode = InteractiveArea.FeedbackMode.BOTH
+	_feedback_area.indicator_texture = preload("res://assets/textures/icon_interact.webp")
+	_feedback_area.glow_color = Color(0.667, 1.0, 0.867, 0.5)  # Teal-white for NPCs
+	_feedback_area.proximity_distance = proximity_distance
+	add_child(_feedback_area)
 
 
 func _find_parent_dialogue_runner() -> Node:
@@ -176,6 +186,9 @@ func set_state(new_state: int) -> void:
 	current_state = new_state
 	npc_state_changed.emit(current_state)
 	update_label_visibility()
+	# Gate visual feedback during non-IDLE states
+	if _feedback_area:
+		_feedback_area.is_interactable = current_state == NPCState.IDLE
 
 
 func update_name_label() -> void:

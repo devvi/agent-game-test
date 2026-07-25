@@ -177,6 +177,12 @@ func _init() -> void:
 	passed += _camera_follow_tests.passed
 	failed += _camera_follow_tests.failed
 
+	# --- Interactive Area Tests (Issue #218) ---
+	var _interactive_area_tests = load("res://tests/unit/test_interactive_area.gd").new()
+	_interactive_area_tests.run()
+	passed += _interactive_area_tests.passed
+	failed += _interactive_area_tests.failed
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)
