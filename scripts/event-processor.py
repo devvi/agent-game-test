@@ -697,12 +697,14 @@ def _get_active_issue_target_files() -> set:
 
 
 def _count_active_phase_agents() -> int:
-    """Count phase agents (research/plan/implement) from cache."""
+    """Count phase agents (research/plan/implement) from cache.
+    Excludes issues with lock-mbot (already has an agent assigned)."""
     issues = _ensure_issues_cache()
     phase_labels = {"workflow/research", "workflow/plan", "workflow/implement"}
     return sum(
         1 for iss in issues
         if any(l.get("name", "") in phase_labels for l in iss.get("labels", []))
+        and "workflow/lock-mbot" not in [l.get("name", "") for l in iss.get("labels", [])]
     )
 
 
