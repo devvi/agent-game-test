@@ -838,7 +838,7 @@ def pick_next_issue():
         branch = f"research/{candidate}-{slug}"
         
         # Create branch from main
-        ghcmd(f"checkout -b {branch}")
+        _git(f"checkout -b {branch}")
         # Create PRD directory
         os.makedirs("docs/PRD", exist_ok=True)
         # Write minimal PRD
@@ -859,9 +859,9 @@ Auto-generated PRD for Mini Walker test.
             f.write(prd_body)
         
         # Commit and push
-        ghcmd(f"add docs/PRD/{candidate}-{slug}.md")
-        ghcmd(f'commit -m "docs(research): {title} (#{candidate})"')
-        ghcmd(f"push origin {branch}")
+        _git(f"add docs/PRD/{candidate}-{slug}.md")
+        _git(f'commit -m "docs(research): {title} (#{candidate})"')
+        _git(f"push origin {branch}")
         
         # Create PR
         pr_url = gh("pr", "create",
@@ -879,7 +879,7 @@ Auto-generated PRD for Mini Walker test.
                 gh("pr", "merge", pr_num.group(1), "--squash", "--delete-branch")
                 print(f"[AUTO] research PR #{pr_num.group(1)} merged for #{candidate}")
         
-        ghcmd("checkout main")
+        _git("checkout main")
         
         current += 1
 
