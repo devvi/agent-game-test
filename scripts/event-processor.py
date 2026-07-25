@@ -786,6 +786,9 @@ def pick_next_issue():
         # Invalidate this issue in the cache so _pick_candidate()
         # won't re-pick it on the next loop iteration.
         _invalidate_issues_cache_for(candidate)
+        # Output SPAWN directly so LLM can start research immediately
+        # (bypasses webhook→pending pipeline which can be slow/lossy)
+        print(f"SPAWN: research,issue={candidate},label=workflow/available")
         print(f"[PICKER] marked #{candidate} as workflow/available", file=sys.stderr)
         current += 1
 
