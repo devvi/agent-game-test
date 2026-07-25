@@ -11,6 +11,7 @@ class_name UnderpassScene
 @onready var graffiti_trigger: Area3D = $InteractionZones/GraffitiTrigger
 @onready var stranger_echo_trigger: Area3D = $InteractionZones/StrangerEchoTrigger
 @onready var exit_trigger: Area3D = $InteractionZones/UnderpassExitTrigger
+@onready var stranger_decal: Decal = $Environments/StrangerDecal if $Environments.has_node("StrangerDecal") else null
 
 
 func _ready() -> void:
@@ -27,6 +28,9 @@ func _ready() -> void:
 	call_deferred("_check_echoes")
 	# Check AC3 hidden text condition
 	call_deferred("_check_hidden_text")
+
+	# Update Stranger Decal color based on hallucination level
+	call_deferred("_update_stranger_decal")
 
 
 func _configure_ambient_audio() -> void:
@@ -144,3 +148,35 @@ func _on_stranger_echo_trigger_input(camera: Node, event: InputEvent, position: 
 func _on_exit_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		start_dialogue("res://dialogues/underpass_exit.dialogue", "underpass_exit")
+
+
+## Update Stranger Decal color based on current hallucination level.
+func _update_stranger_decal() -> void:
+	if not stranger_decal:
+		return
+	var nm: Node = get_node_or_null("/root/NarrativeManager")
+	var ss: Node = get_node_or_null("/root/StateSystem")
+	if nm and nm.has_method("get_hallucination_level") and ss:
+		var state: Dictionary = {"hope": ss.hope if ss else 5.0}
+		var h_level: int = nm.get_hallucination_level(scene_id, state)
+		stranger_decal.modulate = nm.get_stranger_decal_color(h_level)
+
+
+# ── Navigation System (Issue #226) ──
+
+## Override: display navigation hint via graffiti text.
+func _show_navigation_hint(text: String) -> void:
+	if graffiti_text and is_instance_valid(graffiti_text):
+		graffiti_text.text = text
+		await get_tree().create_timer(5.0).timeout
+		if is_instance_valid(graffiti_text):
+			_set_environment_text(_get_tone_for_scene(scene_id))
+
+
+## Override: condition-triggered navigation text.
+func _on_condition_text_updated(hint: String) -> void:
+	if graffiti_text and is_instance_valid(graffiti_text):
+		graffiti_text.text = hint
+		await get_tree().create_timer(5.0).timeout
+		if is_instance_valid(graffiti_text):
+			_set_environment_text(_get_tone_for_scene(scene_id))

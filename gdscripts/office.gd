@@ -5,23 +5,33 @@ class_name OfficeScene
 # Configures environmental text from 5-state tone lookup (Issue #154).
 # Supports dynamic text updates when state changes mid-scene.
 # Screensaver and desktop text remain static (story elements, not env text).
+# Stranger window reflection with hallucination-aware decal (Issue #223).
 
 @onready var window_text: Node3D = $Environments/WindowText
 @onready var screensaver_text: Node3D = $Environments/ScreensaverText
 @onready var desktop_text: Node3D = $Environments/DesktopText
 @onready var door_trigger: Area3D = $InteractionZones/OfficeDoorTrigger
+@onready var window_trigger: Area3D = $InteractionZones/WindowTrigger
+@onready var stranger_decal: Decal = $Environments/StrangerDecal if $Environments.has_node("StrangerDecal") else null
 
 
 func _ready() -> void:
 	scene_id = "office"
 	super._ready()
 	door_trigger.input_event.connect(_on_door_trigger_input)
-	
+
 	# Connect E-key interaction (Issue #142)
 	var ekey := $InteractionZones/OfficeDoorTrigger/EKeyTrigger
 	if ekey and ekey.has_signal("e_key_interacted"):
 		if not ekey.e_key_interacted.is_connected(_start_door_dialogue):
 			ekey.e_key_interacted.connect(_start_door_dialogue)
+
+	# Stranger window trigger
+	if window_trigger:
+		window_trigger.input_event.connect(_on_window_trigger_input)
+
+	# Update Stranger Decal color based on hallucination level
+	call_deferred("_update_stranger_decal")
 
 
 func _configure_ambient_audio() -> void:
@@ -56,7 +66,39 @@ func _on_narrative_tone_changed(scene_id_emitted: String, tone: String) -> void:
 	_set_window_text(tone)
 
 
-## Set window text for a 5-state tone.
+## Update Stranger Decal color based on current hallucination level.
+func _update_stranger_decal() -> void:
+	if not stranger_decal:
+		return
+	var nm: Node = get_node_or_null("/root/NarrativeManager")
+	var ss: Node = get_node_or_null("/root/StateSystem")
+	if nm and nm.has_method("get_hallucination_level") and ss:
+		var state: Dictionary = {"hope": ss.hope if ss else 5.0}
+		var h_level: int = nm.get_hallucination_level(scene_id, state)
+		stranger_decal.modulate = nm.get_stranger_decal_color(h_level)
+
+
+## Handle window interaction — flavor text and flag.
+func _on_window_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		var nm: Node = get_node_or_null("/root/NarrativeManager")
+		if nm and nm.has_method("set_flag"):
+			nm.set_flag("stranger_office_glimpsed", true)
+		# Choose flavor text based on hallucination level
+		var ss: Node = get_node_or_null("/root/StateSystem")
+		var h_level: int = 0
+		if nm and nm.has_method("get_hallucination_level") and ss:
+			var state: Dictionary = {"hope": ss.hope if ss else 5.0}
+			h_level = nm.get_hallucination_level(scene_id, state)
+		match h_level:
+			0, 1, 2:
+				window_text.text = "A silhouette stands outside.\nRain coats their shoulders.\n⌈You look away.⌋"
+			3, 4, 5:
+				window_text.text = "A figure in the rain.\nThey're looking this way.\n⌈You don't know them.⌋"
+			_:
+				window_text.text = "The window reflects the room.\nYou see yourself.\nSomeone is standing behind you."
+
+
 func _set_window_text(tone: String) -> void:
 	match tone:
 		"despair":
@@ -84,3 +126,24 @@ func _start_door_dialogue() -> void:
 
 func _restore_dialogue_state() -> void:
 	pass
+
+
+# ── Navigation System (Issue #226) ──
+
+## Override: display navigation hint via environmental text node.
+func _show_navigation_hint(text: String) -> void:
+	if window_text and is_instance_valid(window_text):
+		# Temporarily show hint text on window
+		window_text.text = text
+		await get_tree().create_timer(5.0).timeout
+		if is_instance_valid(window_text):
+			_set_window_text(_get_tone_for_scene(scene_id))
+
+
+## Override: condition-triggered navigation text.
+func _on_condition_text_updated(hint: String) -> void:
+	if window_text and is_instance_valid(window_text):
+		window_text.text = hint
+		await get_tree().create_timer(5.0).timeout
+		if is_instance_valid(window_text):
+			_set_window_text(_get_tone_for_scene(scene_id))

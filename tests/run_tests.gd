@@ -183,6 +183,12 @@ func _init() -> void:
 	passed += _interactive_area_tests.passed
 	failed += _interactive_area_tests.failed
 
+	# --- Navigation Controller Tests (Issue #226) ---
+	var _nav_controller_tests = load("res://tests/unit/test_navigation_controller.gd").new()
+	_nav_controller_tests.run()
+	passed += _nav_controller_tests.passed
+	failed += _nav_controller_tests.failed
+
 	print("\n=== Results ===")
 	print("Passed: ", passed)
 	print("Failed: ", failed)

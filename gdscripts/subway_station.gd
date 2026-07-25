@@ -15,6 +15,7 @@ class_name SubwayStationScene
 
 var _ending: String = ""
 var _ending_determined: bool = false
+var _stranger_decal: Decal = $Environments/StrangerDecal if $Environments.has_node("StrangerDecal") else null
 
 
 func _ready() -> void:
@@ -127,3 +128,23 @@ func _on_bench_trigger_input(camera: Node, event: InputEvent, position: Vector3,
 		# Stay path
 		if _ending == "stay" or _ending.is_empty():
 			start_dialogue("res://dialogues/subway_ending.dialogue", "subway_ending_stay")
+
+
+# ── Navigation System (Issue #226) ──
+
+## Override: display navigation hint via ticket gate text.
+func _show_navigation_hint(text: String) -> void:
+	if ticket_gate_text and is_instance_valid(ticket_gate_text):
+		ticket_gate_text.text = text
+		await get_tree().create_timer(5.0).timeout
+		if is_instance_valid(ticket_gate_text):
+			_set_environment_text(_get_tone_for_scene(scene_id))
+
+
+## Override: condition-triggered navigation text.
+func _on_condition_text_updated(hint: String) -> void:
+	if ticket_gate_text and is_instance_valid(ticket_gate_text):
+		ticket_gate_text.text = hint
+		await get_tree().create_timer(5.0).timeout
+		if is_instance_valid(ticket_gate_text):
+			_set_environment_text(_get_tone_for_scene(scene_id))

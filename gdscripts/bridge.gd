@@ -11,6 +11,8 @@ class_name BridgeScene
 @onready var railing_trigger: Area3D = $InteractionZones/RailingTrigger
 @onready var homeless_trigger: Area3D = $InteractionZones/HomelessTrigger
 @onready var exit_trigger: Area3D = $InteractionZones/BridgeExitTrigger
+@onready var bridge_stranger_trigger: Area3D = $InteractionZones/BridgeStrangerTrigger
+@onready var stranger_decal: Decal = $Environments/StrangerDecal if $Environments.has_node("StrangerDecal") else null
 
 
 func _ready() -> void:
@@ -25,6 +27,13 @@ func _ready() -> void:
 
 	# Check for low-conviction intrusive thought
 	call_deferred("_check_intrusive_thought")
+
+	# Stranger bridge figure trigger
+	if bridge_stranger_trigger:
+		bridge_stranger_trigger.input_event.connect(_on_bridge_stranger_trigger_input)
+
+	# Update Stranger Decal color based on hallucination level
+	call_deferred("_update_stranger_decal")
 
 
 func _configure_ambient_audio() -> void:
@@ -102,6 +111,55 @@ func _on_homeless_trigger_input(camera: Node, event: InputEvent, position: Vecto
 		start_dialogue("res://dialogues/bridge_homeless.dialogue", "bridge_homeless")
 
 
+## Handle bridge stranger figure interaction.
+func _on_bridge_stranger_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		# Choose dialogue variant based on hallucination level
+		var nm: Node = get_node_or_null("/root/NarrativeManager")
+		var ss: Node = get_node_or_null("/root/StateSystem")
+		var variant_title: String = "stranger_bridge_low"
+		if nm and nm.has_method("get_hallucination_level") and ss:
+			var state: Dictionary = {"hope": ss.hope if ss else 5.0}
+			var h_level: int = nm.get_hallucination_level(scene_id, state)
+			if h_level >= 7:
+				variant_title = "stranger_bridge_high"
+			elif h_level >= 4:
+				variant_title = "stranger_bridge_mid"
+		start_dialogue("res://dialogues/bridge_stranger.dialogue", variant_title)
+
+
+## Update Stranger Decal color based on current hallucination level.
+func _update_stranger_decal() -> void:
+	if not stranger_decal:
+		return
+	var nm: Node = get_node_or_null("/root/NarrativeManager")
+	var ss: Node = get_node_or_null("/root/StateSystem")
+	if nm and nm.has_method("get_hallucination_level") and ss:
+		var state: Dictionary = {"hope": ss.hope if ss else 5.0}
+		var h_level: int = nm.get_hallucination_level(scene_id, state)
+		stranger_decal.modulate = nm.get_stranger_decal_color(h_level)
+
+
 func _on_exit_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		start_dialogue("res://dialogues/bridge_exit.dialogue", "bridge_exit")
+
+
+# ── Navigation System (Issue #226) ──
+
+## Override: display navigation hint via traffic text.
+func _show_navigation_hint(text: String) -> void:
+	if traffic_text and is_instance_valid(traffic_text):
+		traffic_text.text = text
+		await get_tree().create_timer(5.0).timeout
+		if is_instance_valid(traffic_text):
+			_set_environment_text(_get_tone_for_scene(scene_id))
+
+
+## Override: condition-triggered navigation text.
+func _on_condition_text_updated(hint: String) -> void:
+	if traffic_text and is_instance_valid(traffic_text):
+		traffic_text.text = hint
+		await get_tree().create_timer(5.0).timeout
+		if is_instance_valid(traffic_text):
+			_set_environment_text(_get_tone_for_scene(scene_id))

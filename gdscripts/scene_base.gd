@@ -5,15 +5,22 @@ class_name SceneBase
 # Provides common behavior: fade-in, player instantiation, state-aware text config,
 # dialogue state restoration, and player state persistence across scene transitions.
 #
-# Extended for Issue #154: Adds 5-state tone lookup helpers and dynamic state signal wiring.
 # Extended for Issue #150: Camera orbit state save/restore for third-person camera.
+# Extended for Issue #226: Navigation system — NavigationController wiring, H-key hints,
+# condition-triggered environmental text, hallucination level updates, route progress.
 
 const PLAYER_CONTROLLER: GDScript = preload("res://gdscripts/player_controller.gd")
 
 @onready var scene_manager: Node = $SceneManager
+@onready var navigation_controller: Node = $NavigationController
 
 var scene_id: String = ""  # Override in subclass
 var _player: Node = null   # PlayerController instance (Issue #142)
+
+# Scene navigation (Issue #226)
+@export var scene_title_chinese: String = ""       # Chinese scene name for overlay
+@export var enable_navigation: bool = true          # Toggle navigation system per-scene
+@export var scene_progress_total: int = 6           # Total scenes for progress calculation
 
 
 func _ready() -> void:
@@ -23,7 +30,10 @@ func _ready() -> void:
 	_configure_environmental_text()
 	_configure_ambient_audio()
 	_connect_state_signals()
-
+	_setup_navigation()
+	_update_hallucination_on_scene_entry()
+	_update_route_progress()
+	_restore_dialogue_state()
 
 func _exit_tree() -> void:
 	_save_player_state()
@@ -241,3 +251,115 @@ func _save_player_state() -> void:
 		var orbit: Dictionary = _player.get_camera_orbit()
 		gm.set("camera_orbit_yaw", orbit.get("yaw", 0.0))
 		gm.set("camera_orbit_pitch", orbit.get("pitch", -0.2))
+
+# ── Navigation System (Issue #226) ──
+
+## Wire NavigationController for this scene.
+## Creates NavigationController as a child node if not already present in TSCN.
+## Connects signals: fallback_triggered, navigation_hint_requested, condition_text_updated.
+func _setup_navigation() -> void:
+	if not enable_navigation:
+		return
+
+	# Create NavigationController if not present in scene
+	var nav := get_node_or_null("NavigationController")
+	if not nav:
+		nav = preload("res://gdscripts/navigation_controller.gd").new()
+		nav.name = "NavigationController"
+		add_child.call_deferred(nav)
+		await get_tree().process_frame
+
+	nav = get_node_or_null("NavigationController")
+	if not nav or not nav.has_method("_setup"):
+		return
+
+	nav.scene_id = scene_id
+
+	# Pass player reference and spawn point
+	if _player and is_instance_valid(_player):
+		nav._setup(_player, _get_player_spawn_position())
+
+	# Connect NavigationController signals
+	if nav.has_signal("fallback_triggered"):
+		nav.fallback_triggered.connect(_on_player_fell)
+
+	if nav.has_signal("navigation_hint_requested"):
+		nav.navigation_hint_requested.connect(_show_navigation_hint)
+
+	if nav.has_signal("condition_text_updated"):
+		nav.condition_text_updated.connect(_on_condition_text_updated)
+
+	# Connect PlayerController navigation_hint_requested to NavigationController
+	if _player and is_instance_valid(_player) and _player.has_signal("navigation_hint_requested"):
+		if nav.has_method("_handle_hint_key"):
+			if not _player.navigation_hint_requested.is_connected(nav._handle_hint_key):
+				_player.navigation_hint_requested.connect(nav._handle_hint_key)
+
+	# Connect dialogue mode changes to NavigationController
+	if _player and is_instance_valid(_player) and _player.has_signal("dialogue_mode_changed"):
+		if nav.has_method("set_dialogue_active"):
+			if not _player.dialogue_mode_changed.is_connected(nav.set_dialogue_active):
+				_player.dialogue_mode_changed.connect(nav.set_dialogue_active)
+
+
+## Display H-key navigation hint text.
+## Override in subclasses for per-scene hint display (CanvasLayer, Label3D, etc.).
+func _show_navigation_hint(text: String) -> void:
+	print("[NavHint] ", text)
+
+
+## Handle condition-triggered environmental text.
+## Override in subclasses to update scene-specific text nodes with the hint text.
+func _on_condition_text_updated(hint: String) -> void:
+	pass
+
+
+## Handle fallback triggered by NavigationController.
+## Delegates to NavFallback for fade-out, teleport, fade-in sequence.
+func _on_player_fell(reason: String) -> void:
+	print("[NavFallback] Triggered: %s" % reason)
+	var nf := get_node_or_null("NavFallback")
+	if nf and nf.has_method("_trigger_fallback"):
+		nf._trigger_fallback(reason)
+		# Reset navigation controller timers after fallback
+		var nav := get_node_or_null("NavigationController")
+		if nav and nav.has_method("_clear_timers"):
+			nav._clear_timers()
+			nav.set("_is_fallbacking", false)
+
+
+## Update hallucination level when entering a new scene.
+## Calls NarrativeManager.get_hallucination_level() and emits signal.
+func _update_hallucination_on_scene_entry() -> void:
+	var nm := get_node_or_null("/root/NarrativeManager")
+	var ss := get_node_or_null("/root/StateSystem")
+	if nm and ss and ss.has_method("get_state"):
+		var state: Dictionary = ss.get_state()
+		if nm.has_method("get_hallucination_level"):
+			var level: int = nm.get_hallucination_level(scene_id, state)
+			nm.set("_hallucination_level", level)
+			if nm.has_signal("hallucination_level_changed"):
+				nm.hallucination_level_changed.emit(level)
+
+
+## Update route progress when entering a new scene.
+## Calculates current position in SCENE_ORDER and stores in GameManager.
+func _update_route_progress() -> void:
+	var nm := get_node_or_null("/root/NarrativeManager")
+	if not nm:
+		return
+	var idx: int = nm.SCENE_ORDER.find(scene_id)
+	if idx < 0:
+		return
+	var total: int = nm.SCENE_ORDER.size()
+	var progress: float = float(idx + 1) / float(total)
+	var gm := get_node_or_null("/root/GameManager")
+	if gm:
+		gm.set("route_progress", progress)
+		gm.set("route_progress_text", "%d/%d" % [idx + 1, total])
+
+	# Track visited scene
+	if gm and gm.has_method("mark_scene_visited"):
+		gm.mark_scene_visited(scene_id)
+	if gm:
+		gm.current_scene_id = scene_id

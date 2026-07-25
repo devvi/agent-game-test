@@ -97,3 +97,24 @@ func _on_test_npc_interact() -> void:
 
 func _restore_dialogue_state() -> void:
 	pass
+
+
+# ── Navigation System (Issue #226) ──
+
+## Override: display navigation hint via graffiti text.
+func _show_navigation_hint(text: String) -> void:
+	if graffiti and is_instance_valid(graffiti):
+		var saved_text: String = graffiti.text
+		graffiti.text = text
+		await get_tree().create_timer(5.0).timeout
+		if is_instance_valid(graffiti):
+			graffiti.text = saved_text
+
+
+## Override: condition-triggered navigation text.
+func _on_condition_text_updated(hint: String) -> void:
+	if graffiti and is_instance_valid(graffiti):
+		graffiti.text = hint
+		await get_tree().create_timer(5.0).timeout
+		if is_instance_valid(graffiti):
+			_set_graffiti_text(_get_tone_for_scene(scene_id))

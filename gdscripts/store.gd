@@ -8,6 +8,8 @@ class_name StoreScene
 
 @onready var open_sign: Node3D = $Environments/OpenSign
 @onready var exit_trigger: Area3D = $InteractionZones/StoreExitTrigger
+@onready var store_stranger_trigger: Area3D = $InteractionZones/StoreStrangerTrigger
+@onready var stranger_decal: Decal = $Environments/StrangerDecal if $Environments.has_node("StrangerDecal") else null
 
 
 func _ready() -> void:
@@ -15,6 +17,13 @@ func _ready() -> void:
 	super._ready()
 	if exit_trigger:
 		exit_trigger.input_event.connect(_on_exit_trigger_input)
+	
+	# Stranger store reflection trigger
+	if store_stranger_trigger:
+		store_stranger_trigger.input_event.connect(_on_store_stranger_trigger_input)
+	
+	# Update Stranger Decal color based on hallucination level
+	call_deferred("_update_stranger_decal")
 
 
 func _configure_ambient_audio() -> void:
@@ -58,5 +67,55 @@ func _on_exit_trigger_input(camera: Node, event: InputEvent, position: Vector3, 
 		_show_dialogue_balloon("res://dialogues/store_exit.dialogue", "store_exit")
 
 
+## Handle store stranger reflection interaction.
+func _on_store_stranger_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		# Choose dialogue variant based on hallucination level
+		var nm: Node = get_node_or_null("/root/NarrativeManager")
+		var ss: Node = get_node_or_null("/root/StateSystem")
+		var variant_title: String = "stranger_store_low"
+		if nm and nm.has_method("get_hallucination_level") and ss:
+			var state: Dictionary = {"hope": ss.hope if ss else 5.0}
+			var h_level: int = nm.get_hallucination_level(scene_id, state)
+			if h_level >= 7:
+				variant_title = "stranger_store_high"
+			elif h_level >= 4:
+				variant_title = "stranger_store_mid"
+		start_dialogue("res://dialogues/store_stranger.dialogue", variant_title)
+
+
+## Update Stranger Decal color based on current hallucination level.
+func _update_stranger_decal() -> void:
+	if not stranger_decal:
+		return
+	var nm: Node = get_node_or_null("/root/NarrativeManager")
+	var ss: Node = get_node_or_null("/root/StateSystem")
+	if nm and nm.has_method("get_hallucination_level") and ss:
+		var state: Dictionary = {"hope": ss.hope if ss else 5.0}
+		var h_level: int = nm.get_hallucination_level(scene_id, state)
+		stranger_decal.modulate = nm.get_stranger_decal_color(h_level)
+
+
 func _restore_dialogue_state() -> void:
 	pass
+
+
+# ── Navigation System (Issue #226) ──
+
+## Override: display navigation hint via open sign text.
+func _show_navigation_hint(text: String) -> void:
+	if open_sign and is_instance_valid(open_sign):
+		var saved_text: String = open_sign.text
+		open_sign.text = text
+		await get_tree().create_timer(5.0).timeout
+		if is_instance_valid(open_sign):
+			open_sign.text = saved_text
+
+
+## Override: condition-triggered navigation text.
+func _on_condition_text_updated(hint: String) -> void:
+	if open_sign and is_instance_valid(open_sign):
+		open_sign.text = hint
+		await get_tree().create_timer(5.0).timeout
+		if is_instance_valid(open_sign):
+			_set_open_sign_text(_get_tone_for_scene(scene_id))
