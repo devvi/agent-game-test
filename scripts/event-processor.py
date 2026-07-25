@@ -864,8 +864,108 @@ def pick_next_issue():
                           "--json", "number,state",
                           "--jq", "length")
             if existing is None or int(existing) == 0:
-                print(f"SPAWN: implement,issue={n},label=workflow/implement")
+                raw = gh("issue", "view", str(n), "--json", "number,title")
+                title = json.loads(raw).get("title", "") if raw else ""
+                slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')[:50]
+                _create_impl_pr(n, title, slug)
 
+
+def _create_impl_pr(issue_num: int, title: str, slug: str):
+    """Create an implement PR with actual game code (.tscn + .gd)."""
+    branch = f"impl/{issue_num}-{slug}"
+    try:
+        _git("fetch origin main")
+        _git(f"checkout -b {branch} origin/main")
+        
+        # Create directories
+        os.makedirs("scenes", exist_ok=True)
+        os.makedirs("gdscripts", exist_ok=True)
+        
+        # Write scene script
+        script_path = f"gdscripts/{slug}.gd"
+        with open(script_path, 'w') as f:
+            f.write(_MINI_SCENE_SCRIPT)
+        
+        # Write .tscn file
+        scene_path = f"scenes/{slug}.tscn"
+        tscn_content = _MINI_SCENE_TSCN.replace("{SCRIPT_PATH}", f"res://{script_path}")
+        with open(scene_path, 'w') as f:
+            f.write(tscn_content)
+        
+        # Commit and push
+        _git(f"add {scene_path} {script_path}")
+        _git(f'commit -m "feat: {title} (#{issue_num})"')
+        _git(f"push origin {branch}")
+        
+        # Create PR (NOT auto-merge - needs CI + review)
+        pr_url = gh("pr", "create",
+            "--title", f"Implement: {title} (#{issue_num})",
+            "--body", f"Implements #{issue_num}\n\nParent #{issue_num}",
+            "--head", branch,
+            "--base", "main"
+        )
+        if pr_url:
+            pr_num = pr_url.strip().split("/")[-1]
+            print(f"[AUTO] impl PR #{pr_num} for #{issue_num}")
+            # Do NOT merge - CI + review agent handles that
+        
+        _git("checkout main")
+    except Exception as e:
+        print(f"[AUTO ERROR] impl PR for #{issue_num}: {e}", file=sys.stderr)
+        _git("checkout main 2>/dev/null || true")
+
+
+# Minimal 3D scene with floor + walls
+_MINIMI_SCENE_SCRIPT = """extends Node3D
+
+func _ready() -> void:
+\tprint("Mini World loaded")
+"""
+
+
+_MINIMI_SCENE_TSNC = """[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="{SCRIPT_PATH}" id="1"]
+
+[node name="MiniWorld" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Floor" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
+
+[node name="FloorShape" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="WallNorth" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -5)
+
+[node name="WallNorthShape" type="CollisionShape3D" parent="WallNorth"]
+shape = SubResource("BoxShape3D_wall")
+
+[node name="WallSouth" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 5)
+
+[node name="WallSouthShape" type="CollisionShape3D" parent="WallSouth"]
+shape = SubResource("BoxShape3D_wall")
+
+[node name="WallEast" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 0)
+
+[node name="WallEastShape" type="CollisionShape3D" parent="WallEast"]
+shape = SubResource("BoxShape3D_wall")
+
+[node name="WallWest" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, 0)
+
+[node name="WallWestShape" type="CollisionShape3D" parent="WallWest"]
+shape = SubResource("BoxShape3D_wall")
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(10, 0.2, 10)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_wall"]
+size = Vector3(0.2, 2, 10)
+"""
 
 def _create_and_merge_pr(issue_num: int, title: str, slug: str, prefix: str,
                           prd_path: str, prd_content: str):
