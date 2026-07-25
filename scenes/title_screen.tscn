@@ -1,8 +1,7 @@
 [gd_scene load_steps=3 format=3 uid="uid://title_screen"]
 
 [ext_resource type="Script" path="res://gdscripts/title_screen.gd" id="1_r5rsf"]
-
-[sub_resource type="Theme" id="Theme_4a6q1"]
+[ext_resource type="Theme" path="res://assets/themes/neon_theme.tres" id="2_neon"]
 
 [node name="TitleScreen" type="CanvasLayer"]
 script = ExtResource("1_r5rsf")
@@ -25,8 +24,7 @@ offset_right = 300.0
 offset_bottom = 150.0
 grow_horizontal = 2
 grow_vertical = 2
-theme = SubResource("Theme_4a6q1")
-theme_override_constants/separation = 20
+theme = ExtResource("2_neon")
 
 [node name="TitleLabel" type="Label" parent="VBoxContainer"]
 custom_min_size = Vector2(600, 100)
@@ -34,7 +32,6 @@ horizontal_alignment = 1
 vertical_alignment = 1
 text = "都市夜行人"
 theme_override_font_sizes/font_size = 48
-theme_override_colors/font_color = Color(0.8, 0.85, 1, 1)
 
 [node name="SubtitleLabel" type="Label" parent="VBoxContainer"]
 custom_min_size = Vector2(600, 40)
@@ -42,7 +39,6 @@ horizontal_alignment = 1
 vertical_alignment = 1
 text = "Urban Night Walker"
 theme_override_font_sizes/font_size = 24
-theme_override_colors/font_color = Color(0.6, 0.65, 0.8, 1)
 
 [node name="Spacer" type="Control" parent="VBoxContainer"]
 custom_minimum_size = Vector2(0, 40)
@@ -53,7 +49,6 @@ horizontal_alignment = 1
 vertical_alignment = 1
 text = "按 Space 开始"
 theme_override_font_sizes/font_size = 18
-theme_override_colors/font_color = Color(0.7, 0.75, 0.9, 1)
 
 [node name="VersionLabel" type="Label" parent="VBoxContainer"]
 custom_min_size = Vector2(600, 30)
@@ -61,7 +56,6 @@ horizontal_alignment = 1
 vertical_alignment = 1
 text = "v0.1.0"
 theme_override_font_sizes/font_size = 12
-theme_override_colors/font_color = Color(0.4, 0.45, 0.6, 1)
 
 [node name="QuitLabel" type="Label" parent="VBoxContainer"]
 custom_min_size = Vector2(600, 20)
@@ -69,7 +63,6 @@ horizontal_alignment = 1
 vertical_alignment = 1
 text = "按 Escape 退出"
 theme_override_font_sizes/font_size = 10
-theme_override_colors/font_color = Color(0.3, 0.35, 0.5, 0.8)
 
 [node name="RainTimer" type="Timer" parent="."]
 wait_time = 0.1

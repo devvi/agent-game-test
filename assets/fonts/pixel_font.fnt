@@ -1,6 +1,6 @@
 info face="PixelFont" size=8 bold=0 italic=0 charset=""
 common lineHeight=8 base=7 scaleW=128 scaleH=48 pages=1
-page id=0 file="assets/fonts/pixel_font_0.png"
+page id=0 file="pixel_font_0.png"
 chars count=95
 char id=32 x=0 y=0 width=8 height=8 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15
 char id=33 x=8 y=0 width=8 height=8 xoffset=0 yoffset=0 xadvance=8 page=0 chnl=15
