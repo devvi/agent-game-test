@@ -57,7 +57,23 @@
 | Obsidian | 知识库（设计笔记） |
 | Playwright | E2E 浏览器测试 |
 
-## 游戏设计文档（GDD）
+## 测试纪律
+
+**核心原则：主分支必须永远是绿的。**
+
+| 规则 | 说明 | 执行者 |
+|------|------|--------|
+| **重构必改测试** | 任何对现有代码的重构（改名、改签名、改行为），必须同步更新对应的测试文件 | implement agent |
+| **Pre-existing failure 不放过** | CI 检测到的 pre-existing failure 必须修复再合入，不能以"这次没改到"为由放行 | review agent |
+| **机制变更必更新 fixture** | 数据结构、常量定义、方法签名变更后，检查所有引用这些资源的测试文件是否需同步更新 | implement + review agent |
+
+review agent 在检查 PR 时：
+1. 运行完整测试套件
+2. 对比 main 分支的测试结果，识别新引入 vs pre-existing 的 failure
+3. **pre-existing failure → 要求先修绿再合入**
+4. 新引入的 failure → block merge
+
+
 
 Workflow 持续产出 Issue 级的 PRD / DESIGN / TASKS，但那是"用完即走"的碎片化知识。
 
