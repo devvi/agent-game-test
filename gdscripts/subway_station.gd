@@ -88,11 +88,14 @@ func _determine_ending() -> void:
 		_ending_determined = true
 		_set_ending_text(_ending)
 		nm.ending_determined.emit(_ending)
+		# Trigger ending music (Issue #219)
+		_trigger_ending_music(_ending)
 	else:
 		# Fallback
 		_ending = "stay"
 		_ending_determined = true
 		_set_ending_text(_ending)
+		_trigger_ending_music(_ending)
 
 
 func _set_ending_text(ending: String) -> void:
@@ -106,6 +109,17 @@ func _set_ending_text(ending: String) -> void:
 		"stay":
 			stranger_final_text.text = "The Stranger sits beside you.\nSilence. Then they stand and walk into the maintenance tunnel."
 			broadcast_text.text = "The last train has departed."
+
+	# Stranger revealed meta text (Issue #223)
+	var gm := get_node_or_null("/root/GameManager")
+	if gm and gm.has_method("get_flag") and gm.get_flag("stranger_revealed"):
+		stranger_final_text.text += "\n⌈The Stranger was always there.⌋"
+
+
+func _trigger_ending_music(ending: String) -> void:
+	var am := get_node_or_null("/root/AudioManager")
+	if am and am.has_method("set_ending_music"):
+		am.set_ending_music(ending)
 
 
 func _on_gate_trigger_input(camera: Node, event: InputEvent, position: Vector3, normal: Vector3, shape_idx: int) -> void:

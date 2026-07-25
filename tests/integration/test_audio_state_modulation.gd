@@ -5,11 +5,18 @@ var failed: int = 0
 
 
 func run() -> void:
-	print("\n=== Audio State Modulation Tests (Issue #48) ===")
+	print("\n=== Audio State Modulation Tests (Issue #48 + #219) ===")
 
+	# Existing tests
 	_test_tc2_integration_state_modulates_rain()
 	_test_tc13_state_change_during_transition()
 	_test_tc14_volume_clipping_protection()
+
+	# Hallucination audio integration tests (Issue #219)
+	_test_hall_n1_level_changes_enable_effects()
+	_test_hall_e1_level_drops_disable_effects()
+	_test_hall_e2_lfo_on_rain_during_modulation()
+	_test_hall_e3_ducking_and_hallucination_independent()
 
 	print("Audio State Modulation — Passed: ", passed, " Failed: ", failed)
 
@@ -31,6 +38,10 @@ func _assert(condition: bool, label: String) -> void:
 		failed += 1
 		print("  FAIL: ", label)
 
+
+# ════════════════════════════════════════════════════════════
+# Existing Tests (Issue #48)
+# ════════════════════════════════════════════════════════════
 
 func _test_tc2_integration_state_modulates_rain() -> void:
 	var am = _make_am()
@@ -71,3 +82,75 @@ func _test_tc14_volume_clipping_protection() -> void:
 
 	var hum_vol: float = am._calc_hum_volume(1.0)
 	_assert(hum_vol <= 0.0, "TC14-integration-2: city hum volume at max despair <= 0 dB")
+
+
+# ════════════════════════════════════════════════════════════
+# Hallucination Audio Integration Tests (Issue #219)
+# ════════════════════════════════════════════════════════════
+
+func _test_hall_n1_level_changes_enable_effects() -> void:
+	var am = _make_am()
+
+	# Level < 5 — no hallucination effects active
+	am._on_hallucination_level_changed(3)
+	_assert(not am._hallucination_effects_active, "HALL-integration-1: level 3 -> effects inactive")
+	_assert(am._hallucination_level == 3, "HALL-integration-1: hallucination_level == 3")
+
+	# Level >= 5 — effects active
+	am._on_hallucination_level_changed(5)
+	_assert(am._hallucination_effects_active, "HALL-integration-2: level 5 -> effects active")
+
+	# Level >= 7 — depth increases
+	am._on_hallucination_level_changed(7)
+	_assert(am._hallucination_effects_active, "HALL-integration-3: level 7 -> effects still active")
+
+	# Level >= 9 — effects active
+	am._on_hallucination_level_changed(9)
+	_assert(am._hallucination_effects_active, "HALL-integration-4: level 9 -> effects active")
+
+
+func _test_hall_e1_level_drops_disable_effects() -> void:
+	var am = _make_am()
+
+	# Start with level 7
+	am._on_hallucination_level_changed(7)
+	_assert(am._hallucination_effects_active, "HALL-integration-E1-1: level 7 -> effects active")
+
+	# Drop below 5
+	am._on_hallucination_level_changed(4)
+	_assert(not am._hallucination_effects_active, "HALL-integration-E1-2: level drops to 4 -> effects disabled")
+	_assert(am._hallucination_level == 4, "HALL-integration-E1-3: hallucination_level == 4")
+
+
+func _test_hall_e2_lfo_on_rain_during_modulation() -> void:
+	var am = _make_am()
+	am._setup_3d_players()
+	am._hallucination_level = 5
+	am._hallucination_effects_active = true
+	am._hallucination_lfo_time = 0.0
+
+	# Apply LFO modulation
+	am._apply_hallucination_lfo(0.25)
+	_assert(true, "HALL-integration-E2-1: LFO applied at level 5 without error")
+
+	# State modulation still works alongside hallucination
+	am._on_state_changed({"conviction": 5.0, "despair": 5.0})
+	_assert(abs(am._rain_intensity - 0.5) < 0.001, "HALL-integration-E2-2: state modulation unchanged by hallucination LFO")
+
+
+func _test_hall_e3_ducking_and_hallucination_independent() -> void:
+	var am = _make_am()
+	am._setup_bgm_players()
+	am.NPC_TO_MOTIF["TestNPC"] = {"stream": null, "path": "res://assets/audio/npc_stranger_music.ogg"}
+
+	# Activate motif and ducking
+	am.trigger_bgm_motif("TestNPC")
+	am.set_bgm_ducking(true)
+
+	# Apply hallucination level during ducking
+	am._on_hallucination_level_changed(7)
+
+	# Ducking and hallucination are independent layers
+	_assert(am._bgm_state == "npc_active", "HALL-integration-E3-1: BGM state still npc_active")
+	_assert(am._hallucination_level == 7, "HALL-integration-E3-2: hallucination level is 7")
+	_assert(am._hallucination_effects_active, "HALL-integration-E3-3: hallucination effects active")
