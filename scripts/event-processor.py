@@ -779,15 +779,15 @@ def pick_next_issue():
         candidate = _pick_candidate()
         if candidate is None:
             break
-        gh("issue", "edit", str(candidate), "--add-label", "workflow/available")
+        gh("issue", "edit", str(candidate), "--add-label", "workflow/research")
         gh("issue", "edit", str(candidate), "--remove-label", "workflow/backlog")
         # Invalidate this issue in the cache so _pick_candidate()
         # won't re-pick it on the next loop iteration.
         _invalidate_issues_cache_for(candidate)
         # Output SPAWN directly so LLM can start research immediately
         # (bypasses webhook→pending pipeline which can be slow/lossy)
-        print(f"SPAWN: research,issue={candidate},label=workflow/available")
-        print(f"[PICKER] marked #{candidate} as workflow/available", file=sys.stderr)
+        print(f"SPAWN: research,issue={candidate},label=workflow/research")
+        print(f"[PICKER] marked #{candidate} as workflow/research", file=sys.stderr)
         current += 1
 
 
