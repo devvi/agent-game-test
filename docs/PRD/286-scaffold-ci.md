@@ -1,0 +1,1 @@
+# [Scaffold] 项目骨架 — 目录结构与 CI\n\n## Overview\nAuto-generated PRD.
