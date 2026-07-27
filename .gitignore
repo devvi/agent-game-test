@@ -17,3 +17,9 @@ __pycache__/
 .vscode/
 *.swp
 *.swo
+
+# Node / Web
+node_modules/
+dist/
+*.log
+.vite/

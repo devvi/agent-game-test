@@ -1,0 +1,97 @@
+name: lint-and-test
+# CI for implement-stage PRs — runs JS linting and preview build
+# Replaces the Godot-based review workflow for web projects
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    if: startsWith(github.event.pull_request.head.ref, 'impl/')
+    timeout-minutes: 10
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci || npm install
+
+      - name: Lint with ESLint
+        id: lint
+        run: |
+          if npx eslint src/ --ext .js 2>&1; then
+            echo "✅ ESLint passed"
+            echo "exit_code=0" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ ESLint found issues (non-blocking for scaffold)"
+            echo "exit_code=1" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Build check (Vite)
+        id: build
+        run: |
+          if npx vite build 2>&1; then
+            echo "✅ Vite build succeeded"
+            echo "exit_code=0" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Vite build failed"
+            echo "exit_code=1" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Gate — block merge on build failure
+        if: steps.build.outputs.exit_code != '0'
+        run: |
+          echo "❌ Build FAILED. Blocking merge."
+          exit 1
+
+      - name: Upload build artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ github.event.pull_request.number }}
+          path: dist/
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Comment failure summary on PR
+        if: steps.lint.outputs.exit_code != '0' || steps.build.outputs.exit_code != '0'
+        env:
+          LINT_EXIT: ${{ steps.lint.outputs.exit_code }}
+          BUILD_EXIT: ${{ steps.build.outputs.exit_code }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            var summary = '';
+            if (process.env.LINT_EXIT !== '0') {
+              summary += '### ⚠️ ESLint Issues\\nLint check reported problems (non-blocking).\\n\\n';
+            }
+            if (process.env.BUILD_EXIT !== '0') {
+              summary += '### ❌ Build Failed\\nVite build did not complete. Check run logs.\\n\\n';
+            }
+            var baseUrl = process.env.GITHUB_SERVER_URL || 'https://github.com';
+            var runUrl = baseUrl + '/' + process.env.GITHUB_REPOSITORY + '/actions/runs/' + process.env.GITHUB_RUN_ID;
+            var body = summary + runUrl;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: body
+            });
