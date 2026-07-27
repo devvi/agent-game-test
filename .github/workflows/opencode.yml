@@ -30,4 +30,4 @@ jobs:
             Execute the command from: ${{ github.event.comment.body }}
             Issue context: #${{ github.event.issue.number }}
             Follow the standard workflow defined in AGENTS.md.
-            This is a Godot 4.7 project using GDScript.
+            This is a web-based game project using JavaScript + Vite.

@@ -1,6 +1,6 @@
 name: deploy
-# Auto-build and release when an implement PR is merged to main
-# Uses Godot headless export + GitHub Releases
+# Auto-build and deploy when an implement PR is merged to main
+# Builds web assets via Vite and deploys to GitHub Pages
 
 on:
   push:
@@ -56,7 +56,7 @@ jobs:
           echo "PR head branch: $FROM_BRANCH"
 
           if [[ "$FROM_BRANCH" == impl/* ]]; then
-            echo "PR #$PR_NUM is from implement branch ($FROM_BRANCH) → build + release!"
+            echo "PR #$PR_NUM is from implement branch ($FROM_BRANCH) → build + deploy!"
             echo "should_deploy=true" >> $GITHUB_OUTPUT
             echo "pr_num=$PR_NUM" >> $GITHUB_OUTPUT
           else
@@ -64,31 +64,41 @@ jobs:
             echo "should_deploy=false" >> $GITHUB_OUTPUT
           fi
 
-  build-and-release:
+  build-and-deploy:
     needs: check-implement
     if: needs.check-implement.outputs.should-deploy == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      pages: write
+      id-token: write
       issues: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup Godot 4
-        uses: chickensoft-games/setup-godot@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          version: 4.7.1
-          use-double-precision: false
+          node-version: 20
+          cache: 'npm'
 
-      - name: Verify Godot
-        run: godot --version
+      - name: Install dependencies
+        run: npm ci || npm install
 
-      - name: Export game (Linux)
-        run: |
-          mkdir -p exports
-          # Export preset must be configured in project.godot first
-          godot --headless --export-release "Linux/X11" exports/agent-game-test-linux.x86_64 2>&1 || \
-            echo "⚠️ No Linux export preset configured yet — skipping build."
+      - name: Build web app
+        run: npx vite build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -98,6 +108,6 @@ jobs:
           body: |
             🚀 Auto-build from merged PR #${{ needs.check-implement.outputs.pr-num }}
             Triggered by: ${{ github.sha }}
-          files: exports/*
+          files: dist/*
           fail_on_unmatched_files: false
           generate_release_notes: true
