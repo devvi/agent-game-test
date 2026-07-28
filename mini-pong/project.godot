@@ -1,0 +1,11 @@
+; Engine configuration file.
+; Mini Pong — independent sub-project with Forward+ renderer and glow/bloom.
+
+[application]
+config/name="Mini Pong"
+config/description="A classic Pong game implementation"
+run/main_scene=""
+
+[rendering]
+renderer/rendering_method="forward_plus"
+environment/glow_enabled=true
