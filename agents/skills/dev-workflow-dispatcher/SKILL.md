@@ -343,7 +343,7 @@ the same logic as its corresponding event type below:
 |------------|-------------------|-----------|
 | `SPAWN: self-correct` | P1: check_run.completed (conclusion=failure) | Verify PR OPEN + branch starts with `impl/`. **`issue` vs `pr` field:** event-processor now reads PR body to find parent issue — `issue` is the parent, `pr` is the PR number (2026-07-15 fix). |
 | `SPAWN: review` | P1: check_run.completed (conclusion=success) | Verify PR OPEN + branch starts with `impl/`. Same `issue`/`pr` field semantics as self-correct. |
-| `SPAWN: research` | P2: issues.labeled (workflow/research) | **Handled by event-processor (2026-07-15):** The script checks `gh pr list --search \"research/<N> in:headRefName\"` before generating SPAWN. If a research PR already exists, SPAWN is suppressed and the event is cleaned from the pending file. The LLM should still verify as defense-in-depth for non-SPAWN P2 events. **2026-07-15 trace:** Issues #200/#201 had duplicate research PRs from concurrent webhook events — now prevented at the Python level. |
+|| `SPAWN: research` | P2: issues.labeled (workflow/research) | **Spawn a research agent** via delegate_task. Event-processor only generates SPAWN (no auto-create). The LLM must create the research/ branch, write PRD, commit, PR. |
 | `SPAWN: plan` | P2: issues.labeled (workflow/plan) | Research PR merged |
 | `SPAWN: implement` | P2: issues.labeled (workflow/implement) | Research + plan PRs merged **+ check for existing implement branch/PR (per pre-spawn checklist point 6)** |
 
