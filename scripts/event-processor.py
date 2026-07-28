@@ -353,15 +353,6 @@ def gh(*args: str) -> str:
         return ""
 
 
-def _git(cmd: str) -> str:
-    """Run a git command in the repo workdir, return stdout."""
-    workdir = "/Users/devvi/workspace/agent-game-test"
-    result = subprocess.run(
-        f"git {cmd}", shell=True, capture_output=True, text=True, cwd=workdir, timeout=30
-    )
-    return result.stdout.strip()
-
-
 def get_issue_body(issue_num: int) -> str:
     """Fetch issue body via gh CLI (cached per tick)."""
     return _get_issue_body_cached(issue_num)
@@ -810,37 +801,20 @@ def pick_next_issue():
     if is_paused():
         return
     
-    # First: pick from backlog → auto-create research PR
+    # Pick from backlog → output SPAWN for LLM (no auto-create)
     current = current_workflow_count()
     while current < MAX_CONCURRENT:
         candidate = _pick_candidate()
         if candidate is None:
             break
         
-        raw = gh("issue", "view", str(candidate), "--json", "number,title")
-        if raw:
-            try:
-                data = json.loads(raw)
-                title = data.get("title", "")
-            except:
-                title = ""
-        else:
-            title = ""
-        
-        slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')[:50]
-        
         gh("issue", "edit", str(candidate), "--add-label", "workflow/research")
         gh("issue", "edit", str(candidate), "--remove-label", "workflow/backlog")
         _invalidate_issues_cache_for(candidate)
-        
-        branch = f"research/{candidate}-{slug}"
-        _create_and_merge_pr(candidate, title, slug, "research",
-                              f"docs/PRD/{candidate}-{slug}.md",
-                              f"# {title}\\n\\n## Overview\\nAuto-generated PRD.")
+        print(f"SPAWN: research,issue={candidate},label=workflow/research")
         current += 1
     
-    # Second: for issues at plan with no PR, auto-create plan PR
-    # For issues at implement with no PR, output SPAWN for LLM
+    # Also output SPAWN for issues at plan/implement with no PR yet
     issues = _ensure_issues_cache()
     for iss in issues:
         labels = [l.get("name", "") for l in iss.get("labels", [])]
@@ -851,150 +825,14 @@ def pick_next_issue():
                           "--json", "number,state",
                           "--jq", "length")
             if existing is None or int(existing) == 0:
-                raw = gh("issue", "view", str(n), "--json", "number,title")
-                title = json.loads(raw).get("title", "") if raw else ""
-                slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')[:50]
-                design_content = f"# {title}\n\n## Architecture\nSimple Godot 4.7.1 scene with collision.\n\n## Implementation\n- Create .tscn with StaticBody3D floor\n- Add CollisionShape3D\n- Add walls with StaticBody3D + CollisionShape3D\n- Scene script extends Node3D\n"
-                _create_and_merge_pr(n, title, slug, "plan",
-                                     f"docs/DESIGN/{n}-{slug}.md",
-                                     design_content)
+                print(f"SPAWN: plan,issue={n},label=workflow/plan")
         elif "workflow/implement" in labels:
             existing = gh("pr", "list", "--state", "all",
                           "--search", f"head:impl/{n}- in:headRefName",
                           "--json", "number,state",
                           "--jq", "length")
             if existing is None or int(existing) == 0:
-                raw = gh("issue", "view", str(n), "--json", "number,title")
-                title = json.loads(raw).get("title", "") if raw else ""
-                slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')[:50]
-                _create_impl_pr(n, title, slug)
-
-
-def _create_impl_pr(issue_num: int, title: str, slug: str):
-    """Create an implement PR with actual game code (.tscn + .gd)."""
-    branch = f"impl/{issue_num}-{slug}"
-    try:
-        _git("fetch origin main")
-        _git(f"checkout -b {branch} origin/main")
-        
-        # Create directories
-        os.makedirs("scenes", exist_ok=True)
-        os.makedirs("gdscripts", exist_ok=True)
-        
-        # Write scene script
-        script_path = f"gdscripts/{slug}.gd"
-        with open(script_path, 'w') as f:
-            f.write(_MINI_SCENE_SCRIPT)
-        
-        # Write .tscn file
-        scene_path = f"scenes/{slug}.tscn"
-        tscn_content = _MINI_SCENE_TSCN.replace("{SCRIPT_PATH}", f"res://{script_path}")
-        with open(scene_path, 'w') as f:
-            f.write(tscn_content)
-        
-        # Commit and push
-        _git(f"add {scene_path} {script_path}")
-        _git(f'commit -m "feat: {title} (#{issue_num})"')
-        _git(f"push origin {branch}")
-        
-        # Create PR (NOT auto-merge - needs CI + review)
-        pr_url = gh("pr", "create",
-            "--title", f"Implement: {title} (#{issue_num})",
-            "--body", f"Implements #{issue_num}\n\nParent #{issue_num}",
-            "--head", branch,
-            "--base", "main"
-        )
-        if pr_url:
-            pr_num = pr_url.strip().split("/")[-1]
-            print(f"[AUTO] impl PR #{pr_num} for #{issue_num}")
-            # Do NOT merge - CI + review agent handles that
-        
-        _git("checkout main")
-    except Exception as e:
-        print(f"[AUTO ERROR] impl PR for #{issue_num}: {e}", file=sys.stderr)
-        _git("checkout main 2>/dev/null || true")
-
-
-# Minimal 3D scene with floor + walls
-_MINI_SCENE_SCRIPT = """extends Node3D
-
-func _ready() -> void:
-\tprint("Mini World loaded")
-"""
-
-
-_MINI_SCENE_TSCN = """[gd_scene load_steps=2 format=3]
-
-[ext_resource type="Script" path="{SCRIPT_PATH}" id="1"]
-
-[node name="MiniWorld" type="Node3D"]
-script = ExtResource("1")
-
-[node name="Floor" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.5, 0)
-
-[node name="FloorShape" type="CollisionShape3D" parent="Floor"]
-shape = SubResource("BoxShape3D_floor")
-
-[node name="WallNorth" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -5)
-
-[node name="WallNorthShape" type="CollisionShape3D" parent="WallNorth"]
-shape = SubResource("BoxShape3D_wall")
-
-[node name="WallSouth" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 5)
-
-[node name="WallSouthShape" type="CollisionShape3D" parent="WallSouth"]
-shape = SubResource("BoxShape3D_wall")
-
-[node name="WallEast" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 0)
-
-[node name="WallEastShape" type="CollisionShape3D" parent="WallEast"]
-shape = SubResource("BoxShape3D_wall")
-
-[node name="WallWest" type="StaticBody3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -5, 0, 0)
-
-[node name="WallWestShape" type="CollisionShape3D" parent="WallWest"]
-shape = SubResource("BoxShape3D_wall")
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
-size = Vector3(10, 0.2, 10)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_wall"]
-size = Vector3(0.2, 2, 10)
-"""
-
-def _create_and_merge_pr(issue_num: int, title: str, slug: str, prefix: str,
-                          prd_path: str, prd_content: str):
-    """Create a branch + doc + PR, then auto-merge."""
-    branch = f"{prefix}/{issue_num}-{slug}"
-    try:
-        _git("fetch origin main")
-        _git(f"checkout -b {branch} origin/main")
-        os.makedirs(os.path.dirname(prd_path), exist_ok=True)
-        with open(prd_path, 'w') as f:
-            f.write(prd_content)
-        _git(f"add {prd_path}")
-        _git(f'commit -m "docs({prefix}): {title} (#{issue_num})"')
-        _git(f"push origin {branch}")
-        pr_url = gh("pr", "create",
-            "--title", f"{prefix}: {title} (#{issue_num})",
-            "--body", f"{prefix.capitalize()} phase for #{issue_num}\\n\\nParent #{issue_num}",
-            "--head", branch,
-            "--base", "main"
-        )
-        if pr_url:
-            pr_num = pr_url.strip().split("/")[-1]
-            print(f"[AUTO] {prefix} PR #{pr_num} for #{issue_num}")
-            gh("pr", "merge", pr_num, "--squash", "--delete-branch")
-            print(f"[AUTO] {prefix} PR #{pr_num} merged")
-        _git("checkout main")
-    except Exception as e:
-        print(f"[AUTO ERROR] {prefix} PR for #{issue_num}: {e}", file=sys.stderr)
-        _git("checkout main 2>/dev/null || true")
+                print(f"SPAWN: implement,issue={n},label=workflow/implement")
 
 
 def reconcile():
