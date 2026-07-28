@@ -1026,8 +1026,15 @@ def preprocess():
                     if event_key:
                         discarded_keys.add(event_key)
                     continue
+                # Map raw label → LLM-expected label in SPAWN output
+                # workflow/available → workflow/research (picker sets available,
+                # but LLM prompt expects the phase label for routing)
+                spawn_label_map = {
+                    "workflow/available": "workflow/research",
+                }
+                spawn_label = spawn_label_map.get(label, label)
                 output_lines.append(
-                    f"SPAWN: {stage},issue={issue},label={label}"
+                    f"SPAWN: {stage},issue={issue},label={spawn_label}"
                 )
             else:
                 output_lines.append(
