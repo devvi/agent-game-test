@@ -808,10 +808,12 @@ def pick_next_issue():
         if candidate is None:
             break
         
-        gh("issue", "edit", str(candidate), "--add-label", "workflow/research")
+        gh("issue", "edit", str(candidate), "--add-label", "workflow/available")
         gh("issue", "edit", str(candidate), "--remove-label", "workflow/backlog")
         _invalidate_issues_cache_for(candidate)
-        print(f"SPAWN: research,issue={candidate},label=workflow/research")
+        # Do NOT output SPAWN here — let webhook → pending → preprocess handle it.
+        # Preprocess() reads workflow/available events and outputs:
+        #   SPAWN: research,issue=N,label=workflow/research
         current += 1
     
     # Also output SPAWN for issues at plan/implement with no PR yet
