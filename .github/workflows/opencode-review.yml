@@ -83,10 +83,22 @@ jobs:
           fi
         continue-on-error: true
 
-      - name: Test gate — block merge on failure
-        if: steps.compile.outputs.exit_code != '0' || steps.test.outputs.exit_code != '0' || steps.smoke.outputs.exit_code != '0' || steps.rnp.outputs.exit_code != '0'
+      - name: Validate Mini Pong scaffold
+        id: mini-pong
         run: |
-          echo "❌ Tests FAILED (compile: ${{ steps.compile.outputs.exit_code }}, unit: ${{ steps.test.outputs.exit_code }}, smoke: ${{ steps.smoke.outputs.exit_code }}, scaffold: ${{ steps.rnp.outputs.exit_code }}). Blocking merge."
+          if [ -d mini-pong ]; then
+            godot --path mini-pong/ --headless --quit > mini-pong-output.log 2>&1
+            echo "exit_code=$?" >> $GITHUB_OUTPUT
+          else
+            echo "SKIP: mini-pong/ not found"
+            echo "exit_code=0" >> $GITHUB_OUTPUT
+          fi
+        continue-on-error: true
+
+      - name: Test gate — block merge on failure
+        if: steps.compile.outputs.exit_code != '0' || steps.test.outputs.exit_code != '0' || steps.smoke.outputs.exit_code != '0' || steps.rnp.outputs.exit_code != '0' || steps.mini-pong.outputs.exit_code != '0'
+        run: |
+          echo "❌ Tests FAILED (compile: ${{ steps.compile.outputs.exit_code }}, unit: ${{ steps.test.outputs.exit_code }}, smoke: ${{ steps.smoke.outputs.exit_code }}, scaffold: ${{ steps.rnp.outputs.exit_code }}, mini-pong: ${{ steps.mini-pong.outputs.exit_code }}). Blocking merge."
           exit 1
 
       - name: Upload test output artifacts
@@ -98,6 +110,7 @@ jobs:
             test-output.log
             smoke-output.log
             rnp-output.log
+            mini-pong-output.log
           retention-days: 3
           if-no-files-found: ignore
 
