@@ -29,8 +29,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
-import shutil
 import time
 import urllib.request
 from typing import Optional
@@ -85,9 +83,9 @@ def _invalidate_issues_cache_for(issue_num: int):
         if iss.get("number") == issue_num:
             # Update labels in-place so dependency checks still find this issue
             labels = iss.get("labels", [])
-            # Remove workflow/backlog, add workflow/research
+            # Remove workflow/backlog, add workflow/available
             labels = [l for l in labels if l.get("name") != "workflow/backlog"]
-            labels.append({"name": "workflow/research"})
+            labels.append({"name": "workflow/available"})
             iss["labels"] = labels
             break
 
@@ -250,17 +248,31 @@ def read_pending():
 
 
 def write_pending(events):
-    """Atomically write events back to pending file."""
+    """Write events back to pending file using fcntl lock.
+
+    Uses fcntl.flock() to coordinate with the webhook dispatcher's
+    concurrent writes. Atomic rename (shutil.move) was unsafe because
+    it replaces the directory entry, orphaning the webhook writer's fd
+    and causing silent event loss.
+    """
+    import fcntl
     data = {"events": events, "processed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
-    # Atomic write via tempfile + rename
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(PENDING_FILE))
-    try:
-        with os.fdopen(fd, "w") as f:
+    # Must open with 'w' first to create if not exists, then re-open with 'r+'
+    # for the lock-protected write. 'r+' on a missing file raises FileNotFoundError.
+    if not os.path.exists(PENDING_FILE):
+        with open(PENDING_FILE, 'w') as f:
             json.dump(data, f, indent=2)
-        shutil.move(tmp, PENDING_FILE)
-    except Exception:
-        os.unlink(tmp)
-        raise
+        return
+    with open(PENDING_FILE, 'r+') as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        try:
+            f.seek(0)
+            json.dump(data, f, indent=2)
+            f.truncate()
+            f.flush()
+            os.fsync(f.fileno())
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 def _event_action(event):
@@ -291,6 +303,9 @@ def event_priority(event):
     if etype == "issues.labeled":
         label = event.get("label", "")
         if label.startswith("workflow/"):
+            # lock labels are coordination, not workflow phases
+            if label.startswith("workflow/lock-"):
+                return PRIORITY_MAX
             return PRIORITY["issues.labeled"]
         # non-workflow labels — not actionable
         return PRIORITY_MAX
@@ -866,7 +881,7 @@ def reconcile():
                     "_key": event_key,
                     "type": "issues.labeled",
                     "issue": n,
-                    "repo": "devvi/perfect-dev-agent-workflow",
+                    "repo": "devvi/agent-game-test",
                     "ts": time.time(),
                     "label": label,
                 })
