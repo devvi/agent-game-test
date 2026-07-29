@@ -1,0 +1,30 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://scenes/ball.tscn" id="1_ball"]
+[ext_resource type="PackedScene" path="res://scenes/player_paddle.tscn" id="2_player_paddle"]
+
+[sub_resource type="RectangleShape2D" id="rect_wall_top"]
+size = Vector2(1280, 10)
+
+[sub_resource type="RectangleShape2D" id="rect_wall_bottom"]
+size = Vector2(1280, 10)
+
+[node name="Game" type="Node2D"]
+
+[node name="TopWall" type="StaticBody2D" parent="." groups=["walls"]]
+position = Vector2(640, 5)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="TopWall"]
+shape = SubResource("rect_wall_top")
+
+[node name="BottomWall" type="StaticBody2D" parent="." groups=["walls"]]
+position = Vector2(640, 715)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="BottomWall"]
+shape = SubResource("rect_wall_bottom")
+
+[node name="Ball" parent="." instance=ExtResource("1_ball")]
+position = Vector2(640, 360)
+
+[node name="PlayerPaddle" parent="." instance=ExtResource("2_player_paddle")]
+position = Vector2(50, 360)

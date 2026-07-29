@@ -1,0 +1,21 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://gdscripts/ball.gd" id="1_ball"]
+
+[sub_resource type="CircleShape2D" id="circle_ball"]
+radius = 10.0
+
+[node name="Ball" type="Area2D"]
+collision_layer = 4
+collision_mask = 3
+script = ExtResource("1_ball")
+
+[node name="ColorRect" type="ColorRect" parent="."]
+offset_left = -10.0
+offset_top = -10.0
+offset_right = 10.0
+offset_bottom = 10.0
+color = Color(1, 1, 1, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("circle_ball")

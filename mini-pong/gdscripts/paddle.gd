@@ -44,6 +44,9 @@ func _ready() -> void:
 	# Clamp initial position (safety net)
 	position.y = clamp(position.y, min_y, max_y)
 
+	# Register with paddles group for ball collision detection
+	add_to_group("paddles")
+
 
 func _process(delta: float) -> void:
 	# Read input — simultaneous up+down cancels to zero
