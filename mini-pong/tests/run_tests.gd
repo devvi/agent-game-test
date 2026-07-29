@@ -9,6 +9,7 @@ var _fail: int = 0
 func _init() -> void:
 	_run("res://tests/test_paddle.gd", "Paddle")
 	_run("res://tests/test_neon.gd", "Neon Visual")
+	_run("res://tests/test_ball.gd", "Ball Physics")
 	print("\n=== TOTAL: %d passed, %d failed ===" % [_pass, _fail])
 	quit(1 if _fail > 0 else 0)
 

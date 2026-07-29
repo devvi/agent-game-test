@@ -21,12 +21,11 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if not particles:
 		return
-	# Get parent (ball) linear velocity
-	var parent_body: CharacterBody2D = get_parent() as CharacterBody2D
-	if not parent_body:
-		return
+	# Get parent (ball) velocity — duck-typed: works with Area2D + ball.gd
+	var parent := get_parent()
+	var parent_velocity: Vector2 = parent.get("velocity") if parent else Vector2.ZERO
 
-	var speed: float = parent_body.velocity.length()
+	var speed: float = parent_velocity.length()
 
 	if speed < MIN_SPEED_FOR_TRAIL:
 		particles.emitting = false
