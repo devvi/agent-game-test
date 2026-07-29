@@ -7,3 +7,4 @@
 | [11-PLAYER-PADDLE](11-PLAYER-PADDLE.md) | Player paddle — InputMap, movement, clamp |
 | [12-NEON-VISUAL](12-NEON-VISUAL.md) | Neon cyber visuals — glow, trail, flash, colors |
 | [13-BALL-PHYSICS](13-BALL-PHYSICS.md) | Ball physics — wall/paddle collision, speed escalation, scoring, serve |
+| [14-SCORING-SYSTEM](14-SCORING-SYSTEM.md) | Scoring system — points, games, matches, signal chain |
