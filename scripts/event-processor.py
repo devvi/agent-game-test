@@ -833,8 +833,12 @@ def pick_next_issue():
     if available > 0:
         candidates = _pick_candidates(available)
         for n in candidates:
-            gh("issue", "edit", str(n), "--add-label", "workflow/available")
-            gh("issue", "edit", str(n), "--remove-label", "workflow/backlog")
+            # Verify gh commands succeed before patching cache.
+            # Silent gh failure + cache patch = issue stuck in backlog forever.
+            r1 = gh("issue", "edit", str(n), "--add-label", "workflow/available")
+            r2 = gh("issue", "edit", str(n), "--remove-label", "workflow/backlog")
+            if not r1 or not r2:
+                continue  # gh unavailable — retry next tick, don't corrupt cache
             _invalidate_issues_cache_for(n)
             # Do NOT output SPAWN here — let webhook → pending → preprocess handle it.
             # Preprocess() reads workflow/available events and outputs:
