@@ -25,7 +25,7 @@ func _ready() -> void:
 		return
 
 	# Start glow/pulse animations (headless-safe)
-	if get_tree():
+	if is_inside_tree() and get_tree():
 		_start_title_pulse()
 		_start_prompt_blink()
 
@@ -44,7 +44,7 @@ func show_menu() -> void:
 	"""Called by state machine (#294) to re-show the start screen."""
 	visible = true
 	_transitioning = false
-	if get_tree():
+	if is_inside_tree() and get_tree():
 		_start_title_pulse()
 		_start_prompt_blink()
 

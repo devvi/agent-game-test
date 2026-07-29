@@ -99,7 +99,7 @@ func _resolve_ball() -> Node2D:
 	if parent != null and parent.has_node("Ball"):
 		return parent.get_node("Ball")
 	# Fallback: scene-tree search (resilient to hierarchy changes)
-	var tree := get_tree()
+	var tree := get_tree() if is_inside_tree() else null
 	if tree != null:
 		var root := tree.root
 		if root != null and root.has_node("Game/Ball"):

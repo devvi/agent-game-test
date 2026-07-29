@@ -107,7 +107,7 @@ func _win_game(winner: String) -> void:
 func _pause_and_serve() -> void:
 	# 1-second pause after score, then serve.
 	# Headless-safe: get_tree() returns null for parentless nodes — skip timer.
-	var tree := get_tree()
+	var tree := get_tree() if is_inside_tree() else null
 	if tree:
 		await tree.create_timer(1.0).timeout
 	ball.serve()

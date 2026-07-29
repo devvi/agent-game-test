@@ -70,7 +70,7 @@ func _on_match_over(winner: String) -> void:
 	_transitioning = false
 
 	# Start animations (headless-safe)
-	if get_tree():
+	if is_inside_tree() and get_tree():
 		_start_winner_pulse()
 		_start_prompt_blink()
 

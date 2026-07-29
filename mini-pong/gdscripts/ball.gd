@@ -68,7 +68,7 @@ func serve() -> void:
 
 	# Headless mode: get_tree() returns null (no SceneTree context).
 	# Skip the visual serve delay and set velocity immediately.
-	var tree = get_tree()
+	var tree = get_tree() if is_inside_tree() else null
 	if tree == null:
 		var angle_rad := randf_range(-deg_to_rad(SERVE_ANGLE_RANGE), deg_to_rad(SERVE_ANGLE_RANGE))
 		var direction: float = 1.0
