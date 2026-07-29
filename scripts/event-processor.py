@@ -714,7 +714,8 @@ def get_issue_target_files(issue_num: int) -> set:
     try:
         import glob
         design_files = glob.glob(
-            f"/home/pi/workspace/.pda/perfect-dev-agent-workflow/docs/DESIGN/{issue_num}-*.md"
+            os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         "..", "docs", "DESIGN", f"{issue_num}-*.md")
         )
         if design_files:
             with open(design_files[0]) as f:
@@ -761,34 +762,36 @@ def _has_file_conflict(issue_num: int, active_files: set) -> bool:
     return bool(target & active_files)
 
 
-def _pick_candidate() -> Optional[int]:
-    """Scan backlog and pick the best candidate issue to start (from cache).
-    
+def _pick_candidates(limit: int) -> list[int]:
+    """Scan backlog and pick up to `limit` best candidates (from cache).
+
     Criteria (in order):
     1. In workflow/backlog (not already at workflow/available)
     2. Has priority label (critical > high > medium > low)
     3. Dependencies resolved
     4. No file conflict with current implement-stage issues
+
+    Returns list of issue numbers ready for workflow/available.
     """
     active_files = _get_active_issue_target_files()
-    
+
     issues = _ensure_issues_cache()
     if not issues:
-        return None
-    
-    # Filter: only pick from workflow/backlog, not already available
-    candidates = []
+        return []
+
+    # Collect all backlog candidates
+    backlog_candidates = []
     for iss in issues:
         label_names = [l.get("name", "") for l in iss.get("labels", [])]
         if "workflow/backlog" not in label_names:
             continue
         if "workflow/available" in label_names:
             continue
-        candidates.append(iss)
-    
-    if not candidates:
-        return None
-    
+        backlog_candidates.append(iss)
+
+    if not backlog_candidates:
+        return []
+
     # Sort by priority label
     def _sort_key(iss):
         label_names = [l.get("name", "") for l in iss.get("labels", [])]
@@ -796,20 +799,23 @@ def _pick_candidate() -> Optional[int]:
             if p in label_names:
                 return idx
         return len(PRIORITY_LABEL_ORDER)
-    
-    candidates.sort(key=_sort_key)
-    
-    # Try each candidate
-    for candidate in candidates:
+
+    backlog_candidates.sort(key=_sort_key)
+
+    # Pick up to `limit` valid candidates
+    picked = []
+    for candidate in backlog_candidates:
+        if len(picked) >= limit:
+            break
         n = candidate["number"]
         unresolved = _has_unresolved_dependencies(n)
         if unresolved:
             continue
         if _has_file_conflict(n, active_files):
             continue
-        return n
-    
-    return None
+        picked.append(n)
+
+    return picked
 
 
 def pick_next_issue():
@@ -821,20 +827,18 @@ def pick_next_issue():
     if is_paused():
         return
     
-    # Pick from backlog → output SPAWN for LLM (no auto-create)
+    # Pick from backlog — batch up to MAX_CONCURRENT at once
     current = current_workflow_count()
-    while current < MAX_CONCURRENT:
-        candidate = _pick_candidate()
-        if candidate is None:
-            break
-        
-        gh("issue", "edit", str(candidate), "--add-label", "workflow/available")
-        gh("issue", "edit", str(candidate), "--remove-label", "workflow/backlog")
-        _invalidate_issues_cache_for(candidate)
-        # Do NOT output SPAWN here — let webhook → pending → preprocess handle it.
-        # Preprocess() reads workflow/available events and outputs:
-        #   SPAWN: research,issue=N,label=workflow/research
-        current += 1
+    available = max(0, MAX_CONCURRENT - current)
+    if available > 0:
+        candidates = _pick_candidates(available)
+        for n in candidates:
+            gh("issue", "edit", str(n), "--add-label", "workflow/available")
+            gh("issue", "edit", str(n), "--remove-label", "workflow/backlog")
+            _invalidate_issues_cache_for(n)
+            # Do NOT output SPAWN here — let webhook → pending → preprocess handle it.
+            # Preprocess() reads workflow/available events and outputs:
+            #   SPAWN: research,issue=N,label=workflow/research
     
     # Also output SPAWN for issues at plan/implement with no PR yet
     issues = _ensure_issues_cache()
