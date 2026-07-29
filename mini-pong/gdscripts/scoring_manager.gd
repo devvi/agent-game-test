@@ -71,8 +71,6 @@ func _on_ball_score(side: int) -> void:
 		_win_game("player")
 	elif ai_score >= POINTS_TO_WIN_GAME:
 		_win_game("ai")
-	else:
-		await _pause_and_serve()
 
 
 func _win_game(winner: String) -> void:
@@ -100,14 +98,10 @@ func _win_game(winner: String) -> void:
 		match_over.emit("ai")
 		return
 
-	# Match not over — pause then serve for next game
-	await _pause_and_serve()
+	# Match not over — FSM (#294) handles serve timing
 
 
 func _pause_and_serve() -> void:
-	# 1-second pause after score, then serve.
-	# Headless-safe: get_tree() returns null for parentless nodes — skip timer.
-	var tree := get_tree() if is_inside_tree() else null
-	if tree:
-		await tree.create_timer(1.0).timeout
-	ball.serve()
+	# FSM (#294) handles pause + serve timing.
+	# ScoringManager now only emits signals; no longer controls ball serve.
+	pass
