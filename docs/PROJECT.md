@@ -20,6 +20,7 @@
 | Mini Pong — Ball Physics | `mini-pong/gdscripts/ball.gd` | ✅ | GDD |
 | Mini Pong — Neon Visual | `mini-pong/gdscripts/ball_trail.gd` | ✅ | GDD |
 | Mini Pong — Scoring | `mini-pong/gdscripts/scoring_manager.gd` | ✅ | GDD |
+| Mini Pong — GameManager | `mini-pong/gdscripts/game_manager.gd` | ✅ | GDD |
 | Mini Pong — Arena | `mini-pong/scenes/game.tscn` | ✅ | GDD |
 
 ## 功能
@@ -32,6 +33,7 @@
 | 289 | Mini Pong 霓虹视觉效果 | ✅ 已合并 | DESIGN / GDD |
 | 290 | Mini Pong AI 对手 | ✅ 已合并 | DESIGN / GDD |
 | 291 | Mini Pong 计分系统 | ✅ 已合并 | DESIGN / GDD |
+| 293 | GameManager 全局状态 | ✅ 已合并 | DESIGN / GDD |
 
 ## 已知问题
 
