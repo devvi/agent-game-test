@@ -4,7 +4,7 @@
 > **Parent PRD:** docs/PRD/292-ui-system.md
 > **Agent:** game-plan-agent
 > **Date:** 2026-07-30
-> **Depth:** standard (sections 1–6 + 9)
+> **Depth:** standard (sections 1–10 + appendices)
 > **Approach:** A — Three independent CanvasLayer scenes with signal wiring
 
 ---
@@ -529,9 +529,37 @@ This is the only modification to existing files. It bridges the ScoringManager�
 
 ---
 
-## 6. Integration
+## 6. Edge Cases & Error Handling
 
-### 6.1 game.tscn Modifications
+> Source: PRD §5 (边界条件) + §5 (失败路径). Adopted and extended for the UI layer.
+
+| # | Edge Case | Mitigation |
+|---|-----------|------------|
+| 1 | **Headless mode:** `get_tree()` returns null, `create_tween()` and `await` crash | All scripts guard with `if get_tree():` before creating tweens or awaiting timers. `--headless --quit` runs compilation only — animations silently skipped. |
+| 2 | **GameManager autoload not registered:** `[autoload]` missing from `project.godot` (#293 rollback) | `_ready()` checks `is_instance_valid(GameManager)` before connecting signals. If null, HUD labels display initial "Player: 0 / AI: 0" and remain static. No crash. |
+| 3 | **Initial state — no signals emitted yet:** HUD loads before any score event | HUD's `_ready()` explicitly calls `_on_score_changed(GameManager.player_score, GameManager.ai_score)` to seed labels from GameManager's current state. Both are 0 on fresh start. |
+| 4 | **Rapid SPACE double-press:** Player hits SPACE twice within 0.1s on StartMenu or GameOverScreen | Each script maintains a `_transitioning` bool flag. Set `true` at entry of transition handler; prevents second trigger. Flag is not auto-reset — reset happens when the screen is re-shown via `show_menu()` or `_on_match_over()`. |
+| 5 | **Signal received while CanvasLayer is invisible:** HUD hidden but `score_changed` fires mid-game-over transition | HUD's `_on_score_changed()` unconditionally updates its Label.text regardless of `visible` state. When HUD becomes visible again, labels already show correct scores. No signal loss. |
+| 6 | **Font missing / unavailable:** Specified font resource not found at runtime | Godot auto-falls back to `system_font`. UI remains readable — aesthetic quality degrades (falls back to default sans-serif) but all text renders and functions correctly. No crash. |
+| 7 | **CanvasLayer sibling not found:** `_get_sibling("GameHUD")` returns null during transition | `_get_sibling()` uses `get_node_or_null()` — returns null safely. Callers check for null before accessing properties. Transition proceeds without toggling the missing layer — state machine (#294) provides the authoritative visibility control. |
+| 8 | **Tween conflict on same Label:** New pulse/blink animation requested while previous Tween still running | All animation start methods (`_start_title_pulse()`, `_start_winner_pulse()`, `_start_prompt_blink()`) call `_kill_tween(existing)` before creating a new one. `tween.kill()` aborts in-progress animation cleanly. |
+| 9 | **`match_over` signal fires with invalid winner string:** Unknown string (neither "player" nor "ai") | `_on_match_over()` has a `match` statement with `_:` fallthrough that returns early — no label update, no visible change, no crash. |
+| 10 | **`scoring_manager.gd` bridge line missing:** Implement phase forgets to add `GameManager.add_score(winner)` | GameManager signals never fire → HUD never updates (labels stuck at "Player: 0 / AI: 0"). DESIGN doc explicitly calls this out in §5.3 and Appendix B as a **required** 1-line change. Implement agent's acceptance test TC4 verifies signal connection. |
+| 11 | **CanvasLayer `layer` property mismatch:** StartMenu and GameOverScreen both use `layer=1`, but both could theoretically be visible if a bug sets both to `visible=true` | DESIGN contract: only one layer visible at a time enforced by transition code. `layer=1` is intentional — StartMenu and GameOverScreen are never visible simultaneously, so they share the same render layer without conflict. GameHUD uses `layer=0` (below). |
+
+### Failed Paths
+
+| # | Failure | Outcome |
+|---|---------|---------|
+| F1 | `GameManager.score_changed.connect()` throws because GameManager not yet initialized | `_ready()` guards with `is_instance_valid(GameManager) && GameManager.has_signal("score_changed")` — connection attempt skipped. Labels remain at default text. |
+| F2 | CanvasLayer scene not instantiated in `game.tscn` — Label references are null | `_ready()` checks each `@onready` Label reference — if null, method returns early. No crash, no UI rendered. |
+| F3 | `create_tween()` returns null (rare Godot edge case) | `_kill_tween()` checks `is_instance_valid(tween)` before calling `.kill()`. `_start_*` methods check `if _tween == null` before calling `.set_loops()` — no crash. |
+
+---
+
+## 7. Integration
+
+### 7.1 game.tscn Modifications
 
 Add three CanvasLayer instances as children of the root `Game` node, **after** the ScoringManager node. Node order in the scene tree matters — CanvasLayer `layer` property controls render order, but scene order determines processing order for `_input()`:
 
@@ -560,7 +588,7 @@ script = ExtResource("X_game_over")
 
 The StartMenu and GameOverScreen both use `layer=1` — only one is visible at a time, so they don't overlap.
 
-### 6.2 scoring_manager.gd Modification
+### 7.2 scoring_manager.gd Modification
 
 **File:** `mini-pong/gdscripts/scoring_manager.gd`
 **Change:** Add `GameManager.add_score(winner)` call after `scored.emit(winner)` on line 66.
@@ -576,7 +604,7 @@ The StartMenu and GameOverScreen both use `layer=1` — only one is visible at a
 
 This is the minimal bridge required for GameManager signals to fire and the UI to receive updates.
 
-### 6.3 Files Created / Modified
+### 7.3 Files Created / Modified
 
 | File | Action | Description |
 |------|--------|-------------|
@@ -589,7 +617,7 @@ This is the minimal bridge required for GameManager signals to fire and the UI t
 | `mini-pong/scenes/game.tscn` | **MODIFY** | Add 3 CanvasLayer instance nodes |
 | `mini-pong/gdscripts/scoring_manager.gd` | **MODIFY** | Add `GameManager.add_score(winner)` call (1 line) |
 
-### 6.4 Dependencies
+### 7.4 Dependencies
 
 All dependencies are CLOSED:
 - #301 (Scaffold) — directory structure exists
@@ -599,19 +627,19 @@ All dependencies are CLOSED:
 
 ---
 
-## 7. Spike / Experiments
+## 8. Spike / Experiments
 
 *Skipped per depth/standard. No technical uncertainty — all components use Godot core classes (CanvasLayer, Label, Tween).*
 
 ---
 
-## 8. Continuation Context
+## 9. Continuation Context
 
 *Skipped per depth/standard — handled by PRD §8.*
 
 ---
 
-## 9. Test Case Descriptions
+## 10. Test Case Descriptions
 
 These describe what the implement phase should verify. Headless tests use `godot --headless --quit` for compilation validation. Runtime tests require manual playtesting or future integration test infrastructure.
 
