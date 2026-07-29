@@ -6,7 +6,7 @@
 |------|:----:|
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
-| 可玩 | ⚠️ Mini Pong: 球物理、挡板移动、计分系统 |
+| 可玩 | ⚠️ Mini Pong: 球物理、挡板移动、计分系统、AI对手 |
 | 最近构建 | 2026-07-29 |
 | 开放 Issues | 0 |
 
@@ -30,6 +30,7 @@
 | 287 | Mini Pong 球物理与碰撞 | ✅ 已合并 | DESIGN / GDD |
 | 288 | Mini Pong 玩家挡板 | ✅ 已合并 | DESIGN / GDD |
 | 289 | Mini Pong 霓虹视觉效果 | ✅ 已合并 | DESIGN / GDD |
+| 290 | Mini Pong AI 对手 | ✅ 已合并 | DESIGN / GDD |
 | 291 | Mini Pong 计分系统 | ✅ 已合并 | DESIGN / GDD |
 
 ## 已知问题

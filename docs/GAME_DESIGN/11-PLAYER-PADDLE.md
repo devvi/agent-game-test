@@ -78,4 +78,90 @@ _process(delta) — every frame
 | Ball collision (#290) | Area2D body_entered signal — paddle is passive, no code needed |
 | Main scene (#295) | Instance `player_paddle.tscn` in main scene |
 | Visual (#289) | ColorRect color → ShaderMaterial neon glow |
-| AI paddle (future) | Reuse `.tscn` structure with different script |
+| AI paddle (#290) | Same `.tscn` with `mode = Mode.AI` override in TSCN |
+
+---
+
+## AI Opponent Mode
+
+> Reference: ../DESIGN/290-ai-opponent.md
+
+### Overview
+
+The paddle supports an AI mode that tracks the ball's Y position with randomized reaction delay
+and position error, plus distance-based speed adjustment for human-like play. Two paddles —
+one player-controlled, one AI — coexist in `game.tscn`, both registered in the `paddles` group
+for collision detection.
+
+### Mode Enum
+
+```gdscript
+enum Mode { PLAYER = 0, AI = 1 }
+@export var mode: Mode = Mode.PLAYER
+```
+
+### AI Parameters (Tunable)
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `ai_reaction_delay_min` | float | 0.1 | Min reaction delay (seconds) |
+| `ai_reaction_delay_max` | float | 0.3 | Max reaction delay (seconds) |
+| `ai_position_error` | float | 20.0 | ±error range (pixels) |
+| `ai_speed_boost` | float | 1.2 | Speed multiplier when trailing (dist ≥ 40) |
+| `ai_speed_slow` | float | 0.8 | Speed multiplier when ahead (dist < 40) |
+
+All `@export` — tunable in editor for difficulty adjustment.
+
+### AI Processing Flow (per frame)
+
+```
+_ai_process(delta):
+  1. Guard: if _ball_node == null → early return (no crash)
+  2. Delay timer: _ai_delay_timer -= delta
+     if timer ≤ 0:
+       timer = randf_range(0.1, 0.3)    # new delay window
+       error = randf_range(-20, 20)      # position error
+       target = ball.y + error
+  3. Speed adjustment:
+     dist = |position.y - target|
+     factor = 1.2 if dist ≥ 40 else 0.8
+  4. Move: position.y += sign(target - y) * SPEED * factor * delta
+  5. Clamp: position.y = clamp(y, min_y, max_y)
+```
+
+### Ball Resolution
+
+```gdscript
+func _resolve_ball() -> Node2D:
+    # Primary: sibling "Ball" in parent
+    # Fallback: scene-tree "Game/Ball" path
+    # Returns: Node2D or null (graceful)
+```
+
+Two-stage lookup handles both `game.tscn` hierarchy and headless test context.
+
+### AI State Variables
+
+| Variable | Type | Purpose |
+|----------|------|---------|
+| `_ball_node` | Node2D | Cached ball reference |
+| `_ai_delay_timer` | float | Remaining delay before next target update |
+| `_ai_target_y` | float | Stale target Y (updated on delay expiry) |
+| `_ai_error_offset` | float | Last applied position error |
+
+### Edge Cases
+
+| # | Case | Behavior |
+|---|------|----------|
+| 1 | Ball node missing | `_ai_process()` early-returns; paddle stays still |
+| 2 | Ball at extreme Y | Target calculated but clamp bounds enforced |
+| 3 | Frame spike (delta > 0.1) | Speed × delta may jump, but clamp catches it |
+| 4 | Distance = 40px (threshold) | Speed boost applied (`dist >= threshold`) |
+| 5 | Two AI paddles | Each tracks own `_ai_target_y` independently |
+| 6 | Headless mode | `_resolve_ball()` fallback + `_ball_node` null-guard |
+
+### Player Backward Compatibility
+
+When `mode == Mode.PLAYER`:
+- `_process()` skips AI dispatch, runs original input logic unchanged
+- InputMap binding guard (`if mode == Mode.PLAYER`) prevents unnecessary actions in AI mode
