@@ -1,5 +1,4 @@
 extends Node
-class_name GameManager
 ## GameManager — autoload singleton for global game state.
 ## Pure-data holder: scores, games won, reset APIs, and signals.
 ## Does NOT duplicate ScoringManager logic — provides global namespace.
