@@ -9,3 +9,4 @@
 | [13-BALL-PHYSICS](13-BALL-PHYSICS.md) | Ball physics — wall/paddle collision, speed escalation, scoring, serve |
 | [14-SCORING-SYSTEM](14-SCORING-SYSTEM.md) | Scoring system — points, games, matches, signal chain |
 | [15-GAME-MANAGER](15-GAME-MANAGER.md) | GameManager autoload — global state singleton, reset APIs, get_winner() |
+| [16-UI-SYSTEM](16-UI-SYSTEM.md) | UI system — StartMenu, GameHUD, GameOverScreen with CanvasLayer architecture |
