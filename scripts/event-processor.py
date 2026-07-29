@@ -567,7 +567,7 @@ MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_ISSUES", "4"))
 # Phase agents capped by MAX_PHASE_SLOTS; review/self-correct pass unconditionally (reserved slots).
 # Was 4 to allow review/self-correct alongside phase agents, but the reserved-slot
 # mechanism (line ~1027) already handles this correctly.
-MAX_PHASE_SLOTS = int(os.environ.get("MAX_PHASE_SLOTS", "3"))
+MAX_PHASE_SLOTS = int(os.environ.get("MAX_PHASE_SLOTS", "4"))
 # Phase agents (research/plan/implement) capped at MAX_PHASE_SLOTS.
 # Review and self-correct don't count toward this cap (reserved slots).
 
