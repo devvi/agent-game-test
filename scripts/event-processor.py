@@ -600,7 +600,9 @@ def _try_acquire_lock(issue_num: int) -> bool:
     # Fetch current issue labels
     raw = gh("issue", "view", str(issue_num), "--json", "labels")
     if not raw:
-        return False
+        # gh unavailable — grant lock to avoid deadlock.
+        # A duplicate spawn is better than a permanent stall.
+        return True
     try:
         labels = [l["name"] for l in json.loads(raw).get("labels", [])]
     except (json.JSONDecodeError, KeyError):
