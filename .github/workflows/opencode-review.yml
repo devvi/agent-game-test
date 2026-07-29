@@ -51,15 +51,22 @@ jobs:
         id: compile-mini-pong
         run: |
           exit_code=0
-          if [ -d mini-pong ]; then
-            for script in $(find mini-pong/gdscripts/ mini-pong/tests/ -name '*.gd' 2>/dev/null); do
-              output=$(godot --path mini-pong/ --headless --check-only "$(basename "$script")" 2>&1) || true
-              if echo "$output" | grep -q "SCRIPT ERROR"; then
-                echo "❌ COMPILE ERROR: $script"
-                echo "$output" | grep "SCRIPT ERROR"
-                exit_code=1
-              fi
-            done
+          if [ -f mini-pong/tests/check_compile.gd ]; then
+            godot --path mini-pong/ --headless --script tests/check_compile.gd > compile-mini-pong-output.log 2>&1
+            exit_code=$?
+            cat compile-mini-pong-output.log
+            if grep -q "FAIL\|SCRIPT ERROR" compile-mini-pong-output.log; then
+              echo "❌ COMPILE ERROR(s) in Mini Pong scripts"
+              exit_code=1
+            fi
+          elif [ -d mini-pong ]; then
+            # Fallback: quick project validation if check_compile.gd missing
+            godot --path mini-pong/ --headless --quit > compile-mini-pong-output.log 2>&1
+            exit_code=$?
+            if grep -q "SCRIPT ERROR" compile-mini-pong-output.log; then
+              echo "❌ COMPILE ERROR(s) detected"
+              exit_code=1
+            fi
           else
             echo "SKIP: mini-pong/ not found"
           fi
