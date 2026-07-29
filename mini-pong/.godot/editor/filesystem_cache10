@@ -1,0 +1,12 @@
+78098b89c88a74ebe8c20117b8754620
+::res://::1785322709
+::res://assets/::1785322705
+gradient_neon.tres::GradientTexture1D::4340504433750297741::1785322705::0::1::::<><><>0<>0<><>::
+particle_material.tres::ParticleProcessMaterial::1487931698305930707::1785322705::0::1::::<><><>0<>0<><>::
+::res://gdscripts/::1785322705
+ball_trail.gd::GDScript::6835907232137895538::1785322705::0::1::::<>Node2D<><>0<>0<><>::
+neon_glow.gdshader::Shader::5348995465793345090::1785322705::0::1::::<><><>0<>0<><>::
+score_flash.gd::GDScript::1937664306107306599::1785322705::0::1::::<>Node<><>0<>0<><>::
+::res://scenes/::1785322705
+world_environment.tscn::PackedScene::4648451768574973780::1785322705::0::1::::<><><>0<>0<><>::
+::res://tests/::1785248480
