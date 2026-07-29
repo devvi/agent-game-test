@@ -2,11 +2,20 @@ extends SceneTree
 ## Headless compile checker — loads all .gd files in gdscripts/ and tests/ once.
 ## Usage: godot --path mini-pong/ --headless --script tests/check_compile.gd
 ## Exit 0 = all scripts loaded. Exit 1 = one or more failed.
+##
+## Uses call_deferred to defer the check until autoload singletons are
+## initialized, so scripts that reference autoload names (e.g. GameManager)
+## can resolve those identifiers during compilation.
 
 var _pass: int = 0
 var _fail: int = 0
 
 func _init() -> void:
+	# Defer to next idle frame — by then autoloads are registered and
+	# their names are available for GDScript identifier resolution.
+	call_deferred("_run_check")
+
+func _run_check() -> void:
 	var dirs := [
 		"res://gdscripts/",
 		"res://tests/",
