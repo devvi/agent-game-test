@@ -11,6 +11,7 @@ func _init() -> void:
 	_run("res://tests/test_neon.gd", "Neon Visual")
 	_run("res://tests/test_ball.gd", "Ball Physics")
 	_run("res://tests/test_scoring_manager.gd", "Scoring Manager")
+	_run("res://tests/test_ai_paddle.gd", "AI Paddle")
 	print("\n=== TOTAL: %d passed, %d failed ===" % [_pass, _fail])
 	quit(1 if _fail > 0 else 0)
 
