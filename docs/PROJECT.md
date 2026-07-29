@@ -6,7 +6,7 @@
 |------|:----:|
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
-| 可玩 | ⚠️ Mini Pong: 完整UI(菜单/计分/结束)、球物理、挡板移动、AI对手 |
+| 可玩 | ✅ Mini Pong: 完整状态机(MENU→SERVING→PLAYING→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手 |
 | 最近构建 | 2026-07-30 |
 | 开放 Issues | 0 |
 
@@ -25,6 +25,7 @@
 | Mini Pong — StartMenu | `mini-pong/gdscripts/start_menu.gd` | ✅ | GDD |
 | Mini Pong — GameHUD | `mini-pong/gdscripts/game_hud.gd` | ✅ | GDD |
 | Mini Pong — GameOverScreen | `mini-pong/gdscripts/game_over_screen.gd` | ✅ | GDD |
+| Mini Pong — State Machine | `mini-pong/gdscripts/game_state_machine.gd` | ✅ | GDD |
 
 ## 功能
 
@@ -38,6 +39,7 @@
 | 291 | Mini Pong 计分系统 | ✅ 已合并 | DESIGN / GDD |
 | 292 | Mini Pong UI 系统(菜单/计分/结束) | ✅ 已合并 | DESIGN / GDD |
 | 293 | GameManager 全局状态 | ✅ 已合并 | DESIGN / GDD |
+| 294 | Game State Machine 状态机 | ✅ 已合并 | DESIGN / GDD |
 
 ## 已知问题
 
