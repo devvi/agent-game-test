@@ -64,6 +64,7 @@ func _on_ball_score(side: int) -> void:
 
 	# Emit per-point signal
 	scored.emit(winner)
+	GameManager.add_score(winner)
 
 	# Check game win threshold
 	if player_score >= POINTS_TO_WIN_GAME:

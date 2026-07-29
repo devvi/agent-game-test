@@ -1,12 +1,22 @@
 extends SceneTree
 ## Test runner for mini-pong headless tests.
 ## Usage: godot --path mini-pong/ --headless --script tests/run_tests.gd
+##
+## Uses call_deferred to defer test execution until autoload singletons are
+## initialized, so scripts that reference autoload names (e.g. GameManager)
+## can resolve those identifiers during compilation.
 
 var _pass: int = 0
 var _fail: int = 0
 
 
 func _init() -> void:
+	# Defer to next idle frame — by then autoloads are registered and
+	# their names are available for GDScript identifier resolution.
+	call_deferred("_run_tests")
+
+
+func _run_tests() -> void:
 	_run("res://tests/test_paddle.gd", "Paddle")
 	_run("res://tests/test_neon.gd", "Neon Visual")
 	_run("res://tests/test_ball.gd", "Ball Physics")
