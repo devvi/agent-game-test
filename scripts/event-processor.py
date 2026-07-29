@@ -563,7 +563,10 @@ DEFAULT_BRANCH = MANIFEST.get("git", {}).get("default_branch", "master")
 # Reads backlog, picks candidate, adds workflow/available label.
 
 MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_ISSUES", "4"))
-MAX_SPAWN_PER_TICK = int(os.environ.get("MAX_SPAWN_PER_TICK", "4"))
+# MAX_SPAWN_PER_TICK removed 2026-07-29 — dead code.
+# Phase agents capped by MAX_PHASE_SLOTS; review/self-correct pass unconditionally (reserved slots).
+# Was 4 to allow review/self-correct alongside phase agents, but the reserved-slot
+# mechanism (line ~1027) already handles this correctly.
 MAX_PHASE_SLOTS = int(os.environ.get("MAX_PHASE_SLOTS", "3"))
 # Phase agents (research/plan/implement) capped at MAX_PHASE_SLOTS.
 # Review and self-correct don't count toward this cap (reserved slots).
