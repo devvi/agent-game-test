@@ -6,7 +6,7 @@
 |------|:----:|
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
-| 可玩 | ⚠️ Mini Pong: 有球物理、挡板移动、碰撞检测 |
+| 可玩 | ⚠️ Mini Pong: 球物理、挡板移动、计分系统 |
 | 最近构建 | 2026-07-29 |
 | 开放 Issues | 0 |
 
@@ -19,6 +19,7 @@
 | Mini Pong — Paddle | `mini-pong/gdscripts/paddle.gd` | ✅ | GDD |
 | Mini Pong — Ball Physics | `mini-pong/gdscripts/ball.gd` | ✅ | GDD |
 | Mini Pong — Neon Visual | `mini-pong/gdscripts/ball_trail.gd` | ✅ | GDD |
+| Mini Pong — Scoring | `mini-pong/gdscripts/scoring_manager.gd` | ✅ | GDD |
 | Mini Pong — Arena | `mini-pong/scenes/game.tscn` | ✅ | GDD |
 
 ## 功能
@@ -29,6 +30,7 @@
 | 287 | Mini Pong 球物理与碰撞 | ✅ 已合并 | DESIGN / GDD |
 | 288 | Mini Pong 玩家挡板 | ✅ 已合并 | DESIGN / GDD |
 | 289 | Mini Pong 霓虹视觉效果 | ✅ 已合并 | DESIGN / GDD |
+| 291 | Mini Pong 计分系统 | ✅ 已合并 | DESIGN / GDD |
 
 ## 已知问题
 
