@@ -6,8 +6,8 @@
 |------|:----:|
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
-| 可玩 | ⚠️ Mini Pong: 球物理、挡板移动、计分系统、AI对手 |
-| 最近构建 | 2026-07-29 |
+| 可玩 | ⚠️ Mini Pong: 完整UI(菜单/计分/结束)、球物理、挡板移动、AI对手 |
+| 最近构建 | 2026-07-30 |
 | 开放 Issues | 0 |
 
 ## 模块地图
@@ -22,6 +22,9 @@
 | Mini Pong — Scoring | `mini-pong/gdscripts/scoring_manager.gd` | ✅ | GDD |
 | Mini Pong — GameManager | `mini-pong/gdscripts/game_manager.gd` | ✅ | GDD |
 | Mini Pong — Arena | `mini-pong/scenes/game.tscn` | ✅ | GDD |
+| Mini Pong — StartMenu | `mini-pong/gdscripts/start_menu.gd` | ✅ | GDD |
+| Mini Pong — GameHUD | `mini-pong/gdscripts/game_hud.gd` | ✅ | GDD |
+| Mini Pong — GameOverScreen | `mini-pong/gdscripts/game_over_screen.gd` | ✅ | GDD |
 
 ## 功能
 
@@ -33,6 +36,7 @@
 | 289 | Mini Pong 霓虹视觉效果 | ✅ 已合并 | DESIGN / GDD |
 | 290 | Mini Pong AI 对手 | ✅ 已合并 | DESIGN / GDD |
 | 291 | Mini Pong 计分系统 | ✅ 已合并 | DESIGN / GDD |
+| 292 | Mini Pong UI 系统(菜单/计分/结束) | ✅ 已合并 | DESIGN / GDD |
 | 293 | GameManager 全局状态 | ✅ 已合并 | DESIGN / GDD |
 
 ## 已知问题
