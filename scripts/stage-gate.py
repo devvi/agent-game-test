@@ -175,13 +175,32 @@ def check_pr(pr_num: int) -> tuple[bool, str]:
     # Research/plan PRs (docs-only) should auto-merge immediately.
     if pr_state.upper() == 'OPEN' and matched_prefix == 'impl/':
         try:
+            # Get repo from git remote
+            result = subprocess.run(
+                ['git', 'remote', 'get-url', 'origin'],
+                capture_output=True, text=True
+            )
+            remote = result.stdout.strip()
+            m = re.search(r'github\\.com[:/]([^/]+/[^/]+?)(?:\\.git)?$', remote)
+            repo = m.group(1) if m else 'devvi/agent-game-test'
+
+            # Disable auto-merge via GraphQL (PATCH with auto_merge=false is unreliable)
+            pr_node = gh_json(
+                'api', f'repos/{repo}/pulls/{pr_num}',
+                '--jq', '.node_id'
+            )
+            query = f'''
+            mutation {{
+                disablePullRequestAutoMerge(input: {{pullRequestId: "{pr_node}"}}) {{
+                    clientMutationId
+                }}
+            }}
+            '''
             subprocess.run(
-                ['gh', 'api', f'repos/devvi/perfect-dev-agent-workflow/pulls/{pr_num}',
-                 '-X', 'PATCH',
-                 '-f', 'auto_merge=false'],
+                ['gh', 'api', 'graphql', '-f', f'query={query}'],
                 capture_output=True, text=True, timeout=10
             )
-            print(f"🔒  Auto-merge disabled on PR #{pr_num}")
+            print(f"🔒  Auto-merge disabled on PR #{pr_num} (repo={repo})")
         except Exception as e:
             print(f"⚠   Could not disable auto-merge on PR #{pr_num}: {e}")
 
