@@ -10,3 +10,7 @@ run/main_scene="res://scenes/game.tscn"
 renderer/rendering_method="forward_plus"
 environment/glow_enabled=true
 rendering/environment/defaults/default_clear_color=Color(0.039, 0.039, 0.071, 1)
+
+[autoload]
+
+GameManager="*res://gdscripts/game_manager.gd"
