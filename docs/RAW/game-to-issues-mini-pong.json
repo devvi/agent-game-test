@@ -1,0 +1,492 @@
+{
+  "meta": {
+    "title": "Mini Pong — 霓虹赛博乒乓球",
+    "description": "经典 Pong 玩法，霓虹赛博视觉。玩家 vs AI 乒乓球：球反弹物理、计分系统、三局两胜。验证 game-to-issues skill 和 workflow 管线。Godot 4.7.1。",
+    "engine": "Godot 4.7.1",
+    "platform": "macOS / Linux / Windows",
+    "directory": "mini-pong/",
+    "created_at": "2026-07-25T23:58:00Z",
+    "model": "deepseek/deepseek-v4-flash",
+    "status": "created",
+    "total_issues": 12
+  },
+  "issues": [
+    {
+      "id": 1,
+      "title": "[Scaffold] 项目骨架 — 目录结构与 CI",
+      "description": "在 agent-game-test 下创建 mini-pong/ 目录，包含独立 project.godot（2D Forward+，开启 glow/bloom）、标准子目录（scenes/, gdscripts/, assets/, tests/）、WorldEnvironment 预设场景。CI workflow 增加 Mini Pong 编译验证步骤。",
+      "context": "基础设施决定后续开发效率。glow/bloom 在 project.godot 中开启，后续所有视觉依赖此配置。",
+      "depth": "light",
+      "priority": "critical",
+      "dependencies": [],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "small",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "mini-pong/ 目录存在，含 project.godot（2D Forward+，glow 开启）",
+        "标准子目录 scenes/, gdscripts/, assets/, tests/",
+        "WorldEnvironment 场景存在（配置 glow 强度 0.6）",
+        "CI 增加 `godot --path mini-pong/ --headless --quit` 步骤",
+        "--headless --quit 编译无错误"
+      ],
+      "github_number": 286
+    },
+    {
+      "id": 2,
+      "title": "[Feature] 球物理与碰撞",
+      "description": "球（Area2D + CollisionShape2D）在场景中以恒定速度直线运动。撞上下墙（StaticBody2D）Y 反转。撞左右挡板时根据撞击位置改变反弹角度（撞击点离挡板中心越远，角度越陡）。每次击中挡板速度 +5%，上限 2x。球从中心随机方向发球。",
+      "context": "Pong 全部乐趣在球的物理行为。手动 _process 更新比 Godot 物理引擎更适合街机风格。",
+      "depth": "standard",
+      "priority": "critical",
+      "dependencies": [
+        1
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "Area2D 球有 CollisionShape2D（shape 不为空）",
+        "撞上下墙 Y 方向完美反弹",
+        "撞左右挡板时反弹角度随撞击位置变化",
+        "每次击挡板速度 +5%，上限 2x",
+        "球出左右边界触发得分事件",
+        "--headless --quit 无脚本错误"
+      ],
+      "github_number": 287
+    },
+    {
+      "id": 3,
+      "title": "[Feature] 玩家挡板与输入",
+      "description": "玩家挡板（Area2D + ColorRect 视觉）。WASD / 方向键控制上下移动，速度恒定，clamp 在屏幕范围内。InputMap action（paddle_up, paddle_down）在 _ready() 中用代码绑定。",
+      "context": "玩家直接操作的唯一物体。代码绑定 InputMap 避免 project.godot 解析 bug。",
+      "depth": "light",
+      "priority": "critical",
+      "dependencies": [
+        1
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "small",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "W/↑ 向上移动，S/↓ 向下移动",
+        "挡板 clamp 在屏幕上下边界内",
+        "移动速度恒定",
+        "InputMap 在 _ready() 中代码绑定",
+        "Area2D 的 CollisionShape2D 不为空",
+        "--headless --quit 无脚本错误"
+      ],
+      "github_number": 288
+    },
+    {
+      "id": 4,
+      "title": "[Feature] AI 对手",
+      "description": "AI 挡板追踪球 Y 位置，加入 100-300ms 随机反应延迟和 ±20px 位置误差。速度动态调整：落后时加速追球，领先时减速给机会。不超出屏幕边界。",
+      "context": "AI 决定游戏是否好玩。完美追踪不可玩，太笨也无聊。延迟+误差+动态难度是 Pong AI 的经典模式。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        1,
+        2
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "AI 追踪球的 Y 位置",
+        "100-300ms 随机反应延迟",
+        "±20px 随机位置误差",
+        "落后时加速 20%，领先时减速 20%",
+        "不超出屏幕边界",
+        "--headless --quit 无脚本错误"
+      ],
+      "github_number": 290
+    },
+    {
+      "id": 5,
+      "title": "[Feature] 计分系统",
+      "description": "左右边界外 Area2D 检测球出界。左→AI 得分，右→玩家得分。5 分一局，先赢 2 局者胜。得分后暂停 1 秒再发球。通过信号（scored, match_over）通知 UI 和 GameManager。",
+      "context": "得分是连接物理、UI、音效的核心事件。信号链必须完整。",
+      "depth": "light",
+      "priority": "high",
+      "dependencies": [
+        2
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "small",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "球出左边界 → AI 得分",
+        "球出右边界 → 玩家得分",
+        "5 分一局，先赢 2 局者胜",
+        "得分后暂停 1 秒再发球",
+        "scored(winner) 和 match_over(winner) 信号",
+        "--headless --quit 无脚本错误"
+      ],
+      "github_number": 291
+    },
+    {
+      "id": 6,
+      "title": "[Feature] 霓虹赛博视觉系统",
+      "description": "WorldEnvironment glow(0.6)/bloom(0.8)。暗底 #0a0a12。玩家 = 霓虹蓝 #4a90d9，AI = 霓虹红 #ff3355。GPUParticles2D 球拖尾（霓虹蓝→紫渐变）。球/挡板 ShaderMaterial 发光轮廓。得分时画面闪烁对应色 0.2s。中线为淡蓝虚线。",
+      "context": "用户明确指定的画面风格。Godot 内置 glow/bloom 即可实现。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "glow 强度 0.6, bloom 阈值 0.8",
+        "背景 #0a0a12，玩家 #4a90d9，AI #ff3355",
+        "球有 GPUParticles2D 拖尾粒子",
+        "球/挡板有发光轮廓",
+        "得分时画面闪烁 0.2s",
+        "--headless --quit 无脚本错误"
+      ],
+      "github_number": 289
+    },
+    {
+      "id": 7,
+      "title": "[Feature] UI 系统 — 菜单/计分/结束",
+      "description": "三层 UI（CanvasLayer）：①开始画面：'Mini Pong' 霓虹蓝发光标题 + '按 SPACE 开始' 闪烁；②游戏中 HUD：顶部 'Player 分 - 分 AI' 分别用蓝/红色；③结束画面：胜者大字 + '按 SPACE 重新开始'。发光效果通过 modulate 透明度动画模拟。",
+      "context": "UI 是玩家第一印象。必须贯彻霓虹赛博视觉风格。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        1,
+        5,
+        6
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "开始画面有霓虹蓝发光标题和闪烁提示",
+        "HUD 顶部分数用对应霓虹色",
+        "结束画面有胜者大字",
+        "三层 UI 通过 CanvasLayer.visible 切换",
+        "1280x720 分辨率可读",
+        "--headless --quit 无脚本错误"
+      ],
+      "github_number": 292
+    },
+    {
+      "id": 8,
+      "title": "[Feature] 游戏状态管理",
+      "description": "状态机：menu → serving(1s) → playing → scored(1s) → game_over → menu。每个状态控制 UI 可见性、输入开关、物体冻结。SPACE 从 menu→serving，得分自动触发 scored，比赛结束触发 game_over。",
+      "context": "清晰的状态机避免逻辑混乱。每个状态有明确的输入输出边界。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        1,
+        2,
+        7
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "small",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "4 状态：menu, serving, playing, scored, game_over",
+        "menu 只响应 SPACE",
+        "serving 1s 后发球",
+        "playing 允许碰撞和移动",
+        "scored 冻结 1s",
+        "game_over 只响应 SPACE 回 menu",
+        "--headless --quit 无脚本错误"
+      ],
+      "github_number": 294
+    },
+    {
+      "id": 9,
+      "title": "[Feature] GameManager 全局状态",
+      "description": "autoload 单例。管理 player_score, ai_score, player_games_won, ai_games_won。points_to_win_game=5, games_to_win=2。API: reset_game(), reset_match(), get_winner()。信号: score_changed, game_won, match_over。",
+      "context": "全局状态集中管理。Godot autoload 天然单例。",
+      "depth": "light",
+      "priority": "high",
+      "dependencies": [
+        1,
+        5
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "small",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "autoload 注册，全局可访问",
+        "管理双方分数和局数",
+        "reset_game/reset_match/get_winner API",
+        "score_changed/game_won/match_over 信号",
+        "--headless --quit 无脚本错误"
+      ],
+      "github_number": 293
+    },
+    {
+      "id": 10,
+      "title": "[Integration] 主场景组装",
+      "description": "创建 Main.tscn，组装所有组件：Root → { Ball, PlayerPaddle, AIPaddle, Walls(上下), ScoreZones(左右), WorldEnvironment, CanvasLayer/UI, GameStateManager, GameManager(autoload) }。连接信号链路：ball.scored → GameManager → UI.update。配置全局常量（边界位置、球速、AI 参数）。",
+      "context": "胶水代码。不包含新功能，只做组件间的信号连接和初始化编排。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "Main.tscn 场景树正确",
+        "所有信号连接完整",
+        "全局常量统一配置",
+        "菜单→对打→得分→局胜→结束→重开链路正常",
+        "--path mini-pong/ --headless --quit 无错误"
+      ],
+      "github_number": 295
+    },
+    {
+      "id": 11,
+      "title": "[Feature] 暂停与音效",
+      "description": "暂停：playing 状态按 Escape → 遮罩 + '暂停' 文字，再按 Escape 继续。音效：AudioStreamGenerator 实时合成——击挡板（高频短音）、击墙（低频回声）、得分（3 音符升调）、结束（长音 fade）。",
+      "context": "暂停提升体验完整性。音效不用外部文件，Godot 合成器即可。",
+      "depth": "light",
+      "priority": "medium",
+      "dependencies": [
+        1,
+        3,
+        7,
+        8
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "small",
+      "milestone": "v1",
+      "acceptance_criteria": [
+        "Escape 暂停/继续",
+        "暂停时遮罩+文字",
+        "击挡板/墙/得分/结束 4 种音效",
+        "音效用 AudioStreamGenerator 合成",
+        "--headless --quit 无错误"
+      ],
+      "github_number": 296
+    },
+    {
+      "id": 12,
+      "title": "[Test] 100 回合自动对打",
+      "description": "GDScript 测试脚本（tests/auto_play_test.gd），headless 模式下 AI vs AI 模拟 100 局。验证：100 局不崩溃、每局计分到 5、三局两胜逻辑正确、比赛有胜者、结束后可重开。任何 SCRIPT ERROR 导致测试失败。",
+      "context": "运行时测试是最后防线。100 局自动对打暴露无限循环、状态卡死、计分溢出。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        10
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "godot --path mini-pong/ --headless --script tests/auto_play_test.gd 正常运行",
+        "100 局模拟不崩溃",
+        "每局计分到 5",
+        "三局两胜逻辑正确",
+        "有明确胜者",
+        "任何 SCRIPT ERROR → exit code != 0"
+      ],
+      "github_number": 297
+    }
+  ],
+  "versions": {
+    "mvp": {
+      "name": "最小可用版本",
+      "description": "完整 Pong：霓虹赛博视觉、玩家 vs AI、计分三局两胜、菜单→对打→结束→重开、100 局测试",
+      "issues": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        12
+      ]
+    },
+    "v1": {
+      "name": "基础完善版",
+      "description": "暂停 + 音效",
+      "issues": [
+        11
+      ]
+    },
+    "full": {
+      "name": "完整版",
+      "description": "全部 12 个 Issue",
+      "issues": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ]
+    }
+  },
+  "dependency_graph": {
+    "nodes": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 2
+      },
+      {
+        "from": 1,
+        "to": 3
+      },
+      {
+        "from": 1,
+        "to": 4
+      },
+      {
+        "from": 1,
+        "to": 6
+      },
+      {
+        "from": 1,
+        "to": 7
+      },
+      {
+        "from": 1,
+        "to": 8
+      },
+      {
+        "from": 1,
+        "to": 9
+      },
+      {
+        "from": 1,
+        "to": 11
+      },
+      {
+        "from": 2,
+        "to": 4
+      },
+      {
+        "from": 2,
+        "to": 5
+      },
+      {
+        "from": 2,
+        "to": 10
+      },
+      {
+        "from": 3,
+        "to": 10
+      },
+      {
+        "from": 4,
+        "to": 10
+      },
+      {
+        "from": 5,
+        "to": 7
+      },
+      {
+        "from": 5,
+        "to": 9
+      },
+      {
+        "from": 5,
+        "to": 10
+      },
+      {
+        "from": 6,
+        "to": 7
+      },
+      {
+        "from": 6,
+        "to": 10
+      },
+      {
+        "from": 7,
+        "to": 8
+      },
+      {
+        "from": 7,
+        "to": 10
+      },
+      {
+        "from": 8,
+        "to": 11
+      },
+      {
+        "from": 9,
+        "to": 10
+      },
+      {
+        "from": 10,
+        "to": 12
+      }
+    ]
+  }
+}
