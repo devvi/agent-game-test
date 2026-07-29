@@ -66,7 +66,19 @@ func serve() -> void:
 	_bounce_cooldown = 0
 	_is_serving = true
 
-	await get_tree().create_timer(SERVE_DELAY).timeout
+	# Headless mode: get_tree() returns null (no SceneTree context).
+	# Skip the visual serve delay and set velocity immediately.
+	var tree = get_tree()
+	if tree == null:
+		var angle_rad := randf_range(-deg_to_rad(SERVE_ANGLE_RANGE), deg_to_rad(SERVE_ANGLE_RANGE))
+		var direction: float = 1.0
+		if randi() % 2 == 0:
+			direction = -1.0
+		velocity = Vector2(cos(angle_rad) * direction, sin(angle_rad)) * speed
+		_is_serving = false
+		return
+
+	await tree.create_timer(SERVE_DELAY).timeout
 
 	var angle_rad := randf_range(-deg_to_rad(SERVE_ANGLE_RANGE), deg_to_rad(SERVE_ANGLE_RANGE))
 	var direction: float = 1.0

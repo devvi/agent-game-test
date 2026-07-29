@@ -52,7 +52,16 @@ jobs:
         run: |
           if [ -f tests/run_tests.gd ]; then
             godot --headless --script tests/run_tests.gd > test-output.log 2>&1
-            echo "exit_code=$?" >> $GITHUB_OUTPUT
+            TEST_EXIT=$?
+            echo "Test output:"
+            cat test-output.log
+            # SCRIPT ERROR in output = test failure, even if exit code is 0
+            if grep -q "SCRIPT ERROR" test-output.log; then
+              echo "❌ SCRIPT ERROR(s) detected in test output — marking as failure"
+              echo "exit_code=1" >> $GITHUB_OUTPUT
+            else
+              echo "exit_code=$TEST_EXIT" >> $GITHUB_OUTPUT
+            fi
           else
             echo "SKIP: tests/run_tests.gd not found"
             echo "exit_code=0" >> $GITHUB_OUTPUT
@@ -101,9 +110,15 @@ jobs:
           if [ -f mini-pong/tests/run_tests.gd ]; then
             godot --path mini-pong/ --headless --script tests/run_tests.gd > mini-pong-test-output.log 2>&1
             TEST_EXIT=$?
-            echo "exit_code=$TEST_EXIT" >> $GITHUB_OUTPUT
             echo "Test output:"
             cat mini-pong-test-output.log
+            # SCRIPT ERROR in output = test failure, even if exit code is 0
+            if grep -q "SCRIPT ERROR" mini-pong-test-output.log; then
+              echo "❌ SCRIPT ERROR(s) detected in test output — marking as failure"
+              echo "exit_code=1" >> $GITHUB_OUTPUT
+            else
+              echo "exit_code=$TEST_EXIT" >> $GITHUB_OUTPUT
+            fi
           else
             echo "SKIP: mini-pong/tests/run_tests.gd not found"
             echo "exit_code=0" >> $GITHUB_OUTPUT
