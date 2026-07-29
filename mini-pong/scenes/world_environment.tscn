@@ -2,8 +2,10 @@
 
 [sub_resource type="Environment" id="Environment_6h5et"]
 background_mode = 0
+background_color = Color(0.039, 0.039, 0.071, 1)
 glow_enabled = true
 glow_intensity = 0.6
+glow_bloom = 0.8
 
 [node name="WorldEnvironment" type="WorldEnvironment"]
 environment = SubResource("Environment_6h5et")

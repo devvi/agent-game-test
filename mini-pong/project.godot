@@ -9,3 +9,4 @@ run/main_scene=""
 [rendering]
 renderer/rendering_method="forward_plus"
 environment/glow_enabled=true
+rendering/environment/defaults/default_clear_color=Color(0.039, 0.039, 0.071, 1)
