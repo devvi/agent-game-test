@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://gdscripts/start_menu.gd" id="4_start_menu"]
 [ext_resource type="Script" path="res://gdscripts/game_hud.gd" id="5_game_hud"]
 [ext_resource type="Script" path="res://gdscripts/game_over_screen.gd" id="6_game_over"]
+[ext_resource type="Script" path="res://gdscripts/game_state_machine.gd" id="7_game_state_machine"]
 
 [sub_resource type="RectangleShape2D" id="rect_wall_top"]
 size = Vector2(1280, 10)
@@ -39,6 +40,16 @@ mode = 1
 
 [node name="ScoringManager" type="Node" parent="."]
 script = ExtResource("3_scoring_manager")
+
+[node name="GameStateMachine" type="Node" parent="."]
+script = ExtResource("7_game_state_machine")
+start_menu = NodePath("../StartMenu")
+game_hud = NodePath("../GameHUD")
+game_over_screen = NodePath("../GameOverScreen")
+ball = NodePath("../Ball")
+player_paddle = NodePath("../PlayerPaddle")
+ai_paddle = NodePath("../AIPaddle")
+scoring_manager = NodePath("../ScoringManager")
 
 [node name="StartMenu" type="CanvasLayer" parent="."]
 layer = 1

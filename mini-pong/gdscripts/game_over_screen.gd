@@ -36,11 +36,7 @@ func _ready() -> void:
 	visible = false
 
 
-func _input(event: InputEvent) -> void:
-	if not visible or _transitioning:
-		return
-	if event.is_action_pressed("ui_accept"):  # SPACE key
-		_on_restart_pressed()
+# REMOVED: _input() — FSM (#294) handles SPACE in GAME_OVER state
 
 
 # ── Signal Handlers ──

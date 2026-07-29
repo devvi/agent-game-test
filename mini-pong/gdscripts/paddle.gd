@@ -19,6 +19,12 @@ enum Mode { PLAYER = 0, AI = 1 }
 @export var ai_speed_boost: float = 1.2           # +20% when trailing
 @export var ai_speed_slow: float = 0.8            # -20% when ahead
 
+# ── Freeze control (FSM #294) ──
+var frozen: bool = false
+
+func set_frozen(value: bool) -> void:
+	frozen = value
+
 # ── State ──
 var min_y: float = 0.0
 var max_y: float = 0.0
@@ -75,6 +81,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if frozen:
+		return
 	if mode == Mode.AI:
 		_ai_process(delta)
 		return
