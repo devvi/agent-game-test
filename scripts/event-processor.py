@@ -31,6 +31,22 @@ import subprocess
 import sys
 import time
 import urllib.request
+
+# ── Bootstrap GH_TOKEN from .env (cron stripped env) ──────────────────
+_ENV_FILE = os.path.expanduser("~/.hermes/.env")
+if os.path.exists(_ENV_FILE) and not os.environ.get("GH_TOKEN"):
+    try:
+        with open(_ENV_FILE) as _f:
+            for _line in _f:
+                _line = _line.strip()
+                if _line.startswith("#") or "=" not in _line:
+                    continue
+                _k, _v = _line.split("=", 1)
+                _k = _k.strip(); _v = _v.strip().strip('\"').strip("'")
+                if _k in ("GH_TOKEN", "GITHUB_TOKEN") and not os.environ.get(_k):
+                    os.environ[_k] = _v
+    except Exception:
+        pass
 from typing import Optional
 from collections import defaultdict
 
