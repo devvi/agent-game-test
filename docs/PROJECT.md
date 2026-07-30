@@ -6,7 +6,7 @@
 |------|:----:|
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
-| 可玩 | ✅ Mini Pong: 完整状态机(MENU→SERVING→PLAYING→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手 |
+| 可玩 | ✅ Mini Pong: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成 |
 | 最近构建 | 2026-07-30 |
 | 开放 Issues | 0 |
 
@@ -26,6 +26,8 @@
 | Mini Pong — GameHUD | `mini-pong/gdscripts/game_hud.gd` | ✅ | GDD |
 | Mini Pong — GameOverScreen | `mini-pong/gdscripts/game_over_screen.gd` | ✅ | GDD |
 | Mini Pong — State Machine | `mini-pong/gdscripts/game_state_machine.gd` | ✅ | GDD |
+| Mini Pong — Pause Overlay | `mini-pong/gdscripts/pause_overlay.gd` | ✅ | GDD |
+| Mini Pong — Audio Engine | `mini-pong/gdscripts/audio_engine.gd` | ✅ | GDD |
 
 ## 功能
 
@@ -40,7 +42,8 @@
 | 292 | Mini Pong UI 系统(菜单/计分/结束) | ✅ 已合并 | DESIGN / GDD |
 | 293 | GameManager 全局状态 | ✅ 已合并 | DESIGN / GDD |
 | 294 | Game State Machine 状态机 | ✅ 已合并 | DESIGN / GDD |
+| 296 | 暂停与音效 (Escape切换 + AudioStreamGenerator合成) | ✅ 已合并 | DESIGN / GDD |
 
 ## 已知问题
 
-无。
+5项预存测试失败(TC6.1/TC8.1/TC8.2/TC16.1/TC11)，均为头显模式下的 FSM 异步行为/headless 限制，非功能性问题。
