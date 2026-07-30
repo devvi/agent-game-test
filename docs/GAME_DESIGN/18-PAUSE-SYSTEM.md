@@ -30,7 +30,7 @@ MENU ──(SPACE)──→ SERVING ──(auto)──→ PLAYING ⇌(Escape)⇌
 |----------|-------|
 | Entry trigger | `ui_cancel` (Escape) pressed in PLAYING state |
 | Exit trigger | `ui_cancel` (Escape) pressed in PAUSED state |
-| UI layer | PauseOverlay (visible) + HUD (visible, behind overlay) |
+| UI layer | PauseOverlay (visible) + HUD (hidden via _set_ui) |
 | Paddles | `set_frozen(true)` |
 | Ball | `_process` returns early (delta guard: `_is_serving` or delta ≤ 0) |
 | Audio | `AudioEngine.pause_stream()` — pauses AudioStreamGenerator |
