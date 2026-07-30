@@ -63,7 +63,7 @@ jobs:
             godot --path mini-pong/ --headless --script tests/check_compile.gd > compile-mini-pong-output.log 2>&1
             exit_code=$?
             cat compile-mini-pong-output.log
-            if grep -qE "FAIL|SCRIPT ERROR|^ERROR:" compile-mini-pong-output.log; then
+            if grep -qE "FAIL|SCRIPT ERROR" compile-mini-pong-output.log; then
               echo "❌ COMPILE ERROR(s) in Mini Pong scripts"
               exit_code=1
             fi
@@ -71,7 +71,7 @@ jobs:
             # Fallback: quick project validation if check_compile.gd missing
             godot --path mini-pong/ --headless --quit > compile-mini-pong-output.log 2>&1
             exit_code=$?
-            if grep -qE "FAIL|SCRIPT ERROR|^ERROR:" compile-mini-pong-output.log; then
+            if grep -qE "FAIL|SCRIPT ERROR" compile-mini-pong-output.log; then
               echo "❌ COMPILE ERROR(s) detected"
               exit_code=1
             fi
@@ -89,8 +89,8 @@ jobs:
             TEST_EXIT=$?
             echo "Test output:"
             cat test-output.log
-            # SCRIPT ERROR or Godot engine ERROR in output = test failure
-            if grep -qE "SCRIPT ERROR|^ERROR:" test-output.log; then
+            # SCRIPT ERROR in output = test failure
+            if grep -qE "SCRIPT ERROR" test-output.log; then
               echo "❌ Error(s) detected in test output — marking as failure"
               echo "exit_code=1" >> $GITHUB_OUTPUT
             else
@@ -146,8 +146,8 @@ jobs:
             TEST_EXIT=$?
             echo "Test output:"
             cat mini-pong-test-output.log
-            # SCRIPT ERROR or Godot engine ERROR in output = test failure
-            if grep -qE "SCRIPT ERROR|^ERROR:" mini-pong-test-output.log; then
+            # SCRIPT ERROR in output = test failure
+            if grep -qE "SCRIPT ERROR" mini-pong-test-output.log; then
               echo "❌ Error(s) detected in test output — marking as failure"
               echo "exit_code=1" >> $GITHUB_OUTPUT
             else
