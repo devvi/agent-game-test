@@ -8,7 +8,7 @@
 | 可运行 | ✅ 能启动 |
 | 可玩 | ✅ Mini Pong: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成 |
 | 最近构建 | 2026-07-30 |
-| 开放 Issues | 1 |
+| 开放 Issues | 0 |
 
 ## 模块地图
 
@@ -51,4 +51,4 @@
 
 ## 已知问题
 
-7项预存测试失败(UI字体font_size ×6 + 暂停game_hud ×1)，已追踪于 #346，非 PR #345 引入。
+7项预存测试失败(UI字体font_size ×6 + 暂停game_hud ×1)已在 #353 中修复并合并。
