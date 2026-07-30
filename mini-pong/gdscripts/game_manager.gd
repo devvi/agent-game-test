@@ -6,9 +6,10 @@ extends Node
 ## Design: docs/DESIGN/293-game-manager-global-state.md
 ## Parent Issue: #293
 
-# ── Configuration ──
-const POINTS_TO_WIN_GAME: int = 5
-const GAMES_TO_WIN_MATCH: int = 2
+# ── Configuration (via GameConstants #295) ──
+const CONSTS = preload("res://gdscripts/constants.gd")
+const POINTS_TO_WIN_GAME: int = CONSTS.POINTS_TO_WIN_GAME
+const GAMES_TO_WIN_MATCH: int = CONSTS.GAMES_TO_WIN_MATCH
 
 # ── Signals ──
 signal score_changed(player_score: int, ai_score: int)

@@ -25,7 +25,7 @@ const FALLBACK_SCREEN_HEIGHT: float = 720.0
 func run() -> void:
 	_test_scene_integrity_a1()       # TC-A1: ball.tscn node hierarchy
 	_test_scene_integrity_a2()       # TC-A2: CollisionShape2D non-null, CircleShape2D r=10
-	_test_scene_integrity_a3()       # TC-A3: game.tscn hierarchy
+	_test_scene_integrity_a3()       # TC-A3: Main.tscn hierarchy
 	_test_scene_integrity_a4()       # TC-A4: project.godot main_scene
 	_test_wall_bounce_b1()           # TC-B1: top wall bounce — Y reversed
 	_test_wall_bounce_b2()           # TC-B2: bottom wall bounce — Y reversed
@@ -116,8 +116,8 @@ func _test_scene_integrity_a2() -> void:
 
 
 func _test_scene_integrity_a3() -> void:
-	var scene = load("res://scenes/game.tscn")
-	_assert(scene != null, "TC-A3: game.tscn loaded")
+	var scene = load("res://scenes/Main.tscn")
+	_assert(scene != null, "TC-A3: Main.tscn loaded")
 	if scene == null:
 		return
 	var game = scene.instantiate()
@@ -136,7 +136,7 @@ func _test_scene_integrity_a3() -> void:
 func _test_scene_integrity_a4() -> void:
 	var content = FileAccess.get_file_as_string("res://project.godot")
 	_assert(content != "", "TC-A4: project.godot readable")
-	_assert(content.contains("run/main_scene=\"res://scenes/game.tscn\""), "TC-A4: run/main_scene set to game.tscn")
+	_assert(content.contains("run/main_scene=\"res://scenes/Main.tscn\""), "TC-A4: run/main_scene set to Main.tscn")
 
 
 # ── Scenario B: Wall Bounce ──

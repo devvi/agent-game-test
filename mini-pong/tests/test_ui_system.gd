@@ -413,18 +413,18 @@ func _test_tc14_game_over_restart() -> void:
 	_assert(game_over.has_method("hide_menu") or game_over.has_method("_kill_tweens"), "TC14-2: has tween cleanup method")
 
 
-# ── TC15: game.tscn Integration — CanvasLayers Present ──
+# ── TC15: Main.tscn Integration — CanvasLayers Present ──
 
 func _test_tc15_game_tscn_integration() -> void:
-	if not ResourceLoader.exists("res://scenes/game.tscn"):
-		_assert(false, "TC15: game.tscn missing")
+	if not ResourceLoader.exists("res://scenes/Main.tscn"):
+		_assert(false, "TC15: Main.tscn missing")
 		return
-	var packed = load("res://scenes/game.tscn")
+	var packed = load("res://scenes/Main.tscn")
 	if packed == null:
-		_assert(false, "TC15: game.tscn failed to load")
+		_assert(false, "TC15: Main.tscn failed to load")
 		return
 	var instance = packed.instantiate()
-	_assert(instance != null, "TC15-1: game.tscn instantiates")
+	_assert(instance != null, "TC15-1: Main.tscn instantiates")
 
 	# Check each CanvasLayer exists
 	var start_menu: CanvasLayer = instance.get_node_or_null("StartMenu")

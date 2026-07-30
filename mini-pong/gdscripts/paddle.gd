@@ -2,10 +2,12 @@ extends Area2D
 ## Player paddle for mini-pong — WASD/Arrow key input, vertical movement, boundary clamp.
 ## AI mode: tracks ball Y position with reaction delay, position error, and speed adjustment.
 
-const SPEED: float = 400.0
-const PADDLE_WIDTH: float = 20.0
-const PADDLE_HEIGHT: float = 120.0
-const FALLBACK_VIEWPORT_Y: float = 720.0
+const CONSTS = preload("res://gdscripts/constants.gd")
+
+const SPEED: float = CONSTS.PADDLE_SPEED
+const PADDLE_WIDTH: float = CONSTS.PADDLE_WIDTH
+const PADDLE_HEIGHT: float = CONSTS.PADDLE_HEIGHT
+const FALLBACK_VIEWPORT_Y: float = float(CONSTS.SCREEN_HEIGHT)
 
 # ── Mode enum ──
 enum Mode { PLAYER = 0, AI = 1 }
@@ -13,11 +15,11 @@ enum Mode { PLAYER = 0, AI = 1 }
 @export var mode: Mode = Mode.PLAYER
 
 # ── AI parameters (tunable in editor) ──
-@export var ai_reaction_delay_min: float = 0.1   # 100ms
-@export var ai_reaction_delay_max: float = 0.3   # 300ms
-@export var ai_position_error: float = 20.0       # ±20px
-@export var ai_speed_boost: float = 1.2           # +20% when trailing
-@export var ai_speed_slow: float = 0.8            # -20% when ahead
+@export var ai_reaction_delay_min: float = CONSTS.AI_REACTION_DELAY_MIN
+@export var ai_reaction_delay_max: float = CONSTS.AI_REACTION_DELAY_MAX
+@export var ai_position_error: float = CONSTS.AI_POSITION_ERROR
+@export var ai_speed_boost: float = CONSTS.AI_SPEED_BOOST
+@export var ai_speed_slow: float = CONSTS.AI_SPEED_SLOW
 
 # ── Freeze control (FSM #294) ──
 var frozen: bool = false
