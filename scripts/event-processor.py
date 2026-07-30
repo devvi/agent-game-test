@@ -1179,6 +1179,60 @@ def preprocess():
     return output_lines
 
 
+def _quick_stalled_scan():
+    """Deterministic stalled PR scan. Outputs explicit STALLED commands.
+    
+    Runs in <5 seconds (gh API only, no godot, no file reads).
+    Returns list of STALLED lines for the cron agent to execute.
+    """
+    cmds = []
+    
+    # 1. Check for stalled research/plan PRs (open + mergeable → merge)
+    for prefix in ("research/", "plan/"):
+        raw = gh("pr", "list", "--state", "open",
+                 "--search", f"head:{prefix} in:headRefName",
+                 "--json", "number,headRefName,mergeable", "--limit", "10")
+        if not raw:
+            continue
+        try:
+            prs = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        for pr in prs:
+            if pr.get("mergeable") == "MERGEABLE":
+                cmds.append(
+                    f"STALLED: merge-pr,pr={pr['number']},"
+                    f"branch={pr['headRefName']}"
+                )
+
+    # 2. Check for stalled impl/* PRs
+    raw = gh("pr", "list", "--state", "open",
+             "--search", "head:impl/ in:headRefName",
+             "--json", "number,headRefName,labels", "--limit", "10")
+    if raw:
+        try:
+            prs = json.loads(raw)
+        except json.JSONDecodeError:
+            prs = []
+        for pr in prs:
+            labels = [l["name"] for l in pr.get("labels", [])]
+            branch = pr["headRefName"]
+            pr_num = pr["number"]
+            
+            if "status/blocked" in labels:
+                # Blocked PR — needs unblock check (run main tests)
+                cmds.append(
+                    f"STALLED: check-unblock,pr={pr_num},branch={branch}"
+                )
+            else:
+                # Normal impl PR — check if CI green, spawn review if so
+                cmds.append(
+                    f"STALLED: check-review,pr={pr_num},branch={branch}"
+                )
+    
+    return cmds
+
+
 def main():
     try:
         cfg = read_workflow_config()
@@ -1312,10 +1366,16 @@ def main():
             if in_window and any("status/done" in l for l in lines):
                 pick_next_issue()
         else:
-            # No events → try picker to fill empty slots
+            # No pending events → run quick stalled scan + picker
             if in_window and not is_paused():
                 pick_next_issue()
-            print("[NO_ACTIONABLE_EVENTS: run stalled scan]")
+                stalled = _quick_stalled_scan()
+                if stalled:
+                    print("\n".join(stalled))
+                else:
+                    print("[SILENT]")
+            else:
+                print("[SILENT]")
     except Exception as e:
         print(f"[event-processor error: {e}]", file=sys.stderr)
 
