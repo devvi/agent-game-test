@@ -600,6 +600,36 @@ def _parent_issue_blocked(pr_num: int) -> bool:
         return False
 
 
+def _is_pr_merged(pr_num: int) -> bool:
+    """Check if a PR is already merged or closed.
+    
+    Returns True if the PR no longer needs processing (merged/closed).
+    On gh error, returns False (conservative: allow event through).
+    """
+    raw = gh("pr", "view", str(pr_num), "--json", "state")
+    if not raw:
+        return False
+    try:
+        state = json.loads(raw).get("state", "")
+        return state in ("MERGED", "CLOSED")
+    except (json.JSONDecodeError, KeyError):
+        return False
+
+
+def _is_issue_closed(issue_num: int) -> bool:
+    """Check if an issue is already closed.
+    
+    Returns True if closed (event is stale). On gh error, returns False.
+    """
+    raw = gh("issue", "view", str(issue_num), "--json", "state")
+    if not raw:
+        return False
+    try:
+        return json.loads(raw).get("state", "") == "CLOSED"
+    except (json.JSONDecodeError, KeyError):
+        return False
+
+
 def _pr_exists_for_issue(stage: str, issue: int) -> bool:
     """Check if a GitHub PR already exists for this stage+issue combination.
     Returns True if a PR exists (SPAWN should be skipped).
@@ -1081,6 +1111,17 @@ def preprocess():
         etype = event.get("type", "")
         action = _event_action(event)
         issue = event.get("issue", "")
+        
+        # Universal staleness guard: discard if PR/issue already closed
+        if issue:
+            n = int(issue) if not isinstance(issue, int) else issue
+            if etype == "check_run" and _is_pr_merged(n):
+                discarded_keys.add(event.get("_key", ""))
+                continue
+            if etype == "issues.labeled" and _is_issue_closed(n):
+                discarded_keys.add(event.get("_key", ""))
+                continue
+        
         if etype == "check_run" and action == "check_run.completed":
             branch = event.get('branch', '')
             conclusion = event.get('conclusion', '')
