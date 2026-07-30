@@ -25,6 +25,10 @@ func _run_tests() -> void:
 	_run("res://tests/test_game_manager.gd", "GameManager")
 	_run("res://tests/test_ui_system.gd", "UI System")
 	_run("res://tests/test_game_state_machine.gd", "Game State Machine")
+	_run("res://tests/test_pause.gd", "Pause")
+	_run("res://tests/test_audio_engine.gd", "AudioEngine")
+	_run("res://tests/test_constants.gd", "Constants")
+	_run("res://tests/test_main_scene.gd", "Main Scene Assembly")
 	print("\n=== TOTAL: %d passed, %d failed ===" % [_pass, _fail])
 	quit(1 if _fail > 0 else 0)
 

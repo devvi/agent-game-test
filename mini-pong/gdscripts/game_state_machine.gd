@@ -1,6 +1,7 @@
 extends Node
 ## GameStateMachine — scene-level FSM for mini-pong runtime orchestration.
-## 5-state machine: MENU → SERVING → PLAYING → SCORED → GAME_OVER → MENU.
+## 6-state machine: MENU → SERVING → PLAYING ⇌ PAUSED → SCORED → GAME_OVER → MENU.
+## Pause added per #296: Escape toggles PLAYING ↔ PAUSED.
 ## Centralizes input routing, paddle freeze, UI visibility, and serve timing.
 ## Uses @onready node references, enum State + match dispatch, await timers.
 ##
@@ -11,6 +12,7 @@ enum State {
 	MENU,
 	SERVING,
 	PLAYING,
+	PAUSED,
 	SCORED,
 	GAME_OVER
 }
@@ -28,6 +30,7 @@ var _scored_timer_active: bool = false
 @onready var player_paddle: Area2D = $"../PlayerPaddle"
 @onready var ai_paddle: Area2D = $"../AIPaddle"
 @onready var scoring_manager: Node = $"../ScoringManager"
+@onready var pause_overlay: CanvasLayer = $"../PauseOverlay"
 
 
 # ── Lifecycle ──
@@ -50,6 +53,15 @@ func _ready() -> void:
 
 
 func _input(event: InputEvent) -> void:
+	# Pause toggle: Escape toggles PLAYING ↔ PAUSED
+	if event.is_action_pressed("ui_cancel"):
+		match current_state:
+			State.PLAYING:
+				transition_to(State.PAUSED)
+			State.PAUSED:
+				transition_to(State.PLAYING)
+		return  # consume event, don't fall through to ui_accept
+
 	if not event.is_action_pressed("ui_accept"):
 		return
 
@@ -101,6 +113,18 @@ func enter_state(state: State) -> void:
 		State.PLAYING:
 			_set_ui("hud")
 			_freeze_paddles(false)
+			if pause_overlay and pause_overlay.has_method("hide_overlay"):
+				pause_overlay.hide_overlay()
+			if is_instance_valid(AudioEngine):
+				AudioEngine.resume_stream()
+
+		State.PAUSED:
+			_set_ui("pause")
+			_freeze_paddles(true)
+			if pause_overlay and pause_overlay.has_method("show_overlay"):
+				pause_overlay.show_overlay()
+			if is_instance_valid(AudioEngine):
+				AudioEngine.pause_stream()
 
 		State.SCORED:
 			_set_ui("hud")
@@ -155,6 +179,8 @@ func _set_ui(layer: String) -> void:
 		game_hud.visible = (layer == "hud")
 	if game_over_screen:
 		game_over_screen.visible = (layer == "game_over")
+	if pause_overlay:
+		pause_overlay.visible = (layer == "pause")
 
 
 func _freeze_paddles(freeze: bool) -> void:
@@ -184,6 +210,7 @@ func _validate_references() -> void:
 		"start_menu": start_menu,
 		"game_hud": game_hud,
 		"game_over_screen": game_over_screen,
+		"pause_overlay": pause_overlay,
 		"ball": ball,
 		"player_paddle": player_paddle,
 		"ai_paddle": ai_paddle,

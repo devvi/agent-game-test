@@ -2,17 +2,19 @@ extends Area2D
 ## Ball physics for mini-pong — manual _process movement, wall/paddle collision, scoring, serve.
 ## Self-contained Area2D: manages velocity, collision responses, and scoring signals.
 
-# ── Constants ──
-const INITIAL_SPEED: float = 300.0
-const MAX_SPEED_MULTIPLIER: float = 2.0
-const SPEED_INCREMENT: float = 1.05
-const MAX_BOUNCE_ANGLE: float = 60.0
-const SERVE_ANGLE_RANGE: float = 45.0
-const FALLBACK_SCREEN_WIDTH: float = 1280.0
-const FALLBACK_SCREEN_HEIGHT: float = 720.0
+# ── Constants (via GameConstants, non-destructive migration #295) ──
+const CONSTS = preload("res://gdscripts/constants.gd")
+
+const INITIAL_SPEED: float = CONSTS.BALL_INITIAL_SPEED
+const MAX_SPEED_MULTIPLIER: float = CONSTS.BALL_MAX_SPEED_MULTIPLIER
+const SPEED_INCREMENT: float = CONSTS.BALL_SPEED_INCREMENT
+const MAX_BOUNCE_ANGLE: float = CONSTS.BALL_MAX_BOUNCE_ANGLE
+const SERVE_ANGLE_RANGE: float = CONSTS.BALL_SERVE_ANGLE_RANGE
+const FALLBACK_SCREEN_WIDTH: float = float(CONSTS.SCREEN_WIDTH)
+const FALLBACK_SCREEN_HEIGHT: float = float(CONSTS.SCREEN_HEIGHT)
 const BOUNCE_COOLDOWN_FRAMES: int = 2
 const SERVE_DELAY: float = 0.5
-const BALL_RADIUS: float = 10.0
+const BALL_RADIUS: float = CONSTS.BALL_RADIUS
 
 # ── Exported Variables (tunable in editor) ──
 @export var initial_speed: float = INITIAL_SPEED
@@ -32,6 +34,7 @@ var screen_width: float = 0.0
 var screen_height: float = 0.0
 var _bounce_cooldown: int = 0
 var _is_serving: bool = false
+var _scored_this_frame: bool = false
 
 
 func _ready() -> void:
@@ -54,6 +57,16 @@ func _ready() -> void:
 	# Connect collision signals
 	body_entered.connect(_on_body_entered)
 	area_entered.connect(_on_area_entered)
+
+	# Connect ScoreZone Area2D body_entered signals (#295)
+	var parent := get_parent()
+	if parent:
+		var zone_left := parent.get_node_or_null("ScoreZoneLeft")
+		if zone_left and zone_left is Area2D:
+			zone_left.body_entered.connect(func(_b): _on_score_zone(1))
+		var zone_right := parent.get_node_or_null("ScoreZoneRight")
+		if zone_right and zone_right is Area2D:
+			zone_right.body_entered.connect(func(_b): _on_score_zone(0))
 
 	# Start first serve
 	serve()
@@ -105,6 +118,9 @@ func _process(delta: float) -> void:
 	if _bounce_cooldown > 0:
 		_bounce_cooldown -= 1
 
+	# Reset dual-trigger flag at start of each frame (#295)
+	_scored_this_frame = false
+
 	# Move ball — re-normalize to prevent drift
 	velocity = velocity.normalized() * speed
 	position += velocity * delta
@@ -117,13 +133,24 @@ func _process(delta: float) -> void:
 		position.y = screen_height + BALL_RADIUS
 		velocity.y = -abs(velocity.y)
 
-	# X boundary — scoring
+	# X boundary — scoring (fallback dual-trigger guard #295)
 	if position.x < -BALL_RADIUS:
-		score.emit(1)  # Right player scores (ball exited left)
-		serve()
+		if not _scored_this_frame:
+			score.emit(1)  # Right player scores (ball exited left)
+			serve()
 	elif position.x > screen_width + BALL_RADIUS:
-		score.emit(0)  # Left player scores (ball exited right)
-		serve()
+		if not _scored_this_frame:
+			score.emit(0)  # Left player scores (ball exited right)
+			serve()
+
+
+func _on_score_zone(side: int) -> void:
+	# ScoreZone body_entered handler — primary scoring path (#295)
+	if _scored_this_frame:
+		return
+	_scored_this_frame = true
+	score.emit(side)
+	serve()
 
 
 func _on_body_entered(body: Node2D) -> void:
@@ -133,6 +160,8 @@ func _on_body_entered(body: Node2D) -> void:
 	if body.is_in_group("walls"):
 		velocity.y *= -1.0
 		_bounce_cooldown = BOUNCE_COOLDOWN_FRAMES
+		if is_instance_valid(AudioEngine):
+			AudioEngine.play_wall_bounce()
 
 
 func _on_area_entered(area: Area2D) -> void:
@@ -174,6 +203,10 @@ func _on_area_entered(area: Area2D) -> void:
 
 	# Bounce cooldown
 	_bounce_cooldown = BOUNCE_COOLDOWN_FRAMES
+
+	# Sound: paddle hit
+	if is_instance_valid(AudioEngine):
+		AudioEngine.play_paddle_hit()
 
 	# Anti-stick: push ball away from paddle
 	var push_dist := BALL_RADIUS + 10.0 + 2.0  # ball radius + paddle half-width + margin
