@@ -22,7 +22,7 @@ var current_state: State = State.MENU
 var _transition_lock: bool = false
 var _scored_timer_active: bool = false
 
-# ── @onready Node References (set via game.tscn node_path exports) ──
+# ── @onready Node References (set via Main.tscn node_path exports) ──
 @onready var start_menu: CanvasLayer = $"../StartMenu"
 @onready var game_hud: CanvasLayer = $"../GameHUD"
 @onready var game_over_screen: CanvasLayer = $"../GameOverScreen"
@@ -218,4 +218,4 @@ func _validate_references() -> void:
 	}
 	for name in refs:
 		if refs[name] == null:
-			push_warning("FSM: @onready var '", name, "' is null — check game.tscn node_path")
+			push_warning("FSM: @onready var '", name, "' is null — check Main.tscn node_path")

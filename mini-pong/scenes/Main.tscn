@@ -8,6 +8,8 @@
 [ext_resource type="Script" path="res://gdscripts/game_over_screen.gd" id="6_game_over"]
 [ext_resource type="Script" path="res://gdscripts/game_state_machine.gd" id="7_game_state_machine"]
 [ext_resource type="Script" path="res://gdscripts/pause_overlay.gd" id="8"]
+[ext_resource type="PackedScene" path="res://scenes/world_environment.tscn" id="9_world_env"]
+[ext_resource type="Script" path="res://gdscripts/score_flash.gd" id="10_score_flash"]
 
 [sub_resource type="RectangleShape2D" id="rect_wall_top"]
 size = Vector2(1280, 10)
@@ -15,7 +17,12 @@ size = Vector2(1280, 10)
 [sub_resource type="RectangleShape2D" id="rect_wall_bottom"]
 size = Vector2(1280, 10)
 
+[sub_resource type="RectangleShape2D" id="rect_score_zone"]
+size = Vector2(20, 720)
+
 [node name="Game" type="Node2D"]
+
+[node name="WorldEnvironment" parent="." instance=ExtResource("9_world_env")]
 
 [node name="TopWall" type="StaticBody2D" parent="." groups=["walls"]]
 position = Vector2(640, 5)
@@ -52,6 +59,27 @@ ball = NodePath("../Ball")
 player_paddle = NodePath("../PlayerPaddle")
 ai_paddle = NodePath("../AIPaddle")
 scoring_manager = NodePath("../ScoringManager")
+
+[node name="ScoreZoneLeft" type="Area2D" parent="."]
+position = Vector2(0, 360)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ScoreZoneLeft"]
+shape = SubResource("rect_score_zone")
+
+[node name="ScoreZoneRight" type="Area2D" parent="."]
+position = Vector2(1280, 360)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ScoreZoneRight"]
+shape = SubResource("rect_score_zone")
+
+[node name="ScoreFlash" type="Node" parent="."]
+script = ExtResource("10_score_flash")
+
+[node name="ScoreFlashRect" type="ColorRect" parent="ScoreFlash"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(1, 1, 1, 1)
 
 [node name="StartMenu" type="CanvasLayer" parent="."]
 layer = 1

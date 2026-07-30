@@ -2,17 +2,19 @@ extends Area2D
 ## Ball physics for mini-pong — manual _process movement, wall/paddle collision, scoring, serve.
 ## Self-contained Area2D: manages velocity, collision responses, and scoring signals.
 
-# ── Constants ──
-const INITIAL_SPEED: float = 300.0
-const MAX_SPEED_MULTIPLIER: float = 2.0
-const SPEED_INCREMENT: float = 1.05
-const MAX_BOUNCE_ANGLE: float = 60.0
-const SERVE_ANGLE_RANGE: float = 45.0
-const FALLBACK_SCREEN_WIDTH: float = 1280.0
-const FALLBACK_SCREEN_HEIGHT: float = 720.0
+# ── Constants (via GameConstants, non-destructive migration #295) ──
+const CONSTS = preload("res://gdscripts/constants.gd")
+
+const INITIAL_SPEED: float = CONSTS.BALL_INITIAL_SPEED
+const MAX_SPEED_MULTIPLIER: float = CONSTS.BALL_MAX_SPEED_MULTIPLIER
+const SPEED_INCREMENT: float = CONSTS.BALL_SPEED_INCREMENT
+const MAX_BOUNCE_ANGLE: float = CONSTS.BALL_MAX_BOUNCE_ANGLE
+const SERVE_ANGLE_RANGE: float = CONSTS.BALL_SERVE_ANGLE_RANGE
+const FALLBACK_SCREEN_WIDTH: float = float(CONSTS.SCREEN_WIDTH)
+const FALLBACK_SCREEN_HEIGHT: float = float(CONSTS.SCREEN_HEIGHT)
 const BOUNCE_COOLDOWN_FRAMES: int = 2
 const SERVE_DELAY: float = 0.5
-const BALL_RADIUS: float = 10.0
+const BALL_RADIUS: float = CONSTS.BALL_RADIUS
 
 # ── Exported Variables (tunable in editor) ──
 @export var initial_speed: float = INITIAL_SPEED

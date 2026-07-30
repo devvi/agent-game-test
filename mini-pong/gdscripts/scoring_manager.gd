@@ -12,9 +12,10 @@ extends Node
 ## Design: docs/DESIGN/291-scoring-system.md §2.1
 ## Parent Issue: #291
 
-# ── Configuration ──
-const POINTS_TO_WIN_GAME: int = 5
-const GAMES_TO_WIN_MATCH: int = 2
+# ── Configuration (via GameConstants #295) ──
+const CONSTS = preload("res://gdscripts/constants.gd")
+const POINTS_TO_WIN_GAME: int = CONSTS.POINTS_TO_WIN_GAME
+const GAMES_TO_WIN_MATCH: int = CONSTS.GAMES_TO_WIN_MATCH
 
 # ── Signals ──
 signal scored(winner: String)       # "player" | "ai" — emitted every point

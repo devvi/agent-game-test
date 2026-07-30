@@ -4,7 +4,7 @@
 [application]
 config/name="Mini Pong"
 config/description="A classic Pong game implementation"
-run/main_scene="res://scenes/game.tscn"
+run/main_scene="res://scenes/Main.tscn"
 
 [rendering]
 renderer/rendering_method="forward_plus"
