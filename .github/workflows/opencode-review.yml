@@ -60,7 +60,7 @@ jobs:
         run: |
           exit_code=0
           if [ -f mini-pong/tests/check_compile.gd ]; then
-            godot --path mini-pong/ --headless --script tests/check_compile.gd > compile-mini-pong-output.log 2>&1
+            godot --path mini-pong/ --headless --script tests/check_compile.gd > compile-mini-pong-output.log 2>&1 && true
             exit_code=$?
             cat compile-mini-pong-output.log
             if grep -qE "FAIL|SCRIPT ERROR" compile-mini-pong-output.log; then
@@ -69,7 +69,7 @@ jobs:
             fi
           elif [ -d mini-pong ]; then
             # Fallback: quick project validation if check_compile.gd missing
-            godot --path mini-pong/ --headless --quit > compile-mini-pong-output.log 2>&1
+            godot --path mini-pong/ --headless --quit > compile-mini-pong-output.log 2>&1 && true
             exit_code=$?
             if grep -qE "FAIL|SCRIPT ERROR" compile-mini-pong-output.log; then
               echo "❌ COMPILE ERROR(s) detected"
@@ -85,7 +85,7 @@ jobs:
         id: test
         run: |
           if [ -f tests/run_tests.gd ]; then
-            godot --headless --script tests/run_tests.gd > test-output.log 2>&1
+            godot --headless --script tests/run_tests.gd > test-output.log 2>&1 && true
             TEST_EXIT=$?
             echo "Test output:"
             cat test-output.log
@@ -106,7 +106,7 @@ jobs:
         id: smoke
         run: |
           if [ -f tests/smoke_test.gd ]; then
-            godot --headless --script tests/smoke_test.gd > smoke-output.log 2>&1
+            godot --headless --script tests/smoke_test.gd > smoke-output.log 2>&1 && true
             echo "exit_code=$?" >> $GITHUB_OUTPUT
           else
             echo "SKIP: tests/smoke_test.gd not found"
@@ -118,7 +118,7 @@ jobs:
         id: rnp
         run: |
           if [ -d rainy-night-prometheus ]; then
-            godot --path rainy-night-prometheus/ --headless --quit > rnp-output.log 2>&1
+            godot --path rainy-night-prometheus/ --headless --quit > rnp-output.log 2>&1 && true
             echo "exit_code=$?" >> $GITHUB_OUTPUT
           else
             echo "SKIP: rainy-night-prometheus/ not found"
@@ -130,7 +130,7 @@ jobs:
         id: mini-pong
         run: |
           if [ -d mini-pong ]; then
-            godot --path mini-pong/ --headless --quit > mini-pong-output.log 2>&1
+            godot --path mini-pong/ --headless --quit > mini-pong-output.log 2>&1 && true
             echo "exit_code=$?" >> $GITHUB_OUTPUT
           else
             echo "SKIP: mini-pong/ not found"
@@ -142,7 +142,7 @@ jobs:
         id: mini-pong-test
         run: |
           if [ -f mini-pong/tests/run_tests.gd ]; then
-            godot --path mini-pong/ --headless --script tests/run_tests.gd > mini-pong-test-output.log 2>&1
+            godot --path mini-pong/ --headless --script tests/run_tests.gd > mini-pong-test-output.log 2>&1 && true
             TEST_EXIT=$?
             echo "Test output:"
             cat mini-pong-test-output.log
