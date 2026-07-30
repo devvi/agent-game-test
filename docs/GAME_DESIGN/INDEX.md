@@ -2,6 +2,7 @@
 
 | File | Description |
 |------|-------------|
+| [09-TESTING](09-TESTING.md) | Testing system — headless test runner, auto-play test, coverage map |
 | [INDEX](INDEX.md) | Table of contents |
 | [10-SCENE-LAYOUT](10-SCENE-LAYOUT.md) | 3D scene layout — floor, walls, collision |
 | [11-PLAYER-PADDLE](11-PLAYER-PADDLE.md) | Player paddle & AI opponent — InputMap, movement, clamp, AI mode |
