@@ -21,6 +21,9 @@ func _ready() -> void:
 		return
 
 	# Signal connections for event-driven sounds
+	if not Engine.has_singleton("GameManager"):
+		push_warning("AudioEngine: GameManager singleton not available — signal connections skipped")
+		return
 	var gm = Engine.get_singleton("GameManager")
 	if is_instance_valid(gm):
 		if gm.has_signal("scored"):
