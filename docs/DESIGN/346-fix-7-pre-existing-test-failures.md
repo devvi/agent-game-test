@@ -9,19 +9,20 @@
 
 ## 1. Summary
 
-Seven test failures were introduced on main by commit `284e056` (which attempted to fix 5 other test failures for #340). Six failures in `test_ui_system.gd` result from an incorrect API change (`get_theme_font_size("font_size")` → `font_size`) that returns 0 in headless Godot instead of the theme override from `.tscn` files. One failure in `test_pause.gd` results from a TC1.3 assertion that expects `game_hud.visible == true` in PAUSED state, but the FSM's `_set_ui("pause")` explicitly sets `game_hud.visible = false`. All fixes are test-only: 7 lines changed across 2 files, zero production code touched.
+Seven test failures were introduced on main by commit `284e056` (which attempted to fix 5 other test failures for #340). Six failures in `test_ui_system.gd` result from an incorrect API change to `get_theme_font_size("font_size")` which returns 0 in headless Godot. The plan recommended reverting to `.font_size`, but during implementation it was discovered that `Label.font_size` is not a direct property in Godot 4.7 — the actual fix uses `label.get("theme_override_font_sizes/font_size")` instead (see PR #355). One failure in `test_pause.gd` results from a TC1.3 assertion that expects `game_hud.visible == true` in PAUSED state, but the FSM's `_set_ui("pause")` explicitly sets `game_hud.visible = false`. All fixes are test-only: 7 lines changed across 2 files, zero production code touched.
 
 ## 2. Root Cause Analysis
 
 ### Root Cause 1: `get_theme_font_size()` returns 0 in headless (6 failures)
 
-Commit `284e056` replaced `label.font_size` with `label.get_theme_font_size("font_size")` in 6 assertions across `test_ui_system.gd`. The author believed Godot 4 requires the theme accessor to read font size from `.tscn` files. This is incorrect.
+Commit `284e056` replaced `label.font_size` with `label.get_theme_font_size("font_size")` in 6 assertions across `test_ui_system.gd`. The author believed Godot 4 requires the theme accessor to read font size from `.tscn` files. This is incorrect for headless mode.
 
 **How Godot 4 handles font_size:**
 - `.tscn` files set `font_size = N`, which writes to the **theme override** slot on the Label node
-- `Label.font_size` directly reads/writes this theme override — it's the correct Godot 4 API
+- `Label.font_size` is NOT a direct property in Godot 4.7 — it actually delegates to `get("theme_override_font_sizes/font_size")` internally
 - `Label.get_theme_font_size("font_size")` walks the theme resource chain (default Theme → any Theme resources attached → theme overrides)
 - In headless mode (`--headless`), no project Theme is loaded, so `get_theme_font_size()` returns the theme default: **0**
+- `.font_size` also returns 0 in headless because it resolves to the theme override slot, not a direct property
 
 **Current (broken):**
 ```gdscript
@@ -30,9 +31,9 @@ _assert(title.get_theme_font_size("font_size") >= 48, "TC5-5: ...")
 # ❌ 0 >= 48 → FAIL
 ```
 
-**Fix:** Revert to `label.font_size` which correctly reads the theme override from `.tscn`:
+**Actual fix (merged in PR #355):** Use `label.get("theme_override_font_sizes/font_size")` to read the theme override directly:
 ```gdscript
-_assert(title.font_size >= 48, "TC5-5: ...")
+_assert(title.get("theme_override_font_sizes/font_size") >= 48, "TC5-5: ...")
 # ✅ 64 >= 48 → PASS
 ```
 
@@ -79,12 +80,12 @@ The ball mock stays as `Area2D.new()` — this is the correct type matching `@on
 
 | # | Test | File:Line (HEAD) | Fix | Lines Changed |
 |---|------|-----------------|-----|:---:|
-| 1 | TC5-5 | `mini-pong/tests/test_ui_system.gd:186` | `title.get_theme_font_size("font_size")` → `title.font_size` | 1 |
-| 2 | TC5-8 | `mini-pong/tests/test_ui_system.gd:193` | `prompt.get_theme_font_size("font_size")` → `prompt.font_size` | 1 |
-| 3 | TC6-4 | `mini-pong/tests/test_ui_system.gd:213` | `player_lbl.get_theme_font_size("font_size")` → `player_lbl.font_size` | 1 |
-| 4 | TC6-7 | `mini-pong/tests/test_ui_system.gd:219` | `ai_lbl.get_theme_font_size("font_size")` → `ai_lbl.font_size` | 1 |
-| 5 | TC7-4 | `mini-pong/tests/test_ui_system.gd:239` | `winner_lbl.get_theme_font_size("font_size")` → `winner_lbl.font_size` | 1 |
-| 6 | TC7-7 | `mini-pong/tests/test_ui_system.gd:245` | `restart_lbl.get_theme_font_size("font_size")` → `restart_lbl.font_size` | 1 |
+| 1 | TC5-5 | `mini-pong/tests/test_ui_system.gd` | `title.get_theme_font_size("font_size")` → `title.get("theme_override_font_sizes/font_size")` | 1 |
+| 2 | TC5-8 | `mini-pong/tests/test_ui_system.gd` | `prompt.get_theme_font_size("font_size")` → `prompt.get("theme_override_font_sizes/font_size")` | 1 |
+| 3 | TC6-4 | `mini-pong/tests/test_ui_system.gd` | `player_lbl.get_theme_font_size("font_size")` → `player_lbl.get("theme_override_font_sizes/font_size")` | 1 |
+| 4 | TC6-7 | `mini-pong/tests/test_ui_system.gd` | `ai_lbl.get_theme_font_size("font_size")` → `ai_lbl.get("theme_override_font_sizes/font_size")` | 1 |
+| 5 | TC7-4 | `mini-pong/tests/test_ui_system.gd` | `winner_lbl.get_theme_font_size("font_size")` → `winner_lbl.get("theme_override_font_sizes/font_size")` | 1 |
+| 6 | TC7-7 | `mini-pong/tests/test_ui_system.gd` | `restart_lbl.get_theme_font_size("font_size")` → `restart_lbl.get("theme_override_font_sizes/font_size")` | 1 |
 | 7 | TC1.3 | `mini-pong/tests/test_pause.gd:199` | `mocks.game_hud.visible == true` → `mocks.game_hud.visible == false` | 1 |
 
 **Total: 7 lines changed across 2 files. Zero production code touched.**
@@ -113,16 +114,16 @@ godot --path mini-pong/ --headless --quit
 
 ### Acceptance criteria
 
-- [ ] TC5-5: `title.font_size >= 48` passes (`.tscn` has font_size=64)
-- [ ] TC5-8: `prompt.font_size >= 24` passes (`.tscn` has font_size=28)
-- [ ] TC6-4: `player_lbl.font_size >= 24` passes (`.tscn` has font_size=28)
-- [ ] TC6-7: `ai_lbl.font_size >= 24` passes (`.tscn` has font_size=28)
-- [ ] TC7-4: `winner_lbl.font_size >= 48` passes (`.tscn` has font_size=72)
-- [ ] TC7-7: `restart_lbl.font_size >= 24` passes (`.tscn` has font_size=28)
-- [ ] TC1.3: `game_hud.visible == false` passes (FSM `_set_ui("pause")` hides HUD)
-- [ ] All 895 previously-passing tests still pass (902 passed, 0 failed)
-- [ ] Production code (`game_state_machine.gd`, UI scripts, `.tscn` files) unchanged
-- [ ] `godot --headless --quit` exits cleanly (no parse errors)
+- [x] TC5-5: `title.get("theme_override_font_sizes/font_size") >= 48` passes (`.tscn` has font_size=64)
+- [x] TC5-8: `prompt.get("theme_override_font_sizes/font_size") >= 24` passes (`.tscn` has font_size=28)
+- [x] TC6-4: `player_lbl.get("theme_override_font_sizes/font_size") >= 24` passes (`.tscn` has font_size=28)
+- [x] TC6-7: `ai_lbl.get("theme_override_font_sizes/font_size") >= 24` passes (`.tscn` has font_size=28)
+- [x] TC7-4: `winner_lbl.get("theme_override_font_sizes/font_size") >= 48` passes (`.tscn` has font_size=72)
+- [x] TC7-7: `restart_lbl.get("theme_override_font_sizes/font_size") >= 24` passes (`.tscn` has font_size=28)
+- [x] TC1.3: `game_hud.visible == false` passes (FSM `_set_ui("pause")` hides HUD)
+- [x] All previously-passing tests still pass (1002 passed, 0 failed)
+- [x] Production code (`game_state_machine.gd`, UI scripts, `.tscn` files) unchanged
+- [x] `godot --headless --quit` exits cleanly (no parse errors)
 
 ## 5. Out of Scope
 
@@ -130,6 +131,13 @@ godot --path mini-pong/ --headless --quit
 |--------------|--------|
 | Confirm Pause UX design intent (should game_hud be visible during pause?) | P3 — separate UX decision; current FSM behavior is explicit and consistent |
 | Migrate `.tscn` `font_size` to `theme_override_font_sizes/font_size` format | P4 — Godot 4 recommended format, but current format works correctly with `Label.font_size` |
-| Add headless font_size API guidance to test documentation | P4 — useful for future test authors to avoid `get_theme_font_size()` in headless |
+| Add headless font_size API guidance to test documentation | ✅ Done — added to GDD `09-TESTING.md` and `16-UI-SYSTEM.md` (see PRs #353, #355) |
 | Modify production code (FSM, UI scripts, scenes) | Not in scope — this is a test maintenance task |
 | Re-run first-round fixes from #340 | Already done and verified; this round addresses only the 7 new failures from commit `284e056` |
+
+
+---
+
+## Post-Implementation Note (PR #355)
+
+The merged implementation diverged from this plan in one key detail: `.font_size` was found NOT to be a direct property in Godot 4.7. The final fix uses `label.get("theme_override_font_sizes/font_size")` instead, which reads the theme override from the loaded `.tscn` correctly in headless mode. This was discovered during implementation and applied to all 6 UI test assertions.
