@@ -254,7 +254,7 @@ func _test_tc11_headless_no_tree() -> void:
 	# _pause_and_serve() should skip timer, call ball.serve() directly
 	sm._pause_and_serve()
 
-	_assert(mock_ball.serve_count >= 1, "TC11: ball.serve() called in headless (serve_count=%d)" % mock_ball.serve_count)
+	_assert(mock_ball.serve_count == 0, "TC11: _pause_and_serve() is no-op — ball.serve() now handled by FSM #294 enter_state(SERVING)")
 
 
 # ── TC13: Ball node missing (failure path) ──

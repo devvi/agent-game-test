@@ -183,14 +183,14 @@ func _test_tc5_start_menu_labels() -> void:
 	if title:
 		_assert(title.text == "Mini Pong", "TC5-3: TitleLabel text is 'Mini Pong'")
 		_assert(title.horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER, "TC5-4: TitleLabel centered")
-		_assert(title.font_size >= 48, "TC5-5: TitleLabel font_size >= 48")
+		_assert(title.get_theme_font_size("font_size") >= 48, "TC5-5: TitleLabel font_size >= 48")
 
 	# Verify prompt label
 	var prompt: Label = instance.get_node_or_null("CenterContainer/VBoxContainer/PromptLabel")
 	_assert(prompt != null, "TC5-6: PromptLabel exists")
 	if prompt:
 		_assert(prompt.text == "按 SPACE 开始", "TC5-7: PromptLabel text correct")
-		_assert(prompt.font_size >= 24, "TC5-8: PromptLabel font_size >= 24")
+		_assert(prompt.get_theme_font_size("font_size") >= 24, "TC5-8: PromptLabel font_size >= 24")
 
 	instance.queue_free()
 
@@ -210,13 +210,13 @@ func _test_tc6_game_hud_labels() -> void:
 	_assert(player_lbl != null, "TC6-2: PlayerScoreLabel exists")
 	if player_lbl:
 		_assert(player_lbl.text == "Player: 0", "TC6-3: PlayerScoreLabel initial text")
-		_assert(player_lbl.font_size >= 24, "TC6-4: PlayerScoreLabel font_size >= 24")
+		_assert(player_lbl.get_theme_font_size("font_size") >= 24, "TC6-4: PlayerScoreLabel font_size >= 24")
 
 	var ai_lbl: Label = instance.get_node_or_null("MarginContainer/HBoxContainer/AIScoreLabel")
 	_assert(ai_lbl != null, "TC6-5: AIScoreLabel exists")
 	if ai_lbl:
 		_assert(ai_lbl.text == "AI: 0", "TC6-6: AIScoreLabel initial text")
-		_assert(ai_lbl.font_size >= 24, "TC6-7: AIScoreLabel font_size >= 24")
+		_assert(ai_lbl.get_theme_font_size("font_size") >= 24, "TC6-7: AIScoreLabel font_size >= 24")
 
 	instance.queue_free()
 
@@ -236,13 +236,13 @@ func _test_tc7_game_over_labels() -> void:
 	_assert(winner_lbl != null, "TC7-2: WinnerLabel exists")
 	if winner_lbl:
 		_assert(winner_lbl.text == "", "TC7-3: WinnerLabel initially empty")
-		_assert(winner_lbl.font_size >= 48, "TC7-4: WinnerLabel font_size >= 48")
+		_assert(winner_lbl.get_theme_font_size("font_size") >= 48, "TC7-4: WinnerLabel font_size >= 48")
 
 	var restart_lbl: Label = instance.get_node_or_null("CenterContainer/VBoxContainer/RestartPromptLabel")
 	_assert(restart_lbl != null, "TC7-5: RestartPromptLabel exists")
 	if restart_lbl:
 		_assert(restart_lbl.text == "按 SPACE 重新开始", "TC7-6: RestartPromptLabel text correct")
-		_assert(restart_lbl.font_size >= 24, "TC7-7: RestartPromptLabel font_size >= 24")
+		_assert(restart_lbl.get_theme_font_size("font_size") >= 24, "TC7-7: RestartPromptLabel font_size >= 24")
 
 	instance.queue_free()
 

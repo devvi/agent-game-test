@@ -100,7 +100,7 @@ func _setup_fsm(fsm):
 		"game_hud": _make_mock_cl("GameHUD"),
 		"game_over_screen": _make_mock_cl("GameOverScreen"),
 		"pause_overlay": _make_mock_cl("PauseOverlay"),
-		"ball": Node2D.new(),
+		"ball": Area2D.new(),
 		"player_paddle": _make_mock_paddle("PlayerPaddle"),
 		"ai_paddle": _make_mock_paddle("AIPaddle"),
 		"scoring_manager": _make_mock_scoring_manager(),
