@@ -3,7 +3,7 @@
 > **GDD Section:** 09  
 > **System:** Automated test suite for Mini Pong  
 > **Last Updated:** 2026-07-30  
-> **Related PRs:** #349 (Auto-Play test)
+> **Related PRs:** #349 (Auto-Play test), #353 (pre-existing test failures — pause), #355 (pre-existing test failures — UI font_size)
 
 ---
 
@@ -123,7 +123,7 @@ Match 100: Ai wins — 3 games (P A A) [246 frames] ✅
 ## 4. Running Tests
 
 ```bash
-# Full suite (all 13 test suites, ~979 tests)
+# Full suite (all 13 test suites, 1002 tests)
 /Applications/Godot.app/Contents/MacOS/Godot --path mini-pong/ --headless --script tests/run_tests.gd
 
 # Focused auto-play test only (100 matches)
@@ -144,17 +144,17 @@ Match 100: Ai wins — 3 games (P A A) [246 frames] ✅
 
 | Subsystem | Test File | Tests | Type |
 |-----------|-----------|:-----:|:----:|
-| AI Paddle | `test_ai_paddle.gd` | ~20 | Unit |
-| Ball Physics | `test_ball.gd` | ~30 | Unit |
-| GameManager | `test_game_manager.gd` | ~25 | Unit |
-| ScoringManager | `test_scoring_manager.gd` | ~20 | Unit |
-| GameStateMachine | `test_game_state_machine.gd` | ~16 | Unit |
-| Neon Visual | `test_neon.gd` | ~10 | Unit |
-| Paddle | `test_paddle.gd` | ~15 | Unit |
-| Pause | `test_pause.gd` | ~15 | Unit |
-| UI System | `test_ui_system.gd` | ~15 | Unit |
-| AudioEngine | `test_audio_engine.gd` | ~10 | Unit |
-| Constants | `test_constants.gd` | ~10 | Unit |
-| Main Scene | `test_main_scene.gd` | ~15 | Integration |
+| AI Paddle | `test_ai_paddle.gd` | 425 | Unit |
+| Ball Physics | `test_ball.gd` | 91 | Unit |
+| GameManager | `test_game_manager.gd` | 44 | Unit |
+| ScoringManager | `test_scoring_manager.gd` | 42 | Unit |
+| GameStateMachine | `test_game_state_machine.gd` | 54 | Unit |
+| Neon Visual | `test_neon.gd` | 13 | Unit |
+| Paddle | `test_paddle.gd` | 30 | Unit |
+| Pause | `test_pause.gd` | 19 | Unit |
+| UI System | `test_ui_system.gd` | 84 | Unit |
+| AudioEngine | `test_audio_engine.gd` | 15 | Unit |
+| Constants | `test_constants.gd` | 35 | Unit |
+| Main Scene | `test_main_scene.gd` | 50 | Integration |
 | **Auto-Play** | `auto_play_test.gd` | **100** | **Integration/Stress** |
-| **Total** | | **~979** | |
+| **Total** | | **1002** | |
