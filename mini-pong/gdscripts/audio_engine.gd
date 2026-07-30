@@ -21,7 +21,10 @@ func _ready() -> void:
 		return
 
 	# Signal connections for event-driven sounds
-	if not Engine.has_singleton("GameManager"):
+	# Use get_singleton_list() instead of has_singleton() to avoid
+	# Godot 4.7.1 engine ERROR log when singleton doesn't exist (breaks CI grep).
+	var slist := Engine.get_singleton_list()
+	if not slist.has("GameManager"):
 		push_warning("AudioEngine: GameManager singleton not available — signal connections skipped")
 		return
 	var gm = Engine.get_singleton("GameManager")
