@@ -3,7 +3,7 @@
 > **GDD Section:** 09  
 > **System:** Automated test suite for Mini Pong  
 > **Last Updated:** 2026-07-30  
-> **Related PRs:** #349 (Auto-Play test), #353 (pre-existing test failures — pause), #355 (pre-existing test failures — UI font_size)
+> **Related PRs:** #349 (Auto-Play test), #353 + #355 (fix pre-existing #346 failures)
 
 ---
 
@@ -136,6 +136,7 @@ Match 100: Ai wins — 3 games (P A A) [246 frames] ✅
 ### Known Behavior
 
 - **Leak warnings at exit** — `WARNING: RIDs of type "Canvas/CanvasItem" were leaked` and `ERROR: resources still in use at exit` are normal in headless mode. The test process allocates nodes that are freed after `quit()`. These do not indicate actual resource leaks.
+- **Headless theme overrides** — `Label.get_theme_font_size("font_size")` returns 0 in headless Godot because no project Theme is loaded. Tests that verify font sizes from `.tscn` theme overrides must use `label.get("theme_override_font_sizes/font_size")` instead (see PRs #353, #355). Affects any Label-bearing scene loaded via `load().instantiate()`.
 - **Auto-play test elapsed time** — 100 matches at `time_scale = 5.0` complete in ~30-60s real time depending on hardware, despite the elapsed timer reporting ~300s (Godot's `Time.get_ticks_msec()` measures simulation time, not wall-clock time, when `time_scale ≠ 1.0`).
 
 ---

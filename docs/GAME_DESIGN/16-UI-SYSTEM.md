@@ -94,6 +94,11 @@ Without this, GameManager signals never fire and the HUD never updates.
 | 8 | Tween conflict | `_kill_tween()` called before creating new animation |
 | 9 | Invalid winner string | `match` falls through without action |
 
+## Testing Notes
+
+- **Theme override access** — Tests that verify `Label` font sizes from `.tscn` files must use `label.get("theme_override_font_sizes/font_size")` instead of `label.get_theme_font_size("font_size")`, which returns 0 in headless mode. This was the root cause of 6 pre-existing failures fixed in PRs #353 and #355.
+
+
 ## Files
 
 | File | Role |
@@ -106,7 +111,7 @@ Without this, GameManager signals never fire and the HUD never updates.
 | `scenes/ui_game_over.tscn` | GameOverScreen scene |
 | `scenes/game.tscn` | Modified: 3 CanvasLayer instances added |
 | `gdscripts/scoring_manager.gd` | Modified: 1-line bridge to GameManager |
-| `tests/test_ui_system.gd` | 26 test cases (451 lines) |
+| `tests/test_ui_system.gd` | 84 test cases (see #353, #355) |
 
 ## Dependencies
 
