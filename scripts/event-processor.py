@@ -118,21 +118,41 @@ DEFAULT_CONFIG = {
 }
 
 # ── Presets ─────────────────────────────────────────────────────
+# Presets can define either:
+#   work_start_hour + work_end_hour — single contiguous window
+#   work_windows: [[start, end], ...] — multiple non-contiguous windows
 WORK_HOUR_PRESETS = {
     "daytime": {"work_start_hour": 8, "work_end_hour": 22},
     "night-owl": {"work_start_hour": 23, "work_end_hour": 8},
     "always": {"work_start_hour": 0, "work_end_hour": 24},
+    # DeepSeek peak/off-peak pricing (UTC+8):
+    #   Peak (2x): 9-12, 14-18
+    #   Valley (1x): 0-9, 12-14, 18-24
+    "best-deepseek": {"work_windows": [[0, 9], [12, 14], [18, 24]]},
 }
 
 
 def read_workflow_config() -> dict:
-    """Read workflow config, falling back to env vars then defaults."""
+    """Read workflow config, falling back to env vars then defaults.
+    If a preset is named, its hours are applied as defaults before
+    file-specified hours override them."""
     config = dict(DEFAULT_CONFIG)
     try:
         with open(WORKFLOW_CONFIG) as f:
             config.update(json.load(f))
     except (FileNotFoundError, json.JSONDecodeError, IOError):
         pass
+    # Apply preset hours if a preset is set (but allow explicit hours to override)
+    preset_name = config.get("preset")
+    if preset_name and preset_name in WORK_HOUR_PRESETS:
+        preset = WORK_HOUR_PRESETS[preset_name]
+        # Only apply preset hours if no explicit hours set in file
+        if "work_start_hour" not in config or config["work_start_hour"] == DEFAULT_CONFIG["work_start_hour"]:
+            if "work_windows" in preset:
+                config["work_windows"] = preset["work_windows"]
+            elif "work_start_hour" in preset:
+                config["work_start_hour"] = preset["work_start_hour"]
+                config["work_end_hour"] = preset.get("work_end_hour", DEFAULT_CONFIG["work_end_hour"])
     # Env vars override file config
     if "WORK_START_HOUR" in os.environ:
         config["work_start_hour"] = int(os.environ["WORK_START_HOUR"])
@@ -153,8 +173,26 @@ def is_work_hours(cfg: dict = None) -> bool:
 
 
 def _time_in_window(cfg: dict) -> bool:
-    """Pure time check — does NOT check enabled flag."""
+    """Pure time check — does NOT check enabled flag.
+    
+    Supports two modes:
+    1. work_windows: list of [start, end] ranges (for non-contiguous windows)
+    2. work_start_hour/work_end_hour: single contiguous range (with wrap support)
+    """
     hour = datetime.datetime.now().hour
+    # Mode 1: multiple windows (e.g. best-deepseek valley periods)
+    windows = cfg.get("work_windows")
+    if windows:
+        for start, end in windows:
+            if start <= end:
+                if start <= hour < end:
+                    return True
+            else:
+                # Wrapping window (e.g. 23-8)
+                if hour >= start or hour < end:
+                    return True
+        return False
+    # Mode 2: single contiguous range
     start = cfg.get("work_start_hour", 8)
     end = cfg.get("work_end_hour", 22)
     if start <= end:
@@ -520,6 +558,46 @@ def _has_unresolved_dependencies(issue_num: int) -> list[dict]:
         # Not resolved yet
         unresolved.append(dep)
     return unresolved
+
+
+def _is_pr_blocked(pr_num: int) -> bool:
+    """Check if a PR has status/blocked label.
+
+    Returns True if blocked (review should NOT be spawned).
+    On gh error, returns False (conservative: allow spawn).
+    """
+    raw = gh("pr", "view", str(pr_num), "--json", "labels")
+    if not raw:
+        return False
+    try:
+        labels = [l["name"] for l in json.loads(raw).get("labels", [])]
+        return "status/blocked" in labels
+    except (json.JSONDecodeError, KeyError):
+        return False
+
+
+def _parent_issue_blocked(pr_num: int) -> bool:
+    """Check if the parent issue of a PR has status/blocked.
+
+    Extracts parent issue from PR body (Parent #N or Closes #N).
+    Returns True if parent issue has status/blocked.
+    On gh error or if parent can't be determined, returns False.
+    """
+    body = gh("pr", "view", str(pr_num), "--json", "body", "--jq", ".body")
+    if not body:
+        return False
+    m = re.search(r'(?:Closes|parent|Parent)\s*#(\d+)', body)
+    if not m:
+        return False
+    parent = int(m.group(1))
+    raw = gh("issue", "view", str(parent), "--json", "labels")
+    if not raw:
+        return False
+    try:
+        labels = [l["name"] for l in json.loads(raw).get("labels", [])]
+        return "status/blocked" in labels
+    except (json.JSONDecodeError, KeyError):
+        return False
 
 
 def _pr_exists_for_issue(stage: str, issue: int) -> bool:
@@ -1025,6 +1103,15 @@ def preprocess():
                         parent_issue = int(m.group(1))
                 except Exception:
                     pass
+                # ── Block gate: skip review if PR or parent issue is blocked ──
+                # status/blocked means the review agent previously found pre-existing
+                # failures on main and deliberately blocked this PR. Do NOT re-spawn
+                # review until the block is lifted (main tests pass → stalled scan
+                # removes status/blocked and triggers update-branch).
+                pr_num = int(issue)
+                if _is_pr_blocked(pr_num) or _parent_issue_blocked(pr_num):
+                    discarded_keys.add(event.get("_key", ""))
+                    continue
                 output_lines.append(
                     f"SPAWN: review,issue={parent_issue},"
                     f"pr={issue},branch={branch},conclusion={conclusion}"

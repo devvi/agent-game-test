@@ -1268,7 +1268,11 @@ The stalled scan historically skipped implement PRs entirely. If the `check_run.
    b. Update PR label to `workflow/self-correct`
    c. Spawn self-correct agent via `delegate_task` with rich CI failure context
 3. **If CI success with no review agent activity** (review event lost):
-   a. Spawn review agent via `delegate_task`
+   ⚠️ **NEW (2026-07-30): Block gate before spawning review.** Check PR and parent issue labels for `status/blocked` FIRST:
+   a. `gh pr view <N> --json labels --jq '.labels[].name' | grep -q status/blocked`
+   b. `gh issue view <PARENT> --json labels --jq '.labels[].name' | grep -q status/blocked`
+   c. **If blocked:** do NOT spawn review. Instead, run the unblock flow (see below).
+   d. **If not blocked:** spawn review agent via `delegate_task` as before.
 4. **If CI still running/queued:** skip (wait for it to complete)
 
 **Cross-issue sequencing conflicts (2026-07-15 trace):** When master merges plan-phase test files before implement PRs merge, other implement branches CI-fail on unrelated tests. Detection: `git log --oneline --diff-filter=A -- 'tests/*.test.js'` on master for recent plan-PR test files.
@@ -1364,6 +1368,44 @@ consumed and the pending file was empty. Proactive scanning catches this class o
 **See `references/workflow-chain-pitfalls.md` section "Branch-Fallback Label-Add Fails" for
 one specific cause of stalled PRs (workflow-chain.yml crashing with 403 on branch-fallback
 label-add).**
+
+#### 🔓 Blocked PR Unblock Flow (NEW — 2026-07-30)
+
+When the stalled scan finds an `impl/*` PR with `status/blocked`, it must NOT spawn a review agent. Instead, it checks whether the root cause (pre-existing failures on main) has been fixed:
+
+```
+for each impl/* PR with status/blocked:
+  1. Check main tests:
+     godot --headless --script tests/run_tests.gd > /tmp/main_test.txt 2>&1
+     grep -c "FAILED" /tmp/main_test.txt
+     → if 0 failures: main is green → proceed to unblock
+     → if >0 failures: main still broken → SKIP, post reminder if >30min since last
+
+  2. Unblock (main is green):
+     a. Remove status/blocked from PR:
+        gh api repos/<owner>/<repo>/issues/<PR_NUM>/labels/status%2Fblocked -X DELETE
+     b. Remove status/blocked from parent issue:
+        gh api repos/<owner>/<repo>/issues/<PARENT>/labels/status%2Fblocked -X DELETE
+     c. Sync impl branch with main:
+        gh pr update-branch <PR_NUM>
+        → This merges main into the impl branch and pushes.
+        → Triggers a new CI run.
+     d. Post Feishu: 🔓 #N → unblocked (main tests green, updating from main)
+     e. Do NOT spawn review — wait for CI to complete.
+        CI green → check_run.completed → event-processor → SPAWN: review
+
+  3. update-branch fails (merge conflict):
+     a. Keep status/blocked
+     b. Post PR comment with conflict details
+     c. Post Feishu: ⛔ #N → merge conflict with main, needs manual resolution
+```
+
+**Reminder cadence:** If a blocked PR remains blocked for >30 minutes, post a periodic Feishu reminder (max once per hour per PR):
+```
+⏳ #N → still blocked: <N> pre-existing failures on main (fix: #<FIX>)
+```
+
+**Why this is safe:** The event-processor also blocks `SPAWN: review` for blocked PRs. The stalled scan's unblock flow is the ONLY path that removes `status/blocked`. No agent can bypass this — not the review agent, not the self-correct agent, not the delegator.
 
 #### 🧱 CI-Infrastructure PR Stall (Chicken-and-Egg with Branch Protection)
 
