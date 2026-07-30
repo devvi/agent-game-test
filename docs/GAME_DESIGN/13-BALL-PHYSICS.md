@@ -35,6 +35,10 @@ const FALLBACK_SCREEN_WIDTH: float = 1280.0  # Headless fallback
 const FALLBACK_SCREEN_HEIGHT: float = 720.0  # Headless fallback
 ```
 
+> **Constants migration (#295):** All ball physics constants are now sourced from `gdscripts/constants.gd`
+> (`class_name GameConstants`). `ball.gd` references `CONSTS.BALL_INITIAL_SPEED` etc. instead
+> of local `const` declarations. Headless fallback values remain as inline fallbacks for test contexts.
+
 ## Key Systems
 
 ### Wall Bounce
@@ -133,10 +137,10 @@ _on_area_entered(area) — paddle collision
 | System | How |
 |--------|-----|
 | Player paddle (#288) | Ball `area_entered` reads paddle group + height for angle calc |
-| Walls (game.tscn) | Ball `body_entered` checks `is_in_group("walls")` for Y-bounce |
-| Scoring (#291) | Ball emits `score(side: int)`, 0=left scores, 1=right scores |
+| Walls (Main.tscn) | Ball `body_entered` checks `is_in_group("walls")` for Y-bounce |
+| Scoring (#291) | Ball emits `score(side: int)`, 0=left scores, 1=right scores. Also detected by ScoreZone Area2D body_entered (#295). |
 | Neon visuals (#289) | `ball_trail.gd` duck-types `parent.get("velocity")` — works with Area2D |
-| Main scene | `game.tscn` instances `ball.tscn` at position (640, 360) |
+| Main scene | `Main.tscn` instances `ball.tscn` at position (640, 360) |
 
 ## Test Coverage
 
@@ -144,7 +148,7 @@ The test suite (`tests/test_ball.gd`, 461 lines, 35+ test cases) covers:
 
 | Scenario | Tests | Description |
 |----------|-------|-------------|
-| A: Scene integrity | 4 | ball.tscn + game.tscn node hierarchy, shapes, project.godot main_scene |
+| A: Scene integrity | 4 | ball.tscn + Main.tscn node hierarchy, shapes, project.godot main_scene |
 | B: Wall bounce | 4 | Y reversal, X unchanged, speed unchanged, cooldown |
 | C: Paddle collision | 4 | Center/edge angle variation, X reversal on both directions |
 | D: Speed escalation | 3 | +5% per hit, 2× cap, reset on serve |

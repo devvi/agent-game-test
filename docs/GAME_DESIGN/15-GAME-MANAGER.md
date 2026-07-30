@@ -42,8 +42,12 @@ GameManager="*res://gdscripts/game_manager.gd"
 
 | Parameter | Value | Description |
 |-----------|:-----:|-------------|
-| Points to win a game | 5 | `POINTS_TO_WIN_GAME` |
-| Games to win a match | 2 | `GAMES_TO_WIN_MATCH` |
+| Points to win a game | 5 | `GameConstants.POINTS_TO_WIN_GAME` |
+| Games to win a match | 2 | `GameConstants.GAMES_TO_WIN_MATCH` |
+
+> **Constants migration (#295):** Scoring constants are sourced from `gdscripts/constants.gd`
+> (`class_name GameConstants`). `game_manager.gd` references `CONSTS.POINTS_TO_WIN_GAME`
+> and `CONSTS.GAMES_TO_WIN_MATCH` instead of local `const` declarations.
 
 ## Signals
 

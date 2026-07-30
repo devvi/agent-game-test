@@ -18,11 +18,16 @@ Area2D (PlayerPaddle, paddle.gd)
 
 ## Core Constants
 
+> **Constants migration (#295):** Paddle constants are now sourced from `gdscripts/constants.gd`
+> (`class_name GameConstants`). `paddle.gd` references `CONSTS.PADDLE_SPEED`, `CONSTS.PADDLE_WIDTH`,
+> and `CONSTS.PADDLE_HEIGHT` instead of local `const` declarations.
+
 ```gdscript
-const SPEED: float = 400.0              # Pixels per second
-const PADDLE_WIDTH: float = 20.0        # ColorRect width
-const PADDLE_HEIGHT: float = 120.0      # ColorRect height
-const FALLBACK_VIEWPORT_Y: float = 720.0 # Headless fallback
+# Pre-migration (for reference):
+const SPEED: float = 400.0              # → GameConstants.PADDLE_SPEED
+const PADDLE_WIDTH: float = 20.0        # → GameConstants.PADDLE_WIDTH
+const PADDLE_HEIGHT: float = 120.0      # → GameConstants.PADDLE_HEIGHT
+const FALLBACK_VIEWPORT_Y: float = 720.0 # Headless fallback (local only)
 ```
 
 ## InputMap Bindings
@@ -78,7 +83,7 @@ _process(delta) — every frame
 | Ball collision (#290) | Area2D body_entered signal — paddle is passive, no code needed |
 | Main scene (#295) | Instance `player_paddle.tscn` in main scene |
 | Visual (#289) | ColorRect color → ShaderMaterial neon glow |
-| AI paddle (#290) | Same `.tscn` with `mode = Mode.AI` override in TSCN |
+| AI paddle (#290) | Same `.tscn` with `mode = Mode.AI` override in Main.tscn |
 
 ---
 

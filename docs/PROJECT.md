@@ -21,7 +21,9 @@
 | Mini Pong — Neon Visual | `mini-pong/gdscripts/ball_trail.gd` | ✅ | GDD |
 | Mini Pong — Scoring | `mini-pong/gdscripts/scoring_manager.gd` | ✅ | GDD |
 | Mini Pong — GameManager | `mini-pong/gdscripts/game_manager.gd` | ✅ | GDD |
-| Mini Pong — Arena | `mini-pong/scenes/game.tscn` | ✅ | GDD |
+| Mini Pong — Arena | `mini-pong/scenes/Main.tscn` | ✅ | GDD |
+| Mini Pong — Constants | `mini-pong/gdscripts/constants.gd` | ✅ | GDD |
+| Mini Pong — ScoreFlash | `mini-pong/gdscripts/score_flash.gd` | ✅ | GDD |
 | Mini Pong — StartMenu | `mini-pong/gdscripts/start_menu.gd` | ✅ | GDD |
 | Mini Pong — GameHUD | `mini-pong/gdscripts/game_hud.gd` | ✅ | GDD |
 | Mini Pong — GameOverScreen | `mini-pong/gdscripts/game_over_screen.gd` | ✅ | GDD |
@@ -43,6 +45,7 @@
 | 293 | GameManager 全局状态 | ✅ 已合并 | DESIGN / GDD |
 | 294 | Game State Machine 状态机 | ✅ 已合并 | DESIGN / GDD |
 | 296 | 暂停与音效 (Escape切换 + AudioStreamGenerator合成) | ✅ 已合并 | DESIGN / GDD |
+| 295 | 主场景组装 (Main.tscn + constants.gd + ScoreZones + ScoreFlash) | ✅ 已合并 | DESIGN / GDD |
 
 ## 已知问题
 

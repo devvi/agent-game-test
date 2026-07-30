@@ -20,9 +20,10 @@ when optional dependencies (like `ScoreFlash`) are absent.
 ScoringManager (Node, scoring_manager.gd)
 ```
 
-The `ScoringManager` is a sibling of `Ball` and `PlayerPaddle` in `game.tscn`.
-It references the ball via `$"../Ball"` and optionally connects to `ScoreFlash`
-via `get_node_or_null("../ScoreFlash")`.
+The `ScoringManager` is a sibling of `Ball` and `PlayerPaddle` in `Main.tscn`.
+It references the ball via `$"../Ball"` and connects to `ScoreFlash`
+via `get_node_or_null("../ScoreFlash")`. As of #295, the `ScoreFlash` node
+is present in `Main.tscn` and the `scored → ScoreFlash` signal chain is active.
 
 ## Signal Chain
 
@@ -41,11 +42,15 @@ ScoringManager._on_ball_score(side)
 
 | Parameter | Value | Description |
 |-----------|:-----:|-------------|
-| Points to win a game | 5 | `POINTS_TO_WIN_GAME` |
-| Games to win a match | 2 | `GAMES_TO_WIN_MATCH` |
+| Points to win a game | 5 | `GameConstants.POINTS_TO_WIN_GAME` |
+| Games to win a match | 2 | `GameConstants.GAMES_TO_WIN_MATCH` |
 | Post-score pause | 1.0 s | `await get_tree().create_timer(1.0).timeout` |
 | Score direction — player | side=0 | Ball exits right boundary |
 | Score direction — AI | side=1 | Ball exits left boundary |
+
+> **Constants migration (#295):** All scoring constants are now sourced from `gdscripts/constants.gd`
+> (`class_name GameConstants`). `scoring_manager.gd` references `CONSTS.POINTS_TO_WIN_GAME`
+> instead of a local `const`.
 
 ## Signals
 

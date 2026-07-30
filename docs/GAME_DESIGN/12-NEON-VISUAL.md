@@ -67,11 +67,14 @@ Particles use `particle_material.tres` (ParticleProcessMaterial):
 
 ## Score Flash
 
-File: `gdscripts/score_flash.gd`
+File: `gdscripts/score_flash.gd`, instanced as child of `Main.tscn`
 
 | Signal | Source | Behavior |
 |--------|--------|----------|
-| score_changed(side: String) | Scoring system (future) | Flash blue for "player", red for "ai" |
+| `scored(winner)` | ScoringManager | Flash blue for "player", red for "ai" |
+
+The `ScoringManager → ScoreFlash` signal chain is active as of #295. ScoreFlash is a Node
+with a full-screen ColorRect child in `Main.tscn`.
 
 Flash: Full-screen ColorRect overlay → 0.2s fade via `create_tween()`.
 Old tweens killed on new flash (prevents overlap).
@@ -98,7 +101,8 @@ ShaderMaterial applied to Sprite2D → fragment shader detects edge → overlays
 | Ball glow | Ball Sprite2D | ShaderMaterial (neon_glow.gdshader) |
 | Player paddle glow | Paddle Sprite2D | ShaderMaterial, glow_color=#4a90d9 |
 | AI paddle glow | AI Paddle Sprite2D | ShaderMaterial, glow_color=#ff3355 |
-| Score flash | Scoring system | score_changed signal |
+| WorldEnvironment | Main.tscn | instance of world_environment.tscn (#295) |
+| Score flash | ScoringManager | scored signal → flash(color) → 0.2s fade |
 | Center line | Main scene | Line2D child node |
 | Background | Rendering pipeline | WorldEnvironment + project.godot clear_color |
 | Bloom | Forward+ renderer | glow_bloom=0.8 threshold |
