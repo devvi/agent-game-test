@@ -6,7 +6,7 @@ The workflow operator agent handles all of that.
 
 Outputs [SILENT] to suppress Hermes agent run.
 """
-import json, sys, os, time, fcntl
+import json, sys, os, time, fcntl, subprocess
 
 PENDING_FILE = os.path.expanduser("~/.hermes/workflow-pending.json")
 
@@ -80,6 +80,22 @@ def main():
             issue_number = prs[0].get("number")
         head_branch = cr.get("head_branch", "") or suite.get("head_branch", "")
         conclusion = cr.get("conclusion", "")
+        # ── Fallback: pull_requests empty (GitHub check-suite race) ──
+        # When prs is empty, the event would be silently dropped (no PR number).
+        # Look up the PR by branch name instead — gh call (~200ms) is worth it
+        # to avoid losing a CI success event that should trigger review.
+        if not issue_number and head_branch:
+            try:
+                result = subprocess.run(
+                    ["gh", "pr", "list", "--head", head_branch,
+                     "--json", "number", "--jq", ".[0].number",
+                     "--limit", "1"],
+                    capture_output=True, text=True, timeout=5
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    issue_number = int(result.stdout.strip())
+            except Exception:
+                pass
 
     if not issue_number or not repo:
         print("[SILENT]")

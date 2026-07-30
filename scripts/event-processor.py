@@ -1027,9 +1027,19 @@ def preprocess():
                     discarded_keys.add(ev.get("_key", ""))
             continue
 
-        # Sort by priority first, then by timestamp descending (newest first)
-        # For check_run events, this ensures latest conclusion wins
-        group_events.sort(key=lambda e: (event_priority(e), -e.get('ts', 0)))
+        # Sort by priority first, then success-before-failure, then newest first.
+        # Without success-before-failure, a newer failure would beat an older
+        # success (timestamp tiebreaker), causing review to be skipped.
+        # CI success is the definitive state — it means the PR is passing and
+        # needs review. A failure from an earlier CI run is stale.
+        def _group_sort_key(e):
+            is_success = (
+                e.get("type") == "check_run"
+                and _event_action(e) == "check_run.completed"
+                and e.get("conclusion") == "success"
+            )
+            return (event_priority(e), 0 if is_success else 1, -e.get('ts', 0))
+        group_events.sort(key=_group_sort_key)
         best = group_events[0]
 
         if should_discard(best):
