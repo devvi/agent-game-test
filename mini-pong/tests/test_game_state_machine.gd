@@ -179,12 +179,13 @@ func _test_tc2_fsm_instantiation() -> void:
 	var fsm = _make_fsm()
 	_assert(fsm != null, "TC2.1: FSM script instantiates")
 
-	# Verify State enum values exist (MENU=0, SERVING=1, PLAYING=2, SCORED=3, GAME_OVER=4)
+	# Verify State enum values exist (MENU=0, SERVING=1, PLAYING=2, PAUSED=3, SCORED=4, GAME_OVER=5)
 	_assert(fsm.State.MENU == 0, "TC2.2: State.MENU == 0")
 	_assert(fsm.State.SERVING == 1, "TC2.3: State.SERVING == 1")
 	_assert(fsm.State.PLAYING == 2, "TC2.4: State.PLAYING == 2")
-	_assert(fsm.State.SCORED == 3, "TC2.5: State.SCORED == 3")
-	_assert(fsm.State.GAME_OVER == 4, "TC2.6: State.GAME_OVER == 4")
+	_assert(fsm.State.PAUSED == 3, "TC2.4b: State.PAUSED == 3")
+	_assert(fsm.State.SCORED == 4, "TC2.5: State.SCORED == 4")
+	_assert(fsm.State.GAME_OVER == 5, "TC2.6: State.GAME_OVER == 5")
 
 	# Verify methods exist
 	_assert(fsm.has_method("transition_to"), "TC2.7: has transition_to()")
