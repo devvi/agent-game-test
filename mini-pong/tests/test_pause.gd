@@ -196,7 +196,7 @@ func _test_tc1_escape_pauses_from_playing() -> void:
 
 	_assert(fsm.current_state == fsm.State.PAUSED, "TC1.1: current_state == PAUSED after Escape")
 	_assert(mocks.pause_overlay.visible == true, "TC1.2: PauseOverlay visible in PAUSED")
-	_assert(mocks.game_hud.visible == true, "TC1.3: game_hud still visible in PAUSED")
+	_assert(mocks.game_hud.visible == false, "TC1.3: game_hud hidden in PAUSED (FSM _set_ui design)")
 	_assert(mocks.player_paddle.frozen == true, "TC1.4: player_paddle frozen in PAUSED")
 	_assert(mocks.ai_paddle.frozen == true, "TC1.5: ai_paddle frozen in PAUSED")
 
