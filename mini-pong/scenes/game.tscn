@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://gdscripts/game_hud.gd" id="5_game_hud"]
 [ext_resource type="Script" path="res://gdscripts/game_over_screen.gd" id="6_game_over"]
 [ext_resource type="Script" path="res://gdscripts/game_state_machine.gd" id="7_game_state_machine"]
+[ext_resource type="Script" path="res://gdscripts/pause_overlay.gd" id="8"]
 
 [sub_resource type="RectangleShape2D" id="rect_wall_top"]
 size = Vector2(1280, 10)
@@ -46,6 +47,7 @@ script = ExtResource("7_game_state_machine")
 start_menu = NodePath("../StartMenu")
 game_hud = NodePath("../GameHUD")
 game_over_screen = NodePath("../GameOverScreen")
+pause_overlay = NodePath("../PauseOverlay")
 ball = NodePath("../Ball")
 player_paddle = NodePath("../PlayerPaddle")
 ai_paddle = NodePath("../AIPaddle")
@@ -137,4 +139,31 @@ modulate = Color(1.0, 1.0, 1.0, 1.0)
 text = "按 SPACE 重新开始"
 horizontal_alignment = 1
 font_size = 28
+modulate = Color(1.0, 1.0, 1.0, 1.0)
+
+[node name="PauseOverlay" type="CanvasLayer" parent="."]
+layer = 10
+visible = false
+script = ExtResource("8")
+
+[node name="ColorRect" type="ColorRect" parent="PauseOverlay"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0.6)
+
+[node name="Label" type="Label" parent="PauseOverlay"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -50.0
+offset_top = -24.0
+offset_right = 50.0
+offset_bottom = 24.0
+text = "暂停"
+horizontal_alignment = 1
+vertical_alignment = 1
+font_size = 48
 modulate = Color(1.0, 1.0, 1.0, 1.0)

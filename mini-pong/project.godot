@@ -14,3 +14,4 @@ rendering/environment/defaults/default_clear_color=Color(0.039, 0.039, 0.071, 1)
 [autoload]
 
 GameManager="*res://gdscripts/game_manager.gd"
+AudioEngine="*res://gdscripts/audio_engine.gd"
