@@ -1,0 +1,43 @@
+name: pipeline-tests
+# Deterministic pipeline core (event-processor.py, stage-gate.py, dispatcher)
+# regression tests. Runs when the pipeline scripts OR its tests change.
+# Enforces the rule: pipeline bugs must be caught by tests, not production.
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'tests/pipeline/**'
+      - '.github/workflows/**'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/**'
+      - 'tests/pipeline/**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+jobs:
+  pipeline-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run pipeline unit tests (no network, no gh, hermetic)
+        run: |
+          python3 -m unittest discover -s tests/pipeline -v
+
+      - name: Gate — pipeline tests must run
+        if: failure()
+        run: |
+          echo "❌ Pipeline tests failed. event-processor.py / stage-gate.py / "
+          echo "   workflow-dispatcher.py regressions block merge."
+          exit 1
