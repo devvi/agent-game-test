@@ -929,6 +929,14 @@ next_label_map = {
 }
 
 # Fetch all open issues with workflow labels
+# ⚠️ Patch 61 (2026-07-30): gh issue list --label a,b,c uses AND logic — a comma-separated
+# multi-label query returns [] unless an issue has ALL labels. Fetch each label separately:
+#   gh issue list --label workflow/research --state open --json number,title,labels
+#   gh issue list --label workflow/plan --state open --json number,title,labels
+#   gh issue list --label workflow/implement --state open --json number,title,labels
+# or use --search "label:workflow/research label:workflow/plan" (OR semantics).
+# Real trace: issue #294 at workflow/implement was invisible to the comma query — the
+# stalled phase scan silently missed it, only caught via `git status --short` orphans.
 for issue in gh_issues_with_workflow_labels():
     wf_labels = [l for l in issue["labels"] if l.startswith("workflow/")]
     if not wf_labels: continue
@@ -982,6 +990,27 @@ for issue in gh_issues_with_workflow_labels():
                     orphaned_files.append(fname)
         except Exception:
             pass  # directory or glob may not exist
+    # ⚠️ Patch 57/60 (2026-07-29/30): the doc-dir scan above MISSES implement-phase
+    # orphans — crash-left game code (.gd, .tscn, test files) sits in project
+    # source dirs with feature-based names, not docs/{N}-*.md globs.
+    # Traces: #293 (game_manager.gd written, never committed — recovered via
+    # commit+PR #326) and #294 (8 files in mini-pong/gdscripts + tests, PR #333).
+    # For implement phase, ALSO scan the working tree for uncommitted changes:
+    if active_wf == "workflow/implement":
+        try:
+            status_out = run("git status --short").strip()
+            for line in status_out.split("\n"):
+                if not line.strip():
+                    continue
+                marker, path = line[:2], line[3:].strip()
+                # Skip docs (already covered above) and .godot cache noise
+                if path.startswith("docs/") or ".godot/" in path:
+                    continue
+                if marker in ("M", "D", "??", "R", "A"):
+                    if path not in orphaned_files:
+                        orphaned_files.append(path)
+        except Exception:
+            pass
     if orphaned_files:
         # Agent wrote output but never committed. Commit it, create PR,
         # merge, and advance label — skip spawning a new agent.
@@ -995,6 +1024,17 @@ for issue in gh_issues_with_workflow_labels():
 
     # 2b. No orphaned files either — truly hasn't started. Spawn agent.
     if active_wf == "workflow/research":
+        # ⚠️ Patch 58 (2026-07-29): check if the PRD already exists on the default
+        # branch FIRST. A sibling issue's research PR may have merged PRDs for
+        # multiple issues — spawning a research agent would duplicate work.
+        # Trace: PR #317 (research/291) merged PRDs for BOTH #290 and #291;
+        # issue #290 had no research PR but docs/PRD/290-ai-opponent.md existed
+        # on origin/main (420 lines). Cron correctly advanced instead of re-researching.
+        prd_exists = check_file_exists_on_default_branch(f"docs/PRD/{issue['number']}-*.md")
+        if prd_exists:
+            log(f"Issue #{issue['number']}: PRD already on main — advancing to plan")
+            advance_label(issue["number"], "workflow/research", "workflow/plan")
+            continue
         # No prerequisite — just spawn research agent
         spawn_phase_agent("research", issue["number"])
         continue
@@ -1272,7 +1312,13 @@ The stalled scan historically skipped implement PRs entirely. If the `check_run.
    a. `gh pr view <N> --json labels --jq '.labels[].name' | grep -q status/blocked`
    b. `gh issue view <PARENT> --json labels --jq '.labels[].name' | grep -q status/blocked`
    c. **If blocked:** do NOT spawn review. Instead, run the unblock flow (see below).
-   d. **If not blocked:** spawn review agent via `delegate_task` as before.
+   d. **If not blocked:** check for existing substantive reviews BEFORE spawning (Patch 63, 2026-07-30):
+      ```bash
+      gh pr view <N> --json reviews --jq '.reviews[] | select(.state != "PENDING") | .state'
+      ```
+      - Contains `COMMENTED`/`APPROVED`/`CHANGES_REQUESTED` → already reviewed → **skip** (do not re-spawn; the PR may be blocked by review findings without the label, or waiting on the author).
+      - Empty or only `PENDING` → no substantive review → spawn review agent via `delegate_task`.
+   e. **If not blocked and not already reviewed:** spawn review agent via `delegate_task` as before.
 4. **If CI still running/queued:** skip (wait for it to complete)
 
 **Cross-issue sequencing conflicts (2026-07-15 trace):** When main merges plan-phase test files before implement PRs merge, other implement branches CI-fail on unrelated tests. Detection: `git log --oneline --diff-filter=A -- 'tests/*.test.js'` on main for recent plan-PR test files.
@@ -1584,14 +1630,20 @@ See `references/pitfall-archive.md` for the full archive of historical traces, f
 
 **Real-world trace (2026-07-15):** Cron poller checked for a plan PR with `gh pr list --head plan/201-*` and got empty results. PR #210 (`plan/201-keyboard-hints`) existed open, mergeable, and CI-passed — but was missed. A duplicate plan agent was dispatched because the pre-check falsely reported no existing PR.
 
-**Fix:** Use `--search` with the `headRefName` qualifier instead of `--head`:
-```bash
-# ✅ Correct: search qualifier filters by branch name pattern
-gh pr list --state all --json number,headRefName,state --search "plan/${ISSUE_N} in:headRefName"
-```
-Or use `gh search prs "head:plan/${ISSUE_N}-"` for branch pattern matching.
+**⚠️ Patch 59 (2026-07-29): `--search "in:headRefName"` is ALSO unreliable.** It returns `[]` even when matching PRs exist and are minutes old (stalled phase start detection missed PRs #321 and #322, causing a duplicate implement agent spawn for #291). **Never trust a single `--search` query alone.**
 
-**Applies to:** All pre-flight checks that search for branches by pattern (research, plan, implement). The implement-agent skill already uses the correct `--search` approach.
+**Fix — use TWO independent methods and treat the result as "PR exists" if EITHER finds it:**
+```bash
+# Method 1: parent-issue body search (PR body must contain "Parent #N" or "Closes #N")
+gh pr list --state all --json number,headRefName,state,body --search "\"Parent #${ISSUE_N}\" in:body"
+
+# Method 2: --state open with client-side filter (no search qualifier at all)
+gh pr list --state open --json number,headRefName,state | grep -i "${PREFIX}/${ISSUE_N}-"
+```
+
+Only when **both** methods return nothing is it safe to conclude the phase PR does not exist. A single `--search` result of `[]` is NOT sufficient evidence of absence.
+
+**Applies to:** All pre-flight checks that search for branches by pattern (research, plan, implement). The implement-agent skill already uses the correct dual-method approach.
 
 ### PR Body Must Reference Parent Issue
 2. Or skip PR labels entirely and advance issue labels manually after each PR merge using `gh issue edit`
