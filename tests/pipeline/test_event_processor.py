@@ -157,6 +157,10 @@ class TestTimeWindow(unittest.TestCase):
 class TestReadWorkflowConfig(unittest.TestCase):
     """Regression tests for the 2026-07-31 preset-window merge fix."""
 
+    # read_workflow_config lives in event_processor_lib (split P1-7);
+    # mock the lib's WORKFLOW_CONFIG constant, not the main module's.
+    LIB = __import__("event_processor_lib")
+
     def _write_config(self, tmpdir, content):
         path = os.path.join(tmpdir, "workflow-config.json")
         with open(path, "w") as f:
@@ -166,15 +170,12 @@ class TestReadWorkflowConfig(unittest.TestCase):
     def test_best_deepseek_windows_not_clobbered_by_explicit_hours(self):
         """The bug: explicit work_start_hour/work_end_hour in the file silently
         disabled the best-deepseek multi-window preset. Fix: windows are authoritative."""
-        with mock.patch.object(ep, "WORKFLOW_CONFIG", "/nonexistent/not-used") as _m:
-            pass
-        # Override the config path via env-agnostic approach: patch the constant
         with tempfile.TemporaryDirectory() as tmp:
             cfg_path = self._write_config(tmp, {
                 "enabled": True, "preset": "best-deepseek",
                 "work_start_hour": 0, "work_end_hour": 8,
             })
-            with mock.patch.object(ep, "WORKFLOW_CONFIG", cfg_path):
+            with mock.patch.object(self.LIB, "WORKFLOW_CONFIG", cfg_path):
                 merged = ep.read_workflow_config()
             self.assertEqual(merged.get("work_windows"), [[0, 9], [12, 14], [18, 24]])
 
@@ -184,13 +185,13 @@ class TestReadWorkflowConfig(unittest.TestCase):
                 "enabled": True, "preset": "daytime",
                 "work_start_hour": 10, "work_end_hour": 18,
             })
-            with mock.patch.object(ep, "WORKFLOW_CONFIG", cfg_path):
+            with mock.patch.object(self.LIB, "WORKFLOW_CONFIG", cfg_path):
                 merged = ep.read_workflow_config()
             self.assertEqual(merged["work_start_hour"], 10)
             self.assertEqual(merged["work_end_hour"], 18)
 
     def test_defaults_when_no_config(self):
-        with mock.patch.object(ep, "WORKFLOW_CONFIG", "/definitely/missing.json"):
+        with mock.patch.object(self.LIB, "WORKFLOW_CONFIG", "/definitely/missing.json"):
             merged = ep.read_workflow_config()
         self.assertTrue(merged["enabled"])
         self.assertEqual(merged["work_start_hour"], 8)

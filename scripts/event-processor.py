@@ -80,6 +80,21 @@ WORKFLOW_CONFIG = os.path.expanduser("~/.hermes/workflow-config.json")
 _GH_CACHE: dict = {}
 _GH_CACHE_TTL = 30
 
+# ── Audit log (P2 metrics, 2026-07-31) ─────────────────────────
+# One JSONL line per tick decision. Consumed by workflow-watchdog.py
+# (silent-SPAWN detection) and the dashboard. Never raises.
+AUDIT_FILE = os.path.expanduser("~/.hermes/workflow-audit.jsonl")
+
+
+def _audit(**fields):
+    """Append one JSONL audit record. Best-effort — failures are swallowed."""
+    try:
+        record = {"ts": time.strftime("%Y-%m-%dT%H:%M:%S%z"), **fields}
+        with open(AUDIT_FILE, "a") as f:
+            f.write(json.dumps(record) + "\n")
+    except Exception:
+        pass
+
 # ── Issue list cache: fetch ALL open issues once per tick ────────────
 # Replaces N separate `gh issue list --label <x>` calls with one fetch
 # and in-memory filtering. Dramatically reduces gh API latency.
@@ -1030,6 +1045,7 @@ def main():
         
         # Pause check
         if is_paused():
+            _audit(tick="end", in_window=False, paused=True, output="[PAUSED]")
             return
 
         # Flush per-tick caches ──
@@ -1123,6 +1139,7 @@ def main():
         # First count what's already running on GitHub.
         active_phase = _count_active_phase_agents()
         available_phase_slots = max(0, MAX_PHASE_SLOTS - active_phase)
+        lines_pre_cap = lines  # P2 audit: how many lines before slot capping
         
         phase_count = 0
         capped = []
@@ -1148,6 +1165,20 @@ def main():
                 capped.append(line)
         lines = capped
         
+        # ── Audit (P2): record tick outcome for watchdog/dashboard ──
+        _audit(
+            tick="end",
+            in_window=in_window,
+            paused=is_paused(),
+            raw_lines=len(lines_pre_cap),
+            spawn_lines=sum(1 for l in lines if l.startswith("SPAWN:")),
+            blocked_lines=sum(1 for l in lines if l.startswith("BLOCKED:")),
+            stalled_lines=sum(1 for l in lines if l.startswith("STALLED:")),
+            phase_slots=available_phase_slots,
+            active_phase=active_phase,
+            output="\n".join(lines)[:200] if lines else "[SILENT]",
+        )
+        
         if lines:
             print("\n".join(lines))
             
@@ -1166,6 +1197,7 @@ def main():
             else:
                 print("[SILENT]")
     except Exception as e:
+        _audit(tick="end", in_window=False, error=str(e)[:200], output="[ERROR]")
         print(f"[event-processor error: {e}]", file=sys.stderr)
 
 
