@@ -145,8 +145,8 @@ Before spawning a phase agent from the cron poller, validate the event against a
    - Read the core files that govern the affected feature area (main state machine, collision, world, rendering, AI, etc.)
    - Look for obvious bugs: coordinate mismatches, undefined behavior, null references, logic inversions
    - Check recently merged PRs that may have introduced the bug (use `git log --oneline -10` on affected files)
-   - **Check for reverted features** — The bug may be caused by a feature that was implemented and then accidentally reverted by a later commit. Use `git log --all --oneline -- <affected-files>` and look for both an implementation commit AND a subsequent commit that modified the same code area. A common cause is the post-merge GDD update race: the review agent's docs-only commit branches from an older master and its squash merge overwrites the implement PR's code. **2026-07-14 trace:** Issue #163 — bounce food feature was added by PR #157 (commit `6ee7b57`) then reverted by GDD update commit `c7176a7` which was based on pre-feature master.
-   - **⚠️ Check if the bug is already fixed by another issue's PR.** Run `npx vitest run 2>&1 | tail -5` on master first — if all tests pass with 0 failures, the bug may be stale. Check `git log --oneline -15` for recent fix commits matching the issue symptoms (same test names, same error messages, same referenced issue numbers). If a matching fix commit is on master, close the issue as resolved instead of spawning a research agent. See `references/stale-bug-issue-detection.md` for the full protocol and clean-up procedure.
+   - **Check for reverted features** — The bug may be caused by a feature that was implemented and then accidentally reverted by a later commit. Use `git log --all --oneline -- <affected-files>` and look for both an implementation commit AND a subsequent commit that modified the same code area. A common cause is the post-merge GDD update race: the review agent's docs-only commit branches from an older main and its squash merge overwrites the implement PR's code. **2026-07-14 trace:** Issue #163 — bounce food feature was added by PR #157 (commit `6ee7b57`) then reverted by GDD update commit `c7176a7` which was based on pre-feature main.
+   - **⚠️ Check if the bug is already fixed by another issue's PR.** Run `npx vitest run 2>&1 | tail -5` on main first — if all tests pass with 0 failures, the bug may be stale. Check `git log --oneline -15` for recent fix commits matching the issue symptoms (same test names, same error messages, same referenced issue numbers). If a matching fix commit is on main, close the issue as resolved instead of spawning a research agent. See `references/stale-bug-issue-detection.md` for the full protocol and clean-up procedure.
    - Document the suspected root cause in the delegate_task `context` field
    - **This saves the research agent 5-15 tool calls** by giving it a head start; the research agent still validates and expands on the findings
 
@@ -194,7 +194,7 @@ delegate_task(
 Key design decisions extracted from docs/...
 
 ## Key Constants
-- Default branch: master (NOT main)
+- Default branch: main
 - Branch prefix: impl/ (NOT implement/)
 - PR body: "Parent #{N}" (no colon after Parent)
 """
@@ -226,7 +226,7 @@ P2: issues.labeled → verify GitHub label → delegate phase agent
 Mode 2 — Stalled scan signal received:
 ```
 Step 1: gh pr list --state open; find research/plan PRs that are mergeable,
-  branch from master, body has Parent #N
+  branch from main, body has Parent #N
   🛡️ Add "state" to --json fields; verify each PR is still OPEN
 Step 2: gh pr merge <N> --squash --delete-branch for each (after state verification)
   ❗ Skip if branch starts with `impl/` — implement PRs must go through review agent.
@@ -241,7 +241,7 @@ Step 4: Do NOT touch impl/* branches
 1. If CI failure with no self-correct evidence → spawn self-correct agent
 2. If CI success with no review agent activity → spawn review agent
 3. If CI pending/queued → skip (wait)
-4. If PR has merge conflicts and the blocking issue has since been resolved → merge master into branch, resolve conflicts, push, verify CI, then proceed with review+merge
+4. If PR has merge conflicts and the blocking issue has since been resolved → merge main into branch, resolve conflicts, push, verify CI, then proceed with review+merge
 
 See `references/cross-issue-sequencing-conflict.md` for the merge-resolution pattern when conflicts are caused by a now-resolved parallel issue's test files.
 
@@ -361,7 +361,7 @@ For each:
 2. If PR merged or not impl/* → skip (stale).
 3. conclusion=success → spawn review-agent via delegate_task.
 4. conclusion=failure → spawn self-correct agent via delegate_task.
-   NEVER pre-judge the failure. Do NOT check master CI.
+   NEVER pre-judge the failure. Do NOT check main CI.
 After spawning: remove event from file. Continue.
 
 ### If P2: issues.labeled events:
@@ -537,7 +537,7 @@ See `references/operator-agent-pattern.md` for the full operator prompt template
 |------|-------------|-----|
 | **Label advancement on PR merge** | `workflow-chain.yml` (GitHub Action) | Instant — runs on GitHub infra |
 | **CI test on implement PRs** | `opencode-review.yml` (GitHub Action) | Runs npm test on every push |
-| **Vercel deployment** | `deploy.yml` (GitHub Action) | Triggers on implement PR merge to master |
+| **Vercel deployment** | `deploy.yml` (GitHub Action) | Triggers on implement PR merge to main |
 | **Issue management** | **Operator agent** (spawned) | Label transitions, comments, advancing stages |
 | **Git operations** | **Operator agent** (spawned) | Branch creation, PR creation/merge |
 | **Code generation** | **Phase agents** → OpenCode | REST API on :18765 |
@@ -644,24 +644,24 @@ check_run event in pending:
     → PR is OPEN → spawn REVIEW agent via delegate_task
   if conclusion == "failure":
     → Spawn self-correct agent via delegate_task
-    → **Pre-gather master CI context for the self-correct agent, but let
+    → **Pre-gather main CI context for the self-correct agent, but let
       the agent make the final determination about fixability.** Before
       delegating, run:
-      - `gh run list --branch master --workflow review --limit 5 --json conclusion`
+      - `gh run list --branch main --workflow review --limit 5 --json conclusion`
       - `gh pr diff <N> --name-only` (check if failing test files were touched)
       - Net-change check: Run targeted comparison on just the failing tests
         using the `-t` filter for speed (~7s vs ~10s for full suite):
         ```bash
-        # On both master and PR branch:
+        # On both main and PR branch:
         npx vitest run -t "Issue #22|Issue #46|Issue #70|Phase 4"
         ```
         Then compare failure names, assertion errors, and line numbers across
         branches. If they match identically → pre-existing.
         Fall back to full suite `npx vitest run 2>&1 | grep "Tests"` only when
         the `-t` filter doesn't cover all failing tests.
-      - If failures reproduce identically on master (same test, same error,
+      - If failures reproduce identically on main (same test, same error,
         same line) and the PR diff doesn't touch the failing file → pre-existing.
-      - If failures are NEW (don't appear on master) → regression.
+      - If failures are NEW (don't appear on main) → regression.
       - **Identify which CI step failed** — Before any local test runs, check
         the CI job steps to pinpoint the failing step. A single `gh api` call
         reveals which step in the `test-and-report` job actually failed:
@@ -684,13 +684,13 @@ check_run event in pending:
         running the test comparison. **2026-07-14 trace:** PR #170 implement
         agent modified `tests/metroidvania-snake.test.js` to add Bug #163 test
         cases but only committed `core.js`. The test changes were in stash@{0}.
-        Without recovering them, the test comparison shows 5 failures vs master's
+        Without recovering them, the test comparison shows 5 failures vs main's
         6 — misleading because the new Bug #163 tests were never committed.
         See `references/stashed-uncommitted-changes.md`.
       Include the findings in the delegate_task `context` field. This saves
       the self-correct agent 5-10 tool calls by giving it a head start.
       **2026-07-14 trace:** PR #170 claimed "6 pre-existing failures" but only
-      1 (Bug #154 TC5) was truly pre-existing — it reproduced on master. The
+      1 (Bug #154 TC5) was truly pre-existing — it reproduced on main. The
       other 4 were regressions introduced by the PR's tail-pop implementation
       (Issue #46 stuckCounter tests expected length=3, got length=2 after pop).
       See `references/lost-ci-pre-existing-claim-trace.md`.
@@ -712,7 +712,7 @@ When the route script generates a `check_run` event for a non-`impl/*` PR (resea
 
 **2026-07-15 fix:** Modified `opencode-review.yml` to use a single `test-and-report` job with conditional steps instead of a job-level `if: startsWith(...impl/)`. Now the job always runs, and non-impl branches hit an early-exit step that reports SUCCESS. See `references/ci-skip-research-plan-deadlock.md` for the full fix and YAML pattern.
 
-**⚠️ Variant — missing check (workflow YAML not on master):** When the required check name exists in branch protection but the workflow YAML that produces it has never been merged to master (e.g., the CI-fix PR adding the `test-and-report` job is itself still open), the error message is identical but the fix is simpler: `gh pr merge --admin` alone suffices. No protection-rule deletion needed. See `references/missing-check-admin-shortcut.md`.
+**⚠️ Variant — missing check (workflow YAML not on main):** When the required check name exists in branch protection but the workflow YAML that produces it has never been merged to main (e.g., the CI-fix PR adding the `test-and-report` job is itself still open), the error message is identical but the fix is simpler: `gh pr merge --admin` alone suffices. No protection-rule deletion needed. See `references/missing-check-admin-shortcut.md`.
 
 ### Event: `pull_request.closed` (merged)
 
@@ -738,21 +738,21 @@ See `references/review-agent-pre-existing-failures.md` for the full protocol wit
 
 Pre-existing CI failures are real bugs in the codebase, but they are NOT caused by the current PR and should NOT be merged around. The implement agent's code is correct. When CI fails solely due to pre-existing unrelated tests:
 
-1. **Report the finding** — document which tests fail on both master and the PR branch, confirm the PR's diff doesn't touch the failing test files
-2. **Do NOT merge** — merging buggy master into production defeats CI
+1. **Report the finding** — document which tests fail on both main and the PR branch, confirm the PR's diff doesn't touch the failing test files
+2. **Do NOT merge** — merging buggy main into production defeats CI
 3. **Escalate to user** — the pre-existing failures need a separate fix issue
 4. **Move PR to `status/blocked`** — waiting for pre-existing failures to be fixed
 
 The review agent will see the CI failure and decide: if the PR's own tests pass and all failures are pre-existing and unrelated, the review agent may approve (after code quality check) but does NOT merge — only reports findings.
 > and real-world traces (PR #157, #161, #168, #178).
 
-When CI is persistently red on master (5+ consecutive runs, same failure),
+When CI is persistently red on main (5+ consecutive runs, same failure),
 and the implement PR's unit tests pass locally, use the protocol in the
 reference file to bypass CI and merge. Always start by running:
 
 ```bash
 # Confirm permanent blockage
-gh run list --branch master --workflow review --limit 5 --json conclusion
+gh run list --branch main --workflow review --limit 5 --json conclusion
 # Isolate failure comparison across branches
 npx vitest run -t "Issue #46|Issue #70"   # faster than full suite
 ```
@@ -859,7 +859,7 @@ See also:
 
 These rules prevent the common failure modes discovered during testing:
 
-1. **Branch isolation** — Every phase agent MUST branch from `master` only. Never branch from another issue's branch. Cross-issue contamination was the #1 cause of implement PRs mixing code from different issues.
+1. **Branch isolation** — Every phase agent MUST branch from `main` only. Never branch from another issue's branch. Cross-issue contamination was the #1 cause of implement PRs mixing code from different issues.
 
 2. **Concrete Research decision** — Research PRD section 2 (Solution) MUST contain a specific, actionable recommendation (name, approach, architecture). Comparing approaches without recommending one is insufficient. The implement agent will read this section and implement literally what's written there.
 
@@ -879,7 +879,7 @@ These rules prevent the common failure modes discovered during testing:
 
 10. **Cron must be truly silent when idle** — When there are no pending events, the cron job outputs NOTHING (not even "[SILENT]" text that could be misinterpreted). The user was woken up by nightly notifications and explicitly said "没有任务，不用一直发workflow的提醒".
 
-11. **Deploy only triggers on `impl/*` PR merge, not direct push** — `deploy.yml`'s `check-implement` step inspects the merged PR's head branch. Direct pushes to master bypass this entirely. If a fix is committed directly to master (not via PR), it will NOT be deployed to Vercel. Fix: trigger deploy manually via `gh workflow run deploy -f pr_num=<N>` or re-rerun the most recent deploy run.
+11. **Deploy only triggers on `impl/*` PR merge, not direct push** — `deploy.yml`'s `check-implement` step inspects the merged PR's head branch. Direct pushes to main bypass this entirely. If a fix is committed directly to main (not via PR), it will NOT be deployed to Vercel. Fix: trigger deploy manually via `gh workflow run deploy -f pr_num=<N>` or re-rerun the most recent deploy run.
 
 12. **Implement agent cannot merge (source-fix).** The implement agent's SKILL.md contains zero references to merge or `gh pr merge`. The agent cannot do what it doesn't know about — no shell wrappers or branch protection needed. The review agent is the only agent that can merge. See `references/ci-gated-merge-policy.md`.
 
@@ -907,7 +907,7 @@ The cron poller should detect issues where the workflow label has advanced but t
 - Research PR #155: merged ✅
 - Plan PR #156: merged ✅
 - Label: `workflow/implement` (correct, auto-advanced after plan PR merge)
-- Local branch `impl/154-wall-damage-health-loss` existed but had **zero diff from master** — a stale stub with no commits
+- Local branch `impl/154-wall-damage-health-loss` existed but had **zero diff from main** — a stale stub with no commits
 - No implement PR existed — the phase never actually started
 - The pending file was empty (no events to process) — the label advancement had happened hours earlier
 - **Action taken:** Deleted stale branch, spawned implement agent with full pre-validated context
@@ -1033,7 +1033,7 @@ for issue in gh_issues_with_workflow_labels():
 
             if opencode_ok and design_ok:
                 pre_existing_failures = get_pre_existing_test_failures()
-                # ⚠️ Check git stash on master for orphaned plan-agent changes
+                # ⚠️ Check git stash on main for orphaned plan-agent changes
                 # before spawning. The stash may contain test-fix changes from
                 # a plan agent that modified but didn't commit them.
                 # See references/stashed-uncommitted-changes.md "Plan Agent Variant"
@@ -1051,7 +1051,7 @@ for issue in gh_issues_with_workflow_labels():
 **Key rules:**
 - Run this scan after processing the pending file AND after the stalled-label-advancement scan (to avoid catching the same issue that was just advanced)
 - Only spawn a phase agent when the PRIOR phase's PR is confirmed merged — do not skip this validation
-- For `workflow/implement`: clean stale zero-diff branches before spawning (the implement agent creates its own clean branch from master)
+- For `workflow/implement`: clean stale zero-diff branches before spawning (the implement agent creates its own clean branch from main)
 - Log the reason for each stalled phase (no branch at all vs zero-diff branch stub) for debugging
 - Feishu notification for auto-detected phases: `📋 #N → implement (auto-detected stalled phase)` — the parenthetical distinguishes it from webhook-triggered phase starts
 - Include pre-existing test failure data in the implement agent context so it knows which failures are expected
@@ -1196,8 +1196,8 @@ def check_for_stalled_prs(issue_number=None):
         # Must be mergable
         if pr["mergeable"] not in ("MERGEABLE", "CLEAN") or pr.get("mergeStateStatus") == "DIRTY":
             continue
-        # Must branch from master
-        if pr["baseRefName"] != "master":
+        # Must branch from main
+        if pr["baseRefName"] != "main":
             continue
         # Stalled — merge it
         parent = int(parent_match.group(1))
@@ -1275,7 +1275,7 @@ The stalled scan historically skipped implement PRs entirely. If the `check_run.
    d. **If not blocked:** spawn review agent via `delegate_task` as before.
 4. **If CI still running/queued:** skip (wait for it to complete)
 
-**Cross-issue sequencing conflicts (2026-07-15 trace):** When master merges plan-phase test files before implement PRs merge, other implement branches CI-fail on unrelated tests. Detection: `git log --oneline --diff-filter=A -- 'tests/*.test.js'` on master for recent plan-PR test files.
+**Cross-issue sequencing conflicts (2026-07-15 trace):** When main merges plan-phase test files before implement PRs merge, other implement branches CI-fail on unrelated tests. Detection: `git log --oneline --diff-filter=A -- 'tests/*.test.js'` on main for recent plan-PR test files.
 
 **2026-07-15 trace — Two PRs handled this way:**
 - PR #212 (impl/201-keyboard-hints): CI failure, label=workflow/implement, no self-correct. → Updated labels, spawned self-correct agent.
@@ -1313,7 +1313,7 @@ gh api repos/<owner>/<repo>/issues/<N>/labels/workflow/implement -X DELETE
       a. Spawn review agent via `delegate_task`
    4. **If CI still running/queued:** skip (wait for it to complete)
 
-   **Cross-issue sequencing conflicts (2026-07-15 trace):** When master merges plan-phase test files before implement PRs merge, other implement branches CI-fail on unrelated tests. Detection: `git log --oneline --diff-filter=A -- 'tests/*.test.js'` on master for recent plan-PR test files.
+   **Cross-issue sequencing conflicts (2026-07-15 trace):** When main merges plan-phase test files before implement PRs merge, other implement branches CI-fail on unrelated tests. Detection: `git log --oneline --diff-filter=A -- 'tests/*.test.js'` on main for recent plan-PR test files.
 
    **2026-07-15 trace — Two PRs handled this way:**
    - PR #212 (impl/201-keyboard-hints): CI failure, label=workflow/implement, no self-correct. → Updated labels, spawned self-correct agent.
@@ -1326,7 +1326,7 @@ gh api repos/<owner>/<repo>/issues/<N>/labels/workflow/implement -X DELETE
    gh api repos/<owner>/<repo>/issues/<N>/labels -X POST --input - <<<'{"labels":["workflow/self-correct"]}'
    gh api repos/<owner>/<repo>/issues/<N>/labels/workflow/implement -X DELETE
    ```
-   - Only merge PRs that branch from `master` (branch_isolation invariant)
+   - Only merge PRs that branch from `main` (branch_isolation invariant)
 - If the PR reports `mergeStateStatus: "BEHIND"`, update it from base first: `gh pr update-branch <N>` before merging
    - Only merge PRs where the issue's workflow label matches the PR type
    - Run the PR gate checks before merging (same as auto-merge policy)
@@ -1340,7 +1340,7 @@ gh api repos/<owner>/<repo>/issues/<N>/labels/workflow/implement -X DELETE
    1. **Clean stale local branches:** Branches whose PRs have already been merged on GitHub accumulate locally. Remove them:
       ```bash
       # List branches that exist only locally (no remote tracking branch)
-      git branch --merged origin/master | grep -v '^\*' | grep -v master | xargs -r git branch -d
+      git branch --merged origin/main | grep -v '^\*' | grep -v main | xargs -r git branch -d
       ```
       Use `-D` (force delete) when `-d` fails due to rebased history. Verify with `gh pr list --head <branch> --state merged` first.
    
@@ -1348,7 +1348,7 @@ gh api repos/<owner>/<repo>/issues/<N>/labels/workflow/implement -X DELETE
 
    3. **Remove stale local branches that have an already-merged PR:** For local branches whose remote PR is merged but the branch doesn't appear in `git branch --merged` (rebased history), use:
       ```bash
-      for branch in $(git branch | grep -v '^\*' | grep -v master | sed 's/^  //'); do
+      for branch in $(git branch | grep -v '^\*' | grep -v main | sed 's/^  //'); do
         pr_state=$(gh pr list --head "$branch" --state merged --json number --jq 'length' 2>/dev/null || echo "0")
         if [ "$pr_state" -gt 0 ]; then
           git branch -D "$branch" 2>/dev/null
@@ -1412,7 +1412,7 @@ for each impl/* PR with status/blocked:
 A PR that **only modifies `.github/workflows/`** files and is part of adding a new
 required CI check (like `test-and-report`) can get permanently stuck: branch protection
 requires the check before merge, but the check doesn't exist because the workflow
-YAML hasn't been merged to master yet. These PRs have no parent issue reference
+YAML hasn't been merged to main yet. These PRs have no parent issue reference
 and no `Parent #N` in the body — they are standalone infrastructure fixes, not part
 of the feature issue workflow.
 
@@ -1449,9 +1449,9 @@ for pr in stalled_prs:
         f"Trying temporary protection disable + restore.")
     try:
         # Step 1: Remove blocking protections
-        gh("api", f"repos/{owner}/{repo}/branches/master/protection/required_status_checks",
+        gh("api", f"repos/{owner}/{repo}/branches/main/protection/required_status_checks",
            "-X", "DELETE")
-        gh("api", f"repos/{owner}/{repo}/branches/master/protection/required_pull_request_reviews",
+        gh("api", f"repos/{owner}/{repo}/branches/main/protection/required_pull_request_reviews",
            "-X", "DELETE")
         
         # Step 2: Merge with admin bypass
@@ -1460,7 +1460,7 @@ for pr in stalled_prs:
         
         # Step 3: Restore protections (single PUT with full JSON payload)
         # ⚠️ Must use --input with heredoc, not -f form params for nested objects
-        gh("api", f"repos/{owner}/{repo}/branches/master/protection", "-X", "PUT",
+        gh("api", f"repos/{owner}/{repo}/branches/main/protection", "-X", "PUT",
            "--input", "-", stdin=json.dumps({
                "required_status_checks": {"strict": False, "contexts": ["test-and-report"]},
                "enforce_admins": True,
@@ -1476,7 +1476,7 @@ for pr in stalled_prs:
         # Protection-delete cycle failed. Restore protection best-effort, then escalate.
         log(f"PR #{pr['number']}: protection-delete cycle failed: {e}")
         try:
-            gh("api", f"repos/{owner}/{repo}/branches/master/protection", "-X", "PUT",
+            gh("api", f"repos/{owner}/{repo}/branches/main/protection", "-X", "PUT",
                "--input", "-", stdin=json.dumps({
                    "required_status_checks": {"strict": False, "contexts": ["test-and-report"]},
                    "enforce_admins": True,
@@ -1503,17 +1503,17 @@ for pr in stalled_prs:
 | Step | Action | Result |
 |------|--------|--------|
 | 1 | `gh pr list` | Found PR #208: open, mergeable, no `Parent #N` in body |
-| 2 | `git merge origin/master` → push | Branch updated (was BEHIND) |
+| 2 | `git merge origin/main` → push | Branch updated (was BEHIND) |
 | 3 | `gh pr merge 208 --squash` | ❌ "Required status check 'test-and-report' is expected" |
 | 4 | `gh pr merge 208 --squash --admin` | ❌ "At least 1 approving review is required" + missing check |
 | 5 | DELETE required_status_checks + required_pull_request_reviews | ✅ Protection removed |
 | 6 | `gh pr merge 208 --squash --admin --delete-branch` | ✅ **Merged** |
-| 7 | Single PUT to `/branches/master/protection` with full JSON | ✅ Protection restored |
+| 7 | Single PUT to `/branches/main/protection` with full JSON | ✅ Protection restored |
 | 8 | Verify protection re-read | ✅ `contexts=["test-and-report"]`, `required_approving_review_count=1` |
 
-**Detection shortcut — check if workflow exists on master:**
+**Detection shortcut — check if workflow exists on main:**
 ```bash
-git show origin/master:.github/workflows/opencode-review.yml 2>/dev/null | grep -c "test-and-report"
+git show origin/main:.github/workflows/opencode-review.yml 2>/dev/null | grep -c "test-and-report"
 # 0 → CI-infrastructure PR (check being added, chicken-and-egg)
 # > 0 → normal check-handling scenario
 ```

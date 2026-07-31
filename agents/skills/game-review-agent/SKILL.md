@@ -563,7 +563,7 @@ git commit -m "docs: update GDD for <feature name> (#N)"
 git push origin <default-branch>
 ```
 
-**⚠️ Pitfall: GDD update branches from master.** The GDD update commit is based on the default branch (which now includes the merged PR). This is safe because the review agent merges first, THEN commits the GDD update on top.
+**⚠️ Pitfall: GDD update branches from the default branch (e.g. `main`).** The GDD update commit is based on the default branch (which now includes the merged PR). This is safe because the review agent merges first, THEN commits the GDD update on top.
 
 **⚠️ Pitfall: GDD-only commits can accidentally revert** the implement PR's code if the review agent does the merge within the same script session without updating the working tree. Fix:
 ```bash
