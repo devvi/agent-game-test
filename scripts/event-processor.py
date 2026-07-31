@@ -146,13 +146,16 @@ def read_workflow_config() -> dict:
     preset_name = config.get("preset")
     if preset_name and preset_name in WORK_HOUR_PRESETS:
         preset = WORK_HOUR_PRESETS[preset_name]
-        # Only apply preset hours if no explicit hours set in file
-        if "work_start_hour" not in config or config["work_start_hour"] == DEFAULT_CONFIG["work_start_hour"]:
-            if "work_windows" in preset:
-                config["work_windows"] = preset["work_windows"]
-            elif "work_start_hour" in preset:
-                config["work_start_hour"] = preset["work_start_hour"]
-                config["work_end_hour"] = preset.get("work_end_hour", DEFAULT_CONFIG["work_end_hour"])
+        # Multi-window presets (e.g. best-deepseek) are authoritative — a single
+        # [start, end] pair cannot express non-contiguous windows, so explicit
+        # work_start_hour/work_end_hour in the file must NOT clobber them.
+        # (2026-07-31 fix: previously explicit hours silently disabled windows.)
+        if "work_windows" in preset:
+            config["work_windows"] = preset["work_windows"]
+        # Simple presets: explicit file hours override preset defaults
+        elif "work_start_hour" not in config or config["work_start_hour"] == DEFAULT_CONFIG["work_start_hour"]:
+            config["work_start_hour"] = preset["work_start_hour"]
+            config["work_end_hour"] = preset.get("work_end_hour", DEFAULT_CONFIG["work_end_hour"])
     # Env vars override file config
     if "WORK_START_HOUR" in os.environ:
         config["work_start_hour"] = int(os.environ["WORK_START_HOUR"])
@@ -604,30 +607,56 @@ def _is_pr_merged(pr_num: int) -> bool:
     """Check if a PR is already merged or closed.
     
     Returns True if the PR no longer needs processing (merged/closed).
-    On gh error, returns False (conservative: allow event through).
+    Retries up to 3 times on gh failure — during cron ticks with many
+    concurrent gh calls, individual commands may intermittently
+    timeout or get rate-limited. A single failure should not let
+    a stale event spawn a redundant agent.
     """
-    raw = gh("pr", "view", str(pr_num), "--json", "state")
-    if not raw:
-        return False
-    try:
-        state = json.loads(raw).get("state", "")
-        return state in ("MERGED", "CLOSED")
-    except (json.JSONDecodeError, KeyError):
-        return False
+    for attempt in range(3):
+        raw = gh("pr", "view", str(pr_num), "--json", "state")
+        if raw:
+            try:
+                state = json.loads(raw).get("state", "")
+                return state in ("MERGED", "CLOSED")
+            except (json.JSONDecodeError, KeyError):
+                return False
+        if attempt < 2:
+            time.sleep(1)
+    # All 3 attempts failed — fall back to issue state check below
+    return False
 
 
 def _is_issue_closed(issue_num: int) -> bool:
     """Check if an issue is already closed.
     
-    Returns True if closed (event is stale). On gh error, returns False.
+    Returns True if closed (event is stale). Retries 3x on gh failure.
     """
-    raw = gh("issue", "view", str(issue_num), "--json", "state")
+    for attempt in range(3):
+        raw = gh("issue", "view", str(issue_num), "--json", "state")
+        if raw:
+            try:
+                return json.loads(raw).get("state", "") == "CLOSED"
+            except (json.JSONDecodeError, KeyError):
+                return False
+        if attempt < 2:
+            time.sleep(1)
+    return False
+
+
+def _extract_parent_issue(pr_num: int) -> Optional[int]:
+    """Extract parent issue number from a PR's body.
+
+    Parses 'Parent #N' or 'Closes #N' from the PR body via gh CLI.
+    Returns None if the extraction fails or the PR can't be fetched.
+    Uses cached gh() call per tick.
+    """
+    raw = gh("pr", "view", str(pr_num), "--json", "body", "--jq", ".body")
     if not raw:
-        return False
-    try:
-        return json.loads(raw).get("state", "") == "CLOSED"
-    except (json.JSONDecodeError, KeyError):
-        return False
+        return None
+    m = re.search(r'(?:Closes|parent|Parent)\s*#(\d+)', raw)
+    if m:
+        return int(m.group(1))
+    return None
 
 
 def _pr_exists_for_issue(stage: str, issue: int) -> bool:
@@ -694,124 +723,9 @@ MAX_CONCURRENT = int(os.environ.get("MAX_CONCURRENT_ISSUES", "4"))
 MAX_PHASE_SLOTS = int(os.environ.get("MAX_PHASE_SLOTS", "4"))
 # Phase agents (research/plan/implement) capped at MAX_PHASE_SLOTS.
 # Review and self-correct don't count toward this cap (reserved slots).
-
-# ── Distributed lock (multi-agent coordination) ────────────────────
-# Each cron instance has a unique label (workflow/lock-{id}).
-# Lock is acquired before SPAWN, released by the spawned agent.
-# TTL = 300s; expired locks are cleaned by reconcile().
-INSTANCE_ID = os.environ.get("WORKFLOW_INSTANCE_ID", "pi").lower()
-LOCK_LABEL = f"workflow/lock-{INSTANCE_ID}"
-OTHER_LOCK_LABEL = "workflow/lock-pi" if INSTANCE_ID == "mbot" else "workflow/lock-mbot"
-LOCK_TTL = 300  # 5 minutes
-LOCK_STATE_FILE = os.path.expanduser("~/.hermes/lock-state.json")
-
-def _read_lock_state() -> dict:
-    if os.path.exists(LOCK_STATE_FILE):
-        try:
-            with open(LOCK_STATE_FILE) as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return {}
-    return {}
-
-def _write_lock_state(state: dict):
-    with open(LOCK_STATE_FILE, "w") as f:
-        json.dump(state, f)
-
-def _try_acquire_lock(issue_num: int) -> bool:
-    """Try to acquire a distributed lock on the given issue.
-    Returns True if lock acquired, False if held by another instance.
-    """
-    now = time.time()
-    
-    # Fetch current issue labels
-    raw = gh("issue", "view", str(issue_num), "--json", "labels")
-    if not raw:
-        # gh unavailable — grant lock to avoid deadlock.
-        # A duplicate spawn is better than a permanent stall.
-        return True
-    try:
-        labels = [l["name"] for l in json.loads(raw).get("labels", [])]
-    except (json.JSONDecodeError, KeyError):
-        return False
-    
-    state = _read_lock_state()
-    locked_at = state.get(str(issue_num), 0)
-    
-    # Check if other instance holds a live lock
-    if OTHER_LOCK_LABEL in labels:
-        if locked_at and (now - locked_at) < LOCK_TTL:
-            return False  # Other instance holds a valid lock
-        # Lock expired — clean it
-        try:
-            subprocess.run(
-                ["gh", "issue", "edit", str(issue_num),
-                 "--remove-label", OTHER_LOCK_LABEL],
-                check=True, capture_output=True, timeout=10
-            )
-        except: pass
-        del state[str(issue_num)]
-    
-    # Add our own lock label
-    try:
-        subprocess.run(
-            ["gh", "issue", "edit", str(issue_num),
-             "--add-label", LOCK_LABEL],
-            check=True, capture_output=True, timeout=10
-        )
-    except subprocess.CalledProcessError:
-        return False
-    
-    # Post-lock confirmation: if both locks exist (race), keep ours — the lock
-    # state file on our side is authoritative. If we already proceeded to SPAWN,
-    # duplicate output is handled by downstream dedup.
-    # The other instance's reconcile() will clean up its redundant lock later.
-    
-    # Record lock time
-    state[str(issue_num)] = now
-    _write_lock_state(state)
-    return True
-
-def _release_lock(issue_num: int):
-    """Release the distributed lock for this issue."""
-    state = _read_lock_state()
-    if str(issue_num) in state:
-        del state[str(issue_num)]
-        _write_lock_state(state)
-    try:
-        subprocess.run(
-            ["gh", "issue", "edit", str(issue_num),
-             "--remove-label", LOCK_LABEL],
-            check=True, capture_output=True, timeout=10
-        )
-    except: pass
-
-def _clean_expired_locks():
-    """Remove expired lock labels and state (called by reconcile)."""
-    raw = gh("issue", "list", "--state", "open", "--label", LOCK_LABEL, "--json", "number")
-    if not raw:
-        return
-    try:
-        locked_issues = json.loads(raw)
-    except json.JSONDecodeError:
-        return
-    state = _read_lock_state()
-    changed = False
-    for iss in locked_issues:
-        n = str(iss["number"])
-        locked_at = state.get(n, 0)
-        if locked_at and (time.time() - locked_at) >= LOCK_TTL:
-            try:
-                subprocess.run(
-                    ["gh", "issue", "edit", n, "--remove-label", LOCK_LABEL],
-                    check=True, capture_output=True, timeout=10
-                )
-            except: pass
-            if n in state:
-                del state[n]
-                changed = True
-    if changed:
-        _write_lock_state(state)
+# Concurrency control: MAX_CONCURRENT_ISSUES + MAX_PHASE_SLOTS + pre-spawn
+# duplicate checks. Distributed label locks (workflow/lock-*) were REMOVED
+# 2026-07-29 — the label-based lock code was dead weight and is gone.
 
 # Stage labels that count toward concurrency limit
 ACTIVE_STAGE_LABELS = [
@@ -1121,6 +1035,15 @@ def preprocess():
             if etype == "issues.labeled" and _is_issue_closed(n):
                 discarded_keys.add(event.get("_key", ""))
                 continue
+        # Defense-in-depth: for check_run on impl/* PRs, also verify
+        # the parent issue isn't already closed. This catches the
+        # check-after-merge race where CI completes right before/after
+        # the PR is merged, making the event stale regardless of PR state.
+        if etype == "check_run" and event.get("branch", "").startswith("impl/"):
+            parent = _extract_parent_issue(event.get("issue", 0))
+            if parent and _is_issue_closed(parent):
+                discarded_keys.add(event.get("_key", ""))
+                continue
         
         if etype == "check_run" and action == "check_run.completed":
             branch = event.get('branch', '')
@@ -1223,6 +1146,14 @@ def preprocess():
                     f"P2: issues.labeled,issue={issue},label={label}"
                 )
 
+    # Re-write pending file if staleness guard discarded additional events.
+    # Step 6 above wrote the file based on initial discarded_keys only;
+    # the staleness guard added more keys but never persisted them —
+    # causing the same stale events to be re-processed every tick.
+    if discarded_keys:
+        remaining = [e for e in events if e.get("_key", "") not in discarded_keys]
+        write_pending(remaining)
+
     # SPAWN lines must come first — LLM reads top-to-bottom
     output_lines.sort(key=lambda l: (0 if l.startswith("SPAWN:") else 1,
                                      0 if "review" in l or "self-correct" in l else
@@ -1292,15 +1223,12 @@ def main():
         if is_paused():
             return
 
-        # ── Flush per-tick caches ──
+        # Flush per-tick caches ──
         # These caches are valid only within one tick.
         # The gh() call cache (30s TTL) is separate and persists
         # for cross-call dedup within the tick.
         _ISSUES_CACHE.clear()
         _BODY_CACHE.clear()
-
-        # Clean expired locks unconditionally (every tick, regardless of work hours)
-        _clean_expired_locks()
         
         # Window entry detection: if we just entered work hours, reconcile + pick
         was_outside = False
@@ -1327,7 +1255,29 @@ def main():
                 json.dump({"last_hour": datetime.datetime.now().hour, "window_open": in_window}, f)
         except Exception:
             pass
-        
+
+        # ── Idle fast path: pending empty + no active workflow issues → SILENT ──
+        # When all issues are done and no events are queued, skip all expensive
+        # operations (reconcile, picker, preprocess, stalled scan). Only cost:
+        # 1 gh issue list call + 1 local file read per tick.
+        if in_window and not is_paused():
+            events = read_pending()
+            if not events:
+                issues = _ensure_issues_cache()
+                active_labels = {
+                    "workflow/available", "workflow/research",
+                    "workflow/plan", "workflow/implement",
+                    "workflow/self-correct",
+                }
+                has_active = any(
+                    any(l.get("name", "") in active_labels
+                        for l in iss.get("labels", []))
+                    for iss in issues
+                )
+                if not has_active:
+                    print("[SILENT]")
+                    return
+
         # Outside hours → only process pipeline events, block picker + available
         if not in_window:
             # Only process pipeline events via standard preprocess
@@ -1388,27 +1338,6 @@ def main():
             else:
                 capped.append(line)
         lines = capped
-        
-        # Acquire distributed locks for phase SPAWN lines
-        # (review/self-correct don't need locks — they're fast operations)
-        locked_lines = []
-        for line in lines:
-            if line.startswith("SPAWN: review") or line.startswith("SPAWN: self-correct"):
-                locked_lines.append(line)
-                continue
-            if line.startswith("SPAWN:"):
-                # Extract issue number from SPAWN
-                m = re.search(r'issue=(\d+)', line)
-                if m:
-                    issue_num = int(m.group(1))
-                    if _try_acquire_lock(issue_num):
-                        locked_lines.append(line)
-                    # else: skip — other instance processing this issue
-                else:
-                    locked_lines.append(line)
-            else:
-                locked_lines.append(line)
-        lines = locked_lines
         
         if lines:
             print("\n".join(lines))
