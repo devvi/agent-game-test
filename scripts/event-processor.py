@@ -71,6 +71,8 @@ from event_processor_lib import (
     should_discard,
     validate_check_run,
     parse_dependencies,
+    depth_for_issue,
+    count_self_correct_cycles,
 )
 
 PENDING_FILE = os.environ.get("EVENT_PROCESSOR_PENDING_FILE") or os.path.expanduser("~/.hermes/workflow-pending.json")
@@ -1078,9 +1080,27 @@ def preprocess():
                     "workflow/available": "workflow/research",
                 }
                 spawn_label = spawn_label_map.get(label, label)
-                output_lines.append(
-                    f"SPAWN: {stage},issue={issue},label={spawn_label}"
-                )
+                spawn_line = f"SPAWN: {stage},issue={issue},label={spawn_label}"
+                # ── Cost governance (P4b): implement after repeated self-correct
+                # cycles burns the most tokens. Force depth=light beyond the
+                # threshold so the implement agent skips deep TASKS docs and
+                # keeps the diff minimal.
+                if stage == "implement":
+                    try:
+                        comments_raw = gh(
+                            "issue", "view", str(issue_int),
+                            "--json", "comments", "--jq", ".comments"
+                        )
+                        if comments_raw:
+                            import json as _json
+                            comments = _json.loads(comments_raw)
+                            cycles = count_self_correct_cycles(comments)
+                            effective = depth_for_issue(cycles)
+                            if effective != "standard":
+                                spawn_line += f",depth={effective}"
+                    except Exception:
+                        pass  # budget check is best-effort; never block the spawn
+                output_lines.append(spawn_line)
             else:
                 output_lines.append(
                     f"P2: issues.labeled,issue={issue},label={label}"

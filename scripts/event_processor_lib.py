@@ -237,3 +237,47 @@ def parse_dependencies(body: str) -> list[dict]:
                 if not any(d["issue"] == int(ref) for d in deps):
                     deps.append({"issue": int(ref), "type": "full"})
     return deps
+
+
+# ── Cost governance (P4b, 2026-07-31) ──────────────────────────
+# Budget control: count how many self-correct cycles an issue has burned.
+# Each cycle ≈ one full diagnose→fix→CI→review round (the expensive part of
+# the pipeline). Beyond the threshold, subsequent implement SPAWNs are
+# forced to depth=light to cap spend. Pure logic — counting happens in
+# event-processor.py (needs gh), the decision lives here.
+SELF_CORRECT_THRESHOLD = 3  # cycles before forced downgrade
+DOWNGRADE_DEPTH = "light"
+
+# Notification markers used to count cycles (kept in sync with the operator
+# agent's Feishu/comment format: "🔄 #N → self-correct")
+SELF_CORRECT_MARKERS = ["🔄", "self-correct"]
+
+
+def depth_for_issue(self_correct_cycles: int, current_depth: str = "standard") -> str:
+    """Return the effective depth for an issue given its self-correct burn.
+
+    Rules:
+      - current_depth is 'deep' and cycles >= threshold → downgrade to light
+      - current_depth is 'standard' and cycles >= threshold → downgrade to light
+      - otherwise keep current_depth
+    The downgrade is sticky for the rest of the issue's life (implement phase
+    is the most expensive; research/plan docs don't need deep depth).
+    """
+    if self_correct_cycles >= SELF_CORRECT_THRESHOLD:
+        return DOWNGRADE_DEPTH
+    return current_depth
+
+
+def count_self_correct_cycles(comments: list) -> int:
+    """Count self-correct cycles from an issue's comment bodies.
+
+    A cycle is counted once per comment that mentions a self-correct marker.
+    (The operator posts one notification per phase advancement, so each
+    self-correct entry is one comment.)
+    """
+    cycles = 0
+    for c in comments:
+        body = c.get("body", "") if isinstance(c, dict) else str(c)
+        if any(marker in body for marker in SELF_CORRECT_MARKERS):
+            cycles += 1
+    return cycles
