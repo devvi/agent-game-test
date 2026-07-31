@@ -50,6 +50,32 @@ if os.path.exists(_ENV_FILE) and not os.environ.get("GH_TOKEN"):
 from typing import Optional
 from collections import defaultdict
 
+# ── Pure-logic core (split 2026-07-31, P1-7) ───────────────────
+# Deterministic decision functions live in event_processor_lib.py so they
+# can be unit-tested in isolation (tests/pipeline/test_event_processor.py).
+# This file keeps: IO (pending file), gh calls, caches, scheduling.
+# Ensure the lib (sibling file) is importable both as a script (cron runs
+# `python3 ~/.hermes/scripts/event-processor.py`) and via importlib (tests).
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from event_processor_lib import (
+    DEFAULT_CONFIG,
+    WORK_HOUR_PRESETS,
+    PRIORITY,
+    PRIORITY_MAX,
+    PRIORITY_LABEL_ORDER,
+    read_workflow_config,
+    is_work_hours,
+    _time_in_window,
+    _event_action,
+    event_priority,
+    should_discard,
+    validate_check_run,
+    parse_dependencies,
+)
+
+PENDING_FILE = os.environ.get("EVENT_PROCESSOR_PENDING_FILE") or os.path.expanduser("~/.hermes/workflow-pending.json")
+WORKFLOW_CONFIG = os.path.expanduser("~/.hermes/workflow-config.json")
+
 # gh() call cache — avoids redundant API calls within a single tick
 _GH_CACHE: dict = {}
 _GH_CACHE_TTL = 30
@@ -109,102 +135,6 @@ def _invalidate_issues_cache_for(issue_num: int):
 PENDING_FILE = os.environ.get("EVENT_PROCESSOR_PENDING_FILE") or os.path.expanduser("~/.hermes/workflow-pending.json")
 WORKFLOW_CONFIG = os.path.expanduser("~/.hermes/workflow-config.json")
 
-# ── Workflow config defaults ────────────────────────────────────
-DEFAULT_CONFIG = {
-    "enabled": True,
-    "work_start_hour": 8,
-    "work_end_hour": 22,
-    "preset": "daytime",
-}
-
-# ── Presets ─────────────────────────────────────────────────────
-# Presets can define either:
-#   work_start_hour + work_end_hour — single contiguous window
-#   work_windows: [[start, end], ...] — multiple non-contiguous windows
-WORK_HOUR_PRESETS = {
-    "daytime": {"work_start_hour": 8, "work_end_hour": 22},
-    "night-owl": {"work_start_hour": 23, "work_end_hour": 8},
-    "always": {"work_start_hour": 0, "work_end_hour": 24},
-    # DeepSeek peak/off-peak pricing (UTC+8):
-    #   Peak (2x): 9-12, 14-18
-    #   Valley (1x): 0-9, 12-14, 18-24
-    "best-deepseek": {"work_windows": [[0, 9], [12, 14], [18, 24]]},
-}
-
-
-def read_workflow_config() -> dict:
-    """Read workflow config, falling back to env vars then defaults.
-    If a preset is named, its hours are applied as defaults before
-    file-specified hours override them."""
-    config = dict(DEFAULT_CONFIG)
-    try:
-        with open(WORKFLOW_CONFIG) as f:
-            config.update(json.load(f))
-    except (FileNotFoundError, json.JSONDecodeError, IOError):
-        pass
-    # Apply preset hours if a preset is set (but allow explicit hours to override)
-    preset_name = config.get("preset")
-    if preset_name and preset_name in WORK_HOUR_PRESETS:
-        preset = WORK_HOUR_PRESETS[preset_name]
-        # Multi-window presets (e.g. best-deepseek) are authoritative — a single
-        # [start, end] pair cannot express non-contiguous windows, so explicit
-        # work_start_hour/work_end_hour in the file must NOT clobber them.
-        # (2026-07-31 fix: previously explicit hours silently disabled windows.)
-        if "work_windows" in preset:
-            config["work_windows"] = preset["work_windows"]
-        # Simple presets: explicit file hours override preset defaults
-        elif "work_start_hour" not in config or config["work_start_hour"] == DEFAULT_CONFIG["work_start_hour"]:
-            config["work_start_hour"] = preset["work_start_hour"]
-            config["work_end_hour"] = preset.get("work_end_hour", DEFAULT_CONFIG["work_end_hour"])
-    # Env vars override file config
-    if "WORK_START_HOUR" in os.environ:
-        config["work_start_hour"] = int(os.environ["WORK_START_HOUR"])
-    if "WORK_END_HOUR" in os.environ:
-        config["work_end_hour"] = int(os.environ["WORK_END_HOUR"])
-    if "WORKFLOW_DISABLED" in os.environ:
-        config["enabled"] = not os.environ["WORKFLOW_DISABLED"].lower() in ("1", "true")
-    return config
-
-
-def is_work_hours(cfg: dict = None) -> bool:
-    """Check if current time is within configured work hours."""
-    if cfg is None:
-        cfg = read_workflow_config()
-    if not cfg.get("enabled", True):
-        return False
-    return _time_in_window(cfg)
-
-
-def _time_in_window(cfg: dict) -> bool:
-    """Pure time check — does NOT check enabled flag.
-    
-    Supports two modes:
-    1. work_windows: list of [start, end] ranges (for non-contiguous windows)
-    2. work_start_hour/work_end_hour: single contiguous range (with wrap support)
-    """
-    hour = datetime.datetime.now().hour
-    # Mode 1: multiple windows (e.g. best-deepseek valley periods)
-    windows = cfg.get("work_windows")
-    if windows:
-        for start, end in windows:
-            if start <= end:
-                if start <= hour < end:
-                    return True
-            else:
-                # Wrapping window (e.g. 23-8)
-                if hour >= start or hour < end:
-                    return True
-        return False
-    # Mode 2: single contiguous range
-    start = cfg.get("work_start_hour", 8)
-    end = cfg.get("work_end_hour", 22)
-    if start <= end:
-        return start <= hour < end
-    else:
-        # Wrapping: e.g. 14-2 means afternoon to late night
-        return hour >= start or hour < end
-
-
 def is_paused() -> bool:
     """Check if workflow is paused via pause file OR workflow-config.json."""
     # Check pause file first (fastest)
@@ -245,15 +175,6 @@ def should_process_event(event_type: str, label: str = "") -> bool:
     return False
 
 
-# ── Priority labels ───────────────────────────────────────────
-PRIORITY_LABEL_ORDER = [
-    "priority/critical",
-    "priority/high",
-    "priority/medium",
-    "priority/low",
-]
-
-
 def issue_priority_sort_key(issue_num: int) -> int:
     """Return sort index for an issue's priority label. Lower = higher priority.
     Uses cached open issues first; falls back to gh view for closed issues."""
@@ -282,15 +203,6 @@ def issue_priority_sort_key(issue_num: int) -> int:
         return PRIORITY_LABEL_ORDER.index("priority/medium")
     except (json.JSONDecodeError, ValueError):
         return PRIORITY_LABEL_ORDER.index("priority/medium")
-
-# ── Priority definitions ───────────────────────────────────────────
-# Lower number = higher priority
-PRIORITY = {
-    "check_run.completed": 1,  # CI finished — most urgent
-    "issues.labeled": 2,       # Phase start — important
-}
-PRIORITY_MAX = 99  # For events that should be discarded
-
 
 def read_pending():
     """Read the pending file, return events list."""
@@ -330,68 +242,6 @@ def write_pending(events):
             os.fsync(f.fileno())
         finally:
             fcntl.flock(f, fcntl.LOCK_UN)
-
-
-def _event_action(event):
-    """Extract action from event _key (e.g., 'check_run.completed' from 'check_run.completed#154')."""
-    key = event.get("_key", "")
-    return key.split("#")[0]  # "check_run.completed"
-
-
-def event_priority(event):
-    """Return numeric priority for an event. Lower = higher priority."""
-    etype = event.get("type", "")
-    action = _event_action(event)
-
-    # check_run.completed — P1 (urgent)
-    # Only actionable if branch and conclusion are present
-    if etype == "check_run" and action == "check_run.completed":
-        branch = event.get("branch", "")
-        conclusion = event.get("conclusion", "")
-        if branch and conclusion in ("success", "failure"):
-            return PRIORITY["check_run.completed"]
-        # has some data but incomplete — still forward to LLM for fallback query
-        if branch or conclusion:
-            return PRIORITY["check_run.completed"] + 1
-        # completely empty — treat as discard
-        return PRIORITY_MAX
-
-    # issues.labeled — P2 (phase start)
-    if etype == "issues.labeled":
-        label = event.get("label", "")
-        if label.startswith("workflow/"):
-            # lock labels are coordination, not workflow phases
-            if label.startswith("workflow/lock-"):
-                return PRIORITY_MAX
-            return PRIORITY["issues.labeled"]
-        # non-workflow labels — not actionable
-        return PRIORITY_MAX
-
-    # Everything else: pull_request.*, check_run.created, check_run.skipped,
-    # issues.opened, issues.closed, issues.unlabeled, etc.
-    return PRIORITY_MAX
-
-
-def should_discard(event):
-    """Return True if this event should be REMOVED from the pending file."""
-    return event_priority(event) == PRIORITY_MAX
-
-
-def validate_check_run(event):
-    """Surface-level validation: branch exists, conclusion is actionable.
-    Returns True if the event is potentially actionable (LLM still does
-    final validation via gh)."""
-    etype = event.get("type", "")
-    action = _event_action(event)
-    if etype != "check_run" or action != "check_run.completed":
-        return True  # not a check_run, skip validation
-    branch = event.get("branch", "")
-    conclusion = event.get("conclusion", "")
-    if not branch:
-        return False  # can't determine which PR this is for
-    if conclusion not in ("success", "failure"):
-        return False  # not actionable
-    return True
 
 
 # ── Stage → branch prefix mapping ─────────────────────────────────
@@ -440,47 +290,6 @@ def _get_issue_body_cached(issue_num: int) -> str:
     body = gh("issue", "view", str(issue_num), "--json", "body", "--jq", ".body")
     _BODY_CACHE[issue_num] = body
     return body
-
-
-def parse_dependencies(body: str) -> list[dict]:
-    """Parse ## Dependencies section from issue body.
-
-    Matches:
-      Depends on: #42              → full dependency
-      Depends on (design): #49     → design-only dependency
-
-    Returns [{"issue": 42, "type": "full"}, {"issue": 49, "type": "design"}]
-    """
-    deps = []
-    in_deps_section = False
-    for line in body.split("\n"):
-        stripped = line.strip()
-        # Detect ## Dependencies or ## 前置依赖 heading (case-insensitive)
-        if re.match(r'^#{2,3}\s+(?:Dependencies|前置依赖)', stripped, re.IGNORECASE):
-            in_deps_section = True
-            continue
-        # Exit section at next heading (## or deeper)
-        if in_deps_section and re.match(r'^#{2,}\s', stripped):
-            break
-        if not in_deps_section:
-            continue
-        # Match: Depends on: #42  or  Depends on (design): #49
-        m = re.match(
-            r'Depends on\s*(?:\((\w+)\))?\s*:\s*#(\d+)',
-            stripped, re.IGNORECASE
-        )
-        if m:
-            dep_type = m.group(1).lower() if m.group(1) else "full"
-            if dep_type not in ("full", "design"):
-                dep_type = "full"  # unknown type → treat as full
-            deps.append({"issue": int(m.group(2)), "type": dep_type})
-        # Fallback: bare #N references inside deps section (Chinese format: #42, #43)
-        elif re.search(r'#\d+', stripped):
-            refs = re.findall(r'#(\d+)', stripped)
-            for ref in refs:
-                if not any(d["issue"] == int(ref) for d in deps):
-                    deps.append({"issue": int(ref), "type": "full"})
-    return deps
 
 
 def check_dependency_resolved(dep: dict) -> bool:

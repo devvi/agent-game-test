@@ -4,7 +4,7 @@
 set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 echo "Syncing project scripts to ~/.hermes/scripts/..."
-for f in event-processor.py stage-gate.py workflow-dispatcher.py; do
+for f in event-processor.py event_processor_lib.py stage-gate.py workflow-dispatcher.py; do
   cp "$SCRIPT_DIR/$f" "$HOME/.hermes/scripts/$f"
   echo "  ✅ $f"
 done
