@@ -561,7 +561,10 @@ Agent 必须基于以下维度自行推导，并在分解中包含画面风格�
 ```bash
 # 1. 查 Obsidian 知识库有没有这个方向的沉淀（审美笔记、设计草案）
 #    搜索关键词 = 用户命令里的核心概念 + 通用审美词（氛围/风格/视觉/叙事）
-search_files(pattern="<概念>", path="$OBSIDIAN_VAULT/wiki/")
+#    ⚠️ OBSIDIAN_VAULT_PATH 是挂载根（/Volumes/Obsidian），vault 在 "Knowledge Ocean/" 下；
+#    且 search_files content 对含空格路径静默返回 0 → 用 grep（详见 Step 1.6）
+VAULT_WIKI="${OBSIDIAN_VAULT_PATH:-/Volumes/Obsidian}/Knowledge Ocean/wiki"
+grep -rl "<概念>" "$VAULT_WIKI/" 2>/dev/null | head -5
 
 # 2. 查本仓库已有的设计资产（GDD、旧 PRD）——新游戏不是从零开始
 ls docs/GAME_DESIGN/ docs/PRD/ 2>/dev/null
@@ -771,18 +774,28 @@ gh repo view "$REPO" --json nameWithOwner --jq .nameWithOwner 2>/dev/null || {
 
 在分解之前，先搜索 Obsidian 知识库中已有的设计笔记，避免重复设计或遗漏已有的架构决策。
 
-```
-1. 读取 OBSIDIAN_VAULT_PATH 环境变量，解析 vault 路径
-2. 搜索 wiki/ 目录：search_files(pattern="<项目关键词>", path="/Volumes/Obsidian/Knowledge Ocean/wiki/")
-3. 搜索 raw/ 目录（如果 wiki 命中不够）：search_files(pattern="<项目关键词>", path="/Volumes/Obsidian/Knowledge Ocean/raw/")
-4. 如果找到相关笔记 → read_file 读取内容 → 在后续分解中引用
+**⚠️ 路径解析（2026-07-31 实测修正）：** `OBSIDIAN_VAULT_PATH` 环境变量指向**挂载根**（`/Volumes/Obsidian`），不是 vault 本身。vault 实际在 `<OBSIDIAN_VAULT_PATH>/Knowledge Ocean/`。**必须先解析出完整路径**，且注意 `search_files` 的 content 搜索对**含空格的路径会静默返回 0**（Hermes 工具层 bug，已实测复现）——因此必须用 grep 作为兜底，不能只依赖 search_files。
+
+```bash
+# 解析 vault 路径（先确认，再搜索）
+VAULT_ROOT="${OBSIDIAN_VAULT_PATH:-/Volumes/Obsidian}"
+VAULT_WIKI="$VAULT_ROOT/Knowledge Ocean/wiki"
+VAULT_RAW="$VAULT_ROOT/Knowledge Ocean/raw"
+ls "$VAULT_WIKI" >/dev/null 2>&1 && echo "✅ vault wiki 可访问: $VAULT_WIKI"
+
+# 搜索 wiki/ 目录 — 双保险：search_files 优先，grep 兜底
+# （search_files 的 content 搜索遇空格路径返回 0，grep 不受影响）
+grep -rl "<关键词>" "$VAULT_WIKI/" 2>/dev/null | head -5
+# 若命中不足，再搜 raw/
+grep -rl "<关键词>" "$VAULT_RAW/" 2>/dev/null | head -5
 ```
 
-**搜索关键词：** 从用户命令中提取核心概念（如"夜行"、"对话树"、"CRPG"等），每个概念单独搜索。
+**搜索关键词：** 从用户命令中提取核心概念（如"夜行"、"对话树"、"CRPG"、"霓虹"、"雨夜"等），每个概念单独搜索。中文关键词 grep 完全支持（实测正常）。
 
 **使用规则：**
 - wiki/ 命中优先（精炼笔记），raw/ 作为回退（原始资料）
 - 匹配到的笔记内容注入到 Step 2 的分解 prompt 中作为上下文
+- 把命中的笔记作为"你过去的自己会怎么想"注入审美坐标诘问（Step 0.0 经验注入环节）
 - 如果没有命中，正常继续，不需要通知用户
 
 ### Step 2: 语义分解（含类型专项分解规则）
