@@ -182,6 +182,20 @@ flowchart LR
 
 ## 分解规则
 
+### 0. 规则适用性（根据游戏类型选择）
+
+并非所有分解规则都适用于所有游戏类型。在 Step 2 构造 prompt 时，根据游戏类型选择适用的规则：
+
+| 规则 | 适用类型 | 忽略类型 | 理由 |
+|:----|:--------|:---------|:-----|
+| §5 CRPG 专项规则 | 叙事驱动 / CRPG / 视觉小说 | 街机 / 平台跳跃 / 策略 | 非叙事游戏没有"主题→机制映射"需求 |
+| §6 分层表达 | 叙事驱动 / CRPG | 纯街机 / 解谜 | 分层只服务于叙事深度 |
+| §7 引擎专项规范 | 全部 | — | 所有 Godot 项目都需要 |
+| §8 节奏控制 | 叙事驱动 / CRPG | 街机（球速自然提供节奏） | 街机节奏由机制本身提供 |
+| §9 画面风格 | **全部（必填）** | — | 所有游戏都需要画面风格决策 |
+
+**2026-07-28 实战验证：** Mini Pong（2D 弧线游戏）分解时正确跳过了 §§5-6，只应用了 §7（引擎规范）+ §9（画面风格用户已提供霓虹赛博）。分解 prompt 应显式说明要跳过哪些不适用章节。
+
 ### 1. 粒度原则
 
 - **每个 Issue 一个独立功能** — 可独立 research → plan → implement
@@ -610,6 +624,54 @@ Agent 必须基于以下维度自行推导，并在分解中包含画面风格�
 
 ---
 
+### Step 0.8: 加载项目上下文 — git REPO + workflow（一切从这里开始）
+
+> **本 skill 生成的 Issues 是整条 workflow 管线的起点**（research→plan→implement→review→self-correct）。
+> 分解前必须先确认"为哪个仓库、哪条管线生成"——错误的目标仓库 = 全部白干。
+
+**0.8.1 确认工作目录与 git REPO**
+
+```bash
+# 必须在本项目仓库内运行（如 ~/workspace/agent-game-test）
+pwd && git rev-parse --show-toplevel
+git remote get-url origin
+
+# 读取 manifest（P3 单一事实源）：repo / engine / branch / 槽位
+cat game-env/manifest.yaml 2>/dev/null || echo "⚠️ 无 manifest — 用 git remote 推导"
+```
+
+**0.8.2 从 manifest 提取关键上下文（注入分解 prompt）：**
+
+| manifest 字段 | 用途 |
+|---------------|------|
+| `project.repo` | 创建 Issues 的目标仓库（Step 6 用 `--repo`）|
+| `engine.name` + `version` | 分解规则 §7 引擎规范、语言（GDScript）|
+| `source.dir` / `test.dir` | 分解时标注代码/测试落点 |
+| `git.default_branch` | 创建分支/PR 时的基准分支（当前项目为 `main`）|
+| `workflow.max_*_slots` | 分解粒度参考（并发有限 → Issue 不宜过碎）|
+
+**0.8.3 确认 workflow 状态（可选但推荐）**
+
+```bash
+# pipeline 是否在跑？决定"创建后能否自动被拣选"
+cat ~/.hermes/workflow-config.json   # enabled / preset / work hours
+```
+
+**0.8.4 校验目标仓库存在且可写**
+
+```bash
+REPO=$(python3 -c "import yaml; print(yaml.safe_load(open('game-env/manifest.yaml'))['project']['repo'])" 2>/dev/null || echo "fallback")
+gh repo view "$REPO" --json nameWithOwner --jq .nameWithOwner 2>/dev/null || {
+  echo "❌ 仓库不可访问 — 检查 GH_TOKEN / 仓库名"; exit 1; }
+```
+
+> **与 workflow 的关系（创建后发生了什么）：**
+> 1. `gh issue create` → 自动带 `workflow/backlog` + `enhancement` + `version/<milestone>` labels
+> 2. GitHub webhook `issues.opened` → workflow-dispatcher.py → pending.json
+> 3. cron tick → event-processor.py `pick_next_issue()` → 依赖满足后 `workflow/available` → SPAWN: research
+> 4. research → plan → implement → CI → review → merge → 下一个 issue
+> 5. **不要手动推进 label**（绕过依赖检查和阶段门控）。创建后让 webhook 驱动。
+
 ### Step 1: 接收命令 + 确认引擎与平台
 
 用户在 Feishu 发送游戏开发命令。**在分解前，先确认两个信息：**
@@ -699,17 +761,6 @@ mkdir -p docs/RAW/
 ---
 
 ### Step 5: 反向同步 — 从已有 GitHub Issues 重建本地 JSON
-|---|-------|--------|------|---------|--------|
-| 1 | [Feature] ... | critical | standard | — | L |
-| 2 | [Feature] ... | high | standard | #1 | M |
-...
-
-🔗 依赖流向图：
-  #1 → #2 → #3
-  #1 → #4
-```
-
-### Step 5: 反向同步 — 从已有 GitHub Issues 重建本地 JSON
 
 当用户要求"本地保留一份和GitHub当前工作issue相同的版本"时，执行反向同步：
 
@@ -771,17 +822,67 @@ PLAN_FILE="docs/RAW/game-to-issues-{slug}.json"
 
 # 读取并创建
 python3 << 'PYEOF'
-import json, subprocess, sys
+import json, os, subprocess, sys
+
+# ── 项目上下文：manifest 是单一事实源 (P3) ─────────────────────
+# 优先读 game-env/manifest.yaml 的 project.repo；缺失则从 git remote 推导。
+def resolve_repo():
+    for mf in ("game-env/manifest.yaml",):
+        if os.path.exists(mf):
+            try:
+                import yaml
+                repo = yaml.safe_load(open(mf)).get("project", {}).get("repo")
+                if repo:
+                    return repo
+            except Exception:
+                pass
+    out = subprocess.run(["git", "remote", "get-url", "origin"],
+                         capture_output=True, text=True).stdout.strip()
+    import re
+    m = re.search(r"github\\.com[:/]([^/]+/[^/]+?)(?:\\.git)?$", out)
+    return m.group(1) if m else "devvi/agent-game-test"
+
+REPO = resolve_repo()
+print(f"📦 目标仓库: {REPO}")
+
 with open("{{PLAN_FILE}}") as f:
     data = json.load(f)
 
-# 按拓扑排序创建 Issue
-for issue in data['issues']:
-    labels = ",".join(issue['labels'])
-    # 添加 version 标签
+issues = data['issues']
+by_id = {i['id']: i for i in issues}
+
+# ── 拓扑排序：依赖先建，body 才能引用真实 issue number ────────
+def topo_sort(issues):
+    ordered, visited, visiting = [], set(), set()
+    def visit(i):
+        if i['id'] in visited:
+            return
+        if i['id'] in visiting:
+            raise RuntimeError(f"依赖循环: issue {i['id']}")
+        visiting.add(i['id'])
+        for d in i.get('dependencies', []):
+            if d in by_id:
+                visit(by_id[d])
+        visiting.discard(i['id'])
+        visited.add(i['id'])
+        ordered.append(i)
+    for i in issues:
+        visit(i)
+    return ordered
+
+try:
+    ordered = topo_sort(issues)
+except RuntimeError as e:
+    print(f"❌ {e} — 请先修复依赖图", file=sys.stderr)
+    sys.exit(1)
+
+# ── 创建（拓扑顺序），维护 id → GitHub number 映射 ─────────────
+id2number = {}
+for issue in ordered:
+    labels = list(issue['labels'])
     milestone = issue.get('milestone', 'full')
-    labels += f",version/{milestone}"
-    
+    labels.append(f"version/{milestone}")
+
     body = f"""## 功能描述
 {issue['description']}
 
@@ -796,24 +897,34 @@ for issue in data['issues']:
 
     deps = issue.get('dependencies', [])
     if deps:
-        body += f"\n\n## 前置依赖\n{', '.join(f'#{d}' for d in deps)}"
+        # ⚠️ 依赖引用必须映射为真实 GitHub number（JSON id ≠ issue number）
+        dep_numbers = [id2number[d] for d in deps if d in id2number]
+        if dep_numbers:
+            body += f"\n\n## 前置依赖\n{', '.join(f'#{n}' for n in dep_numbers)}"
 
     result = subprocess.run([
         "gh", "issue", "create",
+        "--repo", REPO,
         "--title", issue['title'],
-        "--label", labels,
+        "--label", ",".join(labels),
         "--body", body
     ], capture_output=True, text=True)
     if result.returncode != 0:
         print(f"❌ 创建失败: {issue['title']} — {result.stderr.strip()}", file=sys.stderr)
-    else:
-        print(f"✅ {result.stdout.strip()}")
+        sys.exit(1)
+    number = int(result.stdout.strip().rstrip("/").split("/")[-1])
+    id2number[issue['id']] = number
+    issue['github_number'] = number
+    print(f"✅ #{number} {issue['title']}")
 
 data['meta']['status'] = 'created'
 with open("{{PLAN_FILE}}", 'w') as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
+print(f"✅ 共创建 {len(ordered)} 个 Issue → {REPO}")
 PYEOF
 ```
+
+> **⚠️ 依赖引用为什么必须映射：** JSON plan 里的 `dependencies` 是顺序 id（1-N），GitHub issue number 是仓库全局递增的（可能 #42-#59 或 #287+）。直接把 JSON id 写成 `#1` 会让 `event-processor.py` 的 `parse_dependencies()` 解析出**不存在的依赖**，导致 BLOCKED 卡死。创建后 body 引用的是真实 `#N`，pipeline 才能正确解依赖。
 
 ---
 
