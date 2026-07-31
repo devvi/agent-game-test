@@ -684,19 +684,19 @@ def _pr_exists_for_issue(stage: str, issue: int) -> bool:
     return False  # on error, spawn anyway (cautious)
 
 
-WORKDIR = os.path.expanduser("~/workspace/.pda/perfect-dev-agent-workflow")
+WORKDIR = os.path.expanduser("~/workspace/agent-game-test")
 
 # ── Game Environment ─────────────────────────────────────────
 MANIFEST_PATH = os.path.join(WORKDIR, "game-env", "manifest.yaml")
 
 def _load_manifest() -> dict:
-    """Load game environment manifest. Falls back to snake defaults."""
+    """Load game environment manifest. Falls back to project defaults."""
     default = {
-        "engine": {"name": "web", "runner": "node"},
-        "source": {"dir": "public/src/"},
-        "test": {"dir": "tests/", "framework": "vitest"},
-        "code_gen": {"language": "javascript"},
-        "git": {"default_branch": "master"},
+        "engine": {"name": "godot", "runner": "godot"},
+        "source": {"dir": "gdscripts/"},
+        "test": {"dir": "tests/", "framework": "gdscript"},
+        "code_gen": {"language": "gdscript"},
+        "git": {"default_branch": "main"},
     }
     if not os.path.exists(MANIFEST_PATH):
         return default
@@ -710,7 +710,7 @@ def _load_manifest() -> dict:
 MANIFEST = _load_manifest()
 SRC_DIR = MANIFEST.get("source", {}).get("dir", "public/src/")
 TEST_DIR = MANIFEST.get("test", {}).get("dir", "tests/")
-DEFAULT_BRANCH = MANIFEST.get("git", {}).get("default_branch", "master")
+DEFAULT_BRANCH = MANIFEST.get("git", {}).get("default_branch", "main")
 
 # ── Issue Picker ─────────────────────────────────────────────────
 # Reads backlog, picks candidate, adds workflow/available label.
