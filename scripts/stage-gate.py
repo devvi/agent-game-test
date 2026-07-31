@@ -19,6 +19,7 @@ Stages: research, plan, implement
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -182,7 +183,15 @@ def check_pr(pr_num: int) -> tuple[bool, str]:
             )
             remote = result.stdout.strip()
             m = re.search(r'github\\.com[:/]([^/]+/[^/]+?)(?:\\.git)?$', remote)
-            repo = m.group(1) if m else 'devvi/agent-game-test'
+            repo = m.group(1) if m else None
+            if not repo:
+                # P3: read from manifest (single source of truth), fallback hardcoded
+                try:
+                    import yaml
+                    mf = yaml.safe_load(open(os.path.expanduser('~/workspace/agent-game-test/game-env/manifest.yaml')))
+                    repo = mf.get('project', {}).get('repo', 'devvi/agent-game-test')
+                except Exception:
+                    repo = 'devvi/agent-game-test'
 
             # Disable auto-merge via GraphQL (PATCH with auto_merge=false is unreliable)
             pr_node = gh_json(

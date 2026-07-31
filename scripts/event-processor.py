@@ -535,6 +535,13 @@ MANIFEST = _load_manifest()
 SRC_DIR = MANIFEST.get("source", {}).get("dir", "public/src/")
 TEST_DIR = MANIFEST.get("test", {}).get("dir", "tests/")
 DEFAULT_BRANCH = MANIFEST.get("git", {}).get("default_branch", "main")
+# Project repo (P3 parameterization, 2026-07-31): from manifest, not hardcoded.
+PROJECT_REPO = (
+    MANIFEST.get("project", {}).get("repo")
+    or MANIFEST.get("workflow", {}).get("repo")
+    or "devvi/agent-game-test"
+)
+WEBHOOK_BASE = f"https://api.github.com/repos/{PROJECT_REPO}/hooks"
 
 # ── Issue Picker ─────────────────────────────────────────────────
 # Reads backlog, picks candidate, adds workflow/available label.
@@ -756,13 +763,122 @@ def reconcile():
                     "_key": event_key,
                     "type": "issues.labeled",
                     "issue": n,
-                    "repo": "devvi/agent-game-test",
+                    "repo": PROJECT_REPO,
                     "ts": time.time(),
                     "label": label,
                 })
     
     if events:
         write_pending(events)
+
+
+# ── Check-run reconcile (P3b, 2026-07-31) ───────────────────────
+# Webhook events can be lost (ngrok restart, gateway crash, route script
+# failure). The stalled scan catches *unspawned agents*, but the gap between
+# CI completion and event arrival could be minutes. This reconciles CI
+# results directly from GitHub as a second data source: any open impl/* PR
+# whose head-sha CI has concluded is re-emitted as a check_run.completed
+# pending event (deduped via a local state file keyed by pr+sha).
+RECONCILE_STATE_FILE = os.path.expanduser("~/.hermes/workflow-reconcile-state.json")
+
+
+def _read_reconcile_state() -> dict:
+    try:
+        with open(RECONCILE_STATE_FILE) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+
+
+def _write_reconcile_state(state: dict):
+    try:
+        with open(RECONCILE_STATE_FILE, "w") as f:
+            json.dump(state, f, indent=2)
+    except OSError:
+        pass
+
+
+def reconcile_check_runs():
+    """Re-emit check_run.completed events for open impl/* PRs whose CI has
+    concluded but whose webhook event never arrived.
+
+    Runs on a slow cadence (every N ticks) — see main(). Cheap: one
+    `gh pr list` + one `gh api` per open impl PR with an unrecorded sha.
+    """
+    try:
+        state = _read_reconcile_state()
+        raw = gh("pr", "list", "--state", "open", "--json",
+                 "number,headRefName,headRefOid")
+        if not raw:
+            return
+        prs = json.loads(raw)
+    except (json.JSONDecodeError, ValueError):
+        return
+
+    events = read_pending()
+    existing_keys = {e.get("_key") for e in events}
+    changed = False
+
+    for pr in prs:
+        branch = pr.get("headRefName", "")
+        if not branch.startswith("impl/"):
+            continue  # research/plan auto-merge; no review gate needed
+        pr_num = pr["number"]
+        sha = pr.get("headRefOid", "")
+
+        # Already reconciled for this sha?
+        prev = state.get(str(pr_num), {})
+        if prev.get("sha") == sha:
+            continue
+
+        # Get CI conclusion for this exact sha
+        try:
+            checks_raw = gh("api",
+                            f"repos/{PROJECT_REPO}/commits/{sha}/check-runs",
+                            "--jq", ".check_runs[] | select(.name==\"test-and-report\") | .conclusion")
+        except Exception:
+            continue
+        if not checks_raw:
+            continue  # CI not run yet for this sha — wait
+        conclusions = [c.strip() for c in checks_raw.splitlines() if c.strip()]
+        if not conclusions:
+            continue
+        conclusion = conclusions[0]  # newest run for the sha
+        if conclusion not in ("success", "failure"):
+            continue  # pending/queued/skipped — wait
+
+        key = f"check_run.completed#{pr_num}"
+        if key in existing_keys:
+            # Event already pending — just record sha so we don't re-add
+            state[str(pr_num)] = {"sha": sha, "conclusion": conclusion}
+            changed = True
+            continue
+
+        # Event lost — re-emit it
+        events.append({
+            "_key": key,
+            "type": "check_run",
+            "issue": pr_num,
+            "pr": pr_num,
+            "repo": PROJECT_REPO,
+            "ts": time.time(),
+            "branch": branch,
+            "conclusion": conclusion,
+        })
+        existing_keys.add(key)
+        state[str(pr_num)] = {"sha": sha, "conclusion": conclusion}
+        changed = True
+
+    # Drop state entries for merged/closed PRs (they no longer need reconcile)
+    open_prs = {str(p["number"]) for p in prs}
+    for n in list(state.keys()):
+        if n not in open_prs:
+            del state[n]
+            changed = True
+
+    if changed:
+        write_pending(events)
+        _write_reconcile_state(state)
 
 
 def preprocess():
@@ -1074,6 +1190,17 @@ def main():
             reconcile()
             pick_next_issue()
         
+        # ── Check-run reconcile (P3b): slow-cadence webhook-loss fallback ──
+        # Runs every 5th tick (~5 min) regardless of work hours, so a lost
+        # check_run.completed event is re-emitted even outside the window.
+        try:
+            tick_count = int(_read_reconcile_state().get("_ticks", 0))
+        except Exception:
+            tick_count = 0
+        if tick_count % 5 == 0:
+            reconcile_check_runs()
+        _write_reconcile_state({**_read_reconcile_state(), "_ticks": tick_count + 1})
+        
         # Save current hour for window entry detection
         try:
             with open(os.path.expanduser("~/.hermes/.workflow-state.json"), "w") as f:
@@ -1207,7 +1334,7 @@ def check_webhook_connectivity() -> bool:
         token = os.environ.get("GH_TOKEN", "")
         if not token:
             return False
-        url = "https://api.github.com/repos/devvi/agent-game-test/hooks"
+        url = WEBHOOK_BASE
         req = urllib.request.Request(url, headers={"Authorization": f"Bearer {token}", "User-Agent": "Hermes"})
         with urllib.request.urlopen(req, timeout=10) as r:
             hooks = json.loads(r.read().decode())
@@ -1215,12 +1342,12 @@ def check_webhook_connectivity() -> bool:
             return False
         hid = hooks[0]["id"]
         ping_req = urllib.request.Request(
-            f"https://api.github.com/repos/devvi/agent-game-test/hooks/{hid}/pings",
+            f"{WEBHOOK_BASE}/{hid}/pings",
             method="POST", headers={"Authorization": f"Bearer {token}", "User-Agent": "Hermes"})
         urllib.request.urlopen(ping_req, timeout=10)
         import time as _t; _t.sleep(2)
         del_req = urllib.request.Request(
-            f"https://api.github.com/repos/devvi/agent-game-test/hooks/{hid}/deliveries?per_page=1",
+            f"{WEBHOOK_BASE}/{hid}/deliveries?per_page=1",
             headers={"Authorization": f"Bearer {token}", "User-Agent": "Hermes"})
         with urllib.request.urlopen(del_req, timeout=10) as r:
             dl = json.loads(r.read().decode())
