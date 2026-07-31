@@ -1,0 +1,461 @@
+{
+  "meta": {
+    "title": "深夜便利店 (Midnight Convenience)",
+    "description": "雨夜便利店微CRPG：夜班店员与深夜顾客的对话抉择。极乐迪斯科式失败即叙事，海明威式短句，银翼杀手式雨夜霓虹。",
+    "engine": "Godot 4.7.1",
+    "platform": "macOS",
+    "created_at": "2026-07-31T00:00:00+08:00",
+    "model": "self-drill (game-to-issues 演练)",
+    "status": "drilled",
+    "total_issues": 12
+  },
+  "clarified_brief_ref": "docs/RAW/self-drill-clarified-brief.md",
+  "issues": [
+    {
+      "id": 1,
+      "title": "[Scaffold] 项目骨架 — 目录结构与 CI",
+      "description": "Godot 4.7.1 项目初始化：project.godot（1280x720 固定窗口）、gdscripts/scenes/tests 目录、CI 三层门禁（L0 编译、L1 smoke、L2 运行时）。",
+      "context": "基础设施层。复用 agent-game-test 已验证的 CI 模式（opencode-review.yml + pipeline-tests.yml）。审美坐标：无（纯工程）。",
+      "depth": "standard",
+      "priority": "critical",
+      "dependencies": [],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "progress": 0,
+      "acceptance_criteria": [
+        "godot --headless --quit 无脚本错误",
+        "CI 三层门禁在 impl/ 分支 PR 上运行",
+        "目录结构含 gdscripts/ scenes/ tests/ docs/"
+      ],
+      "github_number": 401
+    },
+    {
+      "id": 2,
+      "title": "[Feature] 便利店场景 — 雨夜霓虹视觉",
+      "description": "单一场景（便利店内部）：暗底(#0a0a12)、霓虹招牌 glow、窗外雨幕(GPUParticles2D)、暖色货架灯光与冷色雨夜对比。",
+      "context": "表现层+场景层。审美坐标 visual_vocabulary: 暗/湿/暖/霓虹/疏离。复用 mini-pong #289 的霓虹视觉语言（glow/bloom + GPUParticles2D）。反例防护：不得出现亮度过高的卡通UI。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "progress": 0,
+      "acceptance_criteria": [
+        "场景整体暗底，霓虹招牌有 glow 效果",
+        "窗外雨幕可见且不遮挡交互区域",
+        "货架暖光与窗外冷色形成对比（冷暖对比）",
+        "--headless --quit 无脚本错误"
+      ],
+      "github_number": 402
+    },
+    {
+      "id": 3,
+      "title": "[Feature] 对话数据模型 — JSON 驱动",
+      "description": "对话节点数据模型：id、speaker、text、choices[{text, next, effect}]、conditions。JSON 文件加载，与运行时分离。",
+      "context": "数据层+逻辑层。数据/运行时分离（urban-night-walker 教训：格式迁移必须同步测试）。海明威约束：text 每句 ≤25 字。",
+      "depth": "standard",
+      "priority": "critical",
+      "dependencies": [
+        1
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "progress": 0,
+      "acceptance_criteria": [
+        "对话 JSON 可加载并校验格式",
+        "节点支持 choices 分支与 conditions 条件",
+        "schema 变更时测试同步更新（重构必改测试）"
+      ],
+      "github_number": 403
+    },
+    {
+      "id": 4,
+      "title": "[Feature] 对话运行时 — 选择即表达",
+      "description": "对话 UI 运行时：逐句显示、选项渲染、选择推进。选择记录到 GameState。失败即叙事：顾客失望 ≠ 结束，解锁不同对话线。",
+      "context": "交互层+玩家体验层。text_vocabulary: 短句/冷/克制——选项文字必须短。反例防护：无解释性旁白。",
+      "depth": "standard",
+      "priority": "critical",
+      "dependencies": [
+        3
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "large",
+      "milestone": "mvp",
+      "progress": 0,
+      "acceptance_criteria": [
+        "对话逐句显示，选项可点击并推进",
+        "选择写入 GameState 并影响后续对话",
+        "顾客失望离开后对话线继续（不终止游戏）",
+        "所有对白 ≤25 字/句"
+      ],
+      "github_number": 404
+    },
+    {
+      "id": 5,
+      "title": "[Feature] GameState 状态系统",
+      "description": "全局状态：顾客好感度、打烊倒计时、已做选择历史。状态驱动对话条件（conditions）与结局判定。",
+      "context": "逻辑层。状态-世界反馈：顾客好感度变化改变对话选项与结局。",
+      "depth": "standard",
+      "priority": "critical",
+      "dependencies": [
+        3
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "progress": 0,
+      "acceptance_criteria": [
+        "状态可读可写可持久化到单例",
+        "对话 conditions 可读取状态",
+        "状态变化有测试覆盖（含边界）"
+      ],
+      "github_number": 405
+    },
+    {
+      "id": 6,
+      "title": "[Feature] 顾客框架 — 交互与离场",
+      "description": "顾客 NPC 框架：进店、走向收银台、对话触发、满意/失望离场动画。与对话运行时和 GameState 解耦。",
+      "context": "场景层+内容层。顾客是对话的载体——框架提供进出场与状态显示，对话内容由内容 Issue 提供。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        2,
+        4,
+        5
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "progress": 0,
+      "acceptance_criteria": [
+        "顾客可进店、触发对话、离场",
+        "满意/失望两种离场状态",
+        "与对话运行时信号连接完整"
+      ],
+      "github_number": 406
+    },
+    {
+      "id": 7,
+      "title": "[Content] 顾客一：醉汉 — 雨夜第一个故事",
+      "description": "醉汉角色：台词（海明威风格）、选择分支（安慰/无视/叫车）、失望≠失败。浅层：一个疲惫的醉汉；中层：他提到'又一年'暗示行业；深层：他的醉话映射玩家自己的处境。",
+      "context": "内容层。节奏定位：开场后的第一次人际接触——建立'深夜同类人'氛围。分层表达：浅层可读/中层可发现/深层可解读。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        6
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "progress": 0,
+      "acceptance_criteria": [
+        "醉汉对话 ≥8 节点、≥3 个选择点",
+        "选择影响其离场状态（满意/失望）",
+        "台词符合海明威约束（≤25字/句，动作替代描写）",
+        "三层表达均在台词中可发现"
+      ],
+      "github_number": 407
+    },
+    {
+      "id": 8,
+      "title": "[Content] 顾客二：夜班护士 — 温暖的中段",
+      "description": "护士角色：买热食、短暂对话、选择（听她倾诉/速战速决）。浅层：疲惫的护士；中层：她买的东西揭示夜班生活；深层：她的坚持映射'继续营业'的主题。",
+      "context": "内容层。节奏定位：中段的'小释放'——对话相对轻松，提供情绪喘息（节奏控制 §8）。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        6
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "progress": 0,
+      "acceptance_criteria": [
+        "护士对话 ≥6 节点、≥2 个选择点",
+        "对话节奏与醉汉形成对比（放松感）",
+        "台词符合海明威约束",
+        "浅层：对白直白可读，无隐喻也能理解（买热食→疲惫夜班）",
+        "中层：她购买的商品与夜班作息有可发现的关联（如双份咖啡）",
+        "深层：她的坚持与'继续营业'主题呼应（台词中出现守夜/坚持意象）"
+      ],
+      "github_number": 408
+    },
+    {
+      "id": 9,
+      "title": "[Content] 顾客三：神秘常客 — 高潮与抉择",
+      "description": "神秘常客：雨夜总在打烊前来。对话随玩家选择变化（状态-世界反馈）。核心选择：是否等他/是否追问他的身份。浅层：神秘人；中层：他的问题越来越像在问玩家；深层：他可能是玩家内心的投射。",
+      "context": "内容层。节奏定位：高潮——选择的分量。与 GameState 联动（好感度/选择历史改变其对话）。",
+      "depth": "deep",
+      "priority": "high",
+      "dependencies": [
+        6,
+        5
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "large",
+      "milestone": "mvp",
+      "progress": 0,
+      "acceptance_criteria": [
+        "神秘人对话 ≥10 节点、≥4 个选择点",
+        "对话内容随 GameState 变化（≥2 种变体）",
+        "核心抉择影响结局",
+        "台词符合海明威约束，三层表达完整"
+      ],
+      "github_number": 409
+    },
+    {
+      "id": 10,
+      "title": "[Feature] 打烊结算与结局画面",
+      "description": "打烊流程：倒计时结束→结算画面（今日顾客/选择回顾）→基于 GameState 的结局判定（≥3 种：理解结局/错过结局/孤独结局）。",
+      "context": "玩家体验层。节奏定位：结局——余韵（不是突然黑屏）。personal_standard 验收：'顾客对白让我想重玩看不同选择'。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        7,
+        8,
+        9
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "progress": 0,
+      "acceptance_criteria": [
+        "打烊倒计时触发结算",
+        "≥3 种结局由 GameState 判定",
+        "结局画面有收尾感（余韵，非黑屏）",
+        "结算回顾展示玩家选择"
+      ],
+      "github_number": 410
+    },
+    {
+      "id": 11,
+      "title": "[Integration] 主场景组装 — 深夜便利店",
+      "description": "组装全部组件到 Main.tscn：场景+顾客框架+对话运行时+GameState+打烊结算。信号连接完整，全局常量统一，游戏可从主场景启动并玩完整路径。",
+      "context": "集成层。C5.5 组装闭环：deps=全部 mvp 组件。urban-night-walker 教训：没有组装 = 一堆资源没有游戏。",
+      "depth": "standard",
+      "priority": "critical",
+      "dependencies": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog",
+        "integration"
+      ],
+      "estimate": "large",
+      "milestone": "mvp",
+      "progress": 0,
+      "acceptance_criteria": [
+        "Main.tscn 场景树正确（无孤儿节点）",
+        "所有信号连接完整（顾客→对话→状态→结算）",
+        "全局常量统一配置（颜色/时间/字数限制）",
+        "从主场景启动可走完完整路径"
+      ],
+      "github_number": 411
+    },
+    {
+      "id": 12,
+      "title": "[Test] 端到端可玩验证 — 自动走完一夜",
+      "description": "脚本化 playthrough：自动完成开门→3位顾客→选择→打烊→结局。验证完整路径可玩、所有对话线可达、结局可触发。",
+      "context": "验证层。deps=[组装]。personal_standard 验收：完整路径可玩 + 重玩可看到不同选择结果。",
+      "depth": "standard",
+      "priority": "critical",
+      "dependencies": [
+        11
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog",
+        "test"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "progress": 0,
+      "acceptance_criteria": [
+        "自动 playthrough 走完完整路径（开门→打烊→结局）",
+        "≥2 种选择路径可脚本化验证",
+        "≥2 种结局可触发",
+        "全部对话节点可达（无死分支）",
+        "测试在 CI L2 层运行"
+      ],
+      "github_number": 412
+    }
+  ],
+  "versions": {
+    "mvp": {
+      "name": "最小可玩垂直切片",
+      "description": "雨夜便利店完整一夜：3顾客+3结局+霓虹雨夜氛围",
+      "issues": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ]
+    }
+  },
+  "dependency_graph": {
+    "nodes": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 2
+      },
+      {
+        "from": 1,
+        "to": 3
+      },
+      {
+        "from": 3,
+        "to": 4
+      },
+      {
+        "from": 3,
+        "to": 5
+      },
+      {
+        "from": 2,
+        "to": 6
+      },
+      {
+        "from": 4,
+        "to": 6
+      },
+      {
+        "from": 5,
+        "to": 6
+      },
+      {
+        "from": 6,
+        "to": 7
+      },
+      {
+        "from": 6,
+        "to": 8
+      },
+      {
+        "from": 6,
+        "to": 9
+      },
+      {
+        "from": 5,
+        "to": 9
+      },
+      {
+        "from": 7,
+        "to": 10
+      },
+      {
+        "from": 8,
+        "to": 10
+      },
+      {
+        "from": 9,
+        "to": 10
+      },
+      {
+        "from": 2,
+        "to": 11
+      },
+      {
+        "from": 3,
+        "to": 11
+      },
+      {
+        "from": 4,
+        "to": 11
+      },
+      {
+        "from": 5,
+        "to": 11
+      },
+      {
+        "from": 6,
+        "to": 11
+      },
+      {
+        "from": 7,
+        "to": 11
+      },
+      {
+        "from": 8,
+        "to": 11
+      },
+      {
+        "from": 9,
+        "to": 11
+      },
+      {
+        "from": 10,
+        "to": 11
+      },
+      {
+        "from": 11,
+        "to": 12
+      }
+    ]
+  }
+}

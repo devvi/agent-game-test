@@ -835,8 +835,9 @@ mkdir -p docs/RAW/
 > 在展示给用户确认之前，先自查以下六项。**任何一项不通过 → 返回 Step 2 补充 Issue，不进入用户确认。**
 
 **C1. 完成路径覆盖** — clarified_brief.definition_of_done.complete_path 的每一步都有 Issue 覆盖？
-- [ ] 玩家从打开到结局的路径上，每个环节（开场→发展→高潮→结局）都有对应 Issue
+- [ ] 把 complete_path 拆成环节（如"开场→顾客A→顾客B→顾客C→结算→结局"），**每个环节显式映射到一个具体 Issue id**（列出映射表，如"开场→#2，顾客A→#7，结算→#10"）
 - [ ] 缺任何一环 = 游戏不可完成 → 补 [Integration] 或 [Content] Issue
+- [ ] **内容类验收条件必须可测**："三层表达可发现" ❌ → "浅层：对白直白可读；中层：货架灯光与顾客台词有可发现的呼应；深层：神秘人台词随玩家选择变化" ✅（每层给具体可断言的现象）
 
 **C2. 八层基础设施全覆盖**（对照 references/game-infrastructure-checklist.md）
 - [ ] 基础设施层（脚手架/CI）、数据层（存档/资源）、表现层（渲染/UI）、场景层、
@@ -863,10 +864,11 @@ mkdir -p docs/RAW/
 > **⛔ 这是 urban-night-walker 失败的根因（2026-07 实战教训）。** 该项目分解出 18 个组件 Issue（对话引擎、状态系统、场景、NPC、音效…）全部实现完毕，但**没有组装**——每个组件独立存在于仓库，没有任何 Issue 把它们装进一个可玩的场景。结果是"资源都在，游戏不存在"。
 > 对比：mini-pong 成功的关键就是 MVP 里有 `[Integration] 主场景组装`（deps=全部组件）+ `[Test] 100回合自动对打`（deps=组装）两个收尾 Issue。
 
-- [ ] **必须有 [Integration] 组装 Issue**：title 含 `[Integration]` 且描述"组装/整合/连接"全部组件。dependencies 必须包含所有 mvp 组件 Issue（玩家控制、AI、UI、状态、视觉…）
+- [ ] **必须有 [Integration] 组装 Issue**：title 含 `[Integration]` 且描述"组装/整合/连接"全部组件。dependencies 必须包含所有 **mvp 功能组件** Issue（玩家控制、AI、UI、状态、视觉、内容…）
 - [ ] **必须有 [Test] 端到端可玩验证 Issue**：title 含 `[Test]` 或 `[Playtest]`，dependencies=[组装 Issue]。验收条件是"游戏能从打开玩到结局/结束画面"（自动对打、脚本化通关、playthrough 断言）
 - [ ] **组装在依赖链末端**：组装 Issue 是 mvp 的最后一个依赖节点；验证 Issue 依赖组装
-- [ ] **没有孤儿组件**：每个 mvp 组件 Issue 都出现在组装 Issue 的 dependencies 里（组件 → 组装 → 验证，一条链到底）
+- [ ] **没有孤儿组件**：每个 **mvp 功能组件** Issue 都出现在组装 Issue 的 dependencies 里（组件 → 组装 → 验证，一条链到底）
+- [ ] **基础设施 ≠ 组件**：Scaffold/CI/脚手架类 Issue 是组装的前置依赖（通过它们的依赖链间接连到组装），**不要求**直接出现在组装的 dependencies 里。判断标准：这个 Issue 是否被玩家直接体验？不被体验（脚手架、CI、数据模型）→ 基础设施；被体验（场景、顾客、对话 UI、结算）→ 组件
 - [ ] 组装 Issue 的验收条件包含"主场景可加载 + 信号连接完整 + 全局常量统一"（参考 mini-pong #10 的写法）
 
 **C6. 依赖 DAG** — 依赖关系无环且拓扑可执行
