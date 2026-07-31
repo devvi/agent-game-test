@@ -36,12 +36,17 @@ GitHub Event → Gateway webhook (:8644)
 | 组件 | 位置 | 职责 |
 |------|------|------|
 | `workflow-dispatcher.py` | `scripts/` + `~/.hermes/scripts/` | webhook 接收, 写 pending 文件 (thin) |
-| `event-processor.py` | 同上 | 调度核心：分组/去重/排序/SPAWN/依赖/槽位 |
-| `event_processor_lib.py` | 同上 | 纯逻辑核心（2026-07-31 拆分）：优先级、时间窗口、依赖解析、配置合并 |
+| `event-processor.py` | 同上 | 调度核心：分组/去重/排序/SPAWN/依赖/槽位/check-run 对账(P3b) |
+| `event_processor_lib.py` | 同上 | 纯逻辑核心（2026-07-31 拆分）：优先级、时间窗口、依赖解析、配置合并、成本治理(P4b) |
 | `stage-gate.py` | 同上 | PR 创建后验证 label/branch/body, 自动修复 |
-| `sync-to-hermes.sh` | `scripts/` | 同步脚本到 `~/.hermes/scripts/`（改脚本后必跑） |
+| `workflow-watchdog.py` | 同上 | 沉默 SPAWN 检测（no-agent cron every 5m, P2）|
+| `workflow-metrics.py` | 同上 | PM 指标视图：吞吐/SPAWN 分布/健康度（P4c）|
+| `new-game-scaffold.sh` | `scripts/` | 新游戏项目脚手架（P4a）|
+| `sync-to-hermes.sh` | `scripts/` | 同步脚本到 `~/.hermes/scripts/`（改脚本后必跑）|
 | `workflow-config.json` | `~/.hermes/` | 启停 + 工作时段 + preset |
+| `game-env/manifest.yaml` | 项目根 | 项目配置单一来源：repo/engine/branch/槽位（P3）|
 | cron `godot-workflow-poller` | Hermes cron | every 1m, deliver=local, 脚本 + LLM 两阶段 |
+| cron `workflow-silent-spawn-watchdog` | Hermes cron | every 5m, no-agent, 沉默 SPAWN → Feishu |
 
 ## 并发模型（2026-07-29 修订）
 
