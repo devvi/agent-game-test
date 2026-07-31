@@ -853,14 +853,26 @@ mkdir -p docs/RAW/
 - [ ] 是可执行断言（"暗场景中关键交互元素可见" ✅、"对白每句 ≤25 字" ✅）
 - [ ] 内容类 Issue 包含审美合规检查（引用 visual/text vocabulary）
 
-**C5. MVP 完整路径** — version/mvp 的 Issue 集能拼出一条可玩路径？
+**C5. MVP 完整路径 + 组装闭环** — version/mvp 的 Issue 集能拼出一条可玩路径？
 - [ ] mvp 包含：脚手架 + 核心机制 + 最少 1 个完整场景链 + 1 个结局 + 1 个审美亮点
 - [ ] mvp 不包含：非核心内容（完整音效、附加结局、多周目）
 - [ ] 如果 mvp 跑不通完整路径 → 调整 milestone 分配
 
+**C5.5. 组装闭环（Assembly Loop）— 防止"一堆资源没有游戏"**
+
+> **⛔ 这是 urban-night-walker 失败的根因（2026-07 实战教训）。** 该项目分解出 18 个组件 Issue（对话引擎、状态系统、场景、NPC、音效…）全部实现完毕，但**没有组装**——每个组件独立存在于仓库，没有任何 Issue 把它们装进一个可玩的场景。结果是"资源都在，游戏不存在"。
+> 对比：mini-pong 成功的关键就是 MVP 里有 `[Integration] 主场景组装`（deps=全部组件）+ `[Test] 100回合自动对打`（deps=组装）两个收尾 Issue。
+
+- [ ] **必须有 [Integration] 组装 Issue**：title 含 `[Integration]` 且描述"组装/整合/连接"全部组件。dependencies 必须包含所有 mvp 组件 Issue（玩家控制、AI、UI、状态、视觉…）
+- [ ] **必须有 [Test] 端到端可玩验证 Issue**：title 含 `[Test]` 或 `[Playtest]`，dependencies=[组装 Issue]。验收条件是"游戏能从打开玩到结局/结束画面"（自动对打、脚本化通关、playthrough 断言）
+- [ ] **组装在依赖链末端**：组装 Issue 是 mvp 的最后一个依赖节点；验证 Issue 依赖组装
+- [ ] **没有孤儿组件**：每个 mvp 组件 Issue 都出现在组装 Issue 的 dependencies 里（组件 → 组装 → 验证，一条链到底）
+- [ ] 组装 Issue 的验收条件包含"主场景可加载 + 信号连接完整 + 全局常量统一"（参考 mini-pong #10 的写法）
+
 **C6. 依赖 DAG** — 依赖关系无环且拓扑可执行
 - [ ] dependency_graph 无循环（Python 检测代码见 Pitfalls）
 - [ ] 拓扑序创建后，每个 Issue 的前置依赖都真实存在（Step 6 会映射为真实 #N）
+- [ ] **依赖顺序即执行顺序**：pipeline 的依赖检查（event-processor `_has_unresolved_dependencies`）会 BLOCK 前置未完成的 Issue——分解时确保"先做的"在 dependencies 里，防止依赖倒置（#227 未合并 #228 就开做的教训）
 
 **通过 C1-C6 后**，可选运行 `game-issues-review` 做专家级二次审查（3C 缺口、隐藏依赖、可玩性预期），然后进入 Step 5 展示用户确认。
 
@@ -1091,6 +1103,10 @@ GitHub Project Board 添加 `Version` 字段（single-select），与 `version/*
 ---
 
 ## Pitfalls
+
+### ⛔ 分解出"一堆资源，没有游戏"（urban-night-walker 失败，2026-07）
+
+**完整案例见 `references/urban-night-walker-postmortem.md`。** 18 个组件 Issue 全部实现，但没有任何组装 Issue——游戏不可玩。**每次分解完成后，用 Step 4.5 的 C5.5 组装闭环检查**：必须有 `[Integration]` 组装 Issue（deps=全部组件）+ `[Test]` 端到端验证 Issue（deps=组装）。没有孤儿组件。
 
 ### 模型返回非 JSON
 
