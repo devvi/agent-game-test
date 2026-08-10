@@ -204,11 +204,12 @@ class TestPreprocess(unittest.TestCase):
     def _events(self, *evs):
         return list(evs)
 
-    def _run_preprocess(self, events):
+    def _run_preprocess(self, events, fake_run=None):
         # Mock the subprocess gh call inside preprocess (PR body lookup) so
         # tests stay hermetic and fast. Empty body → no parent match → falls
         # back to issue=PR number.
-        fake_run = mock.Mock(return_value=mock.Mock(stdout=""))
+        if fake_run is None:
+            fake_run = mock.Mock(return_value=mock.Mock(stdout=""))
         with mock.patch.object(ep, "read_pending", return_value=events), \
              mock.patch.object(ep, "write_pending", return_value=None), \
              mock.patch("subprocess.run", fake_run), \
@@ -262,6 +263,48 @@ class TestPreprocess(unittest.TestCase):
         out = self._run_preprocess(self._events(ev_success, ev_failure))
         self.assertEqual(len(out), 1)
         self.assertIn("SPAWN: review", out[0])
+
+    def test_label_self_correct_enriched_with_impl_pr(self):
+        """Review-agent local-e2e path: workflow/self-correct label with NO
+        pending CI failure → SPAWN carries pr/branch/source=local-e2e."""
+        ev = {"_key": "issues.labeled#42:workflow/self-correct",
+              "type": "issues.labeled", "issue": 42, "label": "workflow/self-correct"}
+
+        def fake_run(cmd, *a, **kw):
+            joined = " ".join(str(c) for c in cmd)
+            if "head:impl/42" in joined:
+                # Real `gh pr list --json ... --jq .[0]` prints the OBJECT
+                return mock.Mock(stdout='{"number": 42, "headRefName": "impl/42-x"}',
+                                 returncode=0)
+            return mock.Mock(stdout="", returncode=1)
+
+        out = self._run_preprocess(self._events(ev), fake_run=fake_run)
+        hit = [l for l in out if l.startswith("SPAWN: self-correct,issue=42")]
+        self.assertEqual(len(hit), 1, f"unexpected output: {out}")
+        self.assertIn("pr=42", hit[0])
+        self.assertIn("branch=impl/42-x", hit[0])
+        self.assertIn("source=local-e2e", hit[0])
+
+    def test_label_self_correct_fallback_without_pr(self):
+        """No impl PR found (gh error/empty) → bare label spawn, still valid."""
+        ev = {"_key": "issues.labeled#44:workflow/self-correct",
+              "type": "issues.labeled", "issue": 44, "label": "workflow/self-correct"}
+        out = self._run_preprocess(self._events(ev))
+        hit = [l for l in out if l.startswith("SPAWN: self-correct,issue=44")]
+        self.assertEqual(len(hit), 1, f"unexpected output: {out}")
+        self.assertNotIn("source=local-e2e", hit[0])
+
+    def test_label_self_correct_loses_to_pending_ci_failure(self):
+        """CI failure outranks the label in the per-issue group — the label
+        path must NOT double-spawn when a check_run(failure) is pending."""
+        ev_ci = {"_key": "check_run.completed#43", "type": "check_run",
+                 "issue": 43, "branch": "impl/43-y", "conclusion": "failure"}
+        ev_lbl = {"_key": "issues.labeled#43:workflow/self-correct",
+                  "type": "issues.labeled", "issue": 43, "label": "workflow/self-correct"}
+        out = self._run_preprocess(self._events(ev_ci, ev_lbl))
+        self.assertEqual(len(out), 1, f"expected 1 SPAWN, got {out}")
+        self.assertIn("conclusion=failure", out[0])
+        self.assertNotIn("source=local-e2e", out[0])
 
     def test_different_issues_both_kept(self):
         ev1 = {"_key": "check_run.completed#170", "type": "check_run",

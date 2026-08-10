@@ -1,0 +1,42 @@
+# Project manifest — single source of truth for project-specific config.
+# Consumed by event-processor.py, stage-gate.py, and future scaffold tooling.
+# (P3 parameterization, 2026-07-31)
+
+project:
+  name: agent-game-test
+  repo: devvi/agent-game-test
+  description: "Godot 4.7 game dev workflow experiment — mini-pong"
+
+engine:
+  name: godot
+  runner: godot
+  version: 4.7.1
+
+source:
+  dir: gdscripts/
+  # Sub-projects with their own project.godot (validated by CI):
+  subprojects:
+    - mini-pong
+
+test:
+  dir: tests/
+  framework: gdscript
+  entry: tests/run_tests.gd
+  smoke: tests/smoke_test.gd
+
+code_gen:
+  language: gdscript
+  engine: opencode
+  endpoint: http://127.0.0.1:18765
+
+git:
+  default_branch: main
+  branch_prefixes:
+    research: research/
+    plan: plan/
+    implement: impl/
+
+workflow:
+  max_concurrent_issues: 4
+  max_phase_slots: 4
+  webhook_url: "https://api.github.com/repos/devvi/agent-game-test/hooks"

@@ -216,9 +216,81 @@ This completes in seconds rather than minutes. If the focused tests pass and CI 
 
 See `references/runtime-verification-methodology.md` for the full methodology and reusable GDScript test template.
 
+For **integration test contracts** — collision layers, state persistence, signal chains —
+see `references/integration-test-contracts.md`. Three reusable patterns with templates
+and a "when to add" decision table, developed from the #289 session where static tests
+passed but three runtime bugs existed.
+
 - **Smoke test is mandatory.** `tests/smoke_test.gd` exists in the repo (96 checks, covers full playthrough). It runs in CI for every `impl/*` PR push and blocks merge on failure. Always run it locally during review.
 
 - **⚠️ Custom resource formats (`.dialogue`, `.story`) in headless mode.** `ResourceLoader.exists()` and `load()` fail for addon-registered resource formats in `--headless --script` mode because the plugin's `ResourceFormatLoader` isn't initialized. If the smoke test shows 12+ `DF:` failures for files that exist on disk with custom extensions, see `references/custom-resource-loader-headless.md` for workarounds. Do NOT block merge on these — verify via the addon's own test suite or `FileAccess.file_exists()` instead.
+
+### 2.5. Visual Evidence: Screenshot the Running Game (real rendering)
+
+**Standard path (Phase 1 shipped 2026-07-31, branch impl/e2e-local-verification): run `scripts/run-e2e-review.sh <N>`** — one call does worktree isolation + L0-L3 + real-render screenshots + 4-fold anti-fake assertions + evidence comment + trap cleanup. Archetypes (loop/journey/walkthrough/visual/scaffold), depth ladder, failure taxonomy, upload endpoints, and py3.9/3.11 + worktree pitfalls: `references/local-e2e-verification-protocol.md`. The manual recipe below is the fallback when the runner is unavailable.
+
+**`--headless` CANNOT produce screenshots** — dummy rendering driver = zero pixels (`get_texture().get_image()` hangs on `await process_frame`; `--write-movie` writes nothing; verified Godot 4.7.1/macOS M1). To capture real frames proving "the game actually looks right and actually plays", use the real display driver (brief window flash — acceptable for low-frequency review):
+
+```bash
+godot --path <subproject>/ --display-driver macos --rendering-driver opengl3 \
+      --resolution 1280x720 --script /tmp/review_shot_<PR>.gd   # script MUST be in /tmp
+```
+
+Script pattern: `extends SceneTree` → `call_deferred("_run")` → load Main.tscn → `root.add_child(inst)` → `await process_frame` ×15 (let UI/particles render) → `root.get_texture().get_image().save_png("/tmp/review_shot_<PR>.png")` → `quit(0/1)`.
+
+Verify the PNG isn't flat-color via PIL `getcolors()` (expect dozens–hundreds of colors incl. theme colors, e.g. mini-pong neon #4a90d9 = RGB(74,143,217); 1-color PNG = scene didn't load). Comment the screenshot on the PR as visual evidence.
+
+**For isolated PR-branch verification use git worktree** — eliminates the checkout/stash pitfall family:
+```bash
+git worktree add /tmp/wt-impl-<N> <impl-branch>   # fetch branch first if missing
+# run tests + screenshot INSIDE the worktree; main working tree untouched
+cd ~/workspace/<repo> && git worktree remove /tmp/wt-impl-<N> --force
+# ⚠️ remove worktree BEFORE gh pr merge --delete-branch (open worktree blocks branch delete)
+```
+
+Full protocol + verified findings: `references/runtime-screenshot-verification.md`
+
+### Local E2E Failure Handling (design-agreed 2026-07-31, rollout Phase 3 pending)
+
+**Local e2e failures must NOT be routed into the CI-driven self-correct loop.** CI is green
+when review spawns, so no check_run(failure) exists; the CI-verified loop can never converge
+on a locally-only bug (fix → CI green → review re-spawns → local fails again, forever).
+Classify first (evidence-first):
+
+| Class | Meaning | Path |
+|-------|---------|------|
+| A. Infra | harness broke (black shots/timeout/worktree) | fix harness or degrade L3; infra issue; NO cycle |
+| B. Pre-existing | reproduces on main | status/blocked + fix issue (existing path) |
+| C. Spec/aesthetic | runs but wrong (layout/color/mood) | REQUEST_CHANGES + evidence → human verdict |
+| D. Code defect | crash/physics/loop | local convergence loop: label self-correct + evidence comment (observations, not fix recipes) → self-correct fixes in worktree → CI green = regression only → review re-runs local e2e = convergence → 2-round cap → escalate human |
+
+Full protocol + the required event-processor patch (`workflow/self-correct` label + no
+pending check_run(failure) → `SPAWN: self-correct,source=local-e2e`):
+`references/local-e2e-failure-protocol.md`. Canonical plan: repo `docs/PLAN-e2e-verification-v2.md`
+(archetypes loop/journey/walkthrough/visual/scaffold; content-issue acceptance = L1 structure +
+L3 presentation fidelity + L4 taste/human).
+
+**Putting the screenshot ON the PR (verified 2026-07-31):** GitHub REST API has NO
+comment-attachment endpoint (confirmed against the official `github/rest-api-description`
+OpenAPI — zero comment-attachment POSTs exist). `gh pr comment` can only post text. To
+embed an image:
+1. **Primary — web upload endpoint** (same chain the GitHub UI uses for paste-to-comment):
+   ```bash
+   RESP=$(curl -s -H "Authorization: Bearer $GH_TOKEN" \
+     https://github.com/upload/policies/assets \
+     -F "name=shot.png" -F "content_type=image/png")
+   UPLOAD_URL=$(echo "$RESP" | python3 -c "import json,sys;print(json.load(sys.stdin)['upload_url'])")
+   curl -s -X PUT --upload-file shot.png "$UPLOAD_URL"
+   # then reference https://github.com/user-attachments/files/<id>/<name>.png in the comment
+   ```
+2. **Fallback — gist raw URL** (formal REST capability, never breaks):
+   `gh gist create --public shot.png` → `https://gist.githubusercontent.com/<user>/<id>/raw/<name>.png`
+   renders as an image in comments.
+
+Verify the primary endpoint once with a real PR (low-frequency, cheap); record the result
+in `references/e2e-runner-design.md`. Scripted-runner design (phases P0-P8, `RUNNER_GODOT`
+testability injection, trap-cleanup ordering, pipeline tests): `references/e2e-runner-design.md`.
+Capture templates: `templates/e2e_capture.gd` + `templates/e2e_shots.json`.
 
 ### Check If Failures Are Pre-Existing
 
@@ -273,6 +345,35 @@ When the project has **zero test infrastructure** (no `tests/` directory, no `te
 - **Verification substitute**: Run ad-hoc runtime verification (instantiate all new scenes, check CollisionShape3D shapes, confirm no parse errors). Document this as the verification proxy.
 - **Do NOT block the merge on missing test files.** Flag the need for a test infrastructure issue as a follow-up, not a blocker.
 - Greenfield-first-feature PRs are treated like scene-layout PRs for test-file purposes: verification is via runtime checks, not unit tests.
+
+### 3.5. Verify Upstream Integration Points Are Resolved (NEW)
+
+When the PR implements a feature whose DESIGN doc has an "Integration Points" table
+(§7), scan it for ⬜ pending rows that target upstream Issues:
+
+```bash
+# Look for unresolved integration points in this issue's DESIGN doc
+grep -n '⬜' docs/DESIGN/<N>-*.md | grep -v 'Status convention'
+```
+
+If any ⬜ rows remain:
+
+| Condition | Action |
+|-----------|--------|
+| The upstream resource (`.gdshader`, `.tres`, `.gd`) exists on disk AND the implement PR was supposed to wire it | **Blocking** — add PR comment documenting skipped integration points, do NOT merge |
+| The upstream resource doesn't exist yet (future Issue) | **Non-blocking** — note in review comment as deferred, but do NOT block merge |
+| The ⬜ row is a soft dependency that the DESIGN doc explicitly says is "后续 Issue 建立" | **Non-blocking** — the implement agent correctly deferred it; note in review comment |
+
+Also verify that any row the implement agent marked ✅ actually has the connection
+in the scene files:
+
+```bash
+# For a ShaderMaterial integration: verify ext_resource exists in the target .tscn
+gh pr diff <N> --name-only | grep '\.tscn$' | xargs grep -l 'ExtResource\|ShaderMaterial'
+```
+
+This closes the pipeline gap where Issue A creates resources, Issues B/C are supposed
+to consume them, but nobody checks that B/C actually did the wiring.
 
 ### 4. Verify Design Docs Updated (if applicable)
 ```bash
@@ -563,7 +664,7 @@ git commit -m "docs: update GDD for <feature name> (#N)"
 git push origin <default-branch>
 ```
 
-**⚠️ Pitfall: GDD update branches from the default branch (e.g. `main`).** The GDD update commit is based on the default branch (which now includes the merged PR). This is safe because the review agent merges first, THEN commits the GDD update on top.
+**⚠️ Pitfall: GDD update branches from master.** The GDD update commit is based on the default branch (which now includes the merged PR). This is safe because the review agent merges first, THEN commits the GDD update on top.
 
 **⚠️ Pitfall: GDD-only commits can accidentally revert** the implement PR's code if the review agent does the merge within the same script session without updating the working tree. Fix:
 ```bash
@@ -667,7 +768,7 @@ Format: One line, emoji prefix, no explanations.
 After merging, remove stale workflow labels from the parent issue and PR that no longer apply. Common stale labels to check:
 
 - `workflow/self-correct` — remove (the self-correct cycle has completed with merge)
-- `status/blocked` — remove (the block has been resolved, either by fix or delegator override)
+- `status/blocked` — remove (the block has been resolved by fix-issue merging to main)
 - `status/review` — remove if present (review is complete)
 
 ```bash
@@ -941,6 +1042,69 @@ disk and passed locally, but CI reported nothing.**
 **Merge decision:** If tests exist in a sub-project but CI didn't run them, and
 they pass locally → pre-existing CI infrastructure gap, NOT the PR's fault. Merge
 proceeds, but flag the CI gap as a follow-up issue.
+
+### ⚠️ Pitfall: bash -e swallows exit codes — gate skips when tests fail (2026-07-30)
+
+**GitHub Actions default shell `bash -e` aborts the script immediately when `godot` exits with non-zero code, BEFORE `echo "exit_code=..." >> $GITHUB_OUTPUT` executes.** The output is never written. `steps.<id>.outputs.exit_code` is uninitialized. The gate condition `exit_code != '0'` evaluates to false — the gate is SKIPPED despite test failure.
+
+**Real case (PR #349, 2026-07-30):** `Run Mini Pong tests` step took 3m45s, exited 1. The log shows ZERO stdout between `##[endgroup]` and `##[error]Process completed with exit code 1.` — confirming `bash -e` killed the script before any `echo` statements. The `Test gate` step showed `conclusion=skipped`. And `Upload test output artifacts` (condition `failure()`) was also skipped because `continue-on-error: true` made the job succeed.
+
+**Root cause chain:**
+```
+godot → exit 1
+  ↓
+bash -e terminates script immediately
+  ↓
+TEST_EXIT=$?         ← never executes
+echo "exit_code=..."  ← never writes to $GITHUB_OUTPUT
+  ↓
+steps.mini-pong-test.outputs.exit_code → uninitialized (empty)
+  ↓
+gate: exit_code != '0' → '' != '0' → false → SKIPPED
+  ↓
+upload artifacts: failure() → false (all steps have continue-on-error) → SKIPPED
+```
+
+**Fix: append `&& true` after every `godot` invocation.** The `&&` operator makes `godot` part of an AND list — `set -e` does NOT trigger on commands in `&&`/`||` lists. `$?` still captures `godot`'s real exit code, not `true`'s:
+
+```bash
+# BEFORE (broken — bash -e aborts at godot):
+godot --headless --script tests/run_tests.gd > output.log 2>&1
+TEST_EXIT=$?
+
+# AFTER (fixed — preserves exit code, prevents set -e):
+godot --headless --script tests/run_tests.gd > output.log 2>&1 && true
+TEST_EXIT=$?
+```
+
+**Verification:**
+```bash
+# Broken: output is empty, exit 1
+bash -c 'set -e; (exit 1); echo "AFTER"; echo "exit=1" >> /tmp/out'
+→ (nothing written)
+
+# Fixed: captures exit code 1, exit 0
+bash -c 'set -e; (exit 1) && true; EC=$?; echo "exit=$EC" >> /tmp/out'
+→ /tmp/out contains "exit=1"
+```
+
+**Apply to ALL `godot` invocations in CI workflows**, not just the test step. Any step with `continue-on-error: true` + `godot` + `bash -e` will silently skip the gate. Also affects `--headless --quit` scaffold validation steps.
+
+**Detection during review:**
+```bash
+# 1. Check if gate step was skipped
+gh run view <RUN_ID> --json jobs --jq '.jobs[0].steps[] | select(.name | startswith("Test gate")) | "\(.name): \(.conclusion)"'
+# Expected: "success" or "failure". If "skipped" → investigate.
+
+# 2. Check for zero-output godot steps (bash -e symptom)
+gh run view <RUN_ID> --log 2>&1 | grep -B5 '##\[error\]Process completed with exit code'
+
+# 3. Check for missing && true in workflow
+grep 'godot.*2>&1$' .github/workflows/*.yml
+# Any line matching this pattern needs && true appended.
+```
+
+See `references/bash-e-continue-on-error-gate-bypass.md` for the full trace from PR #349.
 
 ### ⚠️ Pitfall: CI Timeout from Per-File `--check-only` Loops (2026-07-29)
 

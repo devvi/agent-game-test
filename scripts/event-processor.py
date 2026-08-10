@@ -1100,6 +1100,37 @@ def preprocess():
                                 spawn_line += f",depth={effective}"
                     except Exception:
                         pass  # budget check is best-effort; never block the spawn
+                # ── Local-e2e context enrichment (2026-07-31) ──
+                # A workflow/self-correct label WITHOUT a pending check_run(failure)
+                # event means the review agent flagged the issue after a LOCAL e2e
+                # failure (CI is green — the label is the only trigger; a CI-driven
+                # self-correct always arrives as check_run.completed(failure), which
+                # outranks the label in the per-issue group and is handled above).
+                # Attach the impl PR context + source so the self-correct agent
+                # knows which PR to fix and the cycle is attributable.
+                if stage == "self-correct":
+                    try:
+                        pr_json = gh(
+                            "pr", "list",
+                            "--search", f"head:impl/{issue_int}",
+                            "--json", "number,headRefName",
+                            "--jq", ".[0]",
+                        )
+                        # Real gh --jq ".[0]" prints the object (or "null").
+                        # Defensive: also accept an array or None.
+                        if pr_json and pr_json != "null":
+                            import json as _json
+                            pr_info = _json.loads(pr_json)
+                            if isinstance(pr_info, list):
+                                pr_info = pr_info[0] if pr_info else None
+                            if isinstance(pr_info, dict):
+                                spawn_line += (
+                                    f",pr={pr_info.get('number', issue_int)}"
+                                    f",branch={pr_info.get('headRefName', '')}"
+                                    ",source=local-e2e"
+                                )
+                    except Exception:
+                        pass  # best-effort enrichment — bare label spawn stays valid
                 output_lines.append(spawn_line)
             else:
                 output_lines.append(
