@@ -110,6 +110,19 @@ horizontal_alignment = 1
 font_size = 28
 modulate = Color(0.29, 0.56, 0.85, 0.7)
 
+[node name="VersionLabel" type="Label" parent="StartMenu"]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -36.0
+offset_right = 400.0
+offset_bottom = -12.0
+grow_vertical = 0
+text = "v1.0.0"
+theme_override_font_sizes/font_size = 16
+modulate = Color(0.29, 0.56, 0.85, 0.6)
+
 [node name="GameHUD" type="CanvasLayer" parent="."]
 layer = 1
 visible = false

@@ -64,6 +64,9 @@ func _test_tc6_constants_values_match() -> void:
 	_assert(abs(CONSTS.AI_NEON_RED.g - 0.2) < 0.01, "TC6-24: AI_NEON_RED.g == 0.2")
 	_assert(abs(CONSTS.AI_NEON_RED.b - 0.33) < 0.01, "TC6-25: AI_NEON_RED.b == 0.33")
 
+	# Version (#358)
+	_assert(CONSTS.GAME_VERSION == "v1.0.0", 'TC6-26: GAME_VERSION == "v1.0.0"')
+
 
 # ── TC7: preload("constants.gd") works in headless mode ──
 

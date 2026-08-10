@@ -11,6 +11,9 @@ class_name GameConstants
 const SCREEN_WIDTH: int = 1280
 const SCREEN_HEIGHT: int = 720
 
+# ── Version ──
+const GAME_VERSION: String = "v1.0.0"
+
 # ── Ball Physics ──
 const BALL_INITIAL_SPEED: float = 300.0
 const BALL_MAX_SPEED_MULTIPLIER: float = 2.0
