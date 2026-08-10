@@ -273,6 +273,12 @@ STAGE_BRANCH_PREFIX = {
 def gh(*args: str) -> str:
     """Run gh command, return stdout. Returns empty string on error.
     Results cached for 30s within a single tick."""
+    # gh auto-detects the repo from cwd — but the cron engine runs scripts
+    # with cwd=~/.hermes/scripts/ (NOT the repo workdir), so every gh call
+    # fails and the pipeline stalls [SILENT] (canary #358, 2026-08-10).
+    # GH_REPO env makes gh repo-agnostic regardless of cwd.
+    if not os.environ.get("GH_REPO"):
+        os.environ["GH_REPO"] = PROJECT_REPO
     cache_key = "|".join(str(a) for a in args)
     cached = _GH_CACHE.get(cache_key)
     if cached and time.time() - cached["ts"] < _GH_CACHE_TTL:
@@ -544,6 +550,10 @@ PROJECT_REPO = (
     or "devvi/agent-game-test"
 )
 WEBHOOK_BASE = f"https://api.github.com/repos/{PROJECT_REPO}/hooks"
+# gh needs repo context; cron scripts run with cwd=~/.hermes/scripts/ so
+# cwd-based detection fails. Set GH_REPO process-wide at load time so EVERY
+# gh invocation (gh() helper AND direct subprocess.run(["gh", ...])) works.
+os.environ.setdefault("GH_REPO", PROJECT_REPO)
 
 # ── Issue Picker ─────────────────────────────────────────────────
 # Reads backlog, picks candidate, adds workflow/available label.
