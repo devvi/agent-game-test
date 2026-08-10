@@ -53,6 +53,39 @@ Step 4: Write minimal implementation code → GREEN
 Step 5: Refactor → keep GREEN
 ```
 
+### Pre-Implementation: Upstream Integration Scan
+
+After reading DESIGN + PRD, but BEFORE writing code, scan upstream Issue DESIGN docs for
+resources that need to be wired into the current feature. This prevents the gap where
+Issue A creates ShaderMaterial / GPUParticles2D / standalone .gd scripts, and Issue B
+(the consumer) never connects them.
+
+```bash
+# 1. Read this Issue's DESIGN doc Integration Points table
+read_file("docs/DESIGN/<N>-*.md")  # find §7 Integration Points
+
+# 2. For each row with Status: ⬜ pending and a Target Issue reference:
+for target_issue in <extracted target issue numbers>:
+    # Read the target's DESIGN doc
+    read_file("docs/DESIGN/<target>-*.md")
+    # Search for upstream resources that need wiring:
+    search_files("docs/DESIGN/<target>-*.md", pattern="ext_resource|ShaderMaterial|GPUParticles2D|\.gdshader|ParticleProcessMaterial")
+```
+
+**Common upstream resources to scan for:**
+
+| Resource Pattern | What to Do |
+|-----------------|------------|
+| `.gdshader` + `ShaderMaterial` `.tres` | Apply as `material = ExtResource(...)` on the target node's ColorRect/Sprite2D |
+| `ball_trail.gd` / standalone controller scripts | Attach as child node + wire `@onready` references (ensure `$NodeName` paths resolve correctly for siblings vs children) |
+| `ParticleProcessMaterial` `.tres` | Assign as `process_material` on GPUParticles2D node |
+| `GradientTexture1D` `.tres` | Referenced by ParticleProcessMaterial — ensure `.uid` file exists for headless UID resolution |
+
+**After wiring each integration point:**
+1. Update the Status column in the upstream DESIGN doc from ⬜ → ✅
+2. Document the connection in your own DESIGN doc's Integration Points table
+3. Verify with `godot --headless --quit` that no ext_resource / node-not-found errors appear
+
 ### Test File Structure
 
 All test files go in `tests/` and follow the existing `run_tests.gd` pattern:
@@ -144,12 +177,14 @@ If OpenCode is unreachable or returns HTML instead of code, write files directly
 ### 1. Verify Locally
 
 ```bash
-# Compile check
-/Applications/Godot.app/Contents/MacOS/Godot --headless --quit 2>&1 | grep -E "ERROR|SCRIPT ERROR"
+# Compile check (use --path to scope to the sub-project)
+/Applications/Godot.app/Contents/MacOS/Godot --headless --quit --path mini-pong/ 2>&1 | grep -E "ERROR|SCRIPT ERROR"
 
-# Run tests
-/Applications/Godot.app/Contents/MacOS/Godot --headless --script tests/run_tests.gd 2>&1 | tail -20
+# Run tests (--path is REQUIRED — without it, res:// resolves from CWD)
+/Applications/Godot.app/Contents/MacOS/Godot --headless --path mini-pong/ --script tests/run_tests.gd 2>&1 | tail -20
 ```
+
+**Note:** The `--path` flag is mandatory — without it, Godot resolves `res://` from the working directory, so `res://tests/test_*.gd` looks in `<CWD>/tests/` instead of `<project>/tests/`, causing "file not found" on all tests.
 
 Expected: all tests pass, exit code 0.
 
@@ -168,7 +203,9 @@ git checkout $DEFAULT_BRANCH
 git pull origin $DEFAULT_BRANCH
 git checkout -b impl/<N>-<slug>
 
-git add .
+# Stage ONLY your files — never `git add .` in multi-agent workspace
+# Run `git status --short` first to inspect sibling agent changes
+git add mini-pong/gdscripts/<your-file>.gd mini-pong/tests/<your-test>.gd ...
 git commit -m "feat(<N>): <feature description>"
 git push origin impl/<N>-<slug>
 ```
@@ -242,13 +279,32 @@ curl -s -X POST -H "Content-Type: application/json" \
 
 | Pitfall | Mitigation |
 |---------|-----------|
+| **Upstream resources created but not wired** | See "Pre-Implementation: Upstream Integration Scan" above. When an upstream Issue (e.g., neon visual system #289) created ShaderMaterial / GPUParticles2D / standalone .gd scripts but the DESIGN doc says "后续 Issue 建立连接", this Issue MUST wire them. Scan upstream DESIGN docs' Integration Points tables for ⬜ rows targeting your Issue number. The most common pattern: a .gdshader + ShaderMaterial .tres was created, but no scene applies `material = ExtResource(...)` on the target node. |
 | Merge called by implement agent | Stage-gate disables auto-merge; review agent is sole merge gate |
 | Tests not written | TDD-first is enforced — tests fail before any code exists |
 | No context reading | Pre-implementation checklist requires DESIGN, PRD, GDD, existing code |
 | OpenCode unavailable | Fall back to direct file writing from DESIGN doc |
 | Wrong default branch | Always query `gh repo view --json defaultBranchRef` |
+| Stash/pop lands on wrong branch (sibling agent modified workspace) | Before `git stash`, inspect `git status --short` for uncommitted changes from sibling subagents. Stash captures ALL dirty files — popping on a different branch may amend the wrong commit with mixed-author changes. Prefer `git checkout impl/<other-issue> -- <files>` to cherry-pick specific files from another branch, or `git add` only your own files explicitly rather than `git add .`. After `git stash pop`, always verify `git branch --show-current` before committing. |
 | CI exit code captured from pipe | Use `${PIPESTATUS[0]}` not `$?` after pipes |
 | SubResource ordering | All `[sub_resource]` blocks BEFORE `[node]` |
+| TSCN format drift (adding `layout_mode` to derivative scenes) | When creating a derivative `.tscn` (e.g. `Main.tscn` from `game.tscn`), match the original scene's formatting exactly — **do not add properties** like `layout_mode = 0` that weren't in the source. Godot 4.2+ auto-adds `layout_mode` on save in the editor, but scenes created by earlier issues or handwritten TSCN files won't have it. Adding it changes CanvasItem layout behavior and may cause UI nodes to render differently. Copy the original first, then insert new nodes/blocks without reformatting existing ones. |
+| `:=` type inference fails in Godot 4.7.1 headless | **Godot 4.7.1 treats all `:=` type-inference warnings as hard errors in `--script` mode.** `load()` returns `Variant`, `Engine.get_singleton()` returns `Variant`, `get_parent()` returns `Node` — `:=` fails on all of these. Always use plain `=` instead: `var gm = Engine.get_singleton("GameManager")`, `var parent = get_parent()`, `var hud = _get_sibling("GameHUD")`. Never use `:=` on function returns unless the return type is explicitly annotated with a concrete type. |
+| Autoload class_name reference fails in `--script` | Production scripts referencing autoload singletons by name (`GameManager.reset_match()`) fail at parse time because the script class cache is empty. Use `Engine.get_singleton("GameManager")` at runtime with `has_method()`/`has_signal()` guards. **HOWEVER:** `Engine.get_singleton()` returns `null` when the autoload uses the `*` lazy-load prefix in `project.godot`. Access via `root.get_node_or_null("GameManager")` for SceneTree scripts, or `get_node_or_null("/root/GameManager")` for in-tree nodes. See `godot-headless-testing` skill → `references/lazy-autoload-singleton-pitfall.md`. |
+| Files silently not created | After creating `.gd` / `.tscn` files in sub-project directories, verify with `ls` that they actually exist on disk. `write_file` may report success but the files may not be present — fall back to `terminal` with `cat` heredocs if files are missing after creation. Always verify file existence before running Godot tests. |
+| Sibling subagents revert or corrupt changes silently | In multi-agent workflows, sibling subagents sharing the same workspace may revert, delete, **introduce compile errors**, or **commit** files you've written. Observed behaviors: `write_file` reports success but the file is gone moments later; `patch` diffs are applied, then overwritten; **compile-breaking edits** (dangling variable references, removed guards) are introduced; a sibling **commits your files** as part of their own PR, so `git diff HEAD` shows nothing even though the files are modified — your changes were absorbed into their commit. After every write/edit pass: (1) verify with `ls` + `git diff --stat` that files still exist and diffs are intact, (2) run a `--headless --quit` compile check on modified files — file presence ≠ compile safety, (3) if `git diff` shows nothing but the file should be modified, check `git show HEAD:<path>` to see if your changes were committed by a sibling. If changes were corrupted, re-apply them immediately from the DESIGN doc. Do not assume persistence across turns. |
+| Branch switch silently discards unstaged changes + untracked files | `git checkout <other-branch>` may succeed **without warning** even when you have unstaged modifications and untracked files on the current branch. Git allows the switch when there are no conflicts — but the unstaged changes are left stranded on the old branch and effectively lost. **Never switch branches with unsaved work.** Always commit or `git stash` first. After switching back, unstaged changes from the prior branch are NOT recoverable — they were never committed and don't travel with the branch. Use `git stash` with `--include-untracked` (`-u`) to capture new files too. |
+| `git checkout <branch> -- <file>` fails for untracked files | `git checkout <other-branch> -- <path>` can only recover files that are **tracked** in the target branch. For new files that exist only as untracked additions (e.g. `constants.gd`, `Main.tscn`), this command returns `error: pathspec '...' did not match any file(s) known to git`. The only recovery path is **regeneration from DESIGN docs and memory**. See `references/sibling-revert-recovery.md` for the full step-by-step recipe including prevention, diagnosis, and verification. |
+| `git stash push <pathspec>` fails for deleted files | `git stash push -- <pathspec>` operates only on tracked files. If a pathspec includes a deleted file (e.g. `game.tscn` that was `rm`'d), the command fails with `error: pathspec '...' did not match any file(s) known to git`. Remove deleted-file pathspecs from the stash command or use `git stash push --include-untracked` without pathspecs to capture everything. |
+| Cross-branch ext_resource dependencies in TSCN files | A `.tscn` file may reference an ext_resource (`.gd` script, sub-scene) that exists on one branch but not another. When copying or creating TSCN files, verify that ALL `[ext_resource]` paths resolve on the **current branch** — not just the branch where the TSCN originated. Run `--headless --quit` immediately after creating/modifying TSCN files; any `"Parse Error: [ext_resource] referenced non-existent resource"` means a dependency is missing on the current branch. This is a pre-existing issue if the same error occurs with the original (unmodified) scene file. |
+
+### Audio Synthesis: AudioStreamGenerator Pitfalls
+
+| Pitfall | Pattern |
+|---------|---------|
+| `stream_paused` on `AudioStreamGenerator` | `stream_paused` is an `AudioStreamPlayer` property, NOT on `AudioStreamGenerator`. Store the player reference (`_stream_player = player`) and set `_stream_player.stream_paused = true` — never `generator.stream_paused`. Godot 4.7 rejects this at compile time. |
+| `generator.get_playback()` | Use `player.get_stream_playback()` instead. On `AudioStreamPlayer`, the correct method is `get_stream_playback()`. |
+| Dangling references after sibling edits | Sibling subagents often strip `stream_paused` guards from `_play_tone()` leaving undefined variable references (`gen_node`). After detecting sibling interference, run `--headless --quit` compile check — don't trust file existence alone. |
 
 ## Verification Checklist
 
@@ -257,6 +313,7 @@ Before considering the task done:
 - [ ] All DESIGN doc test cases have corresponding `_test_*()` functions
 - [ ] Tests run and pass: `godot --headless --script tests/run_tests.gd`
 - [ ] New test file integrated into `tests/run_tests.gd`
+- [ ] **Upstream integration points wired** — scanned upstream DESIGN docs, applied ShaderMaterial/GPUParticles2D/scripts to scene nodes, updated Status ⬜→✅
 - [ ] CollisionShape2D/3D shapes are non-null
 - [ ] `.tscn` files: format=3, uid:// present, sub_resources before nodes
 - [ ] PR created with body "Closes #N\n\nParent #N"
