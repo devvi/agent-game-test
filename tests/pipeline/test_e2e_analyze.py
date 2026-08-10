@@ -50,21 +50,27 @@ def run_cli(tmpdir: str, png_name: str, *args: str) -> subprocess.CompletedProce
         capture_output=True, text=True, cwd=_REPO_ROOT)
 
 
+def write_png(tmpdir: str, name: str, png: bytes) -> str:
+    """Write a synthesized PNG and return its path (closed handle)."""
+    path = os.path.join(tmpdir, name)
+    with open(path, "wb") as f:
+        f.write(png)
+    return path
+
+
 class TestPngDecode(unittest.TestCase):
     def test_black_png_detected(self):
         with tempfile.TemporaryDirectory() as td:
-            png = make_png(64, 64, lambda x, y: (0, 0, 0))
-            p = os.path.join(td, "black.png")
-            open(p, "wb").write(png)
+            p = write_png(td, "black.png",
+                make_png(64, 64, lambda x, y: (0, 0, 0)))
             st = an.analyze(p)
             self.assertEqual(st["black_ratio"], 1.0)
             self.assertEqual(st["avg_rgb"], (0.0, 0.0, 0.0))
 
     def test_gradient_png_stats(self):
         with tempfile.TemporaryDirectory() as td:
-            png = make_png(64, 64, lambda x, y: (x * 4, y * 4, 128))
-            p = os.path.join(td, "grad.png")
-            open(p, "wb").write(png)
+            p = write_png(td, "grad.png",
+                make_png(64, 64, lambda x, y: (x * 4, y * 4, 128)))
             st = an.analyze(p)
             self.assertGreater(st["color_buckets"], 10)
             self.assertLess(st["black_ratio"], 0.05)
@@ -74,7 +80,7 @@ class TestPngDecode(unittest.TestCase):
 class TestAssertions(unittest.TestCase):
     def test_black_fails_non_black(self):
         with tempfile.TemporaryDirectory() as td:
-            open(os.path.join(td, "b.png"), "wb").write(
+            write_png(td, "b.png",
                 make_png(32, 32, lambda x, y: (0, 0, 0)))
             r = run_cli(td, "b.png")
             self.assertEqual(r.returncode, 1)
@@ -83,7 +89,7 @@ class TestAssertions(unittest.TestCase):
     def test_flat_red_fails_color_count(self):
         # 1 color bucket < default min 3 → fail (frozen-frame class)
         with tempfile.TemporaryDirectory() as td:
-            open(os.path.join(td, "r.png"), "wb").write(
+            write_png(td, "r.png",
                 make_png(32, 32, lambda x, y: (255, 0, 0)))
             r = run_cli(td, "r.png", "--max-black-ratio", "0.9")
             self.assertEqual(r.returncode, 1)
@@ -96,7 +102,7 @@ class TestAssertions(unittest.TestCase):
                 if x < 10 and y < 10:
                     return (0x4a, 0x90, 0xd9)
                 return (x * 3 % 256, y * 3 % 256, 40)
-            open(os.path.join(td, "g.png"), "wb").write(make_png(64, 64, fn))
+            write_png(td, "g.png", make_png(64, 64, fn))
             ok = run_cli(td, "g.png", "--theme", "4a90d9")
             self.assertEqual(ok.returncode, 0, ok.stdout)
             bad = run_cli(td, "g.png", "--theme", "ff00ff")
@@ -105,8 +111,8 @@ class TestAssertions(unittest.TestCase):
     def test_frame_diff_detects_identical(self):
         with tempfile.TemporaryDirectory() as td:
             png = make_png(64, 64, lambda x, y: (x * 3 % 256, 100, 50))
-            open(os.path.join(td, "a.png"), "wb").write(png)
-            open(os.path.join(td, "b.png"), "wb").write(png)
+            write_png(td, "a.png", png)
+            write_png(td, "b.png", png)
             r = run_cli(td, "a.png", "--diff-with", os.path.join(td, "b.png"),
                         "--min-delta", "1.0")
             self.assertEqual(r.returncode, 1)
@@ -114,9 +120,9 @@ class TestAssertions(unittest.TestCase):
 
     def test_frame_diff_passes_on_change(self):
         with tempfile.TemporaryDirectory() as td:
-            open(os.path.join(td, "a.png"), "wb").write(
+            write_png(td, "a.png",
                 make_png(64, 64, lambda x, y: (10, 10, 10)))
-            open(os.path.join(td, "b.png"), "wb").write(
+            write_png(td, "b.png",
                 make_png(64, 64, lambda x, y: (240, 240, 240)))
             # --min-colors 1 isolates the diff assertion (flat colors are
             # legitimately caught by the color-count assertion otherwise)
@@ -126,7 +132,7 @@ class TestAssertions(unittest.TestCase):
 
     def test_json_output(self):
         with tempfile.TemporaryDirectory() as td:
-            open(os.path.join(td, "g.png"), "wb").write(
+            write_png(td, "g.png",
                 make_png(32, 32, lambda x, y: (x * 8, 20, 30)))
             r = run_cli(td, "g.png", "--json")
             self.assertEqual(r.returncode, 0)
