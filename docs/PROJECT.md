@@ -7,7 +7,7 @@
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
 | 可玩 | ✅ Mini Pong: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成 |
-| 最近构建 | 2026-07-30 |
+| 最近构建 | 2026-08-10 |
 | 开放 Issues | 0 |
 
 ## 模块地图
@@ -48,6 +48,7 @@
 | 296 | 暂停与音效 (Escape切换 + AudioStreamGenerator合成) | ✅ 已合并 | DESIGN / GDD |
 | 295 | 主场景组装 (Main.tscn + constants.gd + ScoreZones + ScoreFlash) | ✅ 已合并 | DESIGN / GDD |
 | 297 | 100回合AI自动对打测试 | ✅ 已合并 | DESIGN / GDD |
+| 358 | Mini Pong 标题画面版本号 v1.0.0 | ✅ 已合并 | DESIGN / GDD |
 
 ## 已知问题
 
