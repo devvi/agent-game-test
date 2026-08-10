@@ -312,6 +312,72 @@ class TestPreprocess(unittest.TestCase):
         self.assertNotIn("check_run.completed#155", remaining_keys,
                          "consumed SPAWN event must leave pending")
 
+    def test_spawn_gate_dedups_plan_within_ttl(self):
+        """picker must emit SPAWN: plan once per TTL — the cron LLM delegates
+        on every SPAWN line, and re-emission caused 2 concurrent plan agents
+        for issue #358 (2026-08-10)."""
+        issue = {"number": 358, "labels": [{"name": "workflow/plan"}]}
+        calls = {"n": 0}
+
+        def fake_run(cmd, *a, **kw):
+            calls["n"] += 1
+            joined = " ".join(str(c) for c in cmd)
+            if "head:plan/" in joined:  # plan PR search → none exists
+                return mock.Mock(stdout="0", returncode=0)
+            return mock.Mock(stdout="", returncode=1)
+
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "is_paused", return_value=False), \
+             mock.patch.object(ep, "current_workflow_count", return_value=9), \
+             mock.patch.object(ep, "_pick_candidates", return_value=[]), \
+             mock.patch.object(ep, "_ensure_issues_cache",
+                               return_value=[issue]), \
+             mock.patch("subprocess.run", fake_run), \
+             mock.patch("sys.stdout") as out:
+            ep.pick_next_issue()
+            first = "".join(str(c.args[0]) for c in out.write.call_args_list)
+            out.reset_mock()
+            ep.pick_next_issue()
+            second = "".join(str(c.args[0]) for c in out.write.call_args_list)
+        self.assertIn("SPAWN: plan,issue=358", first)
+        self.assertNotIn("SPAWN: plan,issue=358", second,
+                         "second tick within TTL must not re-emit SPAWN")
+
+    def test_spawn_gate_reemits_after_ttl(self):
+        """TTL expiry re-enables spawning (dead phase-agent recovery)."""
+        issue = {"number": 359, "labels": [{"name": "workflow/plan"}]}
+
+        def fake_run(cmd, *a, **kw):
+            joined = " ".join(str(c) for c in cmd)
+            if "head:plan/" in joined:
+                return mock.Mock(stdout="0", returncode=0)
+            return mock.Mock(stdout="", returncode=1)
+
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "is_paused", return_value=False), \
+             mock.patch.object(ep, "current_workflow_count", return_value=9), \
+             mock.patch.object(ep, "_pick_candidates", return_value=[]), \
+             mock.patch.object(ep, "_ensure_issues_cache",
+                               return_value=[issue]), \
+             mock.patch("subprocess.run", fake_run), \
+             mock.patch("sys.stdout") as out:
+            ep.pick_next_issue()  # t=now → emits, records marker
+            out.reset_mock()
+            # advance clock past TTL
+            old_time = ep.time.time
+            ep.time.time = lambda: old_time() + ep._SPAWN_TTL_SECONDS + 10
+            try:
+                ep.pick_next_issue()
+            finally:
+                ep.time.time = old_time
+            after_ttl = "".join(str(c.args[0]) for c in out.write.call_args_list)
+        self.assertIn("SPAWN: plan,issue=359", after_ttl,
+                      "TTL expiry must allow re-spawn")
+
     def test_group_keeps_highest_priority_only(self):
         """Same issue with both a labeled event and a check_run event →
         only the check_run (P1) survives."""

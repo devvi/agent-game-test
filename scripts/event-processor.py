@@ -699,6 +699,54 @@ def _pick_candidates(limit: int) -> list[int]:
     return picked
 
 
+# ── Per-issue spawn dedup (2026-08-10, canary #358) ─────────────────
+# pick_next_issue() emits SPAWN: plan/implement every tick while the issue
+# has the label and no PR yet. The cron LLM delegates every tick it sees a
+# SPAWN → TWO concurrent plan agents for one issue (18:52 + 18:54). The
+# spawn gate records (issue, stage, ts) and suppresses re-emission within
+# TTL, so a phase agent gets ONE spawn per attempt. If the agent dies, the
+# TTL expiry re-enables spawning; PR creation stops it permanently.
+_SPAWN_STATE_FILE = os.path.expanduser("~/.hermes/.spawned-state.json")
+_SPAWN_TTL_SECONDS = 1800  # 30 min
+
+
+def _read_spawn_state() -> dict:
+    try:
+        with open(_SPAWN_STATE_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _write_spawn_state(state: dict) -> None:
+    try:
+        tmp = _SPAWN_STATE_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(state, f)
+        os.replace(tmp, _SPAWN_STATE_FILE)
+    except Exception:
+        pass  # state file is best-effort; never block spawning on write failure
+
+
+def _spawn_gate(issue: int, stage: str) -> bool:
+    """Return True if issue+stage may emit SPAWN now (dedup within TTL).
+
+    Writes the (issue, stage, ts) marker on first call, so a second call
+    within TTL returns False. On any state-file error, returns True
+    (prefer a rare duplicate over a silent stall)."""
+    try:
+        state = _read_spawn_state()
+        prev = state.get(str(issue), {})
+        now = time.time()
+        if prev.get("stage") == stage and now - prev.get("ts", 0) < _SPAWN_TTL_SECONDS:
+            return False
+        state[str(issue)] = {"stage": stage, "ts": now}
+        _write_spawn_state(state)
+        return True
+    except Exception:
+        return True
+
+
 def pick_next_issue():
     """Entry point: called after slot freed or at window entry.
     Fills up to MAX_CONCURRENT issues.
@@ -736,14 +784,16 @@ def pick_next_issue():
                           "--json", "number,state",
                           "--jq", "length")
             if existing is None or int(existing) == 0:
-                print(f"SPAWN: plan,issue={n},label=workflow/plan")
+                if _spawn_gate(n, "plan"):
+                    print(f"SPAWN: plan,issue={n},label=workflow/plan")
         elif "workflow/implement" in labels:
             existing = gh("pr", "list", "--state", "all",
                           "--search", f"head:impl/{n}- in:headRefName",
                           "--json", "number,state",
                           "--jq", "length")
             if existing is None or int(existing) == 0:
-                print(f"SPAWN: implement,issue={n},label=workflow/implement")
+                if _spawn_gate(n, "implement"):
+                    print(f"SPAWN: implement,issue={n},label=workflow/implement")
 
 
 def reconcile():
