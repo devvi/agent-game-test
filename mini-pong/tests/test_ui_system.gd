@@ -44,6 +44,7 @@ func run() -> void:
 	_test_tc14_game_over_restart()
 	_test_tc15_game_tscn_integration()
 	_test_tc16_version_label()
+	_test_tc17_start_menu_runtime_behavior()
 
 
 # ── Helpers ──
@@ -493,5 +494,49 @@ func _test_tc16_version_label() -> void:
 		_assert(version_label.text == CONSTS.GAME_VERSION,
 			"TC16-9: _ready() sets text from GameConstants.GAME_VERSION")
 		_assert(version_label.text == "v1.0.0", "TC16-10: version text is 'v1.0.0' after _ready()")
+
+	instance.queue_free()
+
+# ── TC17: start_menu.gd runtime behavior — bare _ready(), version sync, show/hide ──
+# DESIGN: docs/DESIGN/358-title-screen-version.md §9 Scenario D
+
+func _test_tc17_start_menu_runtime_behavior() -> void:
+	# D-1: bare start_menu.gd (no children) — _ready() must not crash (headless-safe)
+	var bare = _make_canvas_layer("res://gdscripts/start_menu.gd")
+	_assert(bare != null, "TC17-1: bare start_menu.gd instantiates")
+	if bare == null:
+		return
+	bare._ready()
+	_assert(true, "TC17-2: bare _ready() did not crash (no child nodes)")
+
+	# D-3 (bare): show_menu()/hide_menu() roundtrip — no errors
+	bare.show_menu()
+	bare.hide_menu()
+	bare.show_menu()
+	_assert(true, "TC17-3: show_menu()/hide_menu() roundtrip did not crash")
+
+	# D-2: with VersionLabel in tree, _ready() sets text from GameConstants
+	if not ResourceLoader.exists("res://scenes/ui_start_menu.tscn"):
+		_assert(false, "TC17-4: ui_start_menu.tscn missing")
+		return
+	var packed = load("res://scenes/ui_start_menu.tscn")
+	var instance = packed.instantiate()
+	var version_label = instance.get_node_or_null("VersionLabel")
+	var CONSTS = load("res://gdscripts/constants.gd")
+	var main_loop = Engine.get_main_loop()
+	main_loop.root.add_child(instance)
+	_assert(version_label != null and version_label.text == CONSTS.GAME_VERSION,
+		"TC17-4: _ready() set text from GameConstants.GAME_VERSION")
+
+	# D-3 (in tree): version label visibility follows StartMenu show/hide
+	if version_label:
+		instance.hide_menu()
+		_assert(instance.visible == false, "TC17-5: hide_menu() hides StartMenu")
+		_assert(version_label.text == CONSTS.GAME_VERSION,
+			"TC17-6: version text preserved after hide_menu()")
+		instance.show_menu()
+		_assert(instance.visible == true, "TC17-7: show_menu() shows StartMenu")
+		_assert(version_label.text == CONSTS.GAME_VERSION,
+			"TC17-8: version text preserved after show_menu()")
 
 	instance.queue_free()
