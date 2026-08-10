@@ -108,10 +108,12 @@ func _run() -> void:
 		for shot in pending:
 			var d: Dictionary = shot
 			var shot_name: String = str(d.get("name", "shot"))
+			# Inject press BEFORE readiness check — a press DRIVES the game into
+			# this shot's state (e.g. MENU→PLAYING via Enter). Checking first
+			# would deadlock: state never changes, press never fires.
+			if d.has("press"):
+				_inject_press(d)
 			if _shot_ready(d):
-				if d.has("press"):
-					Input.action_press(str(d["press"]))
-					await process_frame
 				var settled := await _settle(int(d.get("settle_frames", 5)))
 				if not settled:
 					failed_shots.append(shot_name + " (deadline during settle)")
@@ -119,7 +121,7 @@ func _run() -> void:
 					continue
 				var saved := _capture(shot_name)
 				if d.has("press"):
-					Input.action_release(str(d["press"]))
+					_release_press(d)
 				_results.append({"name": shot_name, "saved": saved, "frame": _frame, "state": _current_state_name()})
 				if not saved:
 					failed_shots.append(shot_name)
@@ -139,6 +141,53 @@ func _run() -> void:
 	print("=== E2E CAPTURE: ", "✅ all ", _results.size(), " shots" if ok
 		else "❌ missed: " + ", ".join(failed_shots), " ===")
 	quit(0 if ok else 1)
+
+
+# ── Press injection ────────────────────────────────────────────────────────
+# Two modes (shot plan "press" field):
+#   {"action": "ui_accept"}  → Input.action_press (games polling Input.*)
+#   {"key": "enter"}         → real InputEventKey via parse_input_event
+#                             (games driven by _input(event) — action_press
+#                             produces NO event, so FSM-style games need this)
+func _keycode_for(name: String) -> int:
+	match name.to_lower():
+		"enter", "return": return KEY_ENTER
+		"space": return KEY_SPACE
+		"escape", "esc": return KEY_ESCAPE
+		"up": return KEY_UP
+		"down": return KEY_DOWN
+		"left": return KEY_LEFT
+		"right": return KEY_RIGHT
+	return KEY_ENTER
+
+
+func _inject_press(d: Dictionary) -> void:
+	var press = d.get("press", "")
+	if press is Dictionary:
+		if press.has("action"):
+			Input.action_press(str(press["action"]))
+		elif press.has("key"):
+			_emit_key(str(press["key"]), true)
+	elif press is String:
+		Input.action_press(str(press))
+
+
+func _release_press(d: Dictionary) -> void:
+	var press = d.get("press", "")
+	if press is Dictionary:
+		if press.has("action"):
+			Input.action_release(str(press["action"]))
+		elif press.has("key"):
+			_emit_key(str(press["key"]), false)
+	elif press is String:
+		Input.action_release(str(press))
+
+
+func _emit_key(key_name: String, pressed: bool) -> void:
+	var ev := InputEventKey.new()
+	ev.keycode = _keycode_for(key_name)
+	ev.pressed = pressed
+	Input.parse_input_event(ev)
 
 
 # ── Shot conditions ────────────────────────────────────────────────────────
@@ -169,8 +218,11 @@ func _state_node() -> Node:
 func _shot_ready(d: Dictionary) -> bool:
 	if d.has("state"):
 		var states: Dictionary = _plan.get("states", {})
-		var want := states.get(d["state"], -1)
-		if typeof(want) == TYPE_INT and _current_state() == int(want):
+		if not states.has(d["state"]):
+			return false
+		# JSON numbers parse as float — compare numerically, never via typeof.
+		var want: int = int(states[d["state"]])
+		if _current_state() == want:
 			return _require_ok(d)
 		return false
 	if d.has("at_frame"):
@@ -248,7 +300,9 @@ func _track_transcript() -> void:
 	var node = root.get_node_or_null(str(cfg.get("node", "")))
 	if node == null:
 		return
-	var text: String = str(node.get(str(cfg.get("prop", "text")), ""))
+	# Node.get() takes exactly ONE argument — read the prop, then default if null.
+	var val = node.get(str(cfg.get("prop", "text")))
+	var text: String = str(val) if val != null else ""
 	if text != _last_transcript_text and text.strip_edges() != "":
 		_last_transcript_text = text
 		_transcript_lines.append("[frame=%d] %s" % [_frame, text])

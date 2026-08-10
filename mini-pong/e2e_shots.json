@@ -12,7 +12,7 @@
     "tweaks": [
       { "node": "/root/Game/PlayerPaddle", "prop": "mode", "value": 1 },
       { "node": "/root/Game/AIPaddle", "prop": "mode", "value": 1 },
-      { "node": "/root/Game/AIPaddle", "prop": "ai_position_error", "value": 60 }
+      { "node": "/root/Game/AIPaddle", "prop": "ai_position_error", "value": 200 }
     ]
   },
   "groups": {
@@ -21,7 +21,7 @@
       "match": ["gdscripts/.*\\.gd", "scenes/.*\\.tscn", "project\\.godot"],
       "shots": [
         { "name": "01_title", "state": "MENU", "settle_frames": 10 },
-        { "name": "02_midgame", "state": "PLAYING", "require": { "node": "/root/GameManager", "prop": "player_score", "min": 1 }, "settle_frames": 5 },
+        { "name": "02_midgame", "state": "PLAYING", "press": { "key": "enter" }, "require": { "node": "/root/GameManager", "prop": "player_score", "min": 1 }, "settle_frames": 5 },
         { "name": "03_gameover", "state": "GAME_OVER", "settle_frames": 10 }
       ]
     }
