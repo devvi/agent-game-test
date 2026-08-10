@@ -222,12 +222,37 @@ func _shot_ready(d: Dictionary) -> bool:
 			return false
 		# JSON numbers parse as float — compare numerically, never via typeof.
 		var want: int = int(states[d["state"]])
-		if _current_state() == want:
-			return _require_ok(d)
+		if _current_state() == want and _require_ok(d) and _assert_text_ok(d):
+			return true
 		return false
 	if d.has("at_frame"):
 		return _frame >= int(d.get("at_frame", 0))
 	return false
+
+
+func _assert_text_ok(d: Dictionary) -> bool:
+	"""Assert the shot's on-screen text actually shows expected content.
+
+	Shot plan: "assert_text": [{"node": "/root/...", "prop": "text",
+	"contains": "v1.0.0"}]. This is what proves the ISSUE's deliverable is
+	visibly rendered (canary #358: version number), not just that a frame
+	exists. All entries must pass or the shot never becomes ready."""
+	if not d.has("assert_text"):
+		return true
+	for a in (d["assert_text"] as Array):
+		var spec: Dictionary = a
+		var node = root.get_node_or_null(str(spec.get("node", "")))
+		if node == null:
+			printerr("❌ assert_text: node not found: ", spec.get("node", ""))
+			return false
+		var v = node.get(str(spec.get("prop", "text")))
+		var text := str(v) if v != null else ""
+		if not text.contains(str(spec.get("contains", ""))):
+			printerr("❌ assert_text: ", spec.get("node", ""), ".",
+				spec.get("prop", "text"), " = '", text, "' missing '",
+				spec.get("contains", ""), "'")
+			return false
+	return true
 
 
 func _require_ok(d: Dictionary) -> bool:

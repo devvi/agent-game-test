@@ -272,13 +272,9 @@ STAGE_BRANCH_PREFIX = {
 
 def gh(*args: str) -> str:
     """Run gh command, return stdout. Returns empty string on error.
-    Results cached for 30s within a single tick."""
-    # gh auto-detects the repo from cwd — but the cron engine runs scripts
-    # with cwd=~/.hermes/scripts/ (NOT the repo workdir), so every gh call
-    # fails and the pipeline stalls [SILENT] (canary #358, 2026-08-10).
-    # GH_REPO env makes gh repo-agnostic regardless of cwd.
-    if not os.environ.get("GH_REPO"):
-        os.environ["GH_REPO"] = PROJECT_REPO
+    Results cached for 30s within a single tick.
+    NOTE: GH_REPO is set process-wide at module load (manifest project.repo)
+    so gh never depends on cwd (cron runs scripts from ~/.hermes/scripts/)."""
     cache_key = "|".join(str(a) for a in args)
     cached = _GH_CACHE.get(cache_key)
     if cached and time.time() - cached["ts"] < _GH_CACHE_TTL:
@@ -1358,6 +1354,13 @@ def main():
                         for iss in issues
                     )
                 if not has_active:
+                    # Fast-path return must STILL write the audit record —
+                    # otherwise the watchdog/dashboard sees a silent gap and
+                    # cannot distinguish "idle" from "dead tick" (canary #358,
+                    # 2026-08-10: audit stalled at 17:58 while cron kept
+                    # running empty ticks).
+                    _audit(tick="end", in_window=in_window, paused=False,
+                           silent_fast_path=True, output="[SILENT]")
                     print("[SILENT]")
                     return
 
