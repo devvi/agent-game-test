@@ -2,6 +2,9 @@ extends CanvasLayer
 ## StartMenu — neon title screen with pulsing glow and SPACE-to-start prompt.
 ## Parent Issue: #292
 
+# ── Constants (via GameConstants, #358) ──
+const CONSTS = preload("res://gdscripts/constants.gd")
+
 # ── Exported ──
 @export var title_pulse_min: float = 0.6       # Minimum alpha during pulse
 @export var title_pulse_max: float = 1.0       # Maximum alpha during pulse
@@ -11,6 +14,7 @@ extends CanvasLayer
 # ── Node References ──
 @onready var title_label: Label = $CenterContainer/VBoxContainer/TitleLabel
 @onready var prompt_label: Label = $CenterContainer/VBoxContainer/PromptLabel
+@onready var version_label: Label = get_node_or_null("VersionLabel")  # #358 — fallback ref, null-safe
 
 # ── State ──
 var _title_tween: Tween = null
@@ -23,6 +27,10 @@ func _ready() -> void:
 	# Guard: run only if nodes exist
 	if not title_label or not prompt_label:
 		return
+
+	# Version text — single source of truth GameConstants.GAME_VERSION (#358)
+	if version_label:
+		version_label.text = CONSTS.GAME_VERSION
 
 	# Start glow/pulse animations (headless-safe)
 	if is_inside_tree() and get_tree():

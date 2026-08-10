@@ -43,6 +43,7 @@ func run() -> void:
 	_test_tc13_debounce_transition()
 	_test_tc14_game_over_restart()
 	_test_tc15_game_tscn_integration()
+	_test_tc16_version_label()
 
 
 # ── Helpers ──
@@ -447,5 +448,50 @@ func _test_tc15_game_tscn_integration() -> void:
 		_assert(game_over is CanvasLayer, "TC15-11: GameOverScreen is CanvasLayer")
 		_assert(game_over.visible == false, "TC15-12: GameOverScreen visible=false initially")
 		_assert(game_over.layer == 1, "TC15-13: GameOverScreen layer=1")
+
+	instance.queue_free()
+
+# ── TC16: StartMenu VersionLabel — version text v1.0.0 (bottom-left) ──
+# DESIGN: docs/DESIGN/358-title-screen-version.md §9 Scenario B
+
+func _test_tc16_version_label() -> void:
+	if not ResourceLoader.exists("res://scenes/ui_start_menu.tscn"):
+		_assert(false, "TC16: scene missing")
+		return
+	var packed = load("res://scenes/ui_start_menu.tscn")
+	if packed == null:
+		_assert(false, "TC16: ui_start_menu.tscn failed to load")
+		return
+	var instance = packed.instantiate()
+
+	# B-1: VersionLabel node exists
+	var version_label = instance.get_node_or_null("VersionLabel")
+	_assert(version_label != null, "TC16-1: VersionLabel exists")
+	# B-2: node is a Label
+	_assert(version_label is Label, "TC16-2: VersionLabel is Label type")
+
+	var CONSTS = load("res://gdscripts/constants.gd")
+
+	if version_label:
+		# B-3: static text from .tscn (bare instantiate does not run _ready())
+		_assert(version_label.text == "v1.0.0", "TC16-3: VersionLabel static text is 'v1.0.0'")
+		# B-4: font_size in spec range (use theme override getter — #346 lesson)
+		var fs = version_label.get("theme_override_font_sizes/font_size")
+		_assert(fs >= 12, "TC16-4: VersionLabel font_size >= 12 (got %s)" % str(fs))
+		# B-5: bottom-left anchor
+		_assert(abs(version_label.anchor_left - 0.0) < 0.001 and abs(version_label.anchor_top - 1.0) < 0.001,
+			"TC16-5: VersionLabel anchored bottom-left")
+		# B-7: neon blue modulate (#4a90d9 @ 60% alpha)
+		_assert(abs(version_label.modulate.r - 0.29) < 0.01, "TC16-6: VersionLabel modulate R ~ 0.29")
+		_assert(abs(version_label.modulate.g - 0.56) < 0.01, "TC16-7: VersionLabel modulate G ~ 0.56")
+		_assert(abs(version_label.modulate.b - 0.85) < 0.01, "TC16-8: VersionLabel modulate B ~ 0.85")
+
+		# B-6: entering the tree triggers _ready() -> text set from GameConstants
+		var main_loop = Engine.get_main_loop()
+		var root = main_loop.root
+		root.add_child(instance)
+		_assert(version_label.text == CONSTS.GAME_VERSION,
+			"TC16-9: _ready() sets text from GameConstants.GAME_VERSION")
+		_assert(version_label.text == "v1.0.0", "TC16-10: version text is 'v1.0.0' after _ready()")
 
 	instance.queue_free()

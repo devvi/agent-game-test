@@ -18,6 +18,7 @@ func run() -> void:
 	_test_tc14_scorezone_shape_dimensions()
 	_test_tc17_no_game_tscn_refs()
 	_test_tc18_scorezone_ball_collision_contract()
+	_test_tc19_version_label_in_start_menu()
 
 
 func _assert(condition: bool, name: String) -> void:
@@ -276,5 +277,41 @@ func _test_tc18_scorezone_ball_collision_contract() -> void:
 	_assert(ball_src != "", "TC18-7: ball.gd readable")
 	_assert(ball_src.contains("area_entered.connect"),
 		"TC18-8: ball.gd uses area_entered (not body_entered) for ScoreZone")
+
+	game.queue_free()
+
+# ── TC19: StartMenu VersionLabel in Main.tscn inline tree (R2 sync) ──
+# DESIGN: docs/DESIGN/358-title-screen-version.md §9 Scenario C
+
+func _test_tc19_version_label_in_start_menu() -> void:
+	if not ResourceLoader.exists("res://scenes/Main.tscn"):
+		_assert(false, "TC19: Main.tscn missing")
+		return
+	var scene = load("res://scenes/Main.tscn")
+	if scene == null:
+		_assert(false, "TC19: Main.tscn failed to load")
+		return
+	var game = scene.instantiate()
+
+	# C-1: StartMenu/VersionLabel exists in the inline tree (runtime tree)
+	var vl = game.get_node_or_null("StartMenu/VersionLabel")
+	_assert(vl != null, "TC19-1: StartMenu/VersionLabel exists in Main.tscn")
+	if vl:
+		# C-2: static text
+		_assert(vl is Label, "TC19-2: VersionLabel is Label type")
+		_assert(vl.text == "v1.0.0", "TC19-3: VersionLabel static text is 'v1.0.0'")
+
+		# C-3: config parity with ui_start_menu.tscn's VersionLabel (R2 anti-drift)
+		var packed = load("res://scenes/ui_start_menu.tscn")
+		if packed:
+			var ui_instance = packed.instantiate()
+			var ui_vl = ui_instance.get_node_or_null("VersionLabel")
+			if ui_vl:
+				_assert(vl.get("theme_override_font_sizes/font_size") == ui_vl.get("theme_override_font_sizes/font_size"),
+					"TC19-4: font_size matches ui_start_menu.tscn")
+				_assert(vl.modulate == ui_vl.modulate, "TC19-5: modulate matches ui_start_menu.tscn")
+				_assert(abs(vl.anchor_left - ui_vl.anchor_left) < 0.001 and abs(vl.anchor_top - ui_vl.anchor_top) < 0.001,
+					"TC19-6: anchors match ui_start_menu.tscn")
+			ui_instance.queue_free()
 
 	game.queue_free()
