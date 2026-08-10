@@ -2,7 +2,7 @@
 
 > **本文档是 workflow 架构的单一事实源。** 所有 agent skill 中的架构描述必须与本文一致。
 > 项目仓库: https://github.com/devvi/agent-game-test · 默认分支: **`main`**（不是 master）
-> 最后更新: 2026-07-31（P1-5 知识收敛）
+> 最后更新: 2026-08-10（e2e 验证体系 + 金丝雀 #358 修复收敛）
 
 ## 系统概述
 
@@ -41,6 +41,11 @@ GitHub Event → Gateway webhook (:8644)
 | `stage-gate.py` | 同上 | PR 创建后验证 label/branch/body, 自动修复 |
 | `workflow-watchdog.py` | 同上 | 沉默 SPAWN 检测（no-agent cron every 5m, P2）|
 | `workflow-metrics.py` | 同上 | PM 指标视图：吞吐/SPAWN 分布/健康度（P4c）|
+| `run-e2e-review.sh` | `scripts/` | 本地 E2E 主 runner（P0-P8: worktree/L0-L3/证据/清理, 2026-07-31）|
+| `e2e/analyze_bmp.py` | `scripts/` | PNG 原生 4 重防伪断言（非黑/色数/主题色/帧间差异, 纯 stdlib）|
+| `e2e/resolve_plan.py` | `scripts/` | diff→shot plan 原型选择（loop/journey/walkthrough/visual/system）|
+| `framework/templates/e2e_capture.gd` | 模板 | 截图驱动 SceneTree 脚本（状态机轮询 + press 注入 + assert_text, 进程内截图）|
+| `framework/templates/e2e_shots.json` | 模板 | shot plan 模板（游戏自持 `mini-pong/e2e_shots.json`）|
 | `new-game-scaffold.sh` | `scripts/` | 新游戏项目脚手架（P4a）|
 | `sync-to-hermes.sh` | `scripts/` | 同步脚本到 `~/.hermes/scripts/`（改脚本后必跑）|
 | `workflow-config.json` | `~/.hermes/` | 启停 + 工作时段 + preset |
@@ -77,6 +82,7 @@ event-processor.py 的输出格式（cron LLM 唯一输入）：
 
 ```
 SPAWN: self-correct,issue=N,pr=N,branch=impl/xxx,conclusion=failure
+SPAWN: self-correct,issue=N,pr=N,branch=impl/xxx,source=local-e2e
 SPAWN: review,issue=N,pr=N,branch=impl/xxx,conclusion=success
 SPAWN: research,issue=N,label=workflow/available|research
 SPAWN: plan,issue=N,label=workflow/plan
@@ -86,6 +92,13 @@ BLOCKED: issue=N,depends-on=#M(full),...
 ```
 
 LLM 收到 SPAWN 必须执行（delegate_task），不得自行改写。stalled scan 覆盖：挂起 PR、未推进 label、未启动 phase、blocked PR 解锁（main 绿 → 移除 blocked → update-branch → 重新 CI）。
+
+**2026-08-10 修复（金丝雀 #358）:**
+- **SPAWN 一次性消费**: 输出 SPAWN 的事件立即从 pending 移除——否则每 tick 重发导致重复 delegate（曾 3 个并发 research agent / 2 个并发 plan agent）
+- **spawn gate**: picker 对 plan/implement 的 SPAWN 按 (issue, stage) 去重, TTL 30 分钟（agent 死亡后过期恢复）
+- **GH_REPO 进程级注入**（manifest project.repo）: cron 引擎以 `cwd=~/.hermes/scripts/` 跑脚本, gh 靠 cwd 探测 repo 会全失败 → 卡死
+- **idle fast path 写 audit**: `[SILENT]` 快速路径也记录 audit（watchdog 盲区）
+- **local-e2e source**: `workflow/self-correct` label + 无 pending CI failure → SPAWN 带 `source=local-e2e`（本地 e2e 失败的唯一入口）
 
 ## CI 三层门禁（Godot 4.7.1）
 
@@ -97,7 +110,23 @@ LLM 收到 SPAWN 必须执行（delegate_task），不得自行改写。stalled 
 
 **2026-07-31 加固（D2）:** 每个测试 step 输出 `TEST_RAN=true`；Test gate 要求至少一个真实测试执行过 —— **SKIP 不再等于绿色**。任何 step 文件缺失（SKIP 分支）会导致 gate 失败。
 
-**流水线自身测试（D3）:** `tests/pipeline/test_event_processor.py`（37 用例）覆盖 event-processor 纯函数。CI job `pipeline-tests.yml` 在 `scripts/` 或 `.github/workflows/` 变更时强制运行。**改流水线代码必须先过这个套件。**
+## 本地验证层 L3（2026-08-10 实弹, review agent 工具）
+
+CI 三层之上, review agent 在**本地**跑第四层——真实渲染截图证据（CI 无法提供画面）:
+
+```
+run-e2e-review.sh <PR_NUM>  →  P0 防休眠 → P1 worktree → P2 L0 → P3 L1 → P4 L2
+                               → P5 L3 视觉（e2e_capture.gd 进程内截图 + analyze_bmp 4 重断言
+                                 + assert_text 文本断言）→ P6 证据 comment → P8 trap 清理
+```
+
+- **截图通道**: Godot 进程内 `get_image().save_png()`（显示睡眠时系统截图 100% 纯黑, 实测 2026-07-31）；必须非 `--headless`；`caffeinate` 双保险
+- **shot plan**: 游戏自持 `mini-pong/e2e_shots.json`（"框架管机器, 游戏管剧本"）；diff 驱动原型（loop/journey/walkthrough/visual/system）；`assert_text` 证明文本交付物真实渲染
+- **4 重防伪断言**: 非黑 / 色数≥K / 主题色存在 / 帧间 Δluma 超阈值（防冻屏）
+- **失败协议**: A 基建(降级需 harness 证据, 视觉 issue 必须人工) / B pre-existing / C 审美(人工拍板) / D 代码缺陷(本地收敛循环, 2 轮上限)
+- **安全注意**: runner 以完整文件系统权限执行 PR 分支 GDScript——只对可信贡献者运行
+
+**流水线自身测试（D3）:** `tests/pipeline/`（104 用例）覆盖 event-processor 纯函数 + e2e 断言/runner/resolve/manifest。CI job `pipeline-tests.yml` 在 `scripts/` 或 `.github/workflows/` 变更时强制运行。**改流水线代码必须先过这个套件。**
 
 ## Git 约定
 
@@ -126,7 +155,10 @@ agent-game-test/
 - 需要手动配置 export preset
 - OpenCode 生成 GDScript 质量取决于模型能力
 - 多仓库 pending 事件（Patch 54）尚未支持 —— 单仓库假设, P3 manifest 参数化解决
-- webhook 链路（ngrok→gateway→route script）5 个故障点 —— stalled scan 是兜底, P3 轮询对账补强
+- webhook 链路（ngrok→gateway→route script）5 个故障点 —— stalled scan + check-run reconcile(P3b) 双兜底
+- **L3 截图阈值需按游戏校准**: 色数/帧间差异阈值、shot plan 可达性（如 ai_position_error）靠 deadline 失败反馈迭代, 游戏作者负责剧本
+- **单机依赖**: 本地 e2e 依赖 Mac mini 在线 + UURemote 防系统睡眠（外部依赖, 不在仓库内）
+- **runner 安全边界**: worktree 隔离防主工作区污染, 但不防恶意 GDScript 读主机文件——只对可信贡献者运行
 
 ## 知识资产索引（P1-5 收敛后）
 
