@@ -1007,6 +1007,13 @@ def preprocess():
                     f"SPAWN: self-correct,issue={parent_issue},"
                     f"pr={issue},branch={branch},conclusion={conclusion}"
                 )
+                # SPAWN is one-shot: consume the event immediately. Keeping it
+                # in pending re-emits the SPAWN every tick → the cron LLM
+                # re-delegates every tick (3 research agents spawned for one
+                # issue, 2026-08-10 canary #358). The LLM's "delegate now"
+                # directive is immediate; loss risk is covered by the stalled
+                # scan / watchdog.
+                discarded_keys.add(event.get("_key", ""))
             elif branch.startswith("impl/") and conclusion == "success":
                 parent_issue = issue  # fallback to PR number
                 try:
@@ -1032,6 +1039,8 @@ def preprocess():
                     f"SPAWN: review,issue={parent_issue},"
                     f"pr={issue},branch={branch},conclusion={conclusion}"
                 )
+                # One-shot consumption (see self-correct SPAWN note above).
+                discarded_keys.add(event.get("_key", ""))
             else:
                 # Non-impl branch or unknown conclusion — let LLM decide
                 output_lines.append(
@@ -1132,6 +1141,8 @@ def preprocess():
                     except Exception:
                         pass  # best-effort enrichment — bare label spawn stays valid
                 output_lines.append(spawn_line)
+                # One-shot consumption (see check_run SPAWN note above).
+                discarded_keys.add(event.get("_key", ""))
             else:
                 output_lines.append(
                     f"P2: issues.labeled,issue={issue},label={label}"

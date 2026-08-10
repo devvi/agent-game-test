@@ -289,6 +289,29 @@ class TestPreprocess(unittest.TestCase):
         output = "".join(str(c.args[0]) for c in out.write.call_args_list)
         self.assertIn("[SILENT]", output)
 
+    def test_spawn_consumes_event_from_pending(self):
+        """One-shot SPAWN: after emitting SPAWN, the event must be removed
+        from pending — otherwise the next tick re-emits and the cron LLM
+        re-delegates (3 research agents for 1 issue, canary #358 2026-08-10)."""
+        ev = {"_key": "check_run.completed#155", "type": "check_run",
+              "issue": 155, "branch": "impl/155-y", "conclusion": "success"}
+        written = []
+        with mock.patch.object(ep, "read_pending", return_value=[ev]), \
+             mock.patch.object(ep, "write_pending",
+                               side_effect=lambda e: written.append(e)), \
+             mock.patch("subprocess.run",
+                        return_value=mock.Mock(stdout="", returncode=1)), \
+             mock.patch.object(ep, "_is_pr_merged", return_value=False), \
+             mock.patch.object(ep, "_is_issue_closed", return_value=False), \
+             mock.patch.object(ep, "_extract_parent_issue", return_value=None), \
+             mock.patch.object(ep, "_is_pr_blocked", return_value=False), \
+             mock.patch.object(ep, "_parent_issue_blocked", return_value=False):
+            ep.preprocess()
+        self.assertGreaterEqual(len(written), 2, "Step 6 + Step 7 rewrites")
+        remaining_keys = [e.get("_key") for e in written[-1]]
+        self.assertNotIn("check_run.completed#155", remaining_keys,
+                         "consumed SPAWN event must leave pending")
+
     def test_group_keeps_highest_priority_only(self):
         """Same issue with both a labeled event and a check_run event →
         only the check_run (P1) survives."""
