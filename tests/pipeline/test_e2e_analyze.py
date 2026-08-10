@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""Unit tests for scripts/e2e/analyze_bmp.py — the screenshot anti-fake-evidence analyzer.
+
+Covers the 4 assertions: non-black / color count / theme color / frame diff,
+plus PNG decoding (pure stdlib) and exit-code semantics.
+
+Run locally:  python3 -m unittest discover -s tests/pipeline -v
+Constraints: no network, no Godot, no sips/PIL — PNGs are synthesized in-test.
+"""
+import importlib.util
+import json
+import os
+import struct
+import subprocess
+import sys
+import tempfile
+import unittest
+import zlib
+
+_REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+_ANALYZER_PATH = os.path.join(_REPO_ROOT, "scripts", "e2e", "analyze_bmp.py")
+
+_spec = importlib.util.spec_from_file_location("analyze_bmp", _ANALYZER_PATH)
+an = importlib.util.module_from_spec(_spec)
+assert _spec is not None and _spec.loader is not None
+_spec.loader.exec_module(an)
+
+
+def make_png(w: int, h: int, pixel_fn) -> bytes:
+    """Synthesize an RGB-8 PNG. pixel_fn(x, y) -> (r, g, b)."""
+    def chunk(typ: bytes, data: bytes) -> bytes:
+        return (struct.pack(">I", len(data)) + typ + data
+                + struct.pack(">I", zlib.crc32(typ + data) & 0xFFFFFFFF))
+
+    raw = b""
+    for y in range(h):
+        raw += b"\x00"  # filter: None
+        for x in range(w):
+            r, g, b = pixel_fn(x, y)
+            raw += bytes((r, g, b))
+    ihdr = struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr)
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def run_cli(tmpdir: str, png_name: str, *args: str) -> subprocess.CompletedProcess:
+    path = os.path.join(tmpdir, png_name)
+    return subprocess.run(
+        [sys.executable, _ANALYZER_PATH, path, *args],
+        capture_output=True, text=True, cwd=_REPO_ROOT)
+
+
+class TestPngDecode(unittest.TestCase):
+    def test_black_png_detected(self):
+        with tempfile.TemporaryDirectory() as td:
+            png = make_png(64, 64, lambda x, y: (0, 0, 0))
+            p = os.path.join(td, "black.png")
+            open(p, "wb").write(png)
+            st = an.analyze(p)
+            self.assertEqual(st["black_ratio"], 1.0)
+            self.assertEqual(st["avg_rgb"], (0.0, 0.0, 0.0))
+
+    def test_gradient_png_stats(self):
+        with tempfile.TemporaryDirectory() as td:
+            png = make_png(64, 64, lambda x, y: (x * 4, y * 4, 128))
+            p = os.path.join(td, "grad.png")
+            open(p, "wb").write(png)
+            st = an.analyze(p)
+            self.assertGreater(st["color_buckets"], 10)
+            self.assertLess(st["black_ratio"], 0.05)
+            self.assertGreater(st["mean_luma"], 0)
+
+
+class TestAssertions(unittest.TestCase):
+    def test_black_fails_non_black(self):
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, "b.png"), "wb").write(
+                make_png(32, 32, lambda x, y: (0, 0, 0)))
+            r = run_cli(td, "b.png")
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("near-black", r.stdout)
+
+    def test_flat_red_fails_color_count(self):
+        # 1 color bucket < default min 3 → fail (frozen-frame class)
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, "r.png"), "wb").write(
+                make_png(32, 32, lambda x, y: (255, 0, 0)))
+            r = run_cli(td, "r.png", "--max-black-ratio", "0.9")
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("color buckets", r.stdout)
+
+    def test_theme_color_present_and_absent(self):
+        with tempfile.TemporaryDirectory() as td:
+            # gradient + a 10x10 patch of theme blue at origin
+            def fn(x, y):
+                if x < 10 and y < 10:
+                    return (0x4a, 0x90, 0xd9)
+                return (x * 3 % 256, y * 3 % 256, 40)
+            open(os.path.join(td, "g.png"), "wb").write(make_png(64, 64, fn))
+            ok = run_cli(td, "g.png", "--theme", "4a90d9")
+            self.assertEqual(ok.returncode, 0, ok.stdout)
+            bad = run_cli(td, "g.png", "--theme", "ff00ff")
+            self.assertEqual(bad.returncode, 1)
+
+    def test_frame_diff_detects_identical(self):
+        with tempfile.TemporaryDirectory() as td:
+            png = make_png(64, 64, lambda x, y: (x * 3 % 256, 100, 50))
+            open(os.path.join(td, "a.png"), "wb").write(png)
+            open(os.path.join(td, "b.png"), "wb").write(png)
+            r = run_cli(td, "a.png", "--diff-with", os.path.join(td, "b.png"),
+                        "--min-delta", "1.0")
+            self.assertEqual(r.returncode, 1)
+            self.assertIn("frozen", r.stdout)
+
+    def test_frame_diff_passes_on_change(self):
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, "a.png"), "wb").write(
+                make_png(64, 64, lambda x, y: (10, 10, 10)))
+            open(os.path.join(td, "b.png"), "wb").write(
+                make_png(64, 64, lambda x, y: (240, 240, 240)))
+            # --min-colors 1 isolates the diff assertion (flat colors are
+            # legitimately caught by the color-count assertion otherwise)
+            r = run_cli(td, "a.png", "--diff-with", os.path.join(td, "b.png"),
+                        "--min-delta", "1.0", "--min-colors", "1")
+            self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_json_output(self):
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, "g.png"), "wb").write(
+                make_png(32, 32, lambda x, y: (x * 8, 20, 30)))
+            r = run_cli(td, "g.png", "--json")
+            self.assertEqual(r.returncode, 0)
+            payload = json.loads(r.stdout.strip().splitlines()[-1])
+            self.assertEqual(payload["width"], 32)
+            self.assertIn("passes", payload)
+
+
+if __name__ == "__main__":
+    unittest.main()

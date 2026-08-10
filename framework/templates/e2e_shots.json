@@ -1,0 +1,52 @@
+{
+  "_comment": "E2E shot plan template (framework v2). Games AUTHOR their own copy at <game>/e2e_shots.json. run-e2e-review.sh selects groups by PR diff (group.match regexes), resolves them into a flat plan, and runs e2e_capture.gd. Example below is mini-pong (game loop archetype).",
+  "game": "mini-pong",
+  "default_archetype": "loop",
+  "max_wall_seconds": 120,
+  "state_node": "/root/Main/GameStateMachine",
+  "state_property": "current_state",
+  "states": { "MENU": 0, "SERVING": 1, "PLAYING": 2, "PAUSED": 3, "SCORED": 4, "GAME_OVER": 5 },
+  "theme_color": "4a90d9",
+  "autoplay": {
+    "mode": "ai",
+    "tweaks": [
+      { "node": "/root/Main/PlayerPaddle", "prop": "mode", "value": 1 },
+      { "node": "/root/Main/AIPaddle", "prop": "mode", "value": 1 },
+      { "node": "/root/Main/AIPaddle", "prop": "ai_position_error", "value": 60 }
+    ]
+  },
+  "groups": {
+    "loop": {
+      "_comment": "Default archetype: one full game loop storyboard. Active unless a more specific group matches.",
+      "match": ["gdscripts/.*\\.gd", "scenes/.*\\.tscn", "project\\.godot"],
+      "shots": [
+        { "name": "01_title", "state": "MENU", "settle_frames": 10 },
+        { "name": "02_midgame", "state": "PLAYING", "require": { "node": "/root/Main/GameManager", "prop": "player_score", "min": 1 }, "settle_frames": 5 },
+        { "name": "03_gameover", "state": "GAME_OVER", "settle_frames": 10 }
+      ]
+    },
+    "visual_pause": {
+      "_comment": "PR touching pause overlay: inject Escape, capture PAUSED, unpause.",
+      "match": ["gdscripts/pause_overlay\\.gd", "gdscripts/game_state_machine\\.gd"],
+      "shots": [
+        { "name": "04_paused", "state": "PAUSED", "settle_frames": 5, "press": "ui_cancel", "release_after": true }
+      ]
+    },
+    "content": {
+      "_comment": "Content archetype (narrative games): journey/walkthrough. Placeholder — populated per game at C5.5 assembly.",
+      "match": ["dialogue/.*\\.json", "content/.*\\.json"],
+      "mode": "walkthrough",
+      "fidelity": { "source": "dialogue/scene2.json" },
+      "shots": []
+    },
+    "journey": {
+      "_comment": "Journey archetype (narrative games): full playthrough + transcript + state trajectory. Populated per game.",
+      "match": ["dialogue/.*\\.json", "gdscripts/narrative.*\\.gd", "scenes/scene.*\\.tscn"],
+      "mode": "journey",
+      "path": "neutral",
+      "transcript": { "node": "/root/GameHUD/DialogueLabel", "prop": "text" },
+      "state_trajectory": true,
+      "shots": []
+    }
+  }
+}
