@@ -240,6 +240,55 @@ class TestPreprocess(unittest.TestCase):
         out = self._run_preprocess(self._events(ev))
         self.assertTrue(any(l.startswith("P1: check_run.completed,issue=156") for l in out))
 
+    def test_idle_fast_path_not_silent_when_backlog_exists(self):
+        """Backlog-only repo must NOT short-circuit to [SILENT] — the picker
+        must run to promote backlog → available (canary #358 regression,
+        2026-08-10). Note: [SILENT] may still print at the end when preprocess
+        has no events — the regression signal is that pick_next_issue ran."""
+        issue = {"number": 358, "labels": [{"name": "workflow/backlog"}]}
+        with mock.patch.object(ep, "read_pending", return_value=[]), \
+             mock.patch.object(ep, "_ensure_issues_cache", return_value=[issue]), \
+             mock.patch.object(ep, "is_paused", return_value=False), \
+             mock.patch.object(ep, "_time_in_window", return_value=True), \
+             mock.patch.object(ep, "health_check", return_value="ok"), \
+             mock.patch.object(ep, "reconcile"), \
+             mock.patch.object(ep, "pick_next_issue") as pick, \
+             mock.patch.object(ep, "reconcile_check_runs"), \
+             mock.patch.object(ep, "_read_reconcile_state", return_value={}), \
+             mock.patch.object(ep, "_write_reconcile_state"), \
+             mock.patch.object(ep, "preprocess", return_value=[]), \
+             mock.patch.object(ep, "_quick_stalled_scan", return_value=[]), \
+             mock.patch.object(ep, "_count_active_phase_agents", return_value=0), \
+             mock.patch.object(ep, "_audit"), \
+             mock.patch("sys.stdout") as out:
+            ep.main()
+        pick.assert_called()  # window-entry pick + no-events fallback pick
+        output = "".join(str(c.args[0]) for c in out.write.call_args_list)
+        self.assertIn("[SILENT]", output,  # expected: no events → silent tail
+                      "no SPAWN lines → [SILENT] tail is normal")
+
+    def test_idle_fast_path_silent_when_all_done(self):
+        """All issues done + no pending → true idle: picker must NOT run."""
+        issue = {"number": 100, "labels": [{"name": "status/done"}]}
+        with mock.patch.object(ep, "read_pending", return_value=[]), \
+             mock.patch.object(ep, "_ensure_issues_cache", return_value=[issue]), \
+             mock.patch.object(ep, "is_paused", return_value=False), \
+             mock.patch.object(ep, "_time_in_window", return_value=True), \
+             mock.patch.object(ep, "health_check", return_value="ok"), \
+             mock.patch.object(ep, "reconcile"), \
+             mock.patch.object(ep, "pick_next_issue") as pick, \
+             mock.patch.object(ep, "reconcile_check_runs"), \
+             mock.patch.object(ep, "_read_reconcile_state", return_value={}), \
+             mock.patch.object(ep, "_write_reconcile_state"), \
+             mock.patch.object(ep, "preprocess", return_value=[]), \
+             mock.patch.object(ep, "_count_active_phase_agents", return_value=0), \
+             mock.patch.object(ep, "_audit"), \
+             mock.patch("sys.stdout") as out:
+            ep.main()
+        pick.assert_not_called()
+        output = "".join(str(c.args[0]) for c in out.write.call_args_list)
+        self.assertIn("[SILENT]", output)
+
     def test_group_keeps_highest_priority_only(self):
         """Same issue with both a labeled event and a check_run event →
         only the check_run (P1) survives."""

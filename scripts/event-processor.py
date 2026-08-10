@@ -1277,6 +1277,15 @@ def main():
                         for l in iss.get("labels", []))
                     for iss in issues
                 )
+                # A backlog-only repo is NOT idle: the picker must run to
+                # promote backlog → available. Without this check, backlog
+                # issues never enter the pipeline (canary #358, 2026-08-10).
+                if not has_active:
+                    has_active = any(
+                        any(l.get("name", "") == "workflow/backlog"
+                            for l in iss.get("labels", []))
+                        for iss in issues
+                    )
                 if not has_active:
                     print("[SILENT]")
                     return
