@@ -1,0 +1,9 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3 uid="uid://bneonglowmat"]
+
+[ext_resource type="Shader" uid="uid://cihdf567y5nr3" path="res://gdscripts/neon_glow.gdshader" id="1_neon_shader"]
+
+[resource]
+shader = ExtResource("1_neon_shader")
+shader_parameter/glow_color = Color(0.29, 0.56, 0.85, 1)
+shader_parameter/glow_width = 3.0
+shader_parameter/glow_intensity = 1.0

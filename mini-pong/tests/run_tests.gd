@@ -27,6 +27,7 @@ func _run_tests() -> void:
 	_run("res://tests/test_audio_engine.gd", "AudioEngine")
 	_run("res://tests/test_constants.gd", "Constants")
 	_run("res://tests/test_main_scene.gd", "Main Scene Assembly")
+	_run("res://tests/test_integration_fsm.gd", "FSM Integration")
 	await _run_async("res://tests/auto_play_test.gd", "Auto-Play")
 	print("
 === TOTAL: %d passed, %d failed ===" % [_pass, _fail])

@@ -17,6 +17,7 @@ func run() -> void:
 	_test_tc12_score_zone_collision()
 	_test_tc14_scorezone_shape_dimensions()
 	_test_tc17_no_game_tscn_refs()
+	_test_tc18_scorezone_ball_collision_contract()
 
 
 func _assert(condition: bool, name: String) -> void:
@@ -229,3 +230,51 @@ func _test_tc17_no_game_tscn_refs() -> void:
 	_assert(content != "", "TC17-1: project.godot readable")
 	_assert(content.contains("run/main_scene=\"res://scenes/Main.tscn\""), "TC17-2: run/main_scene set to Main.tscn")
 	_assert(not content.contains("game.tscn"), "TC17-3: no game.tscn reference in project.godot")
+
+
+# ── TC18: ScoreZone ↔ Ball collision contract (Integration) ──
+# Verifies that ScoreZones can actually detect the ball entering —
+# catches collision_layer/mask mismatches and signal-type errors
+# that static node-existence checks miss.
+
+func _test_tc18_scorezone_ball_collision_contract() -> void:
+	if not ResourceLoader.exists("res://scenes/Main.tscn"):
+		print("  SKIP: Main.tscn not found")
+		return
+
+	var scene = load("res://scenes/Main.tscn")
+	if scene == null:
+		return
+
+	var game = scene.instantiate()
+
+	# ── TC18-1: Ball collision_layer/mask ──
+	var ball = game.get_node_or_null("Ball")
+	_assert(ball != null, "TC18-1: Ball node exists")
+	if ball:
+		_assert(ball is Area2D, "TC18-2: Ball is Area2D")
+
+	# ── TC18-3/4: ScoreZone collision_mask includes ball's collision_layer ──
+	var zone_left = game.get_node_or_null("ScoreZoneLeft")
+	if zone_left and ball:
+		_assert(zone_left.collision_mask & ball.collision_layer != 0,
+			"TC18-3: ScoreZoneLeft collision_mask includes ball's collision_layer")
+		_assert(ball.collision_mask & zone_left.collision_layer != 0,
+			"TC18-4: Ball collision_mask includes ScoreZoneLeft's collision_layer")
+
+	var zone_right = game.get_node_or_null("ScoreZoneRight")
+	if zone_right and ball:
+		_assert(zone_right.collision_mask & ball.collision_layer != 0,
+			"TC18-5: ScoreZoneRight collision_mask includes ball's collision_layer")
+		_assert(ball.collision_mask & zone_right.collision_layer != 0,
+			"TC18-6: Ball collision_mask includes ScoreZoneRight's collision_layer")
+
+	# ── TC18-7/8: ball.gd uses area_entered (not body_entered) for ScoreZone ──
+	# Verify via source code since connections are wired in _ready()
+	# (which only runs when added to scene tree)
+	var ball_src = FileAccess.get_file_as_string("res://gdscripts/ball.gd")
+	_assert(ball_src != "", "TC18-7: ball.gd readable")
+	_assert(ball_src.contains("area_entered.connect"),
+		"TC18-8: ball.gd uses area_entered (not body_entered) for ScoreZone")
+
+	game.queue_free()

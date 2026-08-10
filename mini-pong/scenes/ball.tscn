@@ -1,6 +1,9 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://gdscripts/ball.gd" id="1_ball"]
+[ext_resource type="Material" path="res://assets/neon_glow_material.tres" id="2_neon_mat"]
+[ext_resource type="Script" path="res://gdscripts/ball_trail.gd" id="3_trail_script"]
+[ext_resource type="Resource" path="res://assets/particle_material.tres" id="4_particle_mat"]
 
 [sub_resource type="CircleShape2D" id="circle_ball"]
 radius = 10.0
@@ -15,7 +18,19 @@ offset_left = -10.0
 offset_top = -10.0
 offset_right = 10.0
 offset_bottom = 10.0
-color = Color(1, 1, 1, 1)
+color = Color(0.29, 0.56, 0.85, 1)
+material = ExtResource("2_neon_mat")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("circle_ball")
+
+[node name="TrailController" type="Node2D" parent="."]
+script = ExtResource("3_trail_script")
+
+[node name="TrailParticles" type="GPUParticles2D" parent="TrailController"]
+amount = 64
+lifetime = 0.6
+process_material = ExtResource("4_particle_mat")
+emitting = true
+one_shot = false
+explosiveness = 0.0

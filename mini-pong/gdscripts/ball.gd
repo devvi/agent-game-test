@@ -58,15 +58,16 @@ func _ready() -> void:
 	body_entered.connect(_on_body_entered)
 	area_entered.connect(_on_area_entered)
 
-	# Connect ScoreZone Area2D body_entered signals (#295)
+	# Connect ScoreZone Area2D area_entered signals (#295)
+	# NOTE: ScoreZones are Area2D, ball is Area2D — use area_entered, NOT body_entered.
 	var parent := get_parent()
 	if parent:
 		var zone_left := parent.get_node_or_null("ScoreZoneLeft")
 		if zone_left and zone_left is Area2D:
-			zone_left.body_entered.connect(func(_b): _on_score_zone(1))
+			zone_left.area_entered.connect(func(a): _on_score_zone(1))
 		var zone_right := parent.get_node_or_null("ScoreZoneRight")
 		if zone_right and zone_right is Area2D:
-			zone_right.body_entered.connect(func(_b): _on_score_zone(0))
+			zone_right.area_entered.connect(func(a): _on_score_zone(0))
 
 	# Start first serve
 	serve()

@@ -62,12 +62,14 @@ scoring_manager = NodePath("../ScoringManager")
 
 [node name="ScoreZoneLeft" type="Area2D" parent="."]
 position = Vector2(0, 360)
+collision_mask = 4
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="ScoreZoneLeft"]
 shape = SubResource("rect_score_zone")
 
 [node name="ScoreZoneRight" type="Area2D" parent="."]
 position = Vector2(1280, 360)
+collision_mask = 4
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="ScoreZoneRight"]
 shape = SubResource("rect_score_zone")
@@ -109,20 +111,15 @@ font_size = 28
 modulate = Color(0.29, 0.56, 0.85, 0.7)
 
 [node name="GameHUD" type="CanvasLayer" parent="."]
-layer = 0
+layer = 1
 visible = false
 script = ExtResource("5_game_hud")
 
 [node name="MarginContainer" type="MarginContainer" parent="GameHUD"]
-anchors_preset = 2
-anchor_top = 0.0
-anchor_right = 1.0
-anchor_bottom = 0.0
-margin_top = 20.0
-margin_left = 40.0
-margin_right = -40.0
-grow_horizontal = 2
-grow_vertical = 0
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 1280.0
+offset_bottom = 60.0
 
 [node name="HBoxContainer" type="HBoxContainer" parent="GameHUD/MarginContainer"]
 alignment = 1

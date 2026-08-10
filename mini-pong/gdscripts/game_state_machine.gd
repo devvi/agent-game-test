@@ -19,6 +19,7 @@ enum State {
 
 # ── Internal State ──
 var current_state: State = State.MENU
+var previous_state: State = State.MENU
 var _transition_lock: bool = false
 var _scored_timer_active: bool = false
 
@@ -84,6 +85,7 @@ func transition_to(next: State) -> void:
 	if next == current_state:
 		return
 	exit_state(current_state)
+	previous_state = current_state
 	current_state = next
 	enter_state(next)
 
@@ -98,8 +100,10 @@ func enter_state(state: State) -> void:
 		State.SERVING:
 			_set_ui("hud")
 			_freeze_paddles(true)
-			if is_instance_valid(GameManager) and GameManager.has_method("reset_match"):
-				GameManager.reset_match()
+			# Only reset match on first serve from MENU — NOT between points
+			if previous_state == State.MENU:
+				if is_instance_valid(GameManager) and GameManager.has_method("reset_match"):
+					GameManager.reset_match()
 			await _timer_1s()
 			if ball and ball.has_method("serve"):
 				ball.serve()

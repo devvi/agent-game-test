@@ -439,7 +439,7 @@ func _test_tc15_game_tscn_integration() -> void:
 	if game_hud:
 		_assert(game_hud is CanvasLayer, "TC15-7: GameHUD is CanvasLayer")
 		_assert(game_hud.visible == false, "TC15-8: GameHUD visible=false initially")
-		_assert(game_hud.layer == 0, "TC15-9: GameHUD layer=0")
+		_assert(game_hud.layer == 1, "TC15-9: GameHUD layer=1")
 
 	var game_over: CanvasLayer = instance.get_node_or_null("GameOverScreen")
 	_assert(game_over != null, "TC15-10: GameOverScreen CanvasLayer exists")

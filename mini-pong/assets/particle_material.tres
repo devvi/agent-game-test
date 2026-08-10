@@ -1,4 +1,6 @@
-[gd_resource type="ParticleProcessMaterial" format=3 uid="uid://b7n0particlemat"]
+[gd_resource type="ParticleProcessMaterial" load_steps=2 format=3 uid="uid://b7n0particlemat"]
+
+[ext_resource type="GradientTexture1D" uid="uid://b7n0neongradient" path="res://assets/gradient_neon.tres" id="1_gradient_neon"]
 
 [resource]
 lifetime = 0.5
@@ -13,4 +15,4 @@ linear_accel_max = 0.0
 scale_min = 0.5
 scale_max = 1.5
 color = Color(1, 1, 1, 1)
-color_ramp = ExtResource("uid://b7n0neongradient")
+color_ramp = ExtResource("1_gradient_neon")
