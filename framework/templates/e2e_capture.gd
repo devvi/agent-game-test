@@ -27,9 +27,17 @@ extends SceneTree
 ##     {"name": "02_midgame", "state": "PLAYING",
 ##      "require": {"node": "/root/Main/GameManager", "prop": "player_score", "min": 1},
 ##      "settle_frames": 5},
-##     {"name": "03_gameover", "state": "GAME_OVER", "settle_frames": 10}
+##     {"name": "03_gameover", "state": "GAME_OVER", "settle_frames": 10,
+##      "deadline_s": 300}
 ##   ]
 ## }
+##
+## Shot schema: "deadline_s" (optional int) overrides the global
+## max_wall_seconds for THAT shot (e.g. 03_gameover: 300s for a 5-point
+## AI-vs-AI match to reach GAME_OVER). Absent → falls back to the global
+## max_wall_seconds (backward compatible, #372). The loop runs until the
+## MAX pending shot deadline, so a long-deadline shot extends the run;
+## all shots expiring → loop exits naturally.
 ##
 ## Outputs: PNG per shot + results.json (per-shot status) + transcript.txt +
 ## trajectory.txt (journey mode). Exit 0 = all shots captured, 1 = any missed.
@@ -98,7 +106,7 @@ func _run() -> void:
 	var pending: Array = (_plan.get("shots", []) as Array).duplicate()
 	var failed_shots: Array[String] = []
 
-	while not pending.is_empty() and Time.get_ticks_msec() < _deadline_ms:
+	while not pending.is_empty() and Time.get_ticks_msec() < _pending_deadline(pending):
 		await process_frame
 		_frame += 1
 		_track_state_trajectory()
@@ -108,13 +116,22 @@ func _run() -> void:
 		for shot in pending:
 			var d: Dictionary = shot
 			var shot_name: String = str(d.get("name", "shot"))
+			# Per-shot deadline (#372): a shot whose OWN deadline (deadline_s or
+			# global fallback) has passed fails immediately — record and drop.
+			# The loop condition (_pending_deadline) keeps running until the MAX
+			# pending deadline, so a 300s gameover shot is still reachable after
+			# the 120s global wall.
+			if Time.get_ticks_msec() >= _deadline_for(d):
+				failed_shots.append(shot_name + " (deadline)")
+				_results.append({"name": shot_name, "saved": false, "frame": _frame, "reason": "deadline"})
+				continue
 			# Inject press BEFORE readiness check — a press DRIVES the game into
 			# this shot's state (e.g. MENU→PLAYING via Enter). Checking first
 			# would deadlock: state never changes, press never fires.
 			if d.has("press"):
 				_inject_press(d)
 			if _shot_ready(d):
-				var settled := await _settle(int(d.get("settle_frames", 5)))
+				var settled := await _settle(int(d.get("settle_frames", 5)), _deadline_for(d))
 				if not settled:
 					failed_shots.append(shot_name + " (deadline during settle)")
 					_results.append({"name": shot_name, "saved": false, "frame": _frame, "reason": "deadline"})
@@ -268,15 +285,36 @@ func _require_ok(d: Dictionary) -> bool:
 	return true
 
 
-func _settle(frames: int) -> bool:
+func _settle(frames: int, deadline_ms: int) -> bool:
 	for i in range(frames):
-		if Time.get_ticks_msec() >= _deadline_ms:
+		if Time.get_ticks_msec() >= deadline_ms:
 			return false
 		await process_frame
 		_frame += 1
 		_track_state_trajectory()
 		_track_transcript()
 	return true
+
+
+func _deadline_for(d: Dictionary) -> int:
+	"""Shot's own deadline in ms; absent deadline_s → global max_wall_seconds."""
+	var global_s: int = int(_plan.get("max_wall_seconds", 120))
+	var s: int = int(d.get("deadline_s", global_s))
+	return _started_ms + s * 1000
+
+
+func _pending_deadline(pending: Array) -> int:
+	"""Loop keeps running while ANY pending shot's deadline is not reached.
+
+	#372: 03_gameover gets deadline_s=300 while 01_title/02_midgame fall back
+	to the global 120s — the loop must NOT die at 120s if gameover is still
+	pending. Once every shot's own deadline has passed, this returns a past
+	timestamp and the loop exits naturally.
+	"""
+	var d := _started_ms
+	for shot in pending:
+		d = maxi(d, _deadline_for(shot))
+	return d
 
 
 # ── Capture ────────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 {
-  "_comment": "E2E shot plan template (framework v2). Games AUTHOR their own copy at <game>/e2e_shots.json. run-e2e-review.sh selects groups by PR diff (group.match regexes), resolves them into a flat plan, and runs e2e_capture.gd. Example below is mini-pong (game loop archetype).",
+  "_comment": "E2E shot plan template (framework v2). Games AUTHOR their own copy at <game>/e2e_shots.json. run-e2e-review.sh selects groups by PR diff (group.match regexes), resolves them into a flat plan, and runs e2e_capture.gd. Example below is mini-pong (game loop archetype). Shot-level \"deadline_s\" (seconds) overrides max_wall_seconds for that shot only; absent → falls back to the global max_wall_seconds (backward compatible, #372).",
   "game": "mini-pong",
   "default_archetype": "loop",
   "max_wall_seconds": 120,
@@ -22,7 +22,7 @@
       "shots": [
         { "name": "01_title", "state": "MENU", "settle_frames": 10 },
         { "name": "02_midgame", "state": "PLAYING", "require": { "node": "/root/Main/GameManager", "prop": "player_score", "min": 1 }, "settle_frames": 5 },
-        { "name": "03_gameover", "state": "GAME_OVER", "settle_frames": 10 }
+        { "name": "03_gameover", "state": "GAME_OVER", "settle_frames": 10, "deadline_s": 300 }
       ]
     },
     "visual_pause": {

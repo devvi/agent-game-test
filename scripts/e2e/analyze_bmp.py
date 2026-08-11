@@ -14,7 +14,8 @@ types 0/2/3/4/6.
 
 Usage:
   python3 scripts/e2e/analyze_bmp.py shot.png [--min-colors N] [--max-black-ratio R]
-      [--theme 4a90d9] [--diff-with prev.png] [--min-delta D] [--name LABEL] [--json]
+      [--theme 4a90d9] [--diff-with prev.png] [--min-delta D]
+      [--diff-ratio R] [--pixel-delta D] [--name LABEL] [--json]
 Exit: 0 = all enabled assertions pass, 1 = any fail.
 """
 from __future__ import annotations  # py3.9/3.11 dual compat (lazy annotations)
@@ -175,6 +176,35 @@ def _luma_delta(path_a: str, path_b: str) -> float:
     return total / n if n else 0.0
 
 
+def _changed_ratio(path_a: str, path_b: str, pixel_delta: float = 20.0) -> float:
+    """Fraction of sampled pixels whose |Δluma| exceeds pixel_delta.
+
+    Robust to neon dark-background games where the mean Δluma stays tiny
+    (large near-black areas dilute the average) while a significant share
+    of pixels genuinely change (#371: Δluma=0.5 but 1.009% pixels changed).
+    Different sizes = definitely different frames → 1.0 (mirrors _luma_delta
+    returning inf). Sampling step matches _luma_delta (step=3).
+    """
+    wa, ha, ra = _read_png(path_a)
+    wb, hb, rb = _read_png(path_b)
+    if wa != wb or ha != hb:
+        return 1.0
+    step = 3
+    changed = 0
+    n = 0
+    for y in range(0, ha, step):
+        ra_ = ra[y]
+        rb_ = rb[y]
+        for x in range(0, wa, step):
+            i = x * 4
+            la = _luma(ra_[i], ra_[i + 1], ra_[i + 2])
+            lb = _luma(rb_[i], rb_[i + 1], rb_[i + 2])
+            if abs(la - lb) > pixel_delta:
+                changed += 1
+            n += 1
+    return changed / n if n else 0.0
+
+
 def _theme_present(path: str, hex_color: str, tol: int = 32) -> bool:
     r, g, b = (int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
     _w, _h, rows = _read_png(path)
@@ -200,6 +230,7 @@ def main() -> int:
     opts: dict[str, object] = {
         "--min-colors": None, "--max-black-ratio": None, "--theme": None,
         "--diff-with": None, "--min-delta": None, "--name": None,
+        "--diff-ratio": None, "--pixel-delta": None,
         "--json": False,
     }
 
@@ -207,9 +238,14 @@ def main() -> int:
         v = opts.get(arg)
         return v if isinstance(v, str) else None
 
-    def _f(arg: str, default: float) -> float:
+    def _f(arg: str, default: float | None) -> float | None:
         v = opts.get(arg)
-        return float(v) if isinstance(v, (int, float, str)) and str(v) else default
+        if v is None:
+            return default
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return default
 
     def _i(arg: str, default: int) -> int:
         v = opts.get(arg)
@@ -260,15 +296,30 @@ def main() -> int:
         else:
             fails.append(f"theme #{theme} NOT found")
 
-    # 4. frame diff
+    # 4. frame diff — mean Δluma OR changed-pixel ratio (dual channel)
     diff_with = _s("--diff-with")
     if diff_with:
         min_delta = _f("--min-delta", 5.0)
         delta = _luma_delta(path, diff_with)
-        if delta >= min_delta:
-            passes.append(f"diff vs {Path(diff_with).name}: Δluma={delta:.1f} >= {min_delta}")
+        diff_ratio_arg = _f("--diff-ratio", None)   # None → ratio channel off
+        ratio = 0.0
+        ratio_ok = False
+        if diff_ratio_arg is not None:
+            ratio = _changed_ratio(path, diff_with, _f("--pixel-delta", 20.0))
+            ratio_ok = ratio >= diff_ratio_arg
+        ratio_txt = (f" 变化像素占比 {ratio*100:.3f}% >= {diff_ratio_arg*100:.3f}%"
+                     if diff_ratio_arg is not None else "")
+        if delta >= min_delta or ratio_ok:
+            if delta >= min_delta:
+                passes.append(f"diff vs {Path(diff_with).name}: Δluma={delta:.1f} >= {min_delta}"
+                              + ratio_txt)
+            else:
+                passes.append(f"diff vs {Path(diff_with).name}: Δluma={delta:.1f} < {min_delta}"
+                              + f" 但 {ratio_txt.lstrip()}")
         else:
-            fails.append(f"diff vs {Path(diff_with).name}: Δluma={delta:.1f} < {min_delta} — frozen?")
+            fails.append(f"diff vs {Path(diff_with).name}: Δluma={delta:.1f} < {min_delta}"
+                         + (f" 且 变化像素占比 {ratio*100:.3f}% < {diff_ratio_arg*100:.3f}%"
+                            if diff_ratio_arg is not None else "") + " — frozen?")
 
     line = (f"{path} [{name}]: {st['width']}x{st['height']} "
             f"avgRGB={st['avg_rgb']} colors={st['color_buckets']} "

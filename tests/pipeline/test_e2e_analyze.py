@@ -143,3 +143,73 @@ class TestAssertions(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFrameDiffRatio(unittest.TestCase):
+    """#372: frozen heuristic — changed-pixel-ratio channel (--diff-ratio).
+
+    Regression: neon dark-bg frames have tiny mean Δluma (0.5 < 5.0) but
+    >0.5% pixels change significantly (1.009% in #371). The ratio channel
+    must rescue them while staying backward-compatible (default off).
+    """
+
+    def _dark_neon_frames(self, td):
+        """64x64 dark bg #0a0a12; frame B adds an 8x5 bright #4a90d9 rect."""
+        def dark(x, y):
+            return (0x0a, 0x0a, 0x12)
+        def dark_plus_rect(x, y):
+            if x < 8 and y < 5:
+                return (0x4a, 0x90, 0xd9)
+            return (0x0a, 0x0a, 0x12)
+        a = write_png(td, "dark_a.png", make_png(64, 64, dark))
+        b = write_png(td, "dark_b.png", make_png(64, 64, dark_plus_rect))
+        return a, b
+
+    def test_frame_diff_identical_fails_diff_ratio(self):
+        # Two identical frames → ratio 0% < 0.5% → still frozen (rc=1).
+        with tempfile.TemporaryDirectory() as td:
+            png = make_png(64, 64, lambda x, y: (x * 3 % 256, 100, 50))
+            write_png(td, "a.png", png)
+            write_png(td, "b.png", png)
+            r = run_cli(td, "a.png", "--diff-with", os.path.join(td, "b.png"),
+                        "--diff-ratio", "0.005", "--min-delta", "5.0")
+            self.assertEqual(r.returncode, 1, r.stdout)
+            self.assertIn("frozen", r.stdout)
+
+    def test_frame_diff_full_change_passes_diff_ratio(self):
+        # All pixels change → ratio 100% >= 0.5% → pass even though the
+        # color-count / black assertions are disabled to isolate the diff.
+        with tempfile.TemporaryDirectory() as td:
+            write_png(td, "a.png",
+                make_png(64, 64, lambda x, y: (0, 0, 0)))
+            write_png(td, "b.png",
+                make_png(64, 64, lambda x, y: (255, 255, 255)))
+            r = run_cli(td, "a.png", "--diff-with", os.path.join(td, "b.png"),
+                        "--diff-ratio", "0.005", "--min-delta", "5.0",
+                        "--min-colors", "1", "--max-black-ratio", "1.0")
+            self.assertEqual(r.returncode, 0, r.stdout)
+            self.assertIn("变化像素占比", r.stdout)
+
+    def test_frame_diff_dark_neon_change_passes(self):
+        # #371 regression: mean Δluma << 5.0 but ~1% pixels change → the
+        # ratio channel must rescue the assertion (mirrors #371 real frames:
+        # Δluma=0.5, 1.009% pixels changed).
+        with tempfile.TemporaryDirectory() as td:
+            a, b = self._dark_neon_frames(td)
+            r = run_cli(td, "dark_b.png", "--diff-with", a,
+                        "--diff-ratio", "0.005", "--min-delta", "5.0",
+                        "--min-colors", "1", "--max-black-ratio", "1.0")
+            self.assertEqual(r.returncode, 0, r.stdout)
+            self.assertIn("变化像素占比", r.stdout)
+
+    def test_frame_diff_ratio_default_off(self):
+        # No --diff-ratio → pure mean-Δluma behavior (backward compat):
+        # identical frames still fail as frozen.
+        with tempfile.TemporaryDirectory() as td:
+            png = make_png(64, 64, lambda x, y: (x * 3 % 256, 100, 50))
+            write_png(td, "a.png", png)
+            write_png(td, "b.png", png)
+            r = run_cli(td, "a.png", "--diff-with", os.path.join(td, "b.png"),
+                        "--min-delta", "1.0")
+            self.assertEqual(r.returncode, 1, r.stdout)
+            self.assertIn("frozen", r.stdout)

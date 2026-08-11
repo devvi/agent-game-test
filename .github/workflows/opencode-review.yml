@@ -34,7 +34,6 @@ jobs:
         uses: chickensoft-games/setup-godot@v2
         with:
           version: 4.7.1
-          use-double-precision: false
           cache: true
 
       - name: Verify Godot
