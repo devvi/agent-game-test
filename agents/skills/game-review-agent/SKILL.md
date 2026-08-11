@@ -495,12 +495,64 @@ Then proceed directly to the merge step. The review comment on the PR + the sess
 
 | Condition | Action |
 |-----------|--------|
-| All checks pass | Merge via gh pr merge N --squash --delete-branch |
+| All checks pass + **mechanical Issue** | Merge via gh pr merge N --squash --delete-branch |
+| All checks pass + **taste-draft Issue** | Merge draft (不写 Closes) + assign + `status/human-review` label — 见下方 **taste-draft 分流** |
 | Pre-existing failures on ANY PR type | Add PR comment documenting findings. Do NOT merge. Escalate. All pre-existing failures must be fixed before merge - no exceptions. |
 | CI failure (should not happen - review is only called on success) | Do NOT merge. Report to user. |
 | PR merge conflicts | Report. Skip. |
 
 Policy rationale: Pre-existing failures on the default branch mean the project cannot pass its own tests. Allowing a merge with the main branch red compounds the problem. The only way to heal is to fix the failures on main first, then merge the PR. See AGENTS.md for the formal rule.
+
+### ⚖️ Taste-Draft 分流（v4 队列模式，2026-08-11）
+
+> **背景：** 人机共做 v4——agent 生成**带用户 taste 方向的草稿**，草稿达标即 merge（结构可用），
+> 然后 **assign 给用户 + `status/human-review` label**。用户看 GitHub Assigned to me 攒批处理，close 即定稿。
+> **human Issue 不进依赖链**（event-processor 已实现：依赖带 `status/human-review` 视为已满足）。
+> 完整图谱与语义见 `game-to-issues` skill 的 `references/taste-ownership-domains.md`（v4）。
+
+**判定：这个 PR 的父 Issue 是 taste-draft 吗？**
+
+```bash
+# 从父 Issue body 读取 content_ownership 字段（game-to-issues 分解时写入）
+PARENT=$(gh pr view <N> --json body --jq '.body' | grep -oP '(?<=Parent )#\d+|(?<=parent )#\d+|(?<=Closes )#\d+' | grep -oP '\d+')
+gh issue view $PARENT --json body --jq '.body' | grep -E "content_ownership|taste-draft|校准|TASTE" | head -3
+# 命中 content_ownership: taste-draft → taste-draft Issue
+```
+
+**taste-draft 草稿达标的「定稿就绪检查」（在常规检查之外追加）：**
+
+| 检查 | 方法 | 不达标 → |
+|------|------|---------|
+| 结构完整 | 常规全部检查（L0-L3）通过 | 打回重写（REQUEST_CHANGES），**不 assign** |
+| taste 方向对齐 | 对照审美坐标（PRD 的 aesthetic_coordinates）+ 项目 `docs/TASTE.md` 逐项比对 | 打回重写，**不 assign**（不把烂活丢给人） |
+| 校准接口三件套 | 试玩剧本 + 候补选项 + 情感断言 是否都在 PR/Issue 中可找到 | 打回补接口，**不 assign** |
+| 无 `# DRAFT` 残留于非 taste 文件 | 机械部分（架构/管线）不应有 DRAFT | 打回 |
+
+**达标后的流程（关键差异：草稿 PR 不 close Issue）：**
+
+```bash
+# 1. merge（taste-draft 草稿 PR 的 body 用 "Parent #N" 而非 "Closes #N"，
+#    merge 不会自动 close Issue —— 保持 open 等待定稿）
+gh pr merge <N> --squash --delete-branch
+
+# 2. 打 label + assign（Issue 保持 open，作为用户队列项）
+gh issue edit <PARENT> --add-label status/human-review --add-assignee devvi
+
+# 3. Issue 评论给出校准入口（试玩剧本/候补/情感断言在哪）
+gh issue comment <PARENT> --body "🧪 草稿已 merge（#<PR>），等待定稿。
+试玩剧本: <...>
+候补选项: <位置>
+情感断言: <它试图触发什么情感>
+定稿方式: 微调草稿 → push → close 本 Issue"
+
+# 4. Feishu 通知（队列条目，非紧急）
+curl -s -X POST -H "Content-Type: application/json" \
+  -d '{"msg_type":"text","content":{"text":"🧪 #<N> → 草稿已 merge，等待定稿（Assigned to you）"}}' \
+  https://open.feishu.cn/open-apis/bot/v2/hook/76101281-b359-49ab-ae2f-fc486bf65958
+```
+
+**⚠️ 不要做：** 不要给 taste-draft Issue 打 `status/done`（那是"全部完成"语义，taste-draft 还要等定稿）；
+不要 close Issue（草稿 merge ≠ 定稿）；不要跳过 assign（队列机制依赖 assignee）。
 
 ### ⚠️ Block Is Permanent Until Main Is Green
 
@@ -620,6 +672,38 @@ This discards the stash-pop pollution and aligns the working tree with the merge
 `gh pr diff <N> --name-only` lists changed files (single arg). But `gh pr diff <N> -- <filepath>` does NOT work — it errors with `accepts at most 1 arg(s)`. To inspect a specific file's diff, either:
 - Pipe the full diff to `head` and scan for the file
 - Use `git diff` on the fetched PR branch after checkout
+
+## Taste-Draft Routing: Human Queue Handoff (v4, 2026-08-11)
+
+> **人机共做队列模式** — design agreed with user 2026-08-11. When the parent issue carries `content_ownership: taste-draft`
+> (数值即表达 A1/A3/A4, 剧情 B1, 失败表达 B5, 命名 B2, 视觉 B3, 关卡 C1 — full map in `game-to-issues` skill →
+> `references/taste-ownership-domains.md` v4), the review agent is the **定稿就绪检查 (finalization-readiness gate)**.
+> Do NOT auto-merge-and-close as usual — the draft merges, but the ISSUE stays open for the human to finalize.
+
+1. **Readiness gate** — draft must pass BOTH:
+   - **结构完整**: all standard checks green (tests, docs, code quality, runtime/E2E evidence)
+   - **taste 对齐**: 对照审美坐标 (issue body / clarified_brief) + 项目 `docs/TASTE.md` 品味档案逐项比对 —
+     草稿是否朝用户 taste 方向生成（数值=表达、失败即叙事、文本密度、拟物/抽象方向）
+   - Not aligned → REQUEST_CHANGES / 打回重写, **do NOT assign to human** — 不把烂活丢给人
+2. **Merge WITHOUT closing the issue** (草稿结构可用即 merge, 结构先行):
+   - Preferred: taste-draft PR body uses `Parent #N` (NOT `Closes #N`) so merge does not auto-close the issue
+   - Fallback if already auto-closed: `gh issue reopen <N>` after merge
+3. **Hand off to human queue** — issue stays OPEN, user batch-processes from "Assigned to me", closes when 定稿:
+   ```bash
+   gh issue edit <N> --add-label status/human-review --add-assignee <user>
+   ```
+4. **Notify Feishu** (same channel as merge notifications):
+   `🧪 #N → 等待定稿（A1/B1…）→ https://github.com/<owner>/<repo>/issues/N`
+5. **Human finalization loop**: user pushes 定稿 changes → closes issue → **差异记录进 `docs/TASTE.md`**
+   (| 日期 | Issue | 领域 | 草稿值 | 定稿值 | 方向 | 理由 |) — 定稿即反馈，下次草稿自动朝该方向生成.
+6. **Dependency semantics**: `status/human-review` issues do NOT block downstream —
+   草稿 merge 即依赖满足, 机械下游不等定稿（定稿后增量替换）.
+
+**Implementation status (2026-08-11):** design agreed; code changes pending user confirmation —
+(a) `event-processor.py` `_has_unresolved_dependencies`: dep with `status/human-review` label → treat as resolved;
+(b) `game-implement-agent` convention: taste-draft PR body uses `Parent #N`;
+(c) `tests/pipeline/` new cases for the label branch.
+Do NOT assume these exist until verified — check the code before relying on the label semantics.
 
 ## Post-Merge: GDD Update
 

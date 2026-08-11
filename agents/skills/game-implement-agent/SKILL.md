@@ -224,6 +224,22 @@ Parent #<N>"
 
 **PR body format:** "Closes #N" on first line, "Parent #N" on third line. This is the canonical format that event-processor.py parses.
 
+**⚠️ taste-draft Issue 例外（v4 队列模式，2026-08-11）：** 如果父 Issue 是 taste-draft（body 含
+`content_ownership: taste-draft`，如数值/剧情/命名/失败文本等品味内容），PR body **必须只用 "Parent #N"，
+不写 "Closes #N"**——否则 merge 会自动 close Issue，破坏"草稿 merge 后保持 open 等待人定稿"的队列机制：
+
+```bash
+gh pr create \
+  --base $DEFAULT_BRANCH \
+  --head impl/<N>-<slug> \
+  --title "feat(<N>): <feature description>" \
+  --body "Parent #<N>"
+```
+
+判断方法：`gh issue view <N> --json body --jq '.body' | grep -q "content_ownership.*taste-draft"`。
+draft 产出规范（# DRAFT 注释 + 候补选项 + 情感断言）见 game-to-issues 的
+`references/taste-ownership-domains.md`（v4）。
+
 ### 4. Run Stage-Gate
 
 ```bash

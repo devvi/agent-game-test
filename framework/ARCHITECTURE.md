@@ -73,8 +73,28 @@ GitHub Event → Gateway webhook (:8644)
 | `workflow/self-correct` | 修复中 | CI failure |
 | `status/done` | 完成 | implement PR merge 后 issue 关闭 |
 | `status/blocked` | 阻塞 | review 发现 pre-existing 失败 |
+| `status/human-review` | 待定稿（v4 队列） | taste-draft 草稿 merge 后 review agent 打标 + assign 用户 |
 
 **Review 无 label** —— 由 `check_run.completed` (CI success) 触发，pre-merge。`workflow-chain.yml` 在 PR merge 后自动推进 label。
+
+### 人机共做 v4 队列（2026-08-11）
+
+**核心：workflow 不该等用户。** taste-draft Issue（content_ownership: taste-draft，品味内容：
+数值/剧情/命名/失败文本/视觉）走队列模式：
+
+```
+implement 生成带 taste 方向的草稿（TASTE.md + 审美坐标 + Obsidian 注入）
+  → review agent 定稿就绪检查（结构完整 + taste 对齐 + 校准接口三件套）
+  → 不达标 → 打回重写，不 assign（不把烂活丢给人）
+  → 达标 → 草稿 merge（PR 用 Parent #N 不写 Closes，Issue 保持 open）
+  → assign 用户 + status/human-review label + Feishu 通知
+  → 下游机械 Issue 立即继续（human-review 依赖视为已满足，不进依赖链）
+  → 用户看 Assigned to me 攒批 → 微调 → push → close 即定稿
+  → 差异记录进 docs/TASTE.md（品味档案）→ 下次草稿自动朝该方向
+```
+
+依赖语义（`_has_unresolved_dependencies`）：依赖 Issue 带 `status/human-review`
+（草稿已 merge）→ 视为**依赖满足**，下游不等人的定稿速度。
 
 ## 事件 → SPAWN 指令表
 

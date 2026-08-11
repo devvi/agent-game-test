@@ -642,6 +642,51 @@ ls docs/GAME_DESIGN/ docs/PRD/ 2>/dev/null
 
 4. **MVP 测试目标** — "验证核心循环"还是"给投资人展示"？这个答案决定测试 Issue 的写法。
 
+#### 0.35 校准边界轮：人机共做 — 哪些部分由人亲手掌控
+
+> **为什么必须有这一轮（2026-07-31 用户洞察）：** 管线应该有能力做到"人机共做"——agent 填草稿，人做最终校准。
+> 数值（球速/伤害/经济）、剧情文本、命名、失败文本、关卡布局……这些"品味内容"的最终裁决权归人。
+> **v4（2026-08-11）核心转向——从「门禁」到「队列」**：agent 生成**带用户 taste 方向的草稿**，
+> 草稿达标即 merge（结构可用），同时 **assign 给用户 + 打 label**；用户看 GitHub Assigned to me 攒批处理，
+> close 即定稿。**workflow 不该一直等用户**——人的工作 = 显式队列，不是散在各 PR 上的隐式闸门。
+> **完整领域图谱见 `references/taste-ownership-domains.md`**（v4：A1 数值即表达/A3/A4 + B1-B5 + C1-C5）。
+
+**必问（如果用户没主动说）：**
+
+```
+"这个游戏里，哪些部分你想自己掌控最终决定权？"
+  □ A1 数值即表达（CRPG: 检定难度/道德张力值 | 街机: 手感爽感）
+  □ B1 剧情/对白（台词润色）
+  □ B2 命名/文案（游戏名/UI文案/成就名）
+  □ B3 视觉微调（配色/光效 + 拟物vs抽象方向）
+  □ B5 失败表达（失败文本/失败反馈——失败即叙事）
+  □ C1 关卡布局
+  □ 其他：________________
+  （默认建议：A1 数值 + B1 剧情 + B2 命名 + B3 视觉微调 + B5 失败表达）
+```
+
+**产出 → clarified_brief.calibration_preferences**，并注入分解 prompt：
+
+```json
+"calibration_preferences": {
+  "human_owns": ["A1 数值即表达", "B1 剧情对白", "B2 命名", "B3 视觉微调", "B5 失败表达"],
+  "draft_policy": "agent 按 TASTE.md 方向生成草稿，标 # DRAFT，集中配置；每处配候补选项",
+  "queue_model": "草稿达标即 merge → assignee=用户 + status/human-review label → 用户 close 即定稿",
+  "human_issue_in_dep_chain": false
+}
+```
+
+**分解时的强制要求（对接 C7 校准闭环）：**
+- `content_ownership: mechanical | taste-draft` 字段标在每个 Issue 上
+- taste-draft Issue 必须带**校准接口三件套**（试玩剧本 + 候补选项 + 情感断言）：
+  - 数值集中在 constants.gd + DRAFT 注释 + 影响说明 + 2-3 个候补值（朝 TASTE.md 方向）
+  - 对白为 JSON（draft:true）+ 编辑器/流程 + 风格按 TASTE.md 特征
+  - 失败文本为候补清单（2-3 选 1，B5 与 B2 命名同构）
+  - 命名给候选清单（5选1）不直接定名
+  - 视觉给拟物/抽象方向标注 + 截图对比
+- 判定：T1 两个专家对"好不好"答案不同？T2 写不成机器断言？T3 换语境不成立？全通过 = taste-draft
+- 若仓库已有 `docs/TASTE.md`，读取并注入草稿方向（品味档案：历史定稿差异归纳）
+
 #### 0.4 决策记录
 
 每轮问答后，记录用户的回答到 `clarified_brief` 中。最终输出：
@@ -662,6 +707,10 @@ ls docs/GAME_DESIGN/ docs/PRD/ 2>/dev/null
       "negative_space": ["用户明确讨厌的东西"]
     },
     "target_emotion": "玩家应该感受到的情绪（与 aesthetic_coordinates.target_emotion 一致）",
+    "calibration_preferences": {
+      "human_owns": ["A1 数值手感", "B1 剧情对白", "B2 命名"],
+      "draft_policy": "agent 填草稿版并集中配置；数值标 # DRAFT；对白 JSON draft:true"
+    },
     "definition_of_done": {
       "complete_path": "玩家从打开到结局的具体路径描述",
       "personal_standard": "开发者判断'做完了'的主观标准",
@@ -776,11 +825,45 @@ gh repo view "$REPO" --json nameWithOwner --jq .nameWithOwner 2>/dev/null || {
 
 **⚠️ 路径解析（2026-07-31 实测修正）：** `OBSIDIAN_VAULT_PATH` 环境变量指向**挂载根**（`/Volumes/Obsidian`），不是 vault 本身。vault 实际在 `<OBSIDIAN_VAULT_PATH>/Knowledge Ocean/`。**必须先解析出完整路径**，且注意 `search_files` 的 content 搜索对**含空格的路径会静默返回 0**（Hermes 工具层 bug，已实测复现）——因此必须用 grep 作为兜底，不能只依赖 search_files。
 
+**⚠️ 挂载点漂移防护（2026-08-11 实测修复）：** WebDAV 挂载点会因**旧挂载目录残骸未清理**而漂移成 `/Volumes/Obsidian-1/-2/-3`（macOS 对同名挂载自动递增后缀）。`.env` 里写死的 `/Volumes/Obsidian` 会指向空壳导致 grep 全落空。**必须先探测真正有 vault 的挂载点**，再解析 vault 路径：
+
 ```bash
-# 解析 vault 路径（先确认，再搜索）
-VAULT_ROOT="${OBSIDIAN_VAULT_PATH:-/Volumes/Obsidian}"
-VAULT_WIKI="$VAULT_ROOT/Knowledge Ocean/wiki"
-VAULT_RAW="$VAULT_ROOT/Knowledge Ocean/raw"
+# 探测真正含 Knowledge Ocean 的挂载点（兼容漂移）
+OBSIDIAN_ROOT=""
+for d in /Volumes/Obsidian*; do
+  [ -d "$d/Knowledge Ocean/wiki" ] && OBSIDIAN_ROOT="$d" && break
+done
+[ -n "$OBSIDIAN_ROOT" ] || OBSIDIAN_ROOT="${OBSIDIAN_VAULT_PATH:-/Volumes/Obsidian}"
+VAULT_WIKI="$OBSIDIAN_ROOT/Knowledge Ocean/wiki"
+```
+
+修复方法（挂载漂移时，一次性恢复固定路径）：
+```bash
+# 1. 卸载所有活挂载 + 清残骸（sudo 需要密码，首次手动执行）
+for d in /Volumes/Obsidian*; do diskutil unmount force "$d" 2>/dev/null; done
+sudo rmdir /Volumes/Obsidian* 2>/dev/null
+# 2. 用 Keychain 凭据重挂到无后缀路径（osascript 走系统 WebDAV，凭据在 Keychain: acct=macmini-workflow）
+osascript -e 'mount volume "https://macmini-workflow:'"$(security find-internet-password -s guaguastation.mycloudnas.com -a macmini-workflow -w 2>/dev/null)"'@guaguastation.mycloudnas.com:1995/GuaGuaRan/Documents/Obsidian"'
+# 3. 验证
+ls "/Volumes/Obsidian/Knowledge Ocean/wiki" | head -5
+```
+
+**⚠️ 挂载失效兜底（2026-08-11 实测）：** vault 是 NAS WebDAV 挂载时，`ls $VAULT_WIKI` 报 `Operation canceled` 通常是**服务器 TLS 证书过期**（`openssl s_client -connect <host>:<port> | openssl x509 -noout -dates` 确认；修复 = NAS 续期 + **重启 WebDAV 服务**，光续期服务不重载不生效）。若 `mount_webdav` 本身坏（`network_stat returned error 1`，TCP+TLS 通但挂不上），用 rclone 直接读，不需要挂载点：
+```bash
+# rclone remote 'obsidian' 已配置（url/user/pass 加密存储）
+rclone lsf obsidian:"Knowledge Ocean/wiki/" 2>/dev/null | head -20   # 列表
+rclone cat obsidian:"Knowledge Ocean/wiki/<note>.md" 2>/dev/null     # 读笔记
+```
+
+```bash
+# 解析 vault 路径（先探测，再搜索）
+OBSIDIAN_ROOT=""
+for d in /Volumes/Obsidian*; do
+  [ -d "$d/Knowledge Ocean/wiki" ] && OBSIDIAN_ROOT="$d" && break
+done
+[ -n "$OBSIDIAN_ROOT" ] || OBSIDIAN_ROOT="${OBSIDIAN_VAULT_PATH:-/Volumes/Obsidian}"
+VAULT_WIKI="$OBSIDIAN_ROOT/Knowledge Ocean/wiki"
+VAULT_RAW="$OBSIDIAN_ROOT/Knowledge Ocean/raw"
 ls "$VAULT_WIKI" >/dev/null 2>&1 && echo "✅ vault wiki 可访问: $VAULT_WIKI"
 
 # 搜索 wiki/ 目录 — 双保险：search_files 优先，grep 兜底
@@ -889,7 +972,29 @@ mkdir -p docs/RAW/
 - [ ] 拓扑序创建后，每个 Issue 的前置依赖都真实存在（Step 6 会映射为真实 #N）
 - [ ] **依赖顺序即执行顺序**：pipeline 的依赖检查（event-processor `_has_unresolved_dependencies`）会 BLOCK 前置未完成的 Issue——分解时确保"先做的"在 dependencies 里，防止依赖倒置（#227 未合并 #228 就开做的教训）
 
-**通过 C1-C6 后**，可选运行 `game-issues-review` 做专家级二次审查（3C 缺口、隐藏依赖、可玩性预期），然后进入 Step 5 展示用户确认。
+**C7. 校准闭环（Calibration Loop）— 队列模式（2026-08-11 v4）**
+
+> **v4 核心：workflow 不该等用户。** agent 生成**带用户 taste 方向的草稿** → 草稿达标即 merge（结构可用）→
+> **assign 给用户 + `status/human-review` label** → 用户看 Assigned to me 攒批处理，close 即定稿。
+> **human Issue 不进依赖链**（用户拍板）：草稿 merge 即依赖满足，下游机械 Issue 不等定稿，定稿后增量替换。
+
+- [ ] 每个 Issue 标了 `content_ownership`（mechanical / taste-draft）
+- [ ] taste-draft Issue 草稿带**taste 方向**（注入审美坐标 + Obsidian 笔记 + 项目 `docs/TASTE.md` 品味档案）
+- [ ] 数值类（A1/A3/A4）产出集中在单一文件（constants.gd / 参数表），agent 填的值带 `# DRAFT` 注释 + "该值影响什么" + **2-3 个候补值**（朝 TASTE.md 方向）
+- [ ] 剧情/对白类（B1）为数据驱动（JSON + `"draft": true`），风格按 TASTE.md 特征，且配套编辑流程或 `[Tool]` Issue
+- [ ] 失败表达类（B5）产出为候补清单（2-3 选 1 + 语境说明），不直接定稿——失败文本"成功时不出现、只有人才能写"
+- [ ] 命名类（B2）产出为候选清单（5 选 1 + 语境说明），不直接定名
+- [ ] 视觉类（B3）参数集中在 theme + 拟物/抽象方向标注，且 E2E 截图体系可作校准证据（run-e2e-review.sh）
+- [ ] 每处 taste-draft 值标注**情感断言**（体验引擎：它试图触发什么情感——校准有靶心，不是"感觉一下"）
+- [ ] **review agent 定稿就绪检查**：草稿达标（结构完整 + taste 方向对齐）→ 通过；不达标 → 打回重写，**不 assign 给人**（不把烂活丢给人）
+- [ ] 草稿 merge 后：`gh issue edit <n> --add-label status/human-review --add-assignee <user>`，Issue **保持 open**（草稿 PR 不写 Closes 或 merge 后重新 open）
+- [ ] **依赖语义**：event-processor `_has_unresolved_dependencies` 对带 `status/human-review` 且草稿已 merge 的依赖 Issue 视为**依赖满足**（human Issue 不进依赖链）
+- [ ] 人定稿后差异记录进 `docs/TASTE.md`（| 日期 | Issue | 领域 | 草稿值 | 定稿值 | 方向 | 理由 |）→ 下次草稿自动朝该方向
+- [ ] 校准偏好（Grill Me 0.35 轮）已注入分解 prompt
+
+**通过 C1-C7 后**，可选运行 `game-issues-review` 做专家级二次审查（3C 缺口、隐藏依赖、可玩性预期），然后进入 Step 5 展示用户确认。
+
+**🛠️ 用脚本跑 Gate，别用眼睛跑（2026-07-31 自我演练教训）：** 人工核对 C1-C6 会漏——演练中发现"组装孤儿组件误报"和"三层表达可发现"这类模糊验收靠眼睛看不出来。运行 `scripts/verify-plan.py <plan.json> --path-map "开场:2,结算:10"` 机械执行 C0/C1/C4/C5.5/C6 检查（JSON 合法性、DAG、组装闭环、验收可测性、路径映射），任何一项失败 → 返回 Step 2。演练后把 C1 的 complete_path 每个环节映射到具体 Issue id 时，直接在 `--path-map` 里给出即可被脚本验证。
 
 ---
 
@@ -1026,7 +1131,22 @@ for issue in ordered:
 {milestone}
 
 ## 验收条件
+
 """ + "\n".join(f"- [ ] {ac}" for ac in issue['acceptance_criteria'])
+
+    # ── 人机共做 v4（2026-08-11）：content_ownership 标注 ──────────
+    # taste-draft Issue（品味内容: 数值/剧情/命名/失败文本/视觉等）:
+    #   - body 标注 content_ownership: taste-draft（review agent 据此分流，
+    #     草稿 merge 后 assign 用户 + status/human-review，不自动 close）
+    #   - 提示 implement agent 的 PR 用 "Parent #N" 而非 "Closes #N"
+    ownership = issue.get('content_ownership', 'mechanical')
+    if ownership == 'taste-draft':
+        body += "\n\n## 所有权\ncontent_ownership: taste-draft\n"
+        body += ("⚠️ 本 Issue 是品味内容（人机共做 v4）：agent 生成带 taste 方向的草稿，"
+                 "review 达标后草稿 merge（PR 用 Parent #N 不写 Closes），"
+                 "assign 用户定稿。draft 规范见 game-to-issues references/taste-ownership-domains.md\n")
+    else:
+        body += "\n\n## 所有权\ncontent_ownership: mechanical\n"
 
     deps = issue.get('dependencies', [])
     if deps:
@@ -1118,6 +1238,23 @@ GitHub Project Board 添加 `Version` 字段（single-select），与 `version/*
 ---
 
 ## Pitfalls
+
+### ⛔ 验证 pipeline 改动：不要建临时 GitHub repo（2026-08-11 用户纠正）
+
+用户明确纠正："不用创建临时repo"、"直接在现有的repo上测试，基础设施都就位了"。
+不要为验证 create-issues / event-processor 改动 `gh repo create` 临时仓库，实测踩坑：
+- 临时 repo 没有 workflow labels（workflow/backlog、version/mvp 等）→ create-issues 直接报 `could not add label: 'workflow/backlog' not found`
+- 删除临时 repo 需要 `delete_repo` scope（`gh auth refresh -h github.com -s delete_repo` 要浏览器交互），否则 403 删不掉留脏数据
+
+**正确做法：直接在现有 repo（devvi/agent-game-test）上 E2E 验证：**
+1. 确认 workflow 已暂停（`~/.hermes/workflow-config.json` 的 `enabled: false`）→ 创建 Issue 不会进 pipeline，安全
+2. `python3 ~/.hermes/scripts/create-issues.py <plan>.json --repo devvi/agent-game-test` 真实创建测试 Issue（plan 里带 content_ownership 标注）
+3. `gh issue view <N> --json body --jq .body | grep -A2 所有权` 验证 content_ownership 标注真实落盘
+4. `gh issue view <N> --json body --jq .body | grep -A3 前置依赖` 验证依赖映射为真实 #N
+5. 集成测试依赖语义：mock `_ensure_issues_cache` 注入真实结构的 issue 数据，调用 `_has_unresolved_dependencies` 断言 human-review 依赖放行 / 普通 open 依赖仍 block
+6. `gh issue close <N> --comment "E2E 验证产物，清理关闭"` 清理测试 Issue，`rm` 临时 plan 文件
+
+⚠️ `status/human-review` 是 v4 新 label：repo 里不存在时先 `gh label create "status/human-review"`（setup-labels.sh 已包含，2026-08-11 补充），否则 `gh issue edit --add-label` 报 not found。
 
 ### ⛔ 分解出"一堆资源，没有游戏"（urban-night-walker 失败，2026-07）
 

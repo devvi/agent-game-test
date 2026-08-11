@@ -40,8 +40,17 @@
 | `workflow/implement` | Implement | implement agent 进行中 |
 | `workflow/self-correct` | Fixing | CI 失败，自愈中 |
 | `status/done` | Done | Issue 关闭 |
+| `status/blocked` | Blocked | review 发现 pre-existing 失败，阻塞 |
+| `status/human-review` | Awaiting calibration | taste-draft 草稿已 merge，等待人定稿（v4 队列） |
 
 **Review 不在 label 链中。** Review agent 在 `check_run.completed` (CI 成功) 后、merge 前被调用。审核通过则 agent 直接 merge PR。详见 `game-review-agent` skill。
+
+**人机共做 v4（2026-08-11）：** taste-draft Issue（`content_ownership: taste-draft`，品味内容：
+数值/剧情/命名/失败文本/视觉）草稿达标即 merge（PR 用 Parent #N 不写 Closes），
+review agent 打 `status/human-review` + assign 用户；**human Issue 不进依赖链**
+（依赖带此 label 视为已满足，下游机械 Issue 不等定稿）。用户看 Assigned to me 攒批
+处理，close 即定稿；差异记录进 `docs/TASTE.md` 形成品味档案。
+详见 `game-to-issues` skill 的 `references/taste-ownership-domains.md`（v4）。
 
 ## Tech Stack
 
