@@ -7,8 +7,8 @@
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
 | 可玩 | ✅ Mini Pong: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成 |
-| 最近构建 | 2026-08-10 |
-| 开放 Issues | 2（#367 手感定稿待定 + #372 e2e harness fix） |
+| 最近构建 | 2026-08-11 |
+| 开放 Issues | 1（#367 手感定稿待定） |
 
 ## 模块地图
 
@@ -31,6 +31,7 @@
 | Mini Pong — Pause Overlay | `mini-pong/gdscripts/pause_overlay.gd` | ✅ | GDD |
 | Mini Pong — Audio Engine | `mini-pong/gdscripts/audio_engine.gd` | ✅ | GDD |
 | Mini Pong — Test Suite | `mini-pong/tests/run_tests.gd` | ✅ | GDD |
+| E2E Review Harness | `scripts/run-e2e-review.sh` + `scripts/e2e/analyze_bmp.py` + `framework/templates/e2e_capture.gd` | ✅ | GDD |
 
 ## 功能
 
