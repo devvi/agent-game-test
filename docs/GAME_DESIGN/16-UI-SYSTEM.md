@@ -50,7 +50,7 @@ Without this, GameManager signals never fire and the HUD never updates.
 
 ### StartMenu
 
-- **TitleLabel**: "Mini Pong" at 64px, centered, neon blue (#4a90d9)
+- **TitleLabel**: "PONG://NEON" at 64px, centered, neon blue (#4a90d9) — text finalized by user decision (#378, 2026-08-11)
 - **PromptLabel**: "按 SPACE 开始" at 28px, centered, blue at 70% alpha
 - **VersionLabel**: "v1.0.0" at 16px, bottom-left anchored (16px left / 12px bottom margin), neon blue (#4a90d9) at 60% alpha — text sourced from `GameConstants.GAME_VERSION` (single source of truth, set in `start_menu.gd:_ready()`; static .tscn text is only a fallback)
 - **Animation**: Title alpha pulses between 0.6–1.0 (1.5s cycle), prompt blinks (0.8s cycle)

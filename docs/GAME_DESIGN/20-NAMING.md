@@ -1,6 +1,6 @@
 # 20 — Naming
 
-> 命名档案（草稿态单一事实源）：`docs/NAMING.md`。本 GDD 章节记录**持久设计决策**（约束、数据流、审美锚点），不记录命名过程值（候选名草稿见 NAMING.md，正式定稿后按需在本章补充定稿值）。
+> 命名档案（草稿态单一事实源）：`docs/NAMING.md`。本 GDD 章节记录**持久设计决策**（约束、数据流、审美锚点），不记录命名过程值（候选名草稿见 NAMING.md）。**定稿值见 §5**（2026-08-11 用户裁决）。
 > 来源：Issue #378（B2 命名/文案，人机共做 v4 taste-draft，2026-08-11）。
 
 ## 1. 命名约束（红线，PRD §5 边界 3）
@@ -29,6 +29,9 @@ docs/NAMING.md（# DRAFT 草稿表 + 语境注释 + 定稿占位）← 命名档
     └─→ 定稿差异回写 docs/TASTE.md 风格特征节（如"短、直接、霓虹词缀"）
 ```
 
+> **流程状态：已完整执行（2026-08-11，PR #382）。** 用户从 5 候选裁决选 1（PONG://NEON），
+> 机械标识符与标题屏文本同步替换，定稿差异已回写 docs/TASTE.md §4（B2 行）。
+
 ## 3. 审美坐标锚点（情感断言方向）
 
 | 坐标 | 落地来源 | 对命名的要求 |
@@ -43,7 +46,22 @@ docs/NAMING.md（# DRAFT 草稿表 + 语境注释 + 定稿占位）← 命名档
 | 文件 | 职责 | 谁写 |
 |------|------|------|
 | `docs/NAMING.md` | 命名草稿/定稿单一档案（# DRAFT 标记） | agent 起草，用户定稿 |
-| `mini-pong/project.godot` config/name | 机械标识符（开发代号 "Mini Pong"），不标 DRAFT | 用户定稿阶段替换 |
-| `mini-pong/scenes/ui_start_menu.tscn` TitleLabel | 标题屏显示文本 | 用户定稿阶段替换 |
+| `mini-pong/project.godot` config/name | 机械标识符 → 定稿名 "PONG://NEON"（2026-08-11） | ✅ 已替换（PR #382） |
+| `mini-pong/scenes/ui_start_menu.tscn`（+ `Main.tscn` 内嵌 StartMenu）TitleLabel | 标题屏显示文本 = 定稿名 "PONG://NEON" | ✅ 已替换（PR #382） |
 | `docs/TASTE.md` 风格特征节 | 定稿差异回写（反馈闭环） | 用户定稿后回写 |
 | 本 GDD 章节 | 持久约束与数据流 | review agent（post-merge） |
+
+## 5. 定稿值（2026-08-11，用户裁决）
+
+| 项 | 值 |
+|----|-----|
+| 正式名 | **PONG://NEON**（5 候选选 1，用户裁决） |
+| 副标题 | 未定（候选：霓虹协议 / 高速对拍 / VOLT DUEL） |
+| 定稿日期 | 2026-08-11 |
+| 落地位置 | `project.godot config/name`、`Main.tscn`/`ui_start_menu.tscn` TitleLabel、TC5-3 断言（PR #382） |
+| 定稿差异回写 | docs/TASTE.md §4 定稿记录表 B2 行（草稿值 → 定稿值 → 方向 → 理由） |
+
+**定稿意图**：`PONG://NEON` 用协议符号 `://` 在 1 秒内完成赛博语境切换——`PONG` 秒懂玩法，
+`NEON` 直译 #289 霓虹视觉语汇，9 字符内命中"爽快街机 + 不是克隆"（与 #367 街机爽感一致）。
+副标题留待后续（候选均为霓虹/高速/对决语汇），不改变主标题的语境锚点；若副标题定稿，
+差异继续按 §4 流程回写 docs/TASTE.md。
