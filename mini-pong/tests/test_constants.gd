@@ -1,6 +1,7 @@
 extends RefCounted
 ## Test suite for constants.gd (#295) — Global constants extraction.
 ## Runs under godot --headless --script via run_tests.gd.
+## 手感草稿 (#367): TC6 字面量随 docs/DESIGN/367-feel-calibration-draft.md §2 草稿值同步（机械部分，不写草稿注释）。
 
 var passed: int = 0
 var failed: int = 0
@@ -33,24 +34,24 @@ func _test_tc6_constants_values_match() -> void:
 	_assert(CONSTS.SCREEN_HEIGHT == 720, "TC6-3: SCREEN_HEIGHT == 720")
 
 	# Ball Physics
-	_assert(abs(CONSTS.BALL_INITIAL_SPEED - 300.0) < 0.01, "TC6-4: BALL_INITIAL_SPEED == 300.0")
-	_assert(abs(CONSTS.BALL_MAX_SPEED_MULTIPLIER - 2.0) < 0.01, "TC6-5: BALL_MAX_SPEED_MULTIPLIER == 2.0")
-	_assert(abs(CONSTS.BALL_SPEED_INCREMENT - 1.05) < 0.01, "TC6-6: BALL_SPEED_INCREMENT == 1.05")
-	_assert(abs(CONSTS.BALL_MAX_BOUNCE_ANGLE - 60.0) < 0.01, "TC6-7: BALL_MAX_BOUNCE_ANGLE == 60.0")
-	_assert(abs(CONSTS.BALL_SERVE_ANGLE_RANGE - 45.0) < 0.01, "TC6-8: BALL_SERVE_ANGLE_RANGE == 45.0")
+	_assert(abs(CONSTS.BALL_INITIAL_SPEED - 330.0) < 0.01, "TC6-4: BALL_INITIAL_SPEED == 330.0")
+	_assert(abs(CONSTS.BALL_MAX_SPEED_MULTIPLIER - 1.9) < 0.01, "TC6-5: BALL_MAX_SPEED_MULTIPLIER == 1.9")
+	_assert(abs(CONSTS.BALL_SPEED_INCREMENT - 1.07) < 0.01, "TC6-6: BALL_SPEED_INCREMENT == 1.07")
+	_assert(abs(CONSTS.BALL_MAX_BOUNCE_ANGLE - 55.0) < 0.01, "TC6-7: BALL_MAX_BOUNCE_ANGLE == 55.0")
+	_assert(abs(CONSTS.BALL_SERVE_ANGLE_RANGE - 30.0) < 0.01, "TC6-8: BALL_SERVE_ANGLE_RANGE == 30.0")
 	_assert(abs(CONSTS.BALL_RADIUS - 10.0) < 0.01, "TC6-9: BALL_RADIUS == 10.0")
 
 	# Paddle
-	_assert(abs(CONSTS.PADDLE_SPEED - 400.0) < 0.01, "TC6-10: PADDLE_SPEED == 400.0")
+	_assert(abs(CONSTS.PADDLE_SPEED - 430.0) < 0.01, "TC6-10: PADDLE_SPEED == 430.0")
 	_assert(abs(CONSTS.PADDLE_WIDTH - 20.0) < 0.01, "TC6-11: PADDLE_WIDTH == 20.0")
 	_assert(abs(CONSTS.PADDLE_HEIGHT - 120.0) < 0.01, "TC6-12: PADDLE_HEIGHT == 120.0")
 
 	# AI
-	_assert(abs(CONSTS.AI_REACTION_DELAY_MIN - 0.1) < 0.01, "TC6-13: AI_REACTION_DELAY_MIN == 0.1")
-	_assert(abs(CONSTS.AI_REACTION_DELAY_MAX - 0.3) < 0.01, "TC6-14: AI_REACTION_DELAY_MAX == 0.3")
-	_assert(abs(CONSTS.AI_POSITION_ERROR - 20.0) < 0.01, "TC6-15: AI_POSITION_ERROR == 20.0")
-	_assert(abs(CONSTS.AI_SPEED_BOOST - 1.2) < 0.01, "TC6-16: AI_SPEED_BOOST == 1.2")
-	_assert(abs(CONSTS.AI_SPEED_SLOW - 0.8) < 0.01, "TC6-17: AI_SPEED_SLOW == 0.8")
+	_assert(abs(CONSTS.AI_REACTION_DELAY_MIN - 0.15) < 0.01, "TC6-13: AI_REACTION_DELAY_MIN == 0.15")
+	_assert(abs(CONSTS.AI_REACTION_DELAY_MAX - 0.4) < 0.01, "TC6-14: AI_REACTION_DELAY_MAX == 0.4")
+	_assert(abs(CONSTS.AI_POSITION_ERROR - 24.0) < 0.01, "TC6-15: AI_POSITION_ERROR == 24.0")
+	_assert(abs(CONSTS.AI_SPEED_BOOST - 1.25) < 0.01, "TC6-16: AI_SPEED_BOOST == 1.25")
+	_assert(abs(CONSTS.AI_SPEED_SLOW - 0.75) < 0.01, "TC6-17: AI_SPEED_SLOW == 0.75")
 
 	# Scoring
 	_assert(CONSTS.POINTS_TO_WIN_GAME == 5, "TC6-18: POINTS_TO_WIN_GAME == 5")
