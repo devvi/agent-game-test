@@ -12,7 +12,7 @@ const PADDLE_WIDTH: float = 20.0
 ## Ball constants from DESIGN (for structural verification)
 const INITIAL_SPEED: float = 300.0
 const MAX_SPEED_MULTIPLIER: float = 2.0
-const SPEED_INCREMENT: float = 1.07  # #367 草稿值（= CONSTS.BALL_SPEED_INCREMENT，TC-D1 期望值用）
+const SPEED_INCREMENT: float = 1.05  # 测试夹具（TC-D1 显式 pin，见下；不随 #367 草稿值漂移）
 const MAX_BOUNCE_ANGLE: float = 60.0
 const SERVE_ANGLE_RANGE: float = 45.0
 const BOUNCE_COOLDOWN_FRAMES: int = 2
@@ -35,7 +35,7 @@ func run() -> void:
 	_test_paddle_top_edge_c2()       # TC-C2: top-edge hit → steep upward bounce
 	_test_paddle_bottom_edge_c3()    # TC-C3: bottom-edge hit → steep downward bounce
 	_test_paddle_x_reversed_c4()     # TC-C4: X-direction reversed after paddle hit
-	_test_speed_escalation_d1()      # TC-D1: speed +7% per hit (草稿 #367)
+	_test_speed_escalation_d1()      # TC-D1: speed +5% per hit (夹具固定)
 	_test_speed_cap_d2()             # TC-D2: speed capped at 2x
 	_test_speed_reset_d3()           # TC-D3: speed resets to initial_speed on serve
 	_test_score_right_e1()           # TC-E1: right boundary → score(0)
@@ -270,8 +270,10 @@ func _test_speed_escalation_d1() -> void:
 
 	ball._on_area_entered(paddle)
 
+	# 夹具固定：显式 pin 增量（#367 后 ball 导出默认值随草稿 1.07 变化，夹具保持 1.05 自洽，定稿不漂移）
+	ball.speed_increment = SPEED_INCREMENT
 	var expected = 300.0 * SPEED_INCREMENT
-	_assert(abs(ball.speed - expected) < 0.1, "TC-D1: speed increased by +7%% (%.1f → %.1f, expected %.1f)" % [300.0, ball.speed, expected])
+	_assert(abs(ball.speed - expected) < 0.1, "TC-D1: speed increased by +5%% (%.1f → %.1f, expected %.1f)" % [300.0, ball.speed, expected])
 
 
 func _test_speed_cap_d2() -> void:
