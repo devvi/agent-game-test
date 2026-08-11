@@ -260,7 +260,7 @@ func _test_paddle_x_reversed_c4() -> void:
 func _test_speed_escalation_d1() -> void:
 	var ball = _make_ball()
 	ball.speed = 300.0
-	ball.speed_increment = SPEED_INCREMENT  # 自洽夹具（#367 后默认增量 1.07，显式固定 1.07 与常量一致）
+	ball.speed_increment = SPEED_INCREMENT  # 自洽夹具：显式 pin 增量（不随 #367 草稿值漂移）
 	ball.velocity = Vector2(-300, 0)
 	ball._bounce_cooldown = 0
 	ball.position = Vector2(640, 360)
@@ -270,8 +270,6 @@ func _test_speed_escalation_d1() -> void:
 
 	ball._on_area_entered(paddle)
 
-	# 夹具固定：显式 pin 增量（#367 后 ball 导出默认值随草稿 1.07 变化，夹具保持 1.05 自洽，定稿不漂移）
-	ball.speed_increment = SPEED_INCREMENT
 	var expected = 300.0 * SPEED_INCREMENT
 	_assert(abs(ball.speed - expected) < 0.1, "TC-D1: speed increased by +5%% (%.1f → %.1f, expected %.1f)" % [300.0, ball.speed, expected])
 
