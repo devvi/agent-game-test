@@ -260,6 +260,7 @@ func _test_paddle_x_reversed_c4() -> void:
 func _test_speed_escalation_d1() -> void:
 	var ball = _make_ball()
 	ball.speed = 300.0
+	ball.speed_increment = SPEED_INCREMENT  # 自洽夹具（#367 后默认增量 1.07，显式固定 1.07 与常量一致）
 	ball.velocity = Vector2(-300, 0)
 	ball._bounce_cooldown = 0
 	ball.position = Vector2(640, 360)
@@ -359,6 +360,7 @@ func _test_serve_center_f1() -> void:
 	var ball = _make_ball()
 	ball.screen_width = 1280.0
 	ball.screen_height = 720.0
+	ball.initial_speed = INITIAL_SPEED  # 自洽夹具（#367 后默认初速 330.0，显式固定 300.0）
 
 	# Reset ball to center (serve's position logic)
 	# #367: 显式设置 initial_speed 夹具（导出默认值随草稿 BALL_INITIAL_SPEED=330 变化，断言保持自洽）
