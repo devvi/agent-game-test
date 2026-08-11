@@ -97,3 +97,51 @@ class TestResolve(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDeadlinePassthrough(unittest.TestCase):
+    """#372 T6: per-shot deadline_s must survive resolution untouched.
+
+    resolve_plan.py appends shot dicts as-is (no code change needed for
+    #372) — this test LOCKS that behavior so a future refactor that strips
+    unknown shot keys breaks loudly. Shots WITHOUT deadline_s must not gain
+    the key either.
+    """
+
+    def test_deadline_s_passthrough(self):
+        plan = {
+            "game": "mini-pong",
+            "default_archetype": "loop",
+            "max_wall_seconds": 120,
+            "groups": {
+                "loop": {
+                    "match": [r"gdscripts/.*\.gd"],
+                    "shots": [
+                        {"name": "01_title", "state": "MENU"},
+                        {"name": "02_midgame", "state": "PLAYING",
+                         "require": {"node": "/root/GameManager", "prop": "player_score", "min": 1}},
+                        {"name": "03_gameover", "state": "GAME_OVER",
+                         "settle_frames": 10, "deadline_s": 300},
+                    ],
+                }
+            },
+        }
+        resolved = rp.resolve(plan, ["mini-pong/gdscripts/ball.gd"])
+        by_name = {s["name"]: s for s in resolved["shots"]}
+        self.assertIn("03_gameover", by_name)
+        self.assertEqual(by_name["03_gameover"].get("deadline_s"), 300)
+        self.assertEqual(by_name["03_gameover"].get("settle_frames"), 10)
+        # shots without the field must not gain the key
+        self.assertNotIn("deadline_s", by_name["01_title"])
+        self.assertNotIn("deadline_s", by_name["02_midgame"])
+
+    def test_global_max_wall_seconds_still_passthrough(self):
+        plan = {
+            "game": "mini-pong",
+            "default_archetype": "loop",
+            "max_wall_seconds": 120,
+            "groups": {"loop": {"match": [r"gdscripts/.*\.gd"],
+                                "shots": [{"name": "01_title", "state": "MENU"}]}},
+        }
+        resolved = rp.resolve(plan, ["mini-pong/gdscripts/ball.gd"])
+        self.assertEqual(resolved["max_wall_seconds"], 120)

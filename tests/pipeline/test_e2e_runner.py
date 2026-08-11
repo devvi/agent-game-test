@@ -257,3 +257,49 @@ class TestRunnerFlow(RunnerTestBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRunnerP6Comment(RunnerTestBase):
+    """#372 T8: P6 comment build with a fake `gh` on PATH.
+
+    Guards the P6 fixes end-to-end:
+      - upload_via_gist is DEFINED before the P6 call site (function
+        placement regression — the old code crashed with 'command not found')
+      - $name_ typo is gone (set -u would abort with 'unbound variable')
+      - comment.md embeds gist raw URLs as markdown images
+    """
+
+    def setUp(self):
+        super().setUp()
+        # Fake gh: `gist create` prints a gist.github.com URL (like real gh),
+        # `pr comment` is a no-op success. Real gh must NOT be on PATH.
+        fake_gh = os.path.join(self.tmp, "fakebin", "gh")
+        os.makedirs(os.path.dirname(fake_gh), exist_ok=True)
+        with open(fake_gh, "w") as f:
+            f.write('#!/usr/bin/env bash\n'
+                    'if [[ "$1" == "gist" && "$2" == "create" ]]; then\n'
+                    '  echo "https://gist.github.com/devvi/abc123def"\n'
+                    '  exit 0\n'
+                    'fi\n'
+                    'if [[ "$1" == "pr" && "$2" == "comment" ]]; then\n'
+                    '  exit 0\n'
+                    'fi\n'
+                    'exit 0\n')
+        os.chmod(fake_gh, 0o755)
+        # Prepend fakebin to PATH (runner calls `gh gist create` + `gh pr comment`)
+        self.env["PATH"] = os.path.dirname(fake_gh) + os.pathsep + self.env.get("PATH", "")
+
+    def test_p6_comment_embeds_gist_urls_no_unbound(self):
+        r = self._run()  # NO --no-comment → P6 runs
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        comment = os.path.join(self.worktree_root, "e2e-1", "comment.md")
+        self.assertTrue(os.path.exists(comment), "comment.md must be built")
+        with open(comment) as f:
+            text = f.read()
+        for shot in ("01_title", "02_midgame", "03_gameover"):
+            # runner uses basename (with .png) as the markdown alt text
+            self.assertIn(f"![{shot}.png](https://gist.githubusercontent.com/devvi/abc123def/raw/{shot}.png)",
+                          text, f"{shot} gist image must be embedded")
+        self.assertNotIn("name_: unbound variable", text)
+        self.assertNotIn("command not found", text)
+        self.assertNotIn("_upload failed", text)

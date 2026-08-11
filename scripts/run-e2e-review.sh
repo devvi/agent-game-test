@@ -229,7 +229,7 @@ PY
         args=(--min-colors 3 --name "$(basename "$png")")
         [ -n "$THEME" ] && args+=(--theme "$THEME")
         if [ -n "$prev" ]; then
-          args+=(--diff-with "$prev" --min-delta 5.0)
+          args+=(--diff-with "$prev" --min-delta 5.0 --diff-ratio 0.005)
         fi
         if python3 "$SCRIPT_DIR/e2e/analyze_bmp.py" "$png" "${args[@]}" >> "$OUT/P5-assert.log" 2>&1; then
           log "  ✅ $(basename "$png") assertions pass"
@@ -248,6 +248,27 @@ PY
   log "P5 visual: $VISUAL"
 fi
 
+# ═══════════════════════════ P6 helpers ═══════════════════════════════════
+# ⚠ upload_via_github 已删除（2026-08-11, #372）：
+#   https://github.com/upload/policies/assets 是浏览器拖拽上传端点，
+#   非 REST comment-attachment API（2026-07-31 已验证不存在），
+#   字面量 Bearer *** 占位符永远无法认证 → 该通道不可修复，弃用。
+#
+# gist 是唯一官方 REST 通道（gh gist create --public）。raw URL 格式：
+#   https://gist.githubusercontent.com/<user>/<gist_id>/raw/<file>
+# 解析失败（网络/auth 缺 gist scope）→ return 1 → P6 循环回退本地路径
+# 文案（_upload failed — see /tmp/...），comment 仍发布，不崩溃。
+upload_via_gist() {
+  local png="$1"
+  local gist_url user id fname
+  gist_url="$(gh gist create --public "$png" 2>/dev/null | grep -Eo 'https://gist\.github\.com/[^ ]+' | head -1)" || return 1
+  [ -n "$gist_url" ] || return 1
+  user="$(printf '%s' "$gist_url" | sed -E 's#https://gist\.github\.com/([^/]+)/.*#\1#')"
+  id="$(printf '%s' "$gist_url" | sed -E 's#.*/([^/]+)$#\1#')"
+  fname="$(basename "$png")"
+  [ -n "$user" ] && [ -n "$id" ] || return 1
+  echo "https://gist.githubusercontent.com/$user/$id/raw/$fname"
+}
 # ═══════════════════════════ P6 EVIDENCE ══════════════════════════════════
 if [ "$NO_COMMENT" = "1" ] || [ "$DRY_RUN" = "1" ]; then
   log "P6 evidence: skipped (--no-comment / --dry-run)"
@@ -268,19 +289,13 @@ else
     for png in "$OUT/shots/"*.png; do
       [ -f "$png" ] || continue
       name="$(basename "$png")"
-      url=""
-      if [ -n "${GH_TOKEN:-}" ] || [ -n "${GITHUB_TOKEN:-}" ]; then
-        url="$(upload_via_github "$png")"
-      fi
-      if [ -z "$url" ]; then
-        url="$(upload_via_gist "$png")"
-      fi
+      url="$(upload_via_gist "$png")" || true
       echo "**$name**"
       echo ""
       if [ -n "$url" ]; then
         echo "![$name]($url)"
       else
-        echo "_upload failed — see /tmp/e2e-$PR_NUM/shots/$name_"
+        echo "_upload failed — see /tmp/e2e-$PR_NUM/shots/$name"
       fi
       echo ""
     done
@@ -337,32 +352,3 @@ PY
 log "P7 summary: $SUMMARY"
 log "overall: $([ "$OVERALL" = "0" ] && echo ✅ PASS || echo ❌ FAIL)"
 exit "$OVERALL"
-
-# ═══════════════════════════ P6 helpers ═══════════════════════════════════
-# Upload via GitHub's web asset endpoint (no REST comment-attachment API exists
-# — verified 2026-07-31 against the official OpenAPI description).
-upload_via_github() {
-  local png="$1" token=""
-  token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
-  [ -n "$token" ] || return 1
-  local resp upload_url asset_id fname
-  resp="$(curl -s -H "Authorization: Bearer $token" https://github.com/upload/policies/assets \
-      -F "name=$(basename "$png")" -F "content_type=image/png")" || return 1
-  upload_url="$(printf '%s' "$resp" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("upload_url",""))' 2>/dev/null)" || return 1
-  asset_id="$(printf '%s' "$resp" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("asset_id",""))' 2>/dev/null)" || return 1
-  fname="$(basename "$png")"
-  [ -n "$upload_url" ] && [ -n "$asset_id" ] || return 1
-  curl -s -X PUT --upload-file "$png" "$upload_url" >/dev/null 2>&1 || return 1
-  echo "https://github.com/user-attachments/files/$asset_id/$fname"
-}
-
-# Fallback: gist raw URL (official REST, never breaks; best-effort URL form).
-upload_via_gist() {
-  local png="$1"
-  local gist_url id fname
-  gist_url="$(gh gist create --public "$png" 2>/dev/null | tail -1)" || return 1
-  id="$(printf '%s' "$gist_url" | sed -E 's#.*/([^/]+)$#\1#')"
-  fname="$(basename "$png")"
-  [ -n "$id" ] || return 1
-  echo "https://gist.githubusercontent.com/raw/$id/$fname"
-}

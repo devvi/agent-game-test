@@ -41,10 +41,10 @@ GitHub Event → Gateway webhook (:8644)
 | `stage-gate.py` | 同上 | PR 创建后验证 label/branch/body, 自动修复 |
 | `workflow-watchdog.py` | 同上 | 沉默 SPAWN 检测（no-agent cron every 5m, P2）|
 | `workflow-metrics.py` | 同上 | PM 指标视图：吞吐/SPAWN 分布/健康度（P4c）|
-| `run-e2e-review.sh` | `scripts/` | 本地 E2E 主 runner（P0-P8: worktree/L0-L3/证据/清理, 2026-07-31）|
-| `e2e/analyze_bmp.py` | `scripts/` | PNG 原生 4 重防伪断言（非黑/色数/主题色/帧间差异, 纯 stdlib）|
+| `run-e2e-review.sh` | `scripts/` | 本地 E2E 主 runner（P0-P8: worktree/L0-L3/证据/清理; P6 截图经 gist raw 上传嵌入 PR comment, 2026-07-31）|
+| `e2e/analyze_bmp.py` | `scripts/` | PNG 原生 4 重防伪断言（非黑/色数/主题色/帧间差异——全帧平均Δluma 或 变化像素占比, 纯 stdlib）|
 | `e2e/resolve_plan.py` | `scripts/` | diff→shot plan 原型选择（loop/journey/walkthrough/visual/system）|
-| `framework/templates/e2e_capture.gd` | 模板 | 截图驱动 SceneTree 脚本（状态机轮询 + press 注入 + assert_text, 进程内截图）|
+| `framework/templates/e2e_capture.gd` | 模板 | 截图驱动 SceneTree 脚本（状态机轮询 + press 注入 + assert_text + per-shot deadline, 进程内截图）|
 | `framework/templates/e2e_shots.json` | 模板 | shot plan 模板（游戏自持 `mini-pong/e2e_shots.json`）|
 | `new-game-scaffold.sh` | `scripts/` | 新游戏项目脚手架（P4a）|
 | `sync-to-hermes.sh` | `scripts/` | 同步脚本到 `~/.hermes/scripts/`（改脚本后必跑）|
