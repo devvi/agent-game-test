@@ -88,10 +88,14 @@ workflow/implement
        │                          │                   │
        │                     审查通过               审查拒绝
        │                          │                   │
-       ▼                          ▼                   ▼
-    gh pr merge            status/done          workflow/self-correct
-    (合并到 main)
-       │
+       │              ┌───────────┴─────────┐         │
+       │              │                     │         │
+       │         mechanical            taste-draft   workflow/self-correct
+       │              │                     │         │
+       ▼              ▼                     ▼
+    gh pr merge    status/done       草稿 merge（PR 用 Parent #N 不写 Closes）
+    (合并到 main)                      → assign 用户 + status/human-review
+       │                                 → 用户 close = 定稿（不进依赖链）
        │ workflow-chain.yml（PR closed 事件触发）
        ▼
   status/done + close issue
