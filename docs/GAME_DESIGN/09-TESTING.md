@@ -159,3 +159,88 @@ Match 100: Ai wins — 3 games (P A A) [246 frames] ✅
 | Main Scene | `test_main_scene.gd` | 50 | Integration |
 | **Auto-Play** | `auto_play_test.gd` | **100** | **Integration/Stress** |
 | **Total** | | **1002** | |
+
+
+---
+
+## 6. Local E2E Review Harness (`run-e2e-review.sh`)
+
+> **PR:** #377 | **Issue:** #372 | **Design:** `docs/DESIGN/372-e2e-harness-fixes.md`
+
+Beyond the headless unit suite, the pipeline runs a **local E2E verification** of every implement PR before merge: an isolated worktree of the PR branch is tested end-to-end with real rendering, and the evidence is posted back to the PR. It exists because CI green alone does not prove the game *looks right and plays* — `--headless` cannot produce screenshots (dummy driver = zero pixels), so the harness drives the real display driver (brief window flash, acceptable for low-frequency review).
+
+### Design Philosophy
+
+- **Worktree isolation** — every run checks the PR branch out into `/tmp/wt-impl-<N>`; the main working tree is never touched (kills the checkout/stash pitfall family). The worktree is force-removed on exit via trap, *before* `gh pr merge --delete-branch` (an open worktree blocks branch deletion).
+- **Real-render evidence with anti-spoof** — screenshots are captured from a live game window and asserted to be genuine frames (not flat color / not black / not frozen), so a "L3 pass" means the game actually rendered distinct, themed frames.
+- **Degrade, don't crash** — every external dependency (gist upload, network, `gh`) has a graceful fallback; the evidence comment is always posted even when image embedding fails.
+- **Testability injection** — `RUNNER_GODOT`, `E2E_WORKTREE_ROOT`, `E2E_BRANCH`, `E2E_GH_REPO`, `E2E_DIFF_FILES`, `E2E_PLAN_PATH` env overrides let the pipeline test suite (`tests/pipeline/test_e2e_runner.py`) exercise the full runner with a fake `godot` and fake `gh` — no network, no real engine.
+
+### Phases (P0–P8)
+
+| Phase | Purpose |
+|-------|---------|
+| P0 | Pre-flight: godot present, caffeinate held (system sleep = frozen capture), branch fetched |
+| P1 | Worktree add (isolated checkout of the impl branch) |
+| P2–P4 | Logic layers: L0 compile → L1 unit logic → L2 runtime scene |
+| P5 | Visual layer: resolve shot plan from PR diff → real-render capture → 4-fold anti-spoof assertions |
+| P6 | Evidence: build markdown comment with embedded screenshots, post to PR |
+| P7 | Summary JSON + overall exit code (0 pass / 1 layer failure / 2 pre-flight) |
+| P8 | Cleanup: worktree removed via EXIT trap |
+
+### Layer Ladder
+
+| Layer | Script | Pass Criterion |
+|-------|--------|----------------|
+| L0 Compile | `tests/check_compile.gd` | all `.gd` files load, 0 failures |
+| L1 Logic | `tests/run_tests.gd` | `TOTAL: N passed, 0 failed` (1054 tests) |
+| L2 Runtime | `tests/playthrough_test.tscn` | optional — missing file = warn-only (exit 2), not a failure |
+| L3 Visual | `e2e_capture.gd` + `analyze_bmp.py` | every shot passes all 4 anti-spoof assertions |
+
+Only a hard failure (exit 1) makes the run red; unavailable layers warn only.
+
+### 4-Fold Anti-Spoof Assertions (`analyze_bmp.py`)
+
+| # | Assertion | Default Threshold | Catches |
+|:-:|-----------|-------------------|---------|
+| 1 | Non-black | black pixel ratio ≤ 50% | black/blank frame |
+| 2 | Color count | ≥ 3 distinct color buckets | flat-color frame (scene didn't load) |
+| 3 | Theme color | theme hex present within tol 32 | wrong scene / missing UI |
+| 4 | Frame diff (dual-channel OR) | mean Δluma ≥ 5.0 **OR** changed-pixel ratio ≥ 0.5% | frozen frame |
+
+**Frozen heuristic is dual-channel (#372):** the old single metric (mean Δluma) is diluted by neon dark backgrounds — large near-black areas keep the average tiny while a significant share of pixels genuinely change (#371 real frames: Δluma = 0.5 < 5.0 but 1.115% of pixels changed). The ratio channel counts sampled pixels whose per-pixel |Δluma| exceeds `--pixel-delta` (default 20) and passes when `changed / total ≥ --diff-ratio` (runner uses `0.005`, i.e. 0.5% — 2× margin over the observed 1.1%). The runner passes both channels (`--min-delta 5.0 --diff-ratio 0.005`); omitting `--diff-ratio` restores pure mean-Δluma behavior (backward compatible).
+
+### Shot Plan & Deadlines (`e2e_shots.json` + `e2e_capture.gd`)
+
+The game authors its own shot plan (`mini-pong/e2e_shots.json`); the runner resolves groups whose `match` regexes hit PR diff files, producing a flat plan:
+
+```json
+{ "name": "03_gameover", "state": "GAME_OVER", "settle_frames": 10, "deadline_s": 300 }
+```
+
+| Constant | Default | Meaning |
+|----------|---------|---------|
+| `max_wall_seconds` | 120 | global per-run wall clock |
+| `deadline_s` (per shot) | absent → global | that shot's own deadline; loop runs until the **max pending deadline**, so a long-deadline shot extends the run |
+
+Rationale: a 5-point AI-vs-AI match can exceed 120 s, so `03_gameover` gets its own 300 s deadline while `01_title`/`02_midgame` fall back to the global. Missing field = global (backward compatible); the shot's own deadline is also enforced inside settle-waiting, so an unready shot fails fast instead of hanging the run.
+
+### P6 Evidence Channel (gist raw URL)
+
+GitHub REST has **no comment-attachment endpoint** (verified against the official OpenAPI). Screenshots are uploaded via the only official REST channel — `gh gist create --public` — and embedded as `![name](https://gist.githubusercontent.com/<user>/<gist_id>/raw/<file>)`. Failure modes degrade gracefully:
+
+| Failure | Behavior |
+|---------|----------|
+| gist creation/URL parse fails | fall back to local-path text (`_upload failed — see /tmp/e2e-<N>/shots/...`), comment still posts |
+| token lacks `gist` scope | same fallback (known env limitation, follow-up: web-upload endpoint with real token or gist base64) |
+
+### Failure Taxonomy (design-agreed)
+
+| Class | Meaning | Path |
+|-------|---------|------|
+| A | harness/infra broke (black shots, timeout, worktree) | fix harness or degrade L3; no self-correct cycle |
+| B | pre-existing (reproduces on main) | mark `status/blocked`, fix via separate issue |
+| C | spec/aesthetic (runs but wrong look) | REQUEST_CHANGES + evidence → human verdict |
+| D | code defect (crash/physics/loop) | local convergence loop, max 2 rounds, then escalate |
+
+Pipeline coverage: 118 cases in `tests/pipeline/` (baseline 104 + 14 for #372) — runner end-to-end with fake godot/gh, analyzer dual-channel regressions, deadline passthrough lock.
