@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="Mini Pong"
+config/name="PONG://NEON"
 config/description="A classic Pong game implementation"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7")

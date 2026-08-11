@@ -18,7 +18,7 @@ grow_vertical = 2
 alignment = 1
 
 [node name="TitleLabel" type="Label" parent="CenterContainer/VBoxContainer"]
-text = "Mini Pong"
+text = "PONG://NEON"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 64
 modulate = Color(0.29, 0.56, 0.85, 1.0)
