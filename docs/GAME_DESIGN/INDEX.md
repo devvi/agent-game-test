@@ -14,3 +14,4 @@
 | [17-GAME-STATE-MACHINE](17-GAME-STATE-MACHINE.md) | Game state machine — 5-state FSM, input routing, paddle freeze, UI orchestration |
 | [18-PAUSE-SYSTEM](18-PAUSE-SYSTEM.md) | Pause system — Escape toggle, PAUSED state, PauseOverlay CanvasLayer |
 | [19-AUDIO-ENGINE](19-AUDIO-ENGINE.md) | Audio engine — AudioStreamGenerator synthesis, 4 sound effects |
+| [20-NAMING](20-NAMING.md) | Naming — constraints (红线), NAMING.md draft flow, finalization handoff to TASTE.md |
