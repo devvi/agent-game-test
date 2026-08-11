@@ -496,7 +496,8 @@ Then proceed directly to the merge step. The review comment on the PR + the sess
 | Condition | Action |
 |-----------|--------|
 | All checks pass + **mechanical Issue** | Merge via gh pr merge N --squash --delete-branch |
-| All checks pass + **taste-draft Issue** | Merge draft (不写 Closes) + assign + `status/human-review` label — 见下方 **taste-draft 分流** |
+| All checks pass + **taste-draft Issue（草稿 PR，父 Issue 未在 human-review）** | Merge draft (不写 Closes) + assign + `status/human-review` label — 见下方 **taste-draft 分流** |
+| All checks pass + **定稿 PR（父 Issue 已带 `status/human-review`，用户已裁决）** | Merge + 评论"定稿已合入，请 close 本 Issue 完成定稿" + **不 close、不打 `status/done`** — close 是用户动作（close 即定稿），见下方 **taste-draft 分流 · 定稿 PR** |
 | Pre-existing failures on ANY PR type | Add PR comment documenting findings. Do NOT merge. Escalate. All pre-existing failures must be fixed before merge - no exceptions. |
 | CI failure (should not happen - review is only called on success) | Do NOT merge. Report to user. |
 | PR merge conflicts | Report. Skip. |
@@ -553,6 +554,39 @@ curl -s -X POST -H "Content-Type: application/json" \
 
 **⚠️ 不要做：** 不要给 taste-draft Issue 打 `status/done`（那是"全部完成"语义，taste-draft 还要等定稿）；
 不要 close Issue（草稿 merge ≠ 定稿）；不要跳过 assign（队列机制依赖 assignee）。
+
+### 定稿 PR（父 Issue 已带 `status/human-review`，2026-08-11 第五断点补丁）
+
+> **断点实录（#378/#382）：** workflow-chain 的 isParentHumanReview 防呆（不 close，等用户）
+> 正确执行后，review agent 在 merge 定稿 PR 后自行 close + 打 `status/done`，
+> 26 秒内覆盖了防呆意图 —— review agent 缺少"定稿 PR"分支，把"定稿完成"误判为
+> "由 agent 收尾 close"。v4 语义：**close 是用户动作（close 即定稿）**，agent 不得代劳。
+
+**判定：这个 PR 是"定稿 PR"吗？**
+
+```bash
+# 父 Issue 是否已在 status/human-review（草稿已 merge，等用户裁决）
+gh issue view $PARENT --json labels --jq '.labels[].name' | grep -q 'status/human-review'
+# 命中 → 这是定稿 PR（用户已裁决/微调后发起的合入）
+```
+
+**定稿 PR 的处理流程（关键差异：merge 后不 close、不推进 label）：**
+
+```bash
+# 1. 正常做 review 检查（L0-L3 验证定稿改动本身正确）
+# 2. merge（定稿 PR 的 body 仍是 "Parent #N"，不写 Closes —— 保持 Issue 打开）
+gh pr merge <N> --squash --delete-branch
+
+# 3. 评论确认定稿已合入，但把 close 留给用户（close 即定稿）
+gh issue comment <PARENT> --body "✅ 定稿 PR merged。若此为本 Issue 最终定稿,请 close 本 Issue 完成校准。"
+
+# 4. ⛔ 不要执行: gh issue close / --add-label status/done / remove status/human-review
+#    close 由用户手动执行（GitHub Assigned to me 队列里点 close 即定稿）
+```
+
+**⚠️ 不要做：** 定稿 PR merge 后**不要 close Issue、不要加 `status/done`、不要动 label**。
+workflow-chain 的 `isParentHumanReview` 防呆会兜底（评论"定稿 PR merged"），
+但 agent 侧的 close 会覆盖它 —— 第五断点教训：**两个系统都要遵守"close 归用户"**。
 
 ### ⚠️ Block Is Permanent Until Main Is Green
 
