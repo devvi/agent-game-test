@@ -75,6 +75,15 @@ jobs:
             const parentBody = parentIssue ? (parentIssue.data.body || '') : '';
             const isTasteDraft = /content_ownership:\s*taste-draft/i.test(parentBody);
 
+            // ── v4 防呆修复 (2026-08-11): human-review 状态判断 ────────────
+            // 原实现 `activeLabel === 'status/human-review'` 是死代码 —— activeLabel
+            // 只来自 PR labels (research/plan/implement) 或分支前缀 (research/plan/
+            // impl/review→test), 永远不可能等于 status/human-review, 防呆从未执行。
+            // 正确依据是父 Issue 当前 labels: 只要在 status/human-review, 任何后续
+            // merge (用户定稿 PR / review 补充 PR / 异常前缀 PR) 都不 close、不推进。
+            const parentLabels = parentIssue ? (parentIssue.data.labels || []).map(l => l.name) : [];
+            const isParentHumanReview = parentLabels.includes('status/human-review');
+
             const nextStage = {
               'workflow/research':  'workflow/plan',
               'workflow/plan':      'workflow/implement',
@@ -85,7 +94,18 @@ jobs:
 
             const nextLabel = nextStage[activeLabel];
 
-            if (nextLabel) {
+            if (isParentHumanReview) {
+              // v4 防呆(修复后可达): 父 Issue 已在 status/human-review 时的再次 merge
+              // (用户定稿 PR / review 补充 PR / 任何前缀)只更新评论,
+              // 不 close、不推进 —— close 由用户手动执行(定稿即 close)。
+              console.log(`PR #${pr.number} merged → Issue #${parentNumber} at status/human-review (awaiting user) — not closing`);
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parentNumber,
+                body: '✅ 定稿 PR merged。若此为本 Issue 最终定稿,请 close 本 Issue 完成校准。',
+              });
+            } else if (nextLabel) {
               await github.rest.issues.addLabels({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -137,16 +157,6 @@ jobs:
                   : nextLabel === 'status/human-review'
                     ? `🧪 草稿已 merge (#${pr.number}) — 等待定稿。打开本 Issue → 微调草稿 → push → close 即定稿(差异会记录进 docs/TASTE.md)。`
                     : `⏩ PR #${pr.number} (${activeLabel}) merged → advancing to **${nextLabel}**`,
-              });
-            } else if (activeLabel === 'status/human-review') {
-              // v4 防呆: human-review 状态下的再次 merge(用户定稿 PR)只更新评论,
-              // 不 close —— close 由用户手动执行(定稿即 close)。
-              console.log(`PR #${pr.number} merged → Issue #${parentNumber} at status/human-review (awaiting user) — not closing`);
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: parentNumber,
-                body: '✅ 定稿 PR merged。若此为本 Issue 最终定稿,请 close 本 Issue 完成校准。',
               });
             } else {
               await github.rest.issues.update({
