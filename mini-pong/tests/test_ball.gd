@@ -12,7 +12,7 @@ const PADDLE_WIDTH: float = 20.0
 ## Ball constants from DESIGN (for structural verification)
 const INITIAL_SPEED: float = 300.0
 const MAX_SPEED_MULTIPLIER: float = 2.0
-const SPEED_INCREMENT: float = 1.05
+const SPEED_INCREMENT: float = 1.05  # 测试夹具（TC-D1 显式 pin，见下；不随 #367 草稿值漂移）
 const MAX_BOUNCE_ANGLE: float = 60.0
 const SERVE_ANGLE_RANGE: float = 45.0
 const BOUNCE_COOLDOWN_FRAMES: int = 2
@@ -35,7 +35,7 @@ func run() -> void:
 	_test_paddle_top_edge_c2()       # TC-C2: top-edge hit → steep upward bounce
 	_test_paddle_bottom_edge_c3()    # TC-C3: bottom-edge hit → steep downward bounce
 	_test_paddle_x_reversed_c4()     # TC-C4: X-direction reversed after paddle hit
-	_test_speed_escalation_d1()      # TC-D1: speed +5% per hit
+	_test_speed_escalation_d1()      # TC-D1: speed +5% per hit (夹具固定)
 	_test_speed_cap_d2()             # TC-D2: speed capped at 2x
 	_test_speed_reset_d3()           # TC-D3: speed resets to initial_speed on serve
 	_test_score_right_e1()           # TC-E1: right boundary → score(0)
@@ -260,6 +260,7 @@ func _test_paddle_x_reversed_c4() -> void:
 func _test_speed_escalation_d1() -> void:
 	var ball = _make_ball()
 	ball.speed = 300.0
+	ball.speed_increment = SPEED_INCREMENT  # 自洽夹具：显式 pin 增量（不随 #367 草稿值漂移）
 	ball.velocity = Vector2(-300, 0)
 	ball._bounce_cooldown = 0
 	ball.position = Vector2(640, 360)
@@ -359,8 +360,11 @@ func _test_serve_center_f1() -> void:
 	var ball = _make_ball()
 	ball.screen_width = 1280.0
 	ball.screen_height = 720.0
+	ball.initial_speed = INITIAL_SPEED  # 自洽夹具（#367 后默认初速 330.0，显式固定 300.0）
 
 	# Reset ball to center (serve's position logic)
+	# #367: 显式设置 initial_speed 夹具（导出默认值随草稿 BALL_INITIAL_SPEED=330 变化，断言保持自洽）
+	ball.initial_speed = INITIAL_SPEED
 	ball.position = Vector2(ball.screen_width / 2.0, ball.screen_height / 2.0)
 	ball.speed = ball.initial_speed
 
