@@ -58,11 +58,29 @@ jobs:
             }
             const parentNumber = parseInt(parentMatch[1]);
 
+            // ── v4 人机共做 (2026-08-11): taste-draft 识别 ──────────────
+            // 父 Issue body 带 content_ownership: taste-draft = 品味内容草稿。
+            // 草稿 merge 后: 推进到 status/human-review(非 status/done),
+            // Issue 保持 open, assign 用户定稿。机械 Issue 走原 status/done + close。
+            let parentIssue = null;
+            try {
+              parentIssue = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parentNumber,
+              });
+            } catch (e) {
+              console.log(`PR #${pr.number}: could not fetch parent issue #${parentNumber} — ${e.message}`);
+            }
+            const parentBody = parentIssue ? (parentIssue.data.body || '') : '';
+            const isTasteDraft = /content_ownership:\s*taste-draft/i.test(parentBody);
+
             const nextStage = {
               'workflow/research':  'workflow/plan',
               'workflow/plan':      'workflow/implement',
-              'workflow/implement': 'status/done',
+              'workflow/implement': isTasteDraft ? 'status/human-review' : 'status/done',
               'status/done':        null,
+              'status/human-review': null,
             };
 
             const nextLabel = nextStage[activeLabel];
@@ -83,7 +101,8 @@ jobs:
 
               console.log(`PR #${pr.number} merged → Issue #${parentNumber}: ${activeLabel} → ${nextLabel}`);
 
-              // Close the issue when reaching status/done
+              // Close the issue ONLY when reaching status/done (mechanical).
+              // taste-draft 草稿 merge ≠ 定稿 — 保持 open 等用户校准。
               if (nextLabel === 'status/done') {
                 await github.rest.issues.update({
                   owner: context.repo.owner,
@@ -94,13 +113,40 @@ jobs:
                 console.log(`Issue #${parentNumber} closed (done)`);
               }
 
+              // v4: taste-draft 草稿 merge → assign 用户(队列入口),不 close
+              if (nextLabel === 'status/human-review') {
+                try {
+                  await github.rest.issues.addAssignees({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: parentNumber,
+                    assignees: [context.repo.owner],
+                  });
+                  console.log(`Issue #${parentNumber} assigned to ${context.repo.owner} (human-review queue)`);
+                } catch (assignErr) {
+                  console.log(`Issue #${parentNumber}: assign failed (${assignErr.message})`);
+                }
+              }
+
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: parentNumber,
                 body: nextLabel === 'status/done'
                   ? `🎉 Issue resolved — label: **${nextLabel}**`
-                  : `⏩ PR #${pr.number} (${activeLabel}) merged → advancing to **${nextLabel}**`,
+                  : nextLabel === 'status/human-review'
+                    ? `🧪 草稿已 merge (#${pr.number}) — 等待定稿。打开本 Issue → 微调草稿 → push → close 即定稿(差异会记录进 docs/TASTE.md)。`
+                    : `⏩ PR #${pr.number} (${activeLabel}) merged → advancing to **${nextLabel}**`,
+              });
+            } else if (activeLabel === 'status/human-review') {
+              // v4 防呆: human-review 状态下的再次 merge(用户定稿 PR)只更新评论,
+              // 不 close —— close 由用户手动执行(定稿即 close)。
+              console.log(`PR #${pr.number} merged → Issue #${parentNumber} at status/human-review (awaiting user) — not closing`);
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parentNumber,
+                body: '✅ 定稿 PR merged。若此为本 Issue 最终定稿,请 close 本 Issue 完成校准。',
               });
             } else {
               await github.rest.issues.update({
