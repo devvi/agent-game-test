@@ -39,6 +39,19 @@ const FALLBACK_SCREEN_HEIGHT: float = 720.0  # Headless fallback
 > (`class_name GameConstants`). `ball.gd` references `CONSTS.BALL_INITIAL_SPEED` etc. instead
 > of local `const` declarations. Headless fallback values remain as inline fallbacks for test contexts.
 
+## 手感校准草稿（taste-draft #367）
+
+> 机制稳定、数值会变：本节记录手感校准的**机制**与当前草稿值；候补值、影响说明、情感断言以 `docs/TASTE.md` 为单一事实源（用户定稿后回写 TASTE.md §4，GDD 数值随定稿更新）。
+
+| 项 | 说明 |
+|----|------|
+| 参数范围 | 11 个手感参数（球速 4 + 反弹角 1 + 操控 1 + AI 5）集中在 `gdscripts/constants.gd`，机械常量（SCREEN/VERSION/RADIUS/SCORING/COLORS）不动 |
+| 草稿标注 | 每条带 `# DRAFT` 注释（该值影响什么 + 2–3 候补值 + 情感断言），`grep -c "# DRAFT"` == 11 |
+| 消费链 | `CONSTS → ball.gd / paddle.gd @export 默认值`（Main.tscn 无导出覆盖）→ 改常量即改手感 |
+| 校准接口 | `docs/TASTE.md`：候补值表（§1）+ 试玩剧本（§2，自动对打 + 手动一局）+ 情感断言清单（§3） |
+| 红线 | 单次 rally 球速跳变 ≤ 20%（草稿 `BALL_SPEED_INCREMENT=1.07` → +7%）；AI 追击速度（`AI_SPEED_BOOST`）不属红线范围 |
+| 状态 | 草稿已 merge（#371），父 Issue #367 保持 open（`status/human-review` + assigned devvi）等用户定稿 |
+
 ## Key Systems
 
 ### Wall Bounce
@@ -57,7 +70,7 @@ const FALLBACK_SCREEN_HEIGHT: float = 720.0  # Headless fallback
 |-----------|-------|
 | Trigger | `area_entered` with `is_in_group("paddles")` |
 | Impact calculation | `(ball.y - paddle.y) / (paddle_height / 2)` → clamped to [-1, +1] |
-| Angle mapping | `impact_offset × 60°` → angle range [-60°, +60°] |
+| Angle mapping | `impact_offset × 55°` → angle range [-55°, +55°]（#367 草稿值） |
 | Center hit | impact_offset ≈ 0 → near-horizontal rebound |
 | Edge hit | impact_offset ≈ ±1 → steep 60° angle |
 
@@ -65,8 +78,8 @@ const FALLBACK_SCREEN_HEIGHT: float = 720.0  # Headless fallback
 
 | Parameter | Value |
 |-----------|-------|
-| Per-hit multiplier | `speed *= 1.05` (+5%) |
-| Cap | `INITIAL_SPEED × 2.0` = 600 px/s |
+| Per-hit multiplier | `speed *= 1.07` (+7%，#367 草稿值) |
+| Cap | `INITIAL_SPEED × 1.9` ≈ 627 px/s（#367 草稿值） |
 | Reset | Returns to `INITIAL_SPEED` on serve after scoring |
 
 ### Scoring
@@ -84,8 +97,8 @@ After scoring, the ball automatically serves from center after a 0.5s delay.
 |-----------|-------|
 | Position | Center of screen: `(screen_width/2, screen_height/2)` |
 | Direction | Random: left (-1) or right (+1), 50/50 |
-| Angle | Random within ±45° from horizontal |
-| Speed | Reset to `initial_speed` (300 px/s) |
+| Angle | Random within ±30° from horizontal（#367 草稿值 `BALL_SERVE_ANGLE_RANGE`） |
+| Speed | Reset to `initial_speed`（草稿 330 px/s，#367） |
 | Delay | 0.5s pause before launch (via `await create_timer`) |
 
 ## Data Flow

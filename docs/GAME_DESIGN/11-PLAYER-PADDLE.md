@@ -109,13 +109,16 @@ enum Mode { PLAYER = 0, AI = 1 }
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `ai_reaction_delay_min` | float | 0.1 | Min reaction delay (seconds) |
-| `ai_reaction_delay_max` | float | 0.3 | Max reaction delay (seconds) |
-| `ai_position_error` | float | 20.0 | ±error range (pixels) |
-| `ai_speed_boost` | float | 1.2 | Speed multiplier when trailing (dist ≥ 40) |
-| `ai_speed_slow` | float | 0.8 | Speed multiplier when ahead (dist < 40) |
+| `ai_reaction_delay_min` | float | 0.15 | Min reaction delay (seconds)（#367 草稿） |
+| `ai_reaction_delay_max` | float | 0.4 | Max reaction delay (seconds)（#367 草稿） |
+| `ai_position_error` | float | 24.0 | ±error range (pixels)（#367 草稿） |
+| `ai_speed_boost` | float | 1.25 | Speed multiplier when trailing (dist ≥ 48)（#367 草稿） |
+| `ai_speed_slow` | float | 0.75 | Speed multiplier when ahead (dist < 48)（#367 草稿） |
 
 All `@export` — tunable in editor for difficulty adjustment.
+
+> **手感校准草稿（#367）**：上表默认值为 taste-draft 草稿值（来源 `constants.gd`，带 `# DRAFT` 注释）。
+> 速度切换阈值 = `ai_position_error × 2`（草稿 24 → 48px）。候补值与情感断言见 `docs/TASTE.md`；定稿后更新本表。
 
 ### AI Processing Flow (per frame)
 
@@ -124,12 +127,12 @@ _ai_process(delta):
   1. Guard: if _ball_node == null → early return (no crash)
   2. Delay timer: _ai_delay_timer -= delta
      if timer ≤ 0:
-       timer = randf_range(0.1, 0.3)    # new delay window
-       error = randf_range(-20, 20)      # position error
+       timer = randf_range(0.15, 0.4)   # new delay window（#367 草稿）
+       error = randf_range(-24, 24)      # position error（#367 草稿）
        target = ball.y + error
   3. Speed adjustment:
      dist = |position.y - target|
-     factor = 1.2 if dist ≥ 40 else 0.8
+     factor = 1.25 if dist ≥ 48 else 0.75   # 阈值 = ai_position_error × 2（#367 草稿）
   4. Move: position.y += sign(target - y) * SPEED * factor * delta
   5. Clamp: position.y = clamp(y, min_y, max_y)
 ```

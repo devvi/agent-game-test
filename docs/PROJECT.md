@@ -8,7 +8,7 @@
 | 可运行 | ✅ 能启动 |
 | 可玩 | ✅ Mini Pong: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成 |
 | 最近构建 | 2026-08-10 |
-| 开放 Issues | 0 |
+| 开放 Issues | 2（#367 手感定稿待定 + #372 e2e harness fix） |
 
 ## 模块地图
 
@@ -49,7 +49,9 @@
 | 295 | 主场景组装 (Main.tscn + constants.gd + ScoreZones + ScoreFlash) | ✅ 已合并 | DESIGN / GDD |
 | 297 | 100回合AI自动对打测试 | ✅ 已合并 | DESIGN / GDD |
 | 358 | Mini Pong 标题画面版本号 v1.0.0 | ✅ 已合并 | DESIGN / GDD |
+| 367 | Mini Pong 手感校准草稿 (球速/反弹角/AI 强度) | 🧪 草稿已合并，待用户定稿 | DESIGN / TASTE |
 
 ## 已知问题
 
-7项预存测试失败已在 #353 (暂停) 和 #355 (UI字体) 中全部修复并合并。无已知问题。
+7项预存测试失败已在 #353 (暂停) 和 #355 (UI字体) 中全部修复并合并。
+已知问题：#372 — run-e2e-review.sh P6 上传函数定义顺序 bug + frozen 阈值过严（class A harness，修复中）。
