@@ -381,6 +381,13 @@ def _has_unresolved_dependencies(issue_num: int) -> list[dict]:
         if "status/done" in dep_labels:
             continue
         
+        # status/human-review = taste-draft 草稿已 merge，等待人定稿 —
+        # human Issue 不进依赖链（v4 队列模式，2026-08-11）。
+        # 语义: 草稿 merge 即依赖满足，下游机械 Issue 不等人的定稿速度，
+        # 定稿后由用户增量替换。
+        if "status/human-review" in dep_labels:
+            continue
+        
         # design dependency: plan/implement stages = resolved
         if dep_type == "design":
             if any(l.startswith("workflow/plan") or l.startswith("workflow/implement") for l in dep_labels):

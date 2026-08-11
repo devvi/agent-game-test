@@ -119,6 +119,16 @@ def main():
             f"## 验收条件\n"
             + "\n".join(f"- [ ] {ac}" for ac in issue["acceptance_criteria"])
         )
+        # 人机共做 v4（2026-08-11）：content_ownership 标注
+        # taste-draft Issue → review 达标后草稿 merge（PR 用 Parent 不 Closes）+ assign 用户定稿
+        ownership = issue.get("content_ownership", "mechanical")
+        if ownership == "taste-draft":
+            body += "\n\n## 所有权\ncontent_ownership: taste-draft\n"
+            body += ("⚠️ 本 Issue 是品味内容（人机共做 v4）：agent 生成带 taste 方向的草稿，"
+                     "review 达标后草稿 merge（PR 用 Parent #N 不写 Closes），"
+                     "assign 用户定稿。draft 规范见 game-to-issues references/taste-ownership-domains.md\n")
+        else:
+            body += "\n\n## 所有权\ncontent_ownership: mechanical\n"
         deps = issue.get("dependencies", [])
         if deps:
             dep_numbers = [id2number[d] for d in deps if d in id2number]

@@ -60,6 +60,57 @@ class TestParseDependencies(unittest.TestCase):
         self.assertEqual(ep.parse_dependencies(body), [{"issue": 7, "type": "full"}])
 
 
+class TestUnresolvedDependencies(unittest.TestCase):
+    """Tests for _has_unresolved_dependencies — v4 human-review queue semantics.
+
+    v4 (2026-08-11): taste-draft Issues get status/human-review after draft
+    merge. Human Issue does NOT enter the dependency chain — a dependency
+    carrying status/human-review counts as resolved (draft merged, waiting
+    for human calibration, downstream may proceed on the draft structure).
+    """
+
+    def _call(self, issues_cache, issue_num=100):
+        with mock.patch.object(ep, "_ensure_issues_cache", return_value=issues_cache):
+            return ep._has_unresolved_dependencies(issue_num)
+
+    def _issue(self, number, labels):
+        return {"number": number, "labels": [{"name": l} for l in labels],
+                "body": "## 前置依赖\n#1\n"}
+
+    def test_human_review_dep_counts_as_resolved(self):
+        """Dependency with status/human-review (draft merged, awaiting human)
+        must NOT block the downstream issue."""
+        dep = self._issue(1, ["status/human-review"])
+        parent = self._issue(100, ["workflow/available"])
+        parent["body"] = "## 前置依赖\nDepends on: #1\n"
+        unresolved = self._call([dep, parent])
+        self.assertEqual(unresolved, [], "human-review dep = resolved (v4 queue)")
+
+    def test_open_dep_without_done_label_is_unresolved(self):
+        """Open dependency with no status/done or status/human-review is still unresolved."""
+        dep = self._issue(1, ["workflow/implement"])
+        parent = self._issue(100, ["workflow/available"])
+        parent["body"] = "## 前置依赖\nDepends on: #1\n"
+        unresolved = self._call([dep, parent])
+        self.assertEqual(len(unresolved), 1, "open dep without done label blocks")
+
+    def test_status_done_dep_counts_as_resolved(self):
+        """status/done dependency remains resolved (existing behavior preserved)."""
+        dep = self._issue(1, ["status/done"])
+        parent = self._issue(100, ["workflow/available"])
+        parent["body"] = "## 前置依赖\nDepends on: #1\n"
+        unresolved = self._call([dep, parent])
+        self.assertEqual(unresolved, [], "status/done dep = resolved")
+
+    def test_closed_dep_counts_as_resolved(self):
+        """Closed dependency (absent from open-issues cache) is resolved."""
+        # Only the parent is in the cache — dep #1 is closed (not listed)
+        parent = self._issue(100, ["workflow/available"])
+        parent["body"] = "## 前置依赖\nDepends on: #1\n"
+        unresolved = self._call([parent])
+        self.assertEqual(unresolved, [], "closed dep = resolved")
+
+
 class TestEventPriority(unittest.TestCase):
     def test_check_run_completed_actionable(self):
         ev = {"_key": "check_run.completed#154", "type": "check_run",
