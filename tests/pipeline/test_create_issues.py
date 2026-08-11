@@ -137,5 +137,68 @@ class TestCreateFlow(unittest.TestCase):
         self.assertEqual(cm.exception.code, 1)
 
 
+class TestContentOwnershipAnnotation(unittest.TestCase):
+    """v4 (2026-08-11): create-issues must annotate content_ownership in body.
+
+    taste-draft Issues carry a marker for the review agent to route into the
+    human-review queue (draft merge → assign + status/human-review, no auto-close).
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.plan = os.path.join(self.tmp.name, "plan.json")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _run(self, issues):
+        data = {"meta": {"status": "draft"}, "issues": issues}
+        with open(self.plan, "w") as f:
+            json.dump(data, f, ensure_ascii=False)
+        created = []
+
+        def fake_run(cmd, **kwargs):
+            if cmd[:2] == ["git", "remote"]:
+                return mock.Mock(returncode=0, stdout="")
+            title = cmd[cmd.index("--title") + 1]
+            body = cmd[cmd.index("--body") + 1]
+            created.append((title, body))
+            return mock.Mock(returncode=0,
+                             stdout="https://github.com/devvi/agent-game-test/issues/1\n")
+
+        with mock.patch("subprocess.run", side_effect=fake_run), \
+             mock.patch("sys.argv", ["create-issues.py", self.plan]):
+            ci.main()
+        return created
+
+    def test_taste_draft_annotated(self):
+        issues = [{"id": 1, "title": "[Content] 剧情草稿", "description": "d",
+                   "context": "c", "milestone": "mvp", "labels": ["enhancement"],
+                   "acceptance_criteria": ["a"], "dependencies": [],
+                   "content_ownership": "taste-draft"}]
+        created = self._run(issues)
+        body = created[0][1]
+        self.assertIn("content_ownership: taste-draft", body)
+        self.assertIn("Parent #N", body, "taste-draft must hint Parent (not Closes) PR")
+        self.assertIn("品味内容", body)
+
+    def test_mechanical_annotated(self):
+        issues = [{"id": 1, "title": "[Feature] 脚手架", "description": "d",
+                   "context": "c", "milestone": "mvp", "labels": ["enhancement"],
+                   "acceptance_criteria": ["a"], "dependencies": []}]
+        created = self._run(issues)
+        body = created[0][1]
+        self.assertIn("content_ownership: mechanical", body)
+        self.assertNotIn("taste-draft", body)
+
+    def test_default_ownership_is_mechanical(self):
+        """Issues without the field default to mechanical (no field = mechanical)."""
+        issues = [{"id": 1, "title": "[Feature] X", "description": "d",
+                   "context": "c", "milestone": "mvp", "labels": ["enhancement"],
+                   "acceptance_criteria": ["a"], "dependencies": []}]
+        created = self._run(issues)
+        self.assertIn("content_ownership: mechanical", created[0][1])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
