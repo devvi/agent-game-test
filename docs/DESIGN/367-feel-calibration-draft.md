@@ -123,6 +123,23 @@ PRD 只点名 TC-B2/3/4，但全文件扫描发现**更多硬编码断言引用�
 | `e2e_shots.json` | `ai_position_error=200` 仅 E2E 截图 tweak，与草稿值正交 |
 | GDD `13-BALL-PHYSICS.md` | 草稿值会变，GDD 不记录过程值；定稿后由 review agent 按需更新 |
 
+### 3.6 PRD 断言核验（PRD Assertion vs Actual Codebase vs Design Resolution）
+
+> plan agent 对 PRD §1/§3 的全部断言逐条核实源码后的结果表。**Gap 2 为 PRD 漏报项**（PRD 只点名 TC-B2/3/4），implement 必须按本表全量同步，否则套件红。
+
+| PRD 断言 | 实际代码核验（2026-08-11） | 设计决议 |
+|----------|---------------------------|---------|
+| 手感参数全在 `constants.gd`，共 11 个可草稿参数 | ✅ 核实：球速 4（`BALL_INITIAL_SPEED`/`BALL_SPEED_INCREMENT`/`BALL_MAX_SPEED_MULTIPLIER`/`BALL_SERVE_ANGLE_RANGE`）+ 反弹角 1（`BALL_MAX_BOUNCE_ANGLE`）+ AI 5（`AI_REACTION_DELAY_MIN/MAX`/`AI_POSITION_ERROR`/`AI_SPEED_BOOST`/`AI_SPEED_SLOW`）+ 操控 1（`PADDLE_SPEED`），全部物理正确默认值、无 DRAFT 注释 | §2 草稿值契约（implement 唯一输入） |
+| 消费链 `CONSTS → ball.gd/paddle.gd @export 默认值`，Main.tscn 无导出覆盖 | ✅ 核实：ball.gd L9-13 起 `const … = CONSTS.*` → `@export var … = CONSTS.*`；paddle.gd L18-22 同理；Main.tscn 全文件仅 `AIPaddle` 一处 `mode = 1` 覆盖 | 改 constants.gd 即改运行时手感；场景/脚本零改动 |
+| `test_constants.gd` TC6 断言精确字面量（改值必红） | ✅ 核实：TC6-4..17 逐一断言（300.0 / 1.05 / 1.2 …） | §3.2 字面量随草稿值同步（唯一精确断言源） |
+| `test_ai_paddle.gd` TC-B2/3/4 硬编码 `400.0 * 1.2` / `400.0 * 0.8` / 阈值 40 | ✅ 核实：TC-B2 `expected = 400.0 * 1.2 * 0.016`、TC-B3 `= 400.0 * 0.8 * 0.016`、TC-B4 `dist==40` 断言 boost | §3.3 Gap 1：期望值改从 CONSTS 计算（`CONSTS.PADDLE_SPEED × CONSTS.AI_SPEED_BOOST × delta`）；TC-B4 因阈值 40→48 语义反转，重写为 dist==48→boost / dist==40→slow |
+| （PRD 未点名）`test_ai_paddle.gd` 其余区间断言 | ⚠️ **Gap 2 漏报**：TC-C2 目标 y ∈ [480, 520]（硬编码 ±20）、TC-C3 延迟 ∈ [0.1, 0.3]、TC-D1 误差 ∈ [-20, 20] —— 草稿值（0.15/0.4/24.0）同样打红这三个 | §3.3 Gap 2：区间边界随草稿值更新（或从 `paddle.ai_reaction_delay_min/max`、`paddle.ai_position_error` 实例值读取） |
+| `test_ball.gd` 本地 const（300.0 等）是测试夹具，非断言目标 | ✅ 核实：TC-D1/D2/D3/F1 均先显式 `ball.initial_speed = 300.0` 再断言（自洽夹具）；`expected = 300.0 * SPEED_INCREMENT` 中的增量乘在当前速度上，与常量新值无关 | §3.5 排除，不改；以 AC5 全绿兜底 |
+| `auto_play_test.gd` 纯消费者，零改动 | ✅ 核实：`_CONSTS` 读取 POINTS/GAMES/RADIUS；`_serve_fast` 用 `ball.initial_speed`；paddle 用实例 export。`_serve_fast` 硬编码 `deg_to_rad(45.0)` 发球角为局部夹具（仅生成随机方向，非断言目标） | §3.5 排除，不改 |
+| `run_tests.gd` 聚合 14 套件 | ✅ 核实：13 同步 `_run` + Auto-Play 异步 `_run_async` = 14 入口 | 不改 |
+| `e2e_shots.json` autoplay `ai_position_error=200` 与草稿值正交 | ✅ 核实（E2E 截图专用放水 tweak） | 不改草稿值迁就 E2E，也不删 E2E tweak |
+| `docs/TASTE.md` 尚不存在 | ✅ 核实：`docs/TASTE.md` 不存在 | §4 新建初版（三件套） |
+
 ---
 
 ## 4. docs/TASTE.md 结构（校准接口三件套）
