@@ -27,6 +27,24 @@ const CENTER_LINE      = Color(0.4, 0.6, 0.9, 0.5)    # semi-transparent blue
 const BG_COLOR_LINEAR  = Color(0.039, 0.039, 0.071, 1) # #0a0a12
 ```
 
+## Neon Label Style — NeonStyle（#392, 2026-08-13）
+
+霓虹 HUD 的描边 + 微投影样式由 `gdscripts/ui_neon_style.gd`（`class_name NeonStyle`，静态工具）统一提供，
+供 #388/#390/#391 复用保证全 UI 视觉一致：
+
+| 属性 | 默认值 | 说明 |
+|------|--------|------|
+| `font_color` | 调用方传入 | 本体色（蓝 #4a90d9 / 红 #ff3355 / 信息条中性色） |
+| `font_outline_color` | = 本体色 | 描边色默认同本体色（霓虹辉光感） |
+| `outline_size` | 6px | `HUD_OUTLINE_SIZE`（taste-draft 可调 4–6） |
+| `font_shadow_color` | 半透明黑 (0,0,0,0.6) | 微投影而非重阴影（克制优先） |
+| `shadow_offset_x/y` | 2px | `HUD_SHADOW_OFFSET_*`（taste-draft） |
+
+**设计约束**：
+- 默认字体 + Label 主题覆盖（`add_theme_*_override`），零第三方字体/license 成本
+- headless 安全：测试用 `label.get("theme_override_...")` 断言（GDD16 已知 `get_theme_font_size` headless 返回 0）
+- 样式数值（描边粗细/投影偏移/信息条配色）为 taste-draft 占位，集中在 `constants.gd` `HUD_*` 组，human-review 可直接微调
+
 ## WorldEnvironment Configuration
 
 File: `scenes/world_environment.tscn`

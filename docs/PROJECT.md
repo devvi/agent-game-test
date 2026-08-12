@@ -28,6 +28,7 @@
 | Mini Pong — ScoreFlash | `mini-pong/gdscripts/score_flash.gd` | ✅ | GDD |
 | Mini Pong — StartMenu | `mini-pong/gdscripts/start_menu.gd` | ✅ | GDD |
 | Mini Pong — GameHUD | `mini-pong/gdscripts/game_hud.gd` | ✅ | GDD |
+| Mini Pong — Neon HUD Style | `mini-pong/gdscripts/ui_neon_style.gd` | ✅ | GDD |
 | Mini Pong — GameOverScreen | `mini-pong/gdscripts/game_over_screen.gd` | ✅ | GDD |
 | Mini Pong — State Machine | `mini-pong/gdscripts/game_state_machine.gd` | ✅ | GDD |
 | Mini Pong — Pause Overlay | `mini-pong/gdscripts/pause_overlay.gd` | ✅ | GDD |
@@ -59,6 +60,7 @@
 | 389 | Mini Pong 动态雨幕 (L0 GPUParticles2D 公式驱动雨量) | ✅ 已合并 | DESIGN / GDD |
 | 387 | Mini Pong 升级池架构 (9 升级定义 + 60/30/10 抽取 + 实例参数化 + upgrade_hooks 契约) | ✅ 已合并 | DESIGN / GDD |
 | 385 | Mini Pong 双得分制 (拆砖 1 分 / 穿墙 3 分 / 21 分终局) | ✅ 已合并 | DESIGN / GDD |
+| 392 | Mini Pong 霓虹UI升级 (三区 HUD + 描边/微投影 + 按类信号 + 容错消费 BreakoutGrid) | ✅ 已合并 | DESIGN / GDD |
 
 ## 已知问题
 

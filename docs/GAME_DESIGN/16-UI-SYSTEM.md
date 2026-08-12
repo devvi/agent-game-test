@@ -19,7 +19,7 @@ Three independent CanvasLayer nodes embedded in `game.tscn`, each driven by its 
 | Layer | Scene File | Script | Layer | Initial Visible |
 |-------|-----------|--------|-------|----------------|
 | StartMenu | `ui_start_menu.tscn` | `start_menu.gd` | 1 | true |
-| GameHUD | `ui_game_hud.tscn` | `game_hud.gd` | 0 | false |
+| GameHUD | `ui_game_hud.tscn` | `game_hud.gd` | 1 | false |
 | GameOverScreen | `ui_game_over.tscn` | `game_over_screen.gd` | 1 | false |
 
 Only one CanvasLayer is visible at any time. Transitions are driven by SPACE key input and `GameManager` signals.
@@ -38,6 +38,10 @@ StartMenu  ──SPACE──►  GameHUD  ──match_over──►  GameOverScr
 |-----------|--------|--------|------|
 | `score_changed(p, a)` → label update | GameManager | game_hud.gd | On `_ready()` |
 | `match_over(winner)` → winner display | GameManager | game_over_screen.gd | On `_ready()` |
+| `brick_scored(side)` → 拆砖子区 | GameManager | game_hud.gd | `_bump_count` 之后、`score_changed` 之前（#392） |
+| `pierce_scored(side)` → 穿墙子区 | GameManager | game_hud.gd | 同上（#392） |
+| `wave_started(idx)` → 信息条 | GameManager | game_hud.gd | 波次切换（帧末 call_deferred 回退读剩余砖数） |
+| `brick_destroyed` / `wall_cleared` / `wall_generated` → 剩余砖数 | BreakoutGrid (#384) | game_hud.gd | has_signal 守卫，容错（#393 接线后生效） |
 | `scored.emit()` → `GameManager.add_score()` | ScoringManager | GameManager | On ball score |
 
 The critical bridge is a 1-line addition in `scoring_manager.gd:_on_ball_score()`:
@@ -56,12 +60,14 @@ Without this, GameManager signals never fire and the HUD never updates.
 - **Animation**: Title alpha pulses between 0.6–1.0 (1.5s cycle), prompt blinks (0.8s cycle)
 - **Input**: SPACE key triggers `_on_start_pressed()` → hides menu, shows HUD, calls `GameManager.reset_match()`
 
-### GameHUD
+### GameHUD（三区霓虹布局 #392）
 
-- **PlayerScoreLabel**: "Player: {n}" at 28px, neon blue, centered in HBox
-- **AIScoreLabel**: "AI: {n}" at 28px, neon red (#ff3355), centered in HBox
-- **Position**: Anchored to top of screen with 20px margin, 40px horizontal padding
-- **Update**: `_on_score_changed()` connected to `GameManager.score_changed` signal
+- **顶部 AI 红区**（y∈[12,84]，全宽）：`AIScoreLabel`（28px）+ 拆砖/穿墙双子区 `AIBrickLabel` / `AIPierceLabel`（20px），霓虹红 #ff3355
+- **中立信息条** `InfoBar`（y∈[88,112]）：「第 N 波 · 剩余 x」单条，`HUD_INFO_COLOR` 中性色，16px
+- **底部玩家蓝区**（y∈[1252,1280]，玩家挡板下方单行）：`PlayerScoreLabel` + `PlayerBrickLabel` / `PlayerPierceLabel`，霓虹蓝 #4a90d9
+- **样式**: 全部数字 Label 经 `NeonStyle.apply()`（`gdscripts/ui_neon_style.gd`）设置描边（`outline_size=6`）+ 微投影（`shadow_offset=2`，半透明黑），默认字体 + 主题覆盖，headless 安全（AC1）
+- **信号驱动（AC5，零轮询）**: `score_changed` / `brick_scored` / `pierce_scored` / `wave_started`（GameManager）+ `brick_destroyed` / `wall_cleared` / `wall_generated`（BreakoutGrid #384 契约，容错消费：未接线显示「—」占位 + push_warning 一次）
+- **单份定义**: Main.tscn 实例化 `ui_game_hud.tscn`（节点名 `GameHUD` 不变，layer=1），消除 #292 双份 HUD 定义
 
 ### GameOverScreen
 
@@ -105,7 +111,8 @@ Without this, GameManager signals never fire and the HUD never updates.
 | File | Role |
 |------|------|
 | `gdscripts/start_menu.gd` | StartMenu controller (107 lines) |
-| `gdscripts/game_hud.gd` | HUD score display (34 lines) |
+| `gdscripts/game_hud.gd` | HUD 三区霓虹控制器（信号驱动，~190 lines, #392） |
+| `gdscripts/ui_neon_style.gd` | 霓虹 Label 样式单一事实源（描边+微投影, #392） |
 | `gdscripts/game_over_screen.gd` | Game over screen controller (126 lines) |
 | `scenes/ui_start_menu.tscn` | StartMenu scene |
 | `scenes/ui_game_hud.tscn` | GameHUD scene |
