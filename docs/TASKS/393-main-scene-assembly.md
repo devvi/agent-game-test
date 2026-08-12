@@ -81,3 +81,16 @@ Phase 1/2 相互独立（各自可独立全量回归）；Phase 3 依赖两者�
 | `docs/GAME_DESIGN/10-SCENE-LAYOUT.md` | 修改（可选） | ±15 |
 
 **不动文件（明确排除）**：`game_state_machine.gd`（FSM 不扩展）、`game_manager.gd` / `scoring_manager.gd`（#385 已 ✅）、`wave_controller.gd`（#386 已 ✅，仅挂节点）、`upgrade_pool.gd`（#387 autoload）、`upgrade_pick_ui.gd`（#388 已 ✅）、`game_hud.gd`（#392 已 ✅）、`rain_curtain.gd`（#389 已 ✅）、`game_over_screen.gd`（#391 已 ✅，换实例不改脚本）、`project.godot`（autoload/层配置零改动）、`content/wave_failure_text.json`（只读，归 #396）。
+
+
+## Phase 3.5: 首波触发 + #387 组契约（增补 2026-08-13 — 见 DESIGN 附录 B）
+
+> **背景:** 初版契约（PR #442）缺两个机械缺口：首波触发（AC2 前置——全库无代码启动第 1 波）与 #387 组契约（UpgradePool.grid_ref / 升级钩子注册表）。本阶段并入 Phase 3（组装）之前完成，否则组装后游戏无法开始第 1 波。
+
+- [ ] Task 27 (`mini-pong/gdscripts/wave_controller.gd`): 新增幂等 `start_first_wave()` —— `wave_index==0` 且非 run-over 时调 `_advance_wave()`（既有逻辑零改动；先例 #388 `advance_settlement`）（DESIGN 附录 B.1）
+- [ ] Task 28 (`mini-pong/gdscripts/game_state_machine.gd`): `enter_state(PLAYING)` 增补首波触发 —— `get_wave_index()==0` → group `wave_controllers` + `has_method("start_first_wave")` 调用（~5 行 additive；无新 FSM 状态）（DESIGN 附录 B.1）
+- [ ] Task 29 (`mini-pong/gdscripts/breakout_grid.gd`): `_ready()` 加 `add_to_group("breakout_grids")` + `BrickUpgradeHooks.register_all(self)`；实现 `register_upgrade_hook` / `apply_upgrade_hook` / `open_hole`（pending 至下波生成）/ `blast_neighbors`（DESIGN 附录 B.2；契约 brick_upgrade_hooks.gd）
+- [ ] Task 30 (`mini-pong/tests/test_first_wave.gd` 或并入 test_main_scene / test_wave_transition): 首波触发用例（幂等 / PLAYING 首次 / 重开 / run-over no-op）+ `breakout_grids` 组断言 + 升级钩子分发用例（DESIGN 附录 B.5）
+- [ ] **验证点**：全量回归全绿 + `auto_play_test.gd` 100 局——首波路径必须实际跑通（AC2/AC5 前置；组装后首波不触发即验收失败）
+
+**不动文件例外说明：** `game_state_machine.gd` / `wave_controller.gd` 由「不动」改为「仅新增 additive 触发方法/调用，既有逻辑零改动」（理由见 DESIGN 附录 B.1 差异记录）。
