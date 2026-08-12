@@ -8,7 +8,7 @@
 | [11-PLAYER-PADDLE](11-PLAYER-PADDLE.md) | Player paddle & AI opponent — InputMap, movement, clamp, AI mode |
 | [12-NEON-VISUAL](12-NEON-VISUAL.md) | Neon cyber visuals — glow, trail, flash, colors |
 | [13-BALL-PHYSICS](13-BALL-PHYSICS.md) | Ball physics — wall/paddle collision, speed escalation, scoring, serve |
-| [14-SCORING-SYSTEM](14-SCORING-SYSTEM.md) | Scoring system — points, games, matches, signal chain |
+| [14-SCORING-SYSTEM](14-SCORING-SYSTEM.md) | Scoring system — brick 1pt / pierce 3pt / 21-point run, signal chain |
 | [15-GAME-MANAGER](15-GAME-MANAGER.md) | GameManager autoload — global state singleton, reset APIs, get_winner() |
 | [16-UI-SYSTEM](16-UI-SYSTEM.md) | UI system — StartMenu, GameHUD, GameOverScreen with CanvasLayer architecture |
 | [17-GAME-STATE-MACHINE](17-GAME-STATE-MACHINE.md) | Game state machine — 5-state FSM, input routing, paddle freeze, UI orchestration |
