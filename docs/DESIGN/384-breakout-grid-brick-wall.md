@@ -230,3 +230,19 @@ dominant-axis flip：比较反弹前的 `velocity` 分量绝对值 —— `|vx| 
 - ❌ 修改 `ball.tscn` / `project.godot` 的层/掩码配置（layer 2 已天然覆盖）
 - ❌ 引入任何第三方资产（开源优先调研结论：无可复用插件，§PRD 1.4）
 - ❌ 写 runnable 测试文件于本 PR（测试归 implement PR）
+
+---
+
+## 附录 A: #392 契约增补（2026-08-13, plan agent）
+
+**新增信号 `wall_generated(remaining: int)`**（#392 霓虹 HUD 需求，PRD #392 §4.3 推荐；#384 实现未落地，增补零成本）：
+
+| 信号 | 参数 | 消费方 | 语义 |
+|------|------|--------|------|
+| `wall_generated` | `(remaining: int)` | #392 HUD 剩余砖数 | `generate_wave()` 完成新墙生成后发出，负载 = 新墙砖总数 |
+
+- **触发点**：`generate_wave()` 末尾（清空旧墙 → 生成新砖 → 重置计数/守卫 → `remaining_bricks = rows * cols` → emit `wall_generated(remaining_bricks)`）
+- **语义**：解决 §4.1 契约缺口 —— `wave_started`（#386）先于 `generate_wave()` 发出，HUD 无法在波次开始时同步感知新墙剩余数；本信号让新墙总数在生成瞬间即可由信号消费（#392 AC3）
+- **守卫**：与 `wall_cleared` 同规则（每墙一次，`generate_wave()` 重置）
+- **兼容**：纯新增信号，不影响 `brick_destroyed` / `wall_cleared` / `remaining_bricks` / `generate_wave` 既有契约
+- **回退**：若实现方不采纳，HUD 侧 `wave_started` handler 内 `call_deferred` 读 `remaining_bricks`（功能等价，DESIGN #392 §5 失败路径 4）
