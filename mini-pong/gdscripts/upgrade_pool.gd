@@ -22,9 +22,9 @@ var stub_activated: Dictionary = {}  # id → true（桩效果标记，可断言
 var _available: Array = []           # 未耗尽定义池（max_stacks 未达上限）
 var _display: Dictionary = {}        # id → {name_working, short_phrase, naming_candidates}（#395）
 var _display_warn_count: int = 0     # push_warning 至多一次（不 spam）
-var ball_ref: Node2D = null          # 目标解析缓存；测试可直接注入覆盖
-var paddle_ref: Node2D = null
-var grid_ref: Node = null
+var ball_ref = null                  # 目标解析缓存；测试可直接注入覆盖（FakeBall 为 RefCounted，故不锁类型）
+var paddle_ref = null
+var grid_ref = null
 
 
 func _ready() -> void:
