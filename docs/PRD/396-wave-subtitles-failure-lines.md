@@ -6,7 +6,9 @@
 > **日期:** 2026-08-13
 > **深度:** depth/standard（Issue 无 depth 标签，按 #358/#378 惯例按 standard 处理：Section 1–6 + 8 必填，Section 7 跳过）
 > **所有权:** `content_ownership: taste-draft`（人机共做 v4 — B5 失败表达领域；agent 生成带 taste 方向的候补清单（2-3 选 1）而非直接定稿；草稿达标即 merge，PR 用 `parent #396` 不写 Closes；review agent 打 `status/human-review` + assign 用户定稿）
-> **taste 方向来源:** docs/TASTE.md 品味档案（#367 手感定稿 + 风格特征：删修饰、短句、少形容词）+ Obsidian 知识库检索（失败的类型学 / 失败即叙事）+ PONG://21 雨夜竞技场审美坐标
+> **taste 方向来源:** docs/TASTE.md 品味档案
+> **⚠️ 平行产出**：本 PRD（#399 merged）与 `docs/PRD/396-wave-failure-copy-draft.md`（#400 merged）为 #396 的平行 research 产出；DESIGN #406 指认 **`docs/PRD/396-wave-failure-copy-draft.md` 为权威 PRD**，引用时以该文件为准。
+（#367 手感定稿 + 风格特征：删修饰、短句、少形容词）+ Obsidian 知识库检索（失败的类型学 / 失败即叙事）+ PONG://21 雨夜竞技场审美坐标
 
 ---
 

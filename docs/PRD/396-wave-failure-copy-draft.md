@@ -10,6 +10,34 @@
 
 ---
 
+## 0. 研究复核记录（Research Re-verification，2026-08-13）
+
+> 本 PRD 经 #400 合并进 main（2026-08-13 01:45）。研究阶段复核时管线状态已推进到 **implement 阶段**，
+> 本文件仍为权威 PRD（DESIGN #406 明确引用：`docs/PRD/396-wave-failure-copy-draft.md`（#400 merged，main 上权威 PRD））。
+
+| 阶段 | 状态 | 证据 |
+|------|------|------|
+| research | ✅ merged | #399（平行 PRD `396-wave-subtitles-failure-lines.md`）+ #400（本 PRD） |
+| plan | ✅ merged | #404（PLAN）+ #406（DESIGN `396-wave-subtitles-failure-lines.md`） |
+| implement | 🔄 进行中 | #407 open（`impl/396-wave-failure-text`，已按 DESIGN §2 落地 `mini-pong/content/wave_failure_text.json`，待 review） |
+
+### 复核发现：content 资源路径约定分歧
+
+- **#395（已 merge #405）**：`mini-pong/assets/content/upgrade_pool.json` —— 首个 content 资源先例，落在 `assets/content/` 下
+- **#396（本 PRD / DESIGN #406 / impl #407）**：`mini-pong/content/wave_failure_text.json` —— 落在 `content/` 下
+- 两处均为「独立 content 资源」，但目录约定不一致（`assets/content/` vs `content/`）。
+
+**建议（research 视角，不阻塞 #407）**：#407 已按 DESIGN 落地 `content/`，保持现状即可 merge；
+目录约定统一（`assets/content/` 与 `content/` 二选一）留待后续 content Issue 或一次性约定收口 Issue
+处理，不在本 PRD 改路径 —— 避免与已 merged DESIGN #406 冲突。
+
+### 复核结论
+
+本 PRD 核心内容（候选清单 4 副句 × 4 短句、schema `wave-failure-text/v1`、taste 方向）**无需修改**：
+候选文本与 DESIGN §2 及 impl #407 落地一致。本次复核仅补记管线状态与路径约定分歧，供 review / 后续 Issue 参考。
+
+---
+
 ## 1. 问题定义
 
 ### 当前状态
@@ -306,6 +334,8 @@ Skipped per `depth/standard`（Issue 无 depth 标签，按 standard 处理；Se
 **给 plan agent 的手递**（plan agent 产出 DESIGN 时直接采用，无需重扫源码）：
 
 **系统状态**：PONG://21 攻城战肉鸽方案已确认（2026-08-13，docs/PLAN-rogue-pong.md）；波次转场（#390：大字「第 N 道墙」+ 副句，2s 淡入-停留-淡出，副句从统一文本配置读取）与失败屏（#391：短句 + run 数据 波次/拆砖/穿墙，短句从配置读取且无 emoji/夸张语气）为机械插槽，**内容为空**；`mini-pong/` 无任何 content 资源目录（需新建 `mini-pong/content/`）；竖屏 720×1280（P0 轴交换已确认）；审美坐标 = 雨夜竞技场（雨量 = 情绪仪表盘）+ 霓虹描边 UI + 克制优先。B5 品味方向：失败 = 叙事生产（非惩罚）、海明威式冰山（无形容词堆砌/无感叹号）、雨/墙意象同构。
+
+> **2026-08-13 复核更新（见 §0）**：本段「内容为空 / 无 content 资源目录」描述已过时 —— main 已有 #405 落地的 `mini-pong/assets/content/upgrade_pool.json`（#395）；#396 的 content 资源由 open PR #407 按 DESIGN §2 落地于 `mini-pong/content/wave_failure_text.json`。实施阶段以 DESIGN #406 为准，路径约定分歧见 §0。
 
 **主风险**：
 1. implement 误改运行时文件（gdscripts/scenes）凑"生效"→ 违反 AC5（§5 失败路径 1）
