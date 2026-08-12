@@ -16,3 +16,4 @@
 | [19-AUDIO-ENGINE](19-AUDIO-ENGINE.md) | Audio engine — AudioStreamGenerator synthesis, 4 sound effects |
 | [20-NAMING](20-NAMING.md) | Naming — constraints (红线), NAMING.md draft flow, finalization handoff to TASTE.md |
 | [21-WAVE-FAILURE-TEXT](21-WAVE-FAILURE-TEXT.md) | Wave failure text — 波次副句/失败短句红线, content JSON schema (wave-failure-text/v1), #390/#391 消费数据流, TASTE.md 定稿回写 |
+| [22-RAIN-CURTAIN](22-RAIN-CURTAIN.md) | L0 rain curtain — GPUParticles2D atmosphere layer, formula-driven rain intensity, contract API |

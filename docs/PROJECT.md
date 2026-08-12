@@ -6,9 +6,9 @@
 |------|:----:|
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
-| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成 |
+| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D) |
 | 最近构建 | 2026-08-13 |
-| 开放 Issues | 14（含 #395/#396 内容草稿待定稿） |
+| 开放 Issues | 11（含 #395/#396 内容草稿待定稿） |
 
 ## 模块地图
 
@@ -19,6 +19,7 @@
 | Mini Pong — Paddle | `mini-pong/gdscripts/paddle.gd` | ✅ | GDD |
 | Mini Pong — Ball Physics | `mini-pong/gdscripts/ball.gd` | ✅ | GDD |
 | Mini Pong — Neon Visual | `mini-pong/gdscripts/ball_trail.gd` | ✅ | GDD |
+| Mini Pong — Rain Curtain | `mini-pong/gdscripts/rain_curtain.gd` | ✅ | GDD |
 | Mini Pong — Scoring | `mini-pong/gdscripts/scoring_manager.gd` | ✅ | GDD |
 | Mini Pong — GameManager | `mini-pong/gdscripts/game_manager.gd` | ✅ | GDD |
 | Mini Pong — Arena | `mini-pong/scenes/Main.tscn` | ✅ | GDD |
@@ -54,6 +55,7 @@
 | 378 | Mini Pong 正式命名定稿 — PONG://NEON (B2 命名) | ✅ 已定稿（用户裁决） | DESIGN / TASTE |
 | 396 | 波次副句与失败短句候选草稿 (B5 失败表达) | 🧪 草稿已合并，待用户定稿 | DESIGN / GDD |
 | 383 | Mini Pong 轴交换+竖屏 (720×1280 竖屏对打) | ✅ 已合并 | DESIGN / GDD |
+| 389 | Mini Pong 动态雨幕 (L0 GPUParticles2D 公式驱动雨量) | ✅ 已合并 | DESIGN / GDD |
 
 ## 已知问题
 
