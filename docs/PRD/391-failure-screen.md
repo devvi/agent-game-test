@@ -1,13 +1,14 @@
 # PRD: [Feature] 失败屏 (Failure Screen)
 
 > **Issue:** #391
-> **标签:** enhancement, workflow/available, ui, version/mvp
+> **标签:** enhancement, ui, version/mvp, workflow/available（research 进行中 → workflow/research）
 > **Agent:** game-research-agent
 > **日期:** 2026-08-13
-> **深度:** depth/standard（Issue 无 depth 标签，按 #358/#378/#383/#384/#385/#386 惯例按 standard 处理：Section 1–6 + 8 必填，Section 7 跳过）
-> **所有权:** `content_ownership: mechanical`（失败屏为纯机械 UI 层：短句文本内容归 #396 已落地，本 Issue 只做读取/布局/状态切换，无 taste 决策）
-> **上游方案:** `docs/PLAN-rogue-pong.md` §2（失败即叙事，非惩罚）+ `docs/PRD/396-wave-failure-copy-draft.md`（B5 失败短句候选，已 merged #400 + 落地 #407）
-> **前置依赖:** #385（双得分制，**已关闭** PR #424）→ #386（波次循环，**已关闭** PR #425）→ 本 Issue；内容数据源 #396（**已合并** PR #407，`mini-pong/content/wave_failure_text.json` 已存在）
+> **深度:** depth/standard（Issue 无 depth 标签，按 #358/#378/#383/#384/#385/#386 惯例按 standard 处理：Section 1–6 + 8 必填，Section 7 以研究期实际执行的验证补齐）
+> **所有权:** `content_ownership: mechanical`（失败判定/run 数据读取/暂停/重开为纯机械实现；失败短句文案值归 #396 taste-draft，本 Issue 只做机械消费）
+> **引擎/目录约束:** Godot 4.7.1，`mini-pong/` 子项目（`mini-pong/gdscripts/`、`mini-pong/scenes/`），竖屏 720×1280（#383）
+> **上游方案:** `docs/PLAN-rogue-pong.md` §2.2/§2.4（双得分制 + 21 分终局）+ §2.1（波次循环）；GDD 21 章（wave-failure-text/v1 schema，失败短句消费契约）
+> **前置依赖:** #385（双得分制，**已实现并合并** PR #424）→ #386（波次循环，**已实现并合并** PR #428）→ 本 Issue。两项依赖均已满足，无阻塞。
 
 ---
 
@@ -15,286 +16,323 @@
 
 ### 当前状态
 
-Mini Pong（`mini-pong/`，Godot 4.7.1，竖屏 720×1280）已有 **21 分终局结算屏**（#292 建 GameOverScreen）：`match_over(winner)` 信号 → 显示 "YOU WIN!" / "AI WINS!" + SPACE 重开提示。但该屏是**胜负同屏**的结算公告，不是 Issue 要求的**失败屏**：
+Mini Pong（`mini-pong/`，Godot 4.7.1，竖屏 720×1280）目前**没有失败屏**：21 分终局（#385）后进入的是 #292 时代的**胜者宣告屏**（GameOverScreen）——AI 获胜时显示红色 "AI WINS!" 大字 + 闪烁 "按 SPACE 重新开始"，无失败短句、无 run 数据展示（波次/拆砖/穿墙），失败瞬间游戏也未暂停（球在 GAME_OVER 期间继续运动）。数据契约与文案契约均已就绪，唯独 UI 消费方（失败屏）未接线：
 
-| 文件 | 当前状态 | 与 #391 需求的差距 |
+| 文件/资源 | 当前状态 | 与 #391 需求的差距 |
 |------|---------|------------------|
-| `mini-pong/gdscripts/game_over_screen.gd` | 消费 `match_over` → 胜/负各显示一行大字 + 脉冲/闪烁动画；已有 `get_node_or_null(".../RunStatsLabel")` 容错读取（#385 AC5 预留，节点不存在则跳过） | ❌ 无失败短句显示（内容源 #396 已就绪但无人读取）；❌ 无 RunStatsLabel 节点（数据读取路径存在但布局未建）；❌ 胜负同屏无「失败」专属呈现 |
-| `mini-pong/gdscripts/game_state_machine.gd` | 6 态 FSM：...→SCORED→GAME_OVER→MENU；GAME_OVER 态 `_set_ui("game_over")` + `_freeze_paddles(true)`；SPACE → MENU（重开路径已通） | ⚠️ AC4「失败屏出现时游戏暂停」未满足：GAME_OVER 只冻结 paddle，**球仍可能移动**（`ball.gd` 无 `set_frozen` 方法，`_process` 持续运行） |
-| `mini-pong/gdscripts/ball.gd` | `_process` 手动移动；无 frozen 状态（paddle 有 `set_frozen`，ball 没有） | ❌ 无暂停接口——AC4 需要 ball 在 GAME_OVER 时停住 |
-| `mini-pong/gdscripts/game_manager.gd` | **数据全部就绪**（#385/#386 已落地）：`wave_index`（波次）、`get_brick_count(side)`（拆砖）、`get_pierce_count(side)`（穿墙）、`match_over(winner)`、`reset_match()` | ✅ 无差距——run 数据查询 API 齐备，本 Issue 只消费 |
-| `mini-pong/content/wave_failure_text.json` | **已存在**（#396 全链路：PRD #400 + DESIGN #406 + impl #407 合并）：`failure_phrases` 4 条候选（fp1「雨还在下」recommended:true、fp2「雨记住了这一局」、fp3「就差一道墙」、fp4「墙还在，雨未停」），schema `wave-failure-text/v1`，`draft: true` | ✅ 内容就绪——本 Issue 机械层读取 `failure_phrases`；短句选择策略待定（§4） |
-| `mini-pong/scenes/Main.tscn` | GameOverScreen 内联节点树：`CenterContainer/VBoxContainer/WinnerLabel + Spacer + RestartPromptLabel` | ❌ 无 RunStatsLabel 节点、无 FailurePhraseLabel 节点（布局归本 Issue） |
-| `mini-pong/tests/` | 17 套件（#346 基线 + #385/#386 新增） | ❌ 无失败屏测试（短句读取/数据展示/暂停/重开） |
+| `mini-pong/gdscripts/game_over_screen.gd` | #292 胜者宣告屏（YOU WIN!/AI WINS! + SPACE 重启 + 脉冲动画）；#385 已埋**数据读取路径**：`_on_match_over()` 读取 `GameManager.get_brick_count()/get_pierce_count()` 并格式化「拆砖 P:x/A:y 穿墙 P:x/A:y」写入 `RunStatsLabel`，但节点不存在 → `get_node_or_null` 返回 null 静默跳过（注释明确「布局归 #391」） | ❌ 无失败短句分支；❌ 无波次数读取；❌ 统计格式为 P/A 双区而非玩家单侧三项；❌ 无暂停语义 |
+| `mini-pong/scenes/ui_game_over.tscn` | CanvasLayer → CenterContainer → VBoxContainer：WinnerLabel（72px）+ Spacer + RestartPromptLabel（28px「按 SPACE 重新开始」） | ❌ 无 FailurePhraseLabel、无 RunStatsLabel（波次/拆砖/穿墙三项） |
+| `mini-pong/gdscripts/game_manager.gd` | ✅ 数据齐全：`player_brick_count/player_pierce_count` + `get_brick_count(side)/get_pierce_count(side)`（#385 AC5）；`wave_index` public var（#386，注释「GAME_OVER 屏波次数归 #391」）；`match_over(winner)` 信号；`reset_match()` 重置全部计数与 `wave_index=0` | ⚠️ 无 `get_wave_index()` 查询方法——`wave_index` 为 public var 可直接读，建议补 getter 保持查询 API 风格（非必须） |
+| `mini-pong/gdscripts/game_state_machine.gd` | 6 态 FSM：#294。`GAME_OVER` enter 时 `_set_ui("game_over")` + `_freeze_paddles(true)`；SPACE 在 GAME_OVER → MENU（`reset_match()` 经 MENU→SERVING 触发）；`_on_match_over` → GAME_OVER | ❌ GAME_OVER 期间球仍运动（`ball._process` 无冻结）——AC4「失败屏出现时游戏暂停」未满足 |
+| `mini-pong/content/wave_failure_text.json` | ✅ #396 草稿已合并（PR #407，`draft: true`，schema `wave-failure-text/v1`）：`failure_phrases[]` 4 条候选（fp1「雨还在下」早败波1-2 / fp2「雨记住了这一局」中败波3-5 / fp3「就差一道墙」晚败波6+或接近21 / fp4「墙还在，雨未停」通用兜底），每条 ≤10 字、无感叹号、无 emoji、无惩罚性措辞 | ⚠️ GDD 21 章明确消费契约：「#391 失败屏读 `failure_phrases[].text`（按 run 数据 severity 分档）」——机械插槽不依赖草稿文案值，`draft:true` 不阻塞 |
+| `mini-pong/scenes/Main.tscn` | GameOverScreen 节点已实例化（id 6_game_over），三层 CanvasLayer 切换就绪 | ✅ 无需新增节点；接线归 #393 的约定不冲突（本 Issue 只改 GameOverScreen 内部） |
 
-### 预期行为（验收条件，源自 Issue #391）
+### 期望行为
 
-1. **AC1 — 玩家失败时切换至失败屏** — `match_over("ai")`（玩家败）时显示失败屏：失败短句 + run 数据；`match_over("player")`（玩家胜）保持既有胜利呈现（胜负分流）
-2. **AC2 — 展示波次、总拆砖数、总穿墙数 3 项 run 数据** — 波次 = `GameManager.wave_index`；总拆砖 = `get_brick_count("player")`；总穿墙 = `get_pierce_count("player")`（玩家视角 run 数据）
-3. **AC3 — 短句从配置读取且无 emoji/夸张语气** — 运行时读 `res://content/wave_failure_text.json` 的 `failure_phrases`（`FileAccess.get_file_as_string()` + `JSON.parse_string()`，项目既有 JSON 先例 #407）；文本内容已由 #396 海明威校验（无感叹号/无 emoji/形容词 ≤1）
-4. **AC4 — 失败屏出现时游戏暂停** — GAME_OVER 进入时 ball + paddles 全部冻结（§4 暂停机制对比）
-5. **AC5 — 可重开进入新一轮** — 复用既有路径：SPACE → MENU → `reset_match()`（wave_index/计数归零）→ SPACE 再开（已通，需验证）
+1. **玩家失败（`match_over` winner="ai"）→ 切换至失败屏**：不经过 MENU，直接进入 GAME_OVER 显示失败界面。
+2. **展示 3 项 run 数据**：波次（`GameManager.wave_index`，失败瞬间值）、总拆砖数（`player_brick_count`）、总穿墙数（`player_pierce_count`）——数据全部来自 GameManager（issue 原文）。
+3. **短句从配置读取**：按 run 数据 severity 分档从 `wave_failure_text.json` 的 `failure_phrases[]` 选句；无 emoji/夸张语气由配置内容红线保证（#396/GDD 21），运行时只做机械选句。
+4. **失败屏出现时游戏暂停**：球停止运动、挡板冻结、计分不可发生。
+5. **可重开进入新一轮**：SPACE → `reset_match()`（wave_index 归零、四计数归零、`_is_run_over=false`）→ 新 run 从波 1 开始。
+
+### 范围边界（与重叠 PRD 去冲突）
+
+| PRD | 覆盖范围 | 本 PRD 不重复覆盖 |
+|-----|---------|------------------|
+| #385 双得分制 | 拆砖/穿墙计数与查询 API、21 分终局、`match_over` | ❌ 不改 GameManager 计数/终局逻辑——只消费 `get_brick_count/get_pierce_count` 与 `wave_index` |
+| #292 UI 系统 | 三层 CanvasLayer visible 切换、GameOverScreen 基础结构、SPACE 重启 | ❌ 不重构三层切换与 FSM 接线——只改 GameOverScreen 内部布局与失败分支 |
+| #294 游戏状态机 | 6 态 FSM、GAME_OVER 状态、SPACE→MENU | ❌ 不新增状态——复用 GAME_OVER，仅补 AC4 暂停语义 |
+| #296 暂停与音效 | PAUSED 状态、PauseOverlay、软冻结约定 | ❌ 不触碰 PAUSED——失败屏暂停是 GAME_OVER 内的终局冻结，非可恢复暂停 |
+| #396 波次副句与失败短句 | `wave_failure_text.json` 候选文案与 schema、内容红线 | ❌ 不改 JSON 文案值——只按 schema 消费 `failure_phrases[].text`（`draft:true` 时以 recommended/任意条兜底） |
+| #390 波次转场 | 消费 `wave_subtitles[]`（按 wave_index 分档） | ❌ 不消费 wave_subtitles——本 PRD 只消费 failure_phrases |
+| #393 组装/HUD | Main.tscn 节点接线、HUD 波次显示 | ❌ 不触碰 Main.tscn 接线与 HUD |
+
+本 PRD 是**失败屏（Failure Screen）**——聚焦失败分支的 UI 布局、run 数据消费、终局暂停与重开。它**不重新分析** #385 的计分机制、#292 的 UI 架构、#294 的状态机设计、#396 的文案创作。
 
 ### 用户场景
 
 | # | 场景 | 频率 | 描述 |
-|---|------|:---:|------|
-| A | 玩家失败（AI 先到 21 分） | 高 | 球出界计分后进入 GAME_OVER：失败屏显示短句（如「雨还在下」）+ 波次/拆砖/穿墙 3 项数据，游戏静止，SPACE 重开 |
-| B | 玩家胜利（玩家先到 21 分） | 中 | 保持既有 "YOU WIN!" 结算呈现（本 Issue 不改变胜利路径） |
-| C | 首波即败（波 1-2） | 低 | 短句应匹配早败语境（fp1「雨还在下」recommended）——按波次语境选择短句 |
-| D | 惜败（波 6+ 或比分接近 21） | 低 | 短句匹配晚败语境（fp3「就差一道墙」） |
+|---|------|------|------|
+| A | 玩家失败（AI 先到 21 分） | 每 run 1 次（高频） | 失败屏出现：短句 + 波次/拆砖/穿墙三项数据，游戏暂停 |
+| B | 玩家获胜（玩家先到 21 分） | 每 run 1 次（中频） | 保持现有 "YOU WIN!" 胜者宣告屏（本 Issue 不覆盖，win 分支原样保留） |
+| C | 失败后重开 | 每 run 1 次 | SPACE → 新一轮，波次从 1 重新开始，计数归零 |
 
 ---
 
 ## 2. 设计意图
 
-### 为什么现状如此
+### 为什么当前行为如此
 
-| 现状 | 成因 Issue | 说明 |
-|------|-----------|------|
-| GameOverScreen 是胜负同屏结算公告 | #292 | MVP 早期只有「先到 5 分赢一局」的局/赛制，结算屏只需公告胜负 |
-| 无 run 数据展示 | #385/#386 之前无数据 | 拆砖/穿墙/波次概念是 PONG://21 攻城战肉鸽方案（PLAN-rogue-pong §2）引入的，数据 API 在 #385/#386 才落地 |
-| 短句内容为空 | #396 前无文案 | B5 失败表达属 taste 领域（人机共做），文案由 #396 产出候选并已落地 `wave_failure_text.json` |
-| GAME_OVER 不暂停球 | #294 FSM 设计 | 早期只有 paddle 冻结（胜负已分，球自然出界停摆）；波次模式下球可能仍在中场移动 |
+GameOverScreen 诞生于 #292（UI 系统）——当时是纯**胜者宣告**（5 分制），没有 run 数据概念。随后两条依赖线把「失败屏」的契约逐层铺好，但都明确把 UI 消费方留给 #391：
+
+- **#385 双得分制**（已合并 #424）：引入拆砖/穿墙计数与 21 分终局。AC5 原文：「GameManager 可查询每方拆砖数、穿墙数，**供结算/失败屏使用**」；实现时在 `game_over_screen.gd` 埋入统计读取代码并注释「**布局归 #391**」——数据路径先行，布局留待本 Issue。
+- **#386 波次循环**（已合并 #428）：引入 `wave_index`，`end_wave_cycle()` 注释「wave_index 保留供 run 统计（**GAME_OVER 屏『波次数』归 #391**）」。
+- **#396 波次副句与失败短句**（草稿已合并 #407）：产出 `wave_failure_text.json`（schema wave-failure-text/v1），GDD 21 章数据流明确「#391 失败屏读 `failure_phrases[].text`（按 run 数据 severity 分档）」——文案契约先于 UI 落定。
 
 ### 为什么现在改
 
-1. **机械数据全部就绪**：#385（PR #424）提供拆砖/穿墙计数 + `match_over`；#386（PR #425）提供 `wave_index` + 波次状态机；本 Issue 只需消费，无新状态设计
-2. **内容数据源已落地**：#396 全链路合并（#407），`wave_failure_text.json` 存在且 schema 与 #391 读取点对齐（DESIGN #406 §4 明确「#391 读 `failure_phrases`」）——机械层读取即可，不阻塞于用户定稿（draft 标记不影响结构读取）
-3. **克制优先的品味方向已确认**：PLAN-rogue-pong §2「失败 = 叙事生产，非惩罚」+ #396 B5 候选（海明威式短句）——失败屏**不堆特效**，数据 + 一句短句即交付
+数据契约（计数 API、`wave_index`、`match_over`）与文案契约（`wave-failure-text/v1`）均已落地并合并。失败屏是双得分制 + 波次循环体验闭环的**最后一个未接线消费方**：目前玩家失败看到的仍是 5 分制时代的 "AI WINS!" 大字，run 数据（波次/拆砖/穿墙）没有任何展示出口，且失败瞬间游戏不暂停。Issue 上下文明确设计意图：「让失败提供信息与氛围，而不是惩罚性界面」——数据（三项 run 统计）即信息，短句（海明威式克制文案）即氛围。
 
-### 先前约束
+### 既往约束
 
 | 约束 | 详情 |
 |------|------|
-| 引擎/目录 | Godot 4.7.1，`mini-pong/` 子项目（自有 project.godot），竖屏 720×1280 |
-| 数据唯一入口 | run 数据必须来自 `GameManager`（Issue 明确「数据来自 GameManager」），不得在场景侧另存副本 |
-| 文案不进代码 | 短句必须从配置文件读取（AC3），不硬编码进 .gd / constants.gd（#396 AC5 边界） |
-| 不堆特效 | 失败屏保持克制：Label 呈现即可，不引入粒子/动画系统（审美坐标：雨夜竞技场 + 霓虹描边 + 克制优先，TASTE.md） |
+| 竖屏 720×1280 | #383 轴交换后所有 UI 在此分辨率下清晰可读、不截断 |
+| 三层 CanvasLayer visible 切换 | #292 约定：同一时刻仅一层可见（StartMenu/GameHUD/GameOverScreen） |
+| FSM 单一输入路由 | #294 约定：SPACE 在 GAME_OVER 状态由 FSM `_input()` 处理（GameOverScreen 自身不再接 `_input`） |
+| 软冻结约定 | #296 暂停 = FSM 冻结挡板 + 音频暂停，**未使用** `get_tree().paused`；headless 测试友好 |
+| 文案红线 | #396/GDD 21：失败短句 ≤10 字（含标点）、禁感叹号、每句修饰词 ≤1、禁惩罚性/空洞措辞、禁 emoji/网络梗 |
+| 保持克制、不堆特效 | Issue 原文：失败屏克制呈现，不叠加粒子/Shader 特效（现有脉冲 alpha 动画属 #292 既有行为，失败分支可保留或降级） |
+| 数据来自 GameManager | Issue 原文：run 数据统一从 GameManager 查询 API 读取，不做本地缓存 |
+| Headless 安全 | 既有约定：`get_tree()` null 守卫、`get_node_or_null` 容错、`has_signal/has_method` 双守卫 |
 
 ---
 
 ## 3. 影响分析
 
-### 直接影响的模块
+### 直接影响模块
 
 | 文件 | 模块 | 变更性质 |
 |------|------|---------|
-| `mini-pong/gdscripts/game_over_screen.gd` | 失败屏控制器 | **修改**：失败/胜利分流（`match_over("ai")` → 短句 + 3 项数据）；`RunStatsLabel`/`FailurePhraseLabel` 引用；短句读取函数（读 JSON → 按波次选短句） |
-| `mini-pong/scenes/Main.tscn` | GameOverScreen 节点树 | **修改**：新增 `FailurePhraseLabel`（短句，置于 WinnerLabel 下方）+ `RunStatsLabel`（波次/拆砖/穿墙 3 项）节点 |
-| `mini-pong/gdscripts/game_state_machine.gd` | FSM GAME_OVER 态 | **修改**：进入 GAME_OVER 时冻结 ball（AC4，配合 ball 新增接口） |
-| `mini-pong/gdscripts/ball.gd` | 球物理 | **修改**：新增 `set_frozen(value)` + `_frozen` 状态（`_process` 中 frozen 时 return），同 paddle 模式 |
+| `mini-pong/gdscripts/game_over_screen.gd` | GameOverScreen | **修改**：新增失败分支（winner=="ai"）——按 severity 分档选短句 + 读取三项 run 数据渲染；#385 埋入的 P/A 双区统计代码改为玩家单侧三项；暂停触发 |
+| `mini-pong/scenes/ui_game_over.tscn` | GameOverScreen 场景 | **修改**：VBoxContainer 内新增 FailurePhraseLabel + RunStatsLabel（波次/拆砖/穿墙，可单 Label 多行或三行 Label）；保留 WinnerLabel（win 分支）与 RestartPromptLabel |
+| `mini-pong/gdscripts/game_state_machine.gd` | FSM | **修改**：`GAME_OVER` enter 时补球冻结（AC4）；exit 时解冻 |
+| `mini-pong/gdscripts/game_manager.gd` | GameManager | **可选微改**：补 `get_wave_index()` getter（与 `get_brick_count/get_pierce_count` API 风格一致）；不改任何状态/计数逻辑 |
 
 ### 新增文件
 
 | 文件 | 用途 |
 |------|------|
-| `mini-pong/tests/test_failure_screen.gd` | 失败屏测试：短句读取（JSON 解析 + 按波次选择）、3 项数据文本、失败/胜利分流、frozen 后球不动、reset 后重开 |
+| `mini-pong/tests/test_failure_screen.gd`（新增） | 失败屏用例：失败分支渲染、三项数据、severity 分档、暂停、重开（注册进 `run_tests.gd`） |
 
-### 间接影响的模块
+### 间接影响模块
 
 | 文件 | 影响 |
 |------|------|
-| `mini-pong/content/wave_failure_text.json` | **只读**，不修改（内容归属 #396）；短句选择策略见 §4 |
-| `mini-pong/gdscripts/game_manager.gd` | 不修改（数据 API 已齐）；若需「总拆砖/总穿墙」双方合计口径则只读不改 |
-| `mini-pong/tests/run_tests.gd` | 注册新套件（+1 → 18 套件） |
-| `mini-pong/tests/test_integration_fsm.gd` | 若断言 GAME_OVER 球状态，需同步（现有断言不涉及 ball frozen，预计无冲突） |
+| `mini-pong/tests/test_ui_system.gd` | TC7/TC10/TC11 断言 "YOU WIN!"/"AI WINS!" 常量与 RestartPromptLabel——**win 分支保留则兼容**；需新增失败屏断言（FailurePhraseLabel/RunStatsLabel 存在性） |
+| `mini-pong/tests/test_game_state_machine.gd` | GAME_OVER 相关用例——若 FSM 增加球冻结调用，需同步 mock |
+| `mini-pong/tests/test_pause.gd` | 不动（PAUSED 语义不变）；其 mock 模式可复用 |
+| `mini-pong/tests/test_dual_scoring.gd` | 若补 `get_wave_index()`，可加 1-2 条 wave_index 断言（非必须） |
 
 ### 数据流
 
 ```
-GameManager.match_over(winner: String)          # #385：21 分终局
+GameManager.match_over("ai")  ← 21 分终局（#385 单一权威）
     │
     ▼
-GameStateMachine._on_match_over()  →  GAME_OVER 态
-    ├── _freeze_paddles(true)                    # 既有
-    └── ball.set_frozen(true)                    # 新增（AC4）
-    │
-    ▼
-GameOverScreen._on_match_over(winner)
-    ├── winner == "ai"（玩家失败）
-    │     ├── FailurePhraseLabel.text ← JSON.failure_phrases[按波次选择].text   # AC3
-    │     └── RunStatsLabel.text ← 波次:wave_index  拆砖:get_brick_count("player")  穿墙:get_pierce_count("player")   # AC2
-    └── winner == "player"（玩家胜）
-          └── 既有 "YOU WIN!" 呈现（不变）
-    │
-    ▼
-SPACE（GAME_OVER 态）→ MENU → reset_match() → 新一轮（AC5）
+GameStateMachine._on_match_over("ai")
+    └── transition_to(GAME_OVER)                ← FSM（#294）
+            ├── _set_ui("game_over")            → GameOverScreen.visible = true
+            ├── _freeze_paddles(true)           → 既有
+            └── 球冻结（AC4，新增）               → ball 停止运动
+                    │
+                    ▼
+GameOverScreen._on_match_over("ai")
+    ├── 选句: wave_failure_text.json failure_phrases[]
+    │        按 GameManager.wave_index 分档（1-2 / 3-5 / 6+ / 兜底）
+    │        → FailurePhraseLabel.text
+    ├── 数据: GameManager.get_brick_count("player")
+    │         GameManager.get_pierce_count("player")
+    │         GameManager.wave_index
+    │        → RunStatsLabel.text（波次 / 拆砖 / 穿墙）
+    └── 隐藏 GameHUD（既有 #385 行为）
+            │
+            ▼
+SPACE（FSM _input，GAME_OVER 状态）
+    └── transition_to(MENU) → GameManager.reset_match()   ← wave_index=0、计数归零（AC5）
 ```
+
+### 需更新的文档
+
+- [ ] `docs/PRD/391-failure-screen.md`（本文件）
+- [ ] `docs/GAME_DESIGN/`：失败屏章节（post-merge，review agent 惯例）
+- [ ] `docs/TASKS/`：plan 阶段产出（下游）
 
 ---
 
-## 4. 方案对比
+## 4. 方案比较
 
-### 4.1 失败屏架构
+### 维度一：失败屏呈现结构
 
-#### Approach A：扩展既有 GameOverScreen（推荐）
+**方案 A：在既有 GameOverScreen 内扩展失败分支（推荐）**
 
-在现有 CanvasLayer 内联节点树（Main.tscn）上增加两个 Label，脚本内按 winner 分流。
+`game_over_screen.gd` 增加失败路径（winner=="ai" → 短句 + run 数据），`ui_game_over.tscn` 补两个 Label 节点；win 分支（YOU WIN!）原样保留。
 
-| 维度 | 说明 |
-|------|------|
-| 结构 | 复用 `GameOverScreen` CanvasLayer：`WinnerLabel`（保留）+ `FailurePhraseLabel`（新增，失败时显示短句）+ `RunStatsLabel`（新增，3 项数据）+ `RestartPromptLabel`（既有） |
-| 分流 | `_on_match_over("ai")` → 显示短句 + 数据 + "AI WINS!" 小字（或复用 WinnerLabel 显示失败短句）；`_on_match_over("player")` → 保持现状 |
-| 数据 | `GameManager.wave_index` / `get_brick_count("player")` / `get_pierce_count("player")`（已有 #385 读取代码骨架） |
+- **Pros:** 复用三层切换、FSM 接线、SPACE 重启、`_on_restart_pressed` 流程，零新场景零新节点；#385 已埋的数据读取代码直接激活（把 P/A 双区格式改为玩家单侧三项）；与 #393 组装边界无冲突
+- **Cons:** GameOverScreen 语义从「胜者宣告」扩展为「终局屏」（win/fail 双分支），单脚本需保持分支清晰（`match winner` 内聚）
+- **Risk:** Low
+- **Effort:** 0.5–1 周
 
-- **Pros**：零新场景；FSM/`_set_ui`/SPACE 重开接线零改动；#385 已预留 RunStatsLabel 读取路径（`get_node_or_null` 容错，直接补节点即生效）；改动面最小（1 脚本 + 1 场景 + 1 ball 方法）
-- **Cons**：胜/负共用一个 CanvasLayer，分流逻辑需清晰（`match winner` 分支）；WinnerLabel 语义从「公告」扩展为「失败短句」需注意命名清晰
-- **Risk**：低——改动集中，既有测试（FSM 集成、game_over_screen 行为）可复用
-- **Effort**：0.5–1 周
+**方案 B：新建独立 FailureScreen 场景**
 
-#### Approach B：新建独立 FailureScreen 场景 + 节点
+新增 `ui_failure_screen.tscn` + `failure_screen.gd`，Main.tscn 增加节点，FSM `_set_ui` 增加 "failure" 分支。
 
-新建 `mini-pong/scenes/ui_failure_screen.tscn` + `failure_screen.gd`，FSM 增加 FAILED 状态（或复用 GAME_OVER 但切换不同 UI）。
+- **Pros:** win/fail 语义完全分离，脚本职责纯净
+- **Cons:** 新增节点与 FSM 分支违反「Main.tscn 接线归 #393」的既定边界；重启/回 MENU 逻辑需复制一份；MVP 下过度设计（两份几乎相同的 CanvasLayer 屏）
+- **Risk:** Med
+- **Effort:** 1–1.5 周
 
-- **Pros**：失败/胜利 UI 完全隔离，语义清晰；未来可独立演进
-- **Cons**：新增场景 + 新增 FSM 状态（或双 CanvasLayer 切换）；`_set_ui` 接线改动；与 #390 波次转场（同样新增全屏 UI）职责边界易混；MVP 下过度设计
-- **Risk**：中——FSM 状态增加引入回归面；与既有 GAME_OVER 重开路径（SPACE → MENU）需复制
-- **Effort**：1.5–2 周
+### 维度二：失败时「游戏暂停」实现
 
-#### Approach C：第三方插件/模板（开源优先调研结论）
+**方案 A：SceneTree 全局暂停** — `GAME_OVER` enter 时 `get_tree().paused = true`，GameOverScreen 设 `process_mode = PROCESS_MODE_ALWAYS` 保持动画。
 
-按 Issue「开源优先」要求，已检索：
+- **Pros:** 语义上真正「暂停」，球/挡板/计分/音频全部停止，AC4 严格满足
+- **Cons:** 与 #296 既有「软冻结」约定不一致（项目从未使用 SceneTree pause）；autoload（GameManager/AudioEngine）默认 `PROCESS_MODE_INHERIT` 也会被暂停，需逐节点 process_mode 审计；headless 测试需处理 paused 语义；失败屏本身是终局态，不需要可恢复暂停，全局暂停是「杀鸡用牛刀」
+- **Risk:** Med
+- **Effort:** 0.5–1 周
 
-| 来源 | 检索词 | 结果 |
-|------|--------|------|
-| Godot Asset Library（godotengine.org/asset-library/api） | `gameover` / `game over` / `game over screen` / `end screen` / `game over ui` | 全部 0 结果；UI 类目（category=UI）0 匹配模板 |
-| GitHub（gh search / search API） | `godot game over screen` / `godot failure screen` / `godot ui screens` / `godot addon ui` | 仅 4 个不相关项目（party game / TicTacToe / parkour / SlimeQuest，均 0–1 star，非失败屏模板）；无成熟失败屏/结算屏插件 |
-| 社区 | Reddit `godot game over screen` | 无可用结构化结果 |
+**方案 B：软冻结扩展（推荐）** — 对齐 #296 模式：`GAME_OVER` enter 时除 `_freeze_paddles(true)` 外，冻结球（`ball` 增加 freeze 标志或 `velocity = Vector2.ZERO`），exit 时解冻；计分天然不可发生（FSM 不在 PLAYING 不消费 scored）。
 
-**结论**：无可复用的成熟失败屏插件/模板——失败屏高度项目相关（短句 + run 数据 + 既有 CanvasLayer 模式），且项目克制风格拒绝堆特效依赖。**自行扩展既有 GameOverScreen（Approach A）为最优**，与 #358 标题屏（项目自研 UI 先例）一致。
+- **Pros:** 与既有软冻结约定完全一致、headless 可测（复用 test_pause TC5 模式）、零 SceneTree 语义、改动最小
+- **Cons:** 需给 ball 加最小 freeze 支持（约 5 行）；「暂停」是软性语义（场景树仍在跑）——但对终局屏足够
+- **Risk:** Low
+- **Effort:** 0.5 周
 
-- **Risk**：高（若强行引入第三方 UI 库，与现有 #292 CanvasLayer 模式冲突）
-- **Effort**：不可估（无合适候选）
+### 开源调研（issue 🔍 开源优先）
 
-**推荐 A**，理由：
-1. 数据/内容/接线三就绪，A 只做「补节点 + 分流 + 暂停」，改动最小且可隔离测试
-2. #385 已按「布局归 #391」预留 RunStatsLabel 读取路径——A 直接兑现该预留，B/C 均浪费
-3. 开源调研确认无成熟第三方方案，自研成本低于引入依赖
+| 渠道 | 检索 | 结果 |
+|------|------|------|
+| Godot Asset Library (assetlibrary.godotengine.org) | filter=game over screen / failure（Godot 4.7） | **0 结果**（`total_items: 0`） |
+| GitHub 仓库搜索 | "godot game over screen"（按 stars） | 仅 <5⭐ 完整游戏克隆（TicTacToe 等），**无可插拔的「失败屏/run 统计」组件** |
+| 社区模式 | 失败屏 = CanvasLayer + Label + 暂停 + 重开 | Godot 内建节点即可实现，无需第三方依赖 |
 
-### 4.2 暂停机制（AC4）
+**结论：** 失败屏（短句 + 三项 run 数据 + 暂停 + 重开）是 Godot 内建 CanvasLayer/Label/Tween 的组合，无成熟第三方插件可复用；自行实现约 0.5–1 周，且与项目既有 UI 约定（#292 三层切换、#296 软冻结）天然一致，不引入外部依赖。
 
-#### P1：ball 新增 `set_frozen`（推荐）
+### 推荐
 
-`ball.gd` 加 `var _frozen: bool` + `func set_frozen(v)`，`_process` 开头 `if _frozen: return`。FSM GAME_OVER 态调 `ball.set_frozen(true)`（paddle 冻结已有）。
+**呈现结构取方案 A（扩展 GameOverScreen）+ 暂停取维度二方案 B（软冻结扩展）。**
 
-- **Pros**：与 paddle 模式同构；headless 可测（断言 `_process` 后 position 不变）；不影响 UI 动画（tween 继续，脉冲/闪烁正常）
-- **Cons**：需改 ball.gd（+1 方法 +1 状态）
-- **Risk**：低——`_process` 早退不影响 serve/计分路径（frozen 只在 GAME_OVER 置位）
-- **Effort**：0.5 天
-
-#### P2：`get_tree().paused = true`
-
-GAME_OVER 时暂停整个 SceneTree。
-
-- **Pros**：彻底暂停一切（含 AI/计时器）
-- **Cons**：**会暂停 GameOverScreen 自身的 tween 动画**（脉冲/闪烁需 `process_mode = PROCESS_MODE_ALWAYS` 规避）；FSM 的 `_timer_1s`/await 交互复杂化；headless 测试需处理 pause 状态；#296 暂停（PAUSED 态）也未用 tree.paused（用 overlay + freeze）——项目无此先例
-- **Risk**：中——破坏既有动画/计时行为，回归面大
-- **Effort**：1 天
-
-**推荐 P1**：与项目既有暂停模式（#296 PAUSED：overlay + freeze，非 tree.paused）一致；只冻结游戏实体，UI 动画保持活跃（失败屏脉冲/闪烁是 #292 既有体验，不应被暂停杀死）。
-
-### 4.3 短句选择策略（AC3）
-
-| 策略 | 描述 | Pros | Cons | 推荐 |
-|------|------|------|------|:---:|
-| S1：按波次语境匹配 | `wave_index` 1-2 → fp1；3-5 → fp2；6+ → fp3；兜底 fp4 | 与 #396 语境表（context 字段）一一对应，场景 C/D 精准 | 需实现区间映射逻辑（≤10 行） | ✅ |
-| S2：固定 recommended | 始终读 `recommended: true` 条目（fp1「雨还在下」） | 最简（读第一条 recommended） | 所有失败场景同一句，语境不匹配 | — |
-| S3：随机 | 从 failure_phrases 随机 | 变化感 | 与「克制」冲突（随机破坏一致性）；不可测 | — |
-
-**推荐 S1**：JSON 已带 `context` 字段（「波 1-2/波 3-5/波 6+/通用」），S1 直接消费该结构；S2 作兜底（解析失败/无匹配时回退 recommended 或 fp1）。实现：`_pick_failure_phrase(wave_index, phrases)` → 按区间过滤 → 无匹配回退 recommended:true → 再无回退第一项。
+1. #385/#386 已在 `game_over_screen.gd`/`game_manager.gd` 预留数据路径与波次保留语义，方案 A 是「激活既有插槽」而非「新建系统」——与 #386 先例（autoload 持状态、场景节点消费编排）一致。
+2. 软冻结与项目 #294/#296 约定一致、headless 可测；SceneTree 全局暂停会牵连 autoload 与动画，收益（终局屏无需恢复）不抵复杂度。
+3. 独立场景方案 B 的优势（语义纯净）在 MVP 阶段被「Main.tscn 接线归 #393」的边界与重复代码成本抵消。
 
 ---
 
 ## 5. 边界条件与验收标准
 
-### 正常路径
+### 正常路径（AC 清单，映射 issue 验收条件）
 
-- [x] **AC1: 失败切换** — `match_over("ai")` → GAME_OVER → 失败屏显示（短句 + 3 项数据）；`match_over("player")` → 既有胜利呈现
-  - [x] 验证：mock `match_over("ai")` → 断言 FailurePhraseLabel 非空、RunStatsLabel 含 3 项
-  - [x] 验证：mock `match_over("player")` → 断言不显示失败短句
-- [x] **AC2: 3 项 run 数据** — 波次/拆砖/穿墙均来自 GameManager
-  - [x] 验证：设 `wave_index=3`、`player_brick_count=12`、`player_pierce_count=4` → 文本含 "3" / "12" / "4"
-- [x] **AC3: 短句从配置读取** — `res://content/wave_failure_text.json` → `failure_phrases`
-  - [x] 验证：文件存在、schema 为 `wave-failure-text/v1`、所选条目 text 无 emoji/感叹号（内容侧 #396 已校验）
-- [x] **AC4: 失败屏出现时游戏暂停** — GAME_OVER 进入时 `ball.set_frozen(true)` + paddles frozen
-  - [x] 验证：frozen 后 `_process` 多帧 position 不变
-- [x] **AC5: 可重开** — SPACE → MENU → `reset_match()` → SPACE → 新一轮
-  - [x] 验证：reset 后 wave_index=0、计数归零、ball unfrozen
+- [x] **AC1: 玩家失败时切换至失败屏** — `match_over("ai")` → FSM GAME_OVER → GameOverScreen 显示失败短句 + run 数据
+  - 验证：构造 AI 21 分终局 → 断言 FSM `current_state == GAME_OVER`、GameOverScreen.visible == true、FailurePhraseLabel/RunStatsLabel 文本非空
+- [x] **AC2: 展示波次、总拆砖数、总穿墙数 3 项 run 数据** — 波次 = `GameManager.wave_index`、拆砖 = `player_brick_count`、穿墙 = `player_pierce_count`（玩家单侧）
+  - 验证：预置 wave_index=3、拆砖 7、穿墙 2 → 断言 RunStatsLabel 含三值
+- [x] **AC3: 短句从配置读取且无 emoji/夸张语气** — 从 `wave_failure_text.json` `failure_phrases[]` 按 severity 分档读取；脚本不含文案硬编码（兜底默认句除外）
+  - 验证：改 JSON 某档位 text → 屏幕文本随之变化；代码 grep 无 emoji/感叹号文案字面量；内容红线（≤10 字、无感叹号/emoji）由 #396 配置内容保证，运行时不做文本校验（GDD 21 契约）
+- [x] **AC4: 失败屏出现时游戏暂停** — GAME_OVER 进入后球不再移动、挡板冻结、计分不可发生
+  - 验证：失败后推进多帧 → 断言 ball 位置不变（复用 test_pause TC5 模式）、paddle frozen、FSM 不在 PLAYING 时 scored 信号被忽略
+- [x] **AC5: 可重开进入新一轮** — SPACE → `reset_match()` → 新 run 波次从 1 开始
+  - 验证：重开后断言 `wave_index == 0`（SERVING 后首波 begin_wave → 1）、四计数归零、`_is_run_over == false`
 
-### 边界情况
+### 边界情况（≥5）
 
-1. **JSON 文件缺失/解析失败** — 回退：不显示短句（或显示内置兜底「墙还在，雨未停」），不崩溃；log 警告
-2. **JSON 无 recommended 条目** — S1 回退链末端取 `failure_phrases[0]`
-3. **wave_index = 0（IDLE 异常态）** — 按早败区间（≤2）处理 → fp1
-4. **穿墙/拆砖数为 0** — 正常显示 "0"（首波即败场景，数据诚实呈现）
-5. **失败屏已显示时重复 match_over** — `_on_match_over` 幂等守卫（同 #292 `_transitioning` 模式）
-6. **winner 非法值** — 保持既有 `match ... _: return` 语义，不显示失败屏
-7. **ball frozen 后 serve/计分事件** — frozen 只读 `_frozen`，不阻塞信号；GAME_OVER 后 `add_score` 已被 `_is_run_over` 守卫（#385 失败路径 2）
+1. **首波未开始即败（wave_index == 0）** — 分档无 0 档 → 落入 fp4 通用兜底（或 recommended 句），不得崩溃。
+2. **配置缺失/解析失败** — `wave_failure_text.json` 不存在或 JSON 非法 → 使用 constants.gd 中的默认短句（仍满足无 emoji 红线）+ `push_warning`；`failure_phrases` 为空数组同理。
+3. **`draft: true` 未定稿** — #396 草稿态：机械插槽不依赖定稿值，任选一条（recommended 优先）即可；定稿后仅改 JSON，代码零改动（GDD 21 明确）。
+4. **玩家获胜（winner=="player"）** — 走既有 "YOU WIN!" 分支，不显示失败短句与 run 数据（或按后续 issue 扩展）；本 Issue 不改 win 分支文案。
+5. **失败屏显示期间按 ESC** — FSM `_input` 中 `ui_cancel` 只匹配 PLAYING/PAUSED，GAME_OVER 无响应（既有行为，回归确认）。
+6. **SPACE 连按/重入** — `_transition_lock` 防重入（#294 既有）；GameOverScreen `_on_restart_pressed` 的 `_transitioning` 守卫保持。
+7. **21 分同帧双事件** — #385 既有 `elif` 单 winner 语义，失败屏只消费单次 `match_over`（回归确认）。
+8. **Headless 无树** — `get_tree()` null 守卫（#292 既有 `_ready` 早退模式）；暂停/动画调用全部守卫。
+9. **竖屏 720×1280 布局** — 短句 + 三项数据 + 提示行不截断不溢出（沿 #292 分辨率校验约定）。
 
-### 失败路径
+### 失败路径（≥3）
 
-1. **content JSON 不存在**（#407 被回滚等）→ 失败屏无短句但数据照常显示；测试覆盖容错分支
-2. **ball.gd 未实现 set_frozen**（实现遗漏）→ FSM 用 `has_method` 容错调用（同 ScoringManager 对 ScoreFlash 模式），测试断言 frozen 行为失败即暴露
-3. **RunStatsLabel 节点缺失** → `get_node_or_null` 容错（#385 既有模式），不崩溃；E2E 截图验证节点存在
+1. **JSON 解析失败** → 默认短句兜底 + `push_warning`，失败屏仍可用（数据照常显示）。
+2. **Label 节点缺失**（RunStatsLabel 等）→ `get_node_or_null` 守卫静默跳过（沿用 #385 已埋的容错模式），不崩溃。
+3. **球冻结回归**（GAME_OVER 后球仍移动）→ 测试 `test_failure_screen.gd` 断言位置不变拦截；FSM exit 时解冻逻辑与 PAUSED 不互扰。
 
 ---
 
 ## 6. 依赖与阻塞
 
+### 依赖（Depends On）
+
 | 依赖 | 状态 | 风险 |
-|------|------|:---:|
-| #385 双得分制（`match_over`/`get_brick_count`/`get_pierce_count`） | ✅ 已合并（PR #424） | 无 |
-| #386 波次循环（`wave_index`/`reset_match`） | ✅ 已合并（PR #425） | 无 |
-| #396 失败短句内容（`wave_failure_text.json`） | ✅ 已合并（PR #407，`draft: true`） | 低——draft 仅标记待用户定稿，结构/字段可用；若用户后续改文案，读取逻辑不变 |
-| #390 波次转场（读同一 JSON 的 `wave_subtitles`） | ⏳ OPEN（并行，非本 Issue 依赖） | 低——两 Issue 各读各的字段组（`wave_subtitles` vs `failure_phrases`），无写入冲突；同文件只读 |
+|------|------|------|
+| #385 双得分制（计数 API + `match_over` 21 分终局） | ✅ 已合并（PR #424） | 无 |
+| #386 波次循环（`wave_index` 保留供 run 统计） | ✅ 已合并（PR #428） | 无 |
+| #396 波次副句与失败短句（`wave_failure_text.json` schema） | ✅ 草稿已合并（PR #407）；⚠️ `draft: true` 待用户定稿（issue open，status/human-review） | 低——机械插槽不依赖定稿文案值（GDD 21 明确） |
+| #292 UI 系统（三层 CanvasLayer 约定） | ✅ 已合并（PR #329） | 无 |
+| #294 游戏状态机（GAME_OVER 状态） | ✅ 已合并（PR #333） | 无 |
 
-**依赖链：**
+### 阻塞（Blocks）
+
+| 未来工作 | 优先级 | 说明 |
+|---------|--------|------|
+| #393 组装/HUD 接线 | P1 | 失败屏布局在 Main.tscn 中已实例化，不阻塞；#393 组装时勿覆盖本 Issue 新增的 Label 节点 |
+| 失败屏 run 数据视觉呈现（taste） | P3 | 文案/视觉 taste 内容归 #396/#392 类 issue，本 Issue 只做机械呈现 |
+
+### 依赖链
 
 ```
-#383 轴交换 → #384 砖墙 → #385 双得分制 ─┐
-                                        ├─→ #391 失败屏（本 Issue）
-#386 波次循环 ───────────────────────────┘
-#396 失败短句（内容）──→  wave_failure_text.json（只读）
+#292 UI 系统 ──► #294 FSM ──► #385 双得分制 ──► #386 波次循环 ──► #391 失败屏（本 Issue）
+                                    └──► #396 文案草稿（wave_failure_text.json）──► #391
 ```
 
-**无阻塞。** 前置依赖全部关闭；#396 内容已落地；#390 并行无冲突（同文件不同字段，双方只读）。
+### 前置准备
 
-**准备工作：**
-- [x] 确认 `wave_failure_text.json` 字段（`failure_phrases[].text/context/recommended`）——已核实
-- [x] 确认 GameManager 查询 API 签名——已核实
-- [x] 开源优先调研（Asset Library / GitHub / 社区）——已执行，无成熟方案（§4.1-C）
+- [ ] 确认 `mini-pong/content/wave_failure_text.json` 存在且 schema 合法（已确认，PR #407 合并）
+- [ ] 确认 GameManager 三数据源可用（已确认源码：`wave_index`/`get_brick_count`/`get_pierce_count`）
+- [ ] 确认 #393 未并行改动 Main.tscn 的 GameOverScreen 节点（当前 Main.tscn 无 RunStatsLabel，无冲突）
 
 ---
 
 ## 7. Spike / 实验
 
-> Skipped per depth/standard 标签（Issue 无 depth/deep 标签，按 #358/#385/#386 惯例 standard 处理：Section 7 可选）。研究期已执行的验证：JSON 结构核验（`wave_failure_text.json` 4 条 failure_phrases 字段完整）、GameManager API 签名核验（`get_brick_count/get_pierce_count/wave_index` 存在）、ball.gd frozen 缺失确认（§1 现状表）。
+> Issue #391 无 `depth/deep` 标签，按 depth/standard 处理（Section 7 可选）。以下为**研究期实际执行的验证**，作为方案选择的证据记录。
+
+**实验 1：severity 分档边界验证**
+
+- **问题:** `wave_index` 与 4 条候选（fp1-fp4）的分档映射在 0/1/2/3/5/6/99 边界是否正确？
+- **方法:** 对照 #396 PRD §4.3 与 JSON `context` 字段（波1-2 / 波3-5 / 波6+ / 通用兜底），枚举 wave_index 0..99 映射。
+- **预期结果:** 分档函数 `wave_index <= 2 → fp1；<= 5 → fp2；>= 6 → fp3；异常/缺失 → fp4 兜底`；wave_index==0（未开波即败）落入兜底。
+- **影响:** 确认机械分档简单线性，无需权重/概率；兜底条款进 §5 边界 1。
+
+**实验 2：暂停方案 headless 可测性验证**
+
+- **问题:** SceneTree 全局暂停（`get_tree().paused`）vs 软冻结（ball freeze）哪个可被现有测试基建验证？
+- **方法:** 阅读 test_pause.gd TC5（mock ball 位置断言模式）与 #296 实现（FSM 软冻结，未用 SceneTree pause）；grep 全库确认 `get_tree().paused` 零使用。
+- **预期结果:** 软冻结与既有测试模式一致；全局暂停会牵连 autoload process_mode，测试需额外处理。
+- **影响:** 推荐暂停 = 软冻结扩展（§4 维度二方案 B）；全局暂停列为备选。
+
+**实验 3：文案消费契约验证**
+
+- **问题:** `wave_failure_text.json` 的 schema 是否足够支撑运行时按档位选句（不依赖定稿）？
+- **方法:** 解析 JSON 确认 `failure_phrases[]` 4 条均带 `id/text/context/emotion/recommended`；对照 GDD 21 数据流「#391 失败屏读 failure_phrases[].text（按 run 数据 severity 分档）」。
+- **预期结果:** 契约完备；`draft: true` 仅标记文案值未定稿，机械选句逻辑可先行实现。
+- **影响:** 确认 AC3 实现路径 = 读 JSON + 分档选句 + recommended 优先，无阻塞。
 
 ---
 
-## 8. 延续上下文（plan agent 交接）
+## 8. 交接上下文（Continuation Context）
 
 ### 系统状态
 
-- 竖屏 720×1280（#383，PR #409）；21 分终局 + 拆砖/穿墙计数 + `match_over`（#385，PR #424）；波次状态机 `wave_index`/`begin_wave`/`settle_wave`/`end_wave_cycle`（#386，PR #425）
-- 内容源 `mini-pong/content/wave_failure_text.json` 已落地（#407 merged，`draft: true`，schema `wave-failure-text/v1`）——**只读，勿改**；字段与 #391 读取点对齐（DESIGN #406 §4）
-- GameOverScreen 已有 #385 预留的 RunStatsLabel 容错读取（`get_node_or_null`），节点缺失时静默跳过——补节点即生效
-- FSM GAME_OVER 态：`_set_ui("game_over")` + `_freeze_paddles(true)`；SPACE → MENU 重开已通；**ball 无 frozen 接口（本 Issue AC4 的主要代码增量）**
-- 并行管线活跃（#390 转场 OPEN 同读该 JSON 的 `wave_subtitles`），实现前先 `git pull origin main`
+- **数据契约就绪：** GameManager 已提供 `get_brick_count(side)`/`get_pierce_count(side)`（#385）与 public `wave_index`（#386，终局后保留供 run 统计）；`match_over(winner)` 为终局单一权威；`reset_match()` 全量归零。
+- **文案契约就绪：** `mini-pong/content/wave_failure_text.json`（schema `wave-failure-text/v1`，`draft: true`）已合并（#396 PR #407）；GDD 21 章规定 #391 按 severity 分档消费 `failure_phrases[].text`。
+- **UI 插槽未接线：** `game_over_screen.gd` 已含 #385 埋入的统计读取代码（P/A 双区格式，`RunStatsLabel` 节点不存在时静默跳过）；`ui_game_over.tscn` 无 FailurePhraseLabel/RunStatsLabel；GAME_OVER 期间球未冻结（AC4 缺口）。
 
-### 本 PRD 的核心决策（勿偏离）
+### 关键文件现状
 
-1. **Approach A（§4.1）**：扩展既有 GameOverScreen，不新建场景/FSM 状态——补 `FailurePhraseLabel` + `RunStatsLabel` 两节点，`_on_match_over` 按 winner 分流（`"ai"` 失败 → 短句 + 数据；`"player"` → 现状）
-2. **P1 暂停（§4.2）**：ball.gd 新增 `set_frozen` + `_frozen` 状态（`_process` 早退）；FSM GAME_OVER 调 `ball.set_frozen(true)`——**不要用 `get_tree().paused`**（会杀死 GameOverScreen 自身 tween 动画，且项目无此先例）
-3. **S1 短句选择（§4.3）**：按 `wave_index` 区间匹配 `failure_phrases` 的 `context`（1-2→fp1、3-5→fp2、6+→fp3、兜底 fp4）；回退链：区间匹配 → recommended:true → `[0]`；JSON 缺失 → 不显示短句不崩溃
-4. **数据口径**：玩家视角 run 数据（`get_brick_count("player")` / `get_pierce_count("player")` / `wave_index`）——失败屏是玩家失败场景，展示玩家侧数据
-5. **只读边界**：不改 `game_manager.gd`、不改 `wave_failure_text.json`、不改胜负判定逻辑（#385 `match_over(winner)` 语义保持）
+| 文件 | 现状 | 本 Issue 动作 |
+|------|------|--------------|
+| `mini-pong/gdscripts/game_over_screen.gd` | 胜者宣告 + #385 数据读取（P/A 格式） | 改造为 win/fail 双分支；fail 分支渲染短句 + 玩家单侧三项数据 |
+| `mini-pong/scenes/ui_game_over.tscn` | WinnerLabel + Spacer + RestartPromptLabel | 新增 FailurePhraseLabel + RunStatsLabel（波次/拆砖/穿墙） |
+| `mini-pong/gdscripts/game_state_machine.gd` | GAME_OVER 冻结 paddles，球不冻结 | GAME_OVER enter 补球冻结（AC4），exit 解冻 |
+| `mini-pong/gdscripts/game_manager.gd` | 数据齐全 | 可选：补 `get_wave_index()` getter（非必须） |
+| `mini-pong/content/wave_failure_text.json` | draft:true 4 条候选 | 只读消费，不改内容 |
+| `mini-pong/tests/test_failure_screen.gd` | 不存在 | 新增并注册进 `run_tests.gd` |
+
+### 主要风险
+
+1. **暂停语义选择**：软冻结（推荐）需给 ball 加最小 freeze 支持；避免误用 `get_tree().paused` 牵连 autoload。
+2. **#385 遗留格式改动**：现「拆砖 P:x/A:y 穿墙 P:x/A:y」双区格式按 AC2 改为玩家单侧三项（波次/拆砖/穿墙）——注意 `test_ui_system.gd` 等既有断言未覆盖该字符串（TC10 只验证不崩溃），改动安全。
+3. **win 分支回归**：YOU WIN! 分支、脉冲动画、RestartPromptLabel 文案与 TC7/TC11 断言需保持兼容。
+4. **并行代理冲突**：本分支 `research/391-failure-screen` 曾由先前中断尝试创建（本地分支位于 main HEAD，无远端）；提交前 `git fetch` + 推送后 `git ls-remote` 校验。
 
 ### 下一步（plan agent）
 
-1. 读 `mini-pong/gdscripts/game_over_screen.gd`（#292 既有 + #385 预留读取）与 `mini-pong/gdscripts/ball.gd`（`_process` 结构，frozen 插入点）
-2. 设计 Main.tscn GameOverScreen 节点布局：`WinnerLabel`（72px）→ `FailurePhraseLabel`（短句，建议 36-40px，霓虹描边风格）→ `RunStatsLabel`（3 项数据，建议 24px）→ `RestartPromptLabel`（既有 28px）
-3. 新增 `test_failure_screen.gd`：mock `match_over` 分流、JSON 读取（`FileAccess` headless 可用）、frozen 后 position 不变、reset 后 unfrozen；注册进 `run_tests.gd`（18 套件）
-4. E2E：`scripts/run-e2e-review.sh` 失败屏截图（GAME_OVER 态）应含短句 + 3 项数据（对齐 #358 先例）
-5. 若 #390 转场实现在本 Issue 前落地，确认两屏切换时序无冲突（转场 → 对打 → 失败屏；互不叠加显示）
+1. 依据本 PRD 产出 `docs/DESIGN/391-failure-screen.md`：实施顺序建议 `game_over_screen.gd`（fail 分支 + 分档选句 + 三项数据）→ `ui_game_over.tscn`（Label 布局，竖屏 720×1280 校验）→ `game_state_machine.gd`（球冻结）→ 可选 `get_wave_index()` → `test_failure_screen.gd`。
+2. 分档函数契约：`wave_index <= 2 → 档1；<= 5 → 档2；>= 6 → 档3；else → 兜底`（对应 fp1/fp2/fp3/fp4，recommended 优先）。
+3. 失败短句文案值归 #396 定稿流程，实施阶段**不要**在代码里硬编码新文案。
+4. 开源调研结论（无需第三方依赖）需在实施 PR 中复述，满足 issue「开源优先」验收。
