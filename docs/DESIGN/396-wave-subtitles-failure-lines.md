@@ -157,7 +157,7 @@ mini-pong/content/wave_failure_text.json（draft: true + 推荐标记）← B5 �
 
 | 集成 | 本组件 | 目标 | 方式 | 状态 |
 |------|:---:|:---:|------|:---:|
-| 内容草稿 | `mini-pong/content/wave_failure_text.json` | 用户定稿（Assigned to me 队列） | 候选清单（4+4 候选 × 语境 × 情感断言 × 推荐标记）+ `draft: true`（B5 校准接口） | ⬜ 待 implement 新建 |
+| 内容草稿 | `mini-pong/content/wave_failure_text.json` | 用户定稿（Assigned to me 队列） | 候选清单（4+4 候选 × 语境 × 情感断言 × 推荐标记）+ `draft: true`（B5 校准接口） | ✅ 已新建（implement PR，4+4 候选，draft: true） |
 | 消费方 #390 波次转场 | `wave_subtitles[]` | 波次转场副句（从统一文本配置读取） | 按 wave_index 分档读 `text`（#390 实现时接入，本 PR 零改动） | ⬜ 待 #390 |
 | 消费方 #391 失败屏 | `failure_phrases[]` | 失败屏短句（从配置读取） | 按 run 数据 severity 分档读 `text`（#391 实现时接入，本 PR 零改动） | ⬜ 待 #391 |
 | 品味档案 | 内容草稿 | `docs/TASTE.md` 风格特征节 | 定稿差异回写（用户 close 后 review agent 执行） | ⬜ 待定稿 |

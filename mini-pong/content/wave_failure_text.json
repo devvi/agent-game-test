@@ -1,0 +1,16 @@
+{
+  "schema": "wave-failure-text/v1",
+  "draft": true,
+  "wave_subtitles": [
+    { "id": "ws1", "text": "雨声盖过心跳", "context": "波 1-2（开局）", "emotion": "仪式感的平静", "recommended": true },
+    { "id": "ws2", "text": "每一道墙都更厚", "context": "波 3-5（中段加压）", "emotion": "递增的压迫", "recommended": false },
+    { "id": "ws3", "text": "雨越下越大", "context": "波 6+（后期高压）", "emotion": "渐强的紧张", "recommended": false },
+    { "id": "ws4", "text": "拆到墙倒为止", "context": "决胜波（比分接近 21）", "emotion": "冷静的决心", "recommended": false }
+  ],
+  "failure_phrases": [
+    { "id": "fp1", "text": "雨还在下", "context": "早败（波 1-2）", "emotion": "世界的漠然", "recommended": true },
+    { "id": "fp2", "text": "雨记住了这一局", "context": "中败（波 3-5）", "emotion": "失败被铭记", "recommended": false },
+    { "id": "fp3", "text": "就差一道墙", "context": "晚败/惜败（波 6+ 或接近 21）", "emotion": "克制的遗憾", "recommended": false },
+    { "id": "fp4", "text": "墙还在，雨未停", "context": "通用兜底（任意波次）", "emotion": "无声的坚韧", "recommended": false }
+  ]
+}
