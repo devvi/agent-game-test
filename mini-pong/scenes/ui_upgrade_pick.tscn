@@ -1,0 +1,158 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://gdscripts/upgrade_pick_ui.gd" id="1_upgrade_pick_ui"]
+
+[sub_resource type="StyleBoxFlat" id="sb_card0"]
+bg_color = Color(0.039, 0.039, 0.071, 0.92)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.29, 0.56, 0.85, 0.6)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+corner_detail = 8
+
+[sub_resource type="StyleBoxFlat" id="sb_card1"]
+bg_color = Color(0.039, 0.039, 0.071, 0.92)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.29, 0.56, 0.85, 0.6)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+corner_detail = 8
+
+[sub_resource type="StyleBoxFlat" id="sb_card2"]
+bg_color = Color(0.039, 0.039, 0.071, 0.92)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.29, 0.56, 0.85, 0.6)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+corner_detail = 8
+
+[node name="UpgradePickUI" type="CanvasLayer"]
+layer = 2
+process_mode = 3
+visible = false
+script = ExtResource("1_upgrade_pick_ui")
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="HBoxContainer" type="HBoxContainer" parent="CenterContainer"]
+alignment = 1
+separation = 16.0
+
+[node name="Card0" type="PanelContainer" parent="CenterContainer/HBoxContainer"]
+custom_minimum_size = Vector2(180, 260)
+theme_override_styles/panel = SubResource("sb_card0")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/HBoxContainer/Card0"]
+alignment = 1
+
+[node name="NameLabel" type="Label" parent="CenterContainer/HBoxContainer/Card0/VBoxContainer"]
+text = ""
+horizontal_alignment = 1
+font_size = 32
+theme_override_colors/font_color = Color(0.85, 0.92, 1, 1)
+
+[node name="ShortPhraseLabel" type="Label" parent="CenterContainer/HBoxContainer/Card0/VBoxContainer"]
+text = ""
+horizontal_alignment = 1
+font_size = 18
+autowrap_mode = 2
+modulate = Color(1, 1, 1, 0.65)
+
+[node name="EffectDescLabel" type="Label" parent="CenterContainer/HBoxContainer/Card0/VBoxContainer"]
+text = ""
+horizontal_alignment = 1
+font_size = 16
+autowrap_mode = 2
+
+[node name="RarityLabel" type="Label" parent="CenterContainer/HBoxContainer/Card0/VBoxContainer"]
+text = ""
+horizontal_alignment = 1
+font_size = 20
+visible = false
+theme_override_colors/font_color = Color(1, 0.9, 0.6, 1)
+
+[node name="Card1" type="PanelContainer" parent="CenterContainer/HBoxContainer"]
+custom_minimum_size = Vector2(180, 260)
+theme_override_styles/panel = SubResource("sb_card1")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/HBoxContainer/Card1"]
+alignment = 1
+
+[node name="NameLabel" type="Label" parent="CenterContainer/HBoxContainer/Card1/VBoxContainer"]
+text = ""
+horizontal_alignment = 1
+font_size = 32
+theme_override_colors/font_color = Color(0.85, 0.92, 1, 1)
+
+[node name="ShortPhraseLabel" type="Label" parent="CenterContainer/HBoxContainer/Card1/VBoxContainer"]
+text = ""
+horizontal_alignment = 1
+font_size = 18
+autowrap_mode = 2
+modulate = Color(1, 1, 1, 0.65)
+
+[node name="EffectDescLabel" type="Label" parent="CenterContainer/HBoxContainer/Card1/VBoxContainer"]
+text = ""
+horizontal_alignment = 1
+font_size = 16
+autowrap_mode = 2
+
+[node name="RarityLabel" type="Label" parent="CenterContainer/HBoxContainer/Card1/VBoxContainer"]
+text = ""
+horizontal_alignment = 1
+font_size = 20
+visible = false
+theme_override_colors/font_color = Color(1, 0.9, 0.6, 1)
+
+[node name="Card2" type="PanelContainer" parent="CenterContainer/HBoxContainer"]
+custom_minimum_size = Vector2(180, 260)
+theme_override_styles/panel = SubResource("sb_card2")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CenterContainer/HBoxContainer/Card2"]
+alignment = 1
+
+[node name="NameLabel" type="Label" parent="CenterContainer/HBoxContainer/Card2/VBoxContainer"]
+text = ""
+horizontal_alignment = 1
+font_size = 32
+theme_override_colors/font_color = Color(0.85, 0.92, 1, 1)
+
+[node name="ShortPhraseLabel" type="Label" parent="CenterContainer/HBoxContainer/Card2/VBoxContainer"]
+text = ""
+horizontal_alignment = 1
+font_size = 18
+autowrap_mode = 2
+modulate = Color(1, 1, 1, 0.65)
+
+[node name="EffectDescLabel" type="Label" parent="CenterContainer/HBoxContainer/Card2/VBoxContainer"]
+text = ""
+horizontal_alignment = 1
+font_size = 16
+autowrap_mode = 2
+
+[node name="RarityLabel" type="Label" parent="CenterContainer/HBoxContainer/Card2/VBoxContainer"]
+text = ""
+horizontal_alignment = 1
+font_size = 20
+visible = false
+theme_override_colors/font_color = Color(1, 0.9, 0.6, 1)

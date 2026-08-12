@@ -445,12 +445,12 @@ Main.tscn 无 WaveController/BreakoutGrid 节点
 
 | 集成 | 我方组件 | 目标 Issue | 方式 | Status |
 |------|:---:|:---:|------|:---:|
-| `GameManager.wave_settled(wave_index)` → `UpgradePickUI.open()` | upgrade_pick_ui.gd | #386 | `_ready()` 信号 connect（autoload 信号） | ⬜ pending |
-| `UpgradePool.get_candidates(3)` → 卡片渲染 | upgrade_pick_ui.gd | #387 | `open()` 内只读调用（AC5 唯一来源） | ⬜ pending |
-| `UpgradePool.apply(id)` + `upgrade_applied` → reveal 锚点 | upgrade_pick_ui.gd | #387 | `_confirm()` 调用 + 信号消费（reveal 时序锚点，可选） | ⬜ pending |
-| UI `open()` → `WaveController.settle_hold = true` | wave_controller.gd | #388/#386 | group `wave_controllers` + `"settle_hold" in wc` 守卫 | ⬜ pending |
-| UI `close()` → `WaveController.advance_settlement()` | wave_controller.gd | #388/#386 | group + `has_method` 守卫（未挂载 no-op） | ⬜ pending |
-| `ui_upgrade_pick` 挂载 Main.tscn（layer 2, ALWAYS, 初始隐藏） | Main.tscn | #393 | ext_resource + CanvasLayer 兄弟节点 | ⬜ pending |
+| `GameManager.wave_settled(wave_index)` → `UpgradePickUI.open()` | upgrade_pick_ui.gd | #386 | `_ready()` 信号 connect（autoload 信号） | ✅ 已接线（impl PR） |
+| `UpgradePool.get_candidates(3)` → 卡片渲染 | upgrade_pick_ui.gd | #387 | `open()` 内只读调用（AC5 唯一来源） | ✅ 已接线（impl PR） |
+| `UpgradePool.apply(id)` + `upgrade_applied` → reveal 锚点 | upgrade_pick_ui.gd | #387 | `_confirm()` 调用 + 信号消费（reveal 时序锚点，可选） | ✅ 已接线（impl PR） |
+| UI `open()` → `WaveController.settle_hold = true` | wave_controller.gd | #388/#386 | group `wave_controllers` + `"settle_hold" in wc` 守卫 | ✅ 已接线（impl PR） |
+| UI `close()` → `WaveController.advance_settlement()` | wave_controller.gd | #388/#386 | group + `has_method` 守卫（未挂载 no-op） | ✅ 已接线（impl PR） |
+| `ui_upgrade_pick` 挂载 Main.tscn（layer 2, ALWAYS, 初始隐藏） | Main.tscn | #393 | ext_resource + CanvasLayer 兄弟节点 | ✅ 已接线（impl PR） |
 | #390 波次转场共享 `wave_settled` 挂点 | — | #390 | 各自独立信号处理；升级 UI 打开期间转场让位（UI 打开=游戏时间暂停，转场动画若为 PAUSABLE 自然冻结） | ⬜ deferred |
 | #384 砖墙运行时链路（墙 → 波次 → 升级 E2E） | — | #384/#393 | 实现不依赖；落地后手动/E2E 验证（§11 步骤 4） | ⬜ deferred |
 
