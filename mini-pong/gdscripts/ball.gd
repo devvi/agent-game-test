@@ -197,6 +197,18 @@ func _on_body_entered(body: Node2D) -> void:
 	if _bounce_cooldown > 0:
 		return
 
+	# 砖块分支 (#384 DESIGN #414 §3.2/§3.3): dominant-axis 翻转 + 原子销毁（先标记后反弹）。
+	# 砖放 layer 2（球 mask=3 已含）→ body_entered 零配置生效；不调用音频（#392 范围外）。
+	if body.is_in_group("bricks"):
+		if abs(velocity.x) >= abs(velocity.y):
+			velocity.x = -velocity.x       # 侧击翻 X
+		else:
+			velocity.y = -velocity.y       # 顶/底击翻 Y
+		_bounce_cooldown = BOUNCE_COOLDOWN_FRAMES
+		if body.has_method("destroy"):
+			body.destroy()                 # 原子: 同 handler 内先标记后反弹（失败路径 2）
+		return
+
 	if body.is_in_group("walls"):
 		velocity.x *= -1.0
 		_bounce_cooldown = BOUNCE_COOLDOWN_FRAMES

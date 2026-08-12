@@ -100,6 +100,29 @@ const AI_POSITION_ERROR_FLOOR: float = 8.0
 const PLAYER_NEON_BLUE: Color = Color(0.29, 0.56, 0.85, 1.0)   # #4a90d9
 const AI_NEON_RED: Color = Color(1.0, 0.2, 0.33, 1.0)            # #ff3355
 
+# ── Brick Wall (#384) ──
+# 砖墙系统 (DESIGN #414 §4.2; mechanical)。BRICK_MIN_DIM 防隧穿下限：
+# 球速上限 330×1.9≈627px/s → 单帧位移 ≈10.5px → 砖最小边长 ≥14px。
+# GRID_WALL_Y / WALL_BAND_HALF_HEIGHT 已由 #385 定义，此处引用不重复（单一事实源）。
+const BRICK_SIZE: Vector2 = Vector2(64.0, 24.0)
+const BRICK_GAP: float = 4.0
+const BRICK_MIN_DIM: float = 14.0
+
+# ── Wave Transition (#390) ──
+# 波次转场 (PRD #429 §4; mechanical)。时长三段和恒 == 2.0（AC2，测试断言）；
+# 副句内容归 #396 taste-draft（本组只含机械常量与读取路径）。
+const WAVE_TRANSITION_FADE_IN: float = 0.5
+const WAVE_TRANSITION_HOLD: float = 1.0
+const WAVE_TRANSITION_FADE_OUT: float = 0.5
+const WAVE_TRANSITION_TITLE_FONT_SIZE: int = 112
+const WAVE_TRANSITION_SUBTITLE_FONT_SIZE: int = 40
+const WAVE_TRANSITION_OUTLINE_SIZE: int = 10
+const WAVE_TRANSITION_JSON_PATH: String = "res://content/wave_failure_text.json"  # #396 schema wave-failure-text/v1
+const WAVE_TRANSITION_DECISIVE_SCORE: int = 18   # 决胜波阈值（任一方 ≥ 此值 → ws4）
+const WAVE_TRANSITION_LAYER: int = 3             # 转场层序（Atmosphere 0 < HUD 1 < Upgrade 2 < 本层 3 < Pause 10）
+const WAVE_TRANSITION_BAND1_MAX: int = 2         # 波次分档边界（ws1：波 1-2）
+const WAVE_TRANSITION_BAND2_MAX: int = 5         # 波次分档边界（ws2：波 3-5；6+ → ws3）
+
 # -- Rain Curtain (#389) --
 # 雨量公式 = clamp(base + 球速因子 + 波次因子 + 紧张因子 + 事件脉冲 - 喘息, 0.1, 1.0)
 # 设计: docs/DESIGN/389-dynamic-rain-curtain.md 3.2；RAIN_MIN/RAIN_MAX 为唯一边界源。
@@ -163,3 +186,4 @@ const UPGRADE_RARITY_COLORS: Dictionary = {         # AC3：稀有度 → 边框
 	2: Color(1.0, 0.78, 0.2, 1.0),     # LEGENDARY → 金系
 }
 const UPGRADE_RARITY_NAMES: Dictionary = {0: "普通", 1: "稀有", 2: "传说"}   # AC3 稀有度名称（确认后展示）
+

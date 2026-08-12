@@ -73,10 +73,19 @@ func _advance_wave() -> void:
 		rain_curtain.set_wave_factor(GameManager.wave_index)   # #389 §3.5：雨量波次因子
 	if breakout_grid != null and breakout_grid.has_method("generate_wave"):
 		breakout_grid.generate_wave(_wave_thickness(GameManager.wave_index), 0, -1)
-		# layout=0 = BrickLayout.GAPS（#414 契约；不 preload 未落地脚本，字面量 + 注释对齐）
+		# layout=0 = BrickLayout.GAPS（#414 契约；不 preload 脚本 class_name，字面量 + 注释对齐）
 		# seed=-1 = 随机；generate_wave 内部先 clear_wall() → AC4 单实例清理
 	else:
 		push_warning("WaveController: generate_wave 不可用（#384 未落地），跳过墙生成")
+
+
+## #393 增补：首波触发（DESIGN #393 附录 B.1；PRD #390 边界 1）。
+## 幂等：仅 wave_index==0 且非 run-over 时生效（PLAYING 每分进入重复调用 no-op；
+## GAME_OVER→MENU→SPACE 重开经 reset_match 归零后再次触发）。
+func start_first_wave() -> void:
+	if GameManager.wave_index != 0 or GameManager.is_run_over():
+		return
+	_advance_wave()   # begin_wave(1) + _apply_difficulty(1) + rain.set_wave_factor(1) + generate_wave(厚度 1)
 
 
 func _wave_thickness(index: int) -> int:

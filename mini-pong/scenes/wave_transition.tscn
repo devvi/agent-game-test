@@ -1,0 +1,51 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://gdscripts/wave_transition_controller.gd" id="1_wt"]
+
+[node name="WaveTransition" type="CanvasLayer"]
+layer = 3
+visible = false
+script = ExtResource("1_wt")
+
+[node name="Overlay" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="DimRect" type="ColorRect" parent="Overlay"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.55)
+
+[node name="Center" type="CenterContainer" parent="Overlay"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBox" type="VBoxContainer" parent="Overlay/Center"]
+alignment = 1
+
+[node name="TitleLabel" type="Label" parent="Overlay/Center/VBox"]
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+font_size = 112
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 10
+modulate = Color(0.29, 0.56, 0.85, 1.0)
+
+[node name="SubtitleLabel" type="Label" parent="Overlay/Center/VBox"]
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+font_size = 40
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 10
+modulate = Color(0.72, 0.76, 0.85, 1.0)
