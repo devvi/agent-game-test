@@ -1,0 +1,141 @@
+{
+  "schema": "upgrade-pool-content/v1",
+  "draft": true,
+  "upgrades": [
+    {
+      "id": "long_arm",
+      "name_working": "长臂",
+      "rarity": "common",
+      "short_phrase": "够得着了",
+      "phrase_draft": true,
+      "emotion": "安全感",
+      "emotion_assertion": "价值极 安全/危险 → 向安全移动：\"够得着了\"",
+      "naming_candidates": [
+        { "name": "长臂", "recommended": true,  "note": "沿用 #387 工作名，跨文档一致" },
+        { "name": "伸臂", "recommended": false, "note": "动作感更强" },
+        { "name": "延展", "recommended": false, "note": "更抽象，克制留白" }
+      ],
+      "context": "升级卡短句位，≤12 字；稀有度由 #387 定义；效果：挡板 +30%"
+    },
+    {
+      "id": "fireball",
+      "name_working": "燃烧弹",
+      "rarity": "common",
+      "short_phrase": "火过留洞",
+      "phrase_draft": true,
+      "emotion": "破坏欲",
+      "emotion_assertion": "价值极 破坏/受阻 → 向破坏移动：\"火过留洞\"",
+      "naming_candidates": [
+        { "name": "燃烧弹", "recommended": true,  "note": "沿用 #387 工作名，跨文档一致" },
+        { "name": "火流星", "recommended": false, "note": "火+流星意象，雨夜天象" },
+        { "name": "余烬弹", "recommended": false, "note": "余烬=雨夜火后余温" }
+      ],
+      "context": "升级卡短句位，≤12 字；稀有度由 #387 定义；效果：球速 +10%，破砖烧碎相邻 2 块"
+    },
+    {
+      "id": "battering_ram",
+      "name_working": "破城锤",
+      "rarity": "common",
+      "short_phrase": "一锤碎一片",
+      "phrase_draft": true,
+      "emotion": "暴力释放",
+      "emotion_assertion": "一击碎一片的畅快",
+      "naming_candidates": [
+        { "name": "破城锤", "recommended": true,  "note": "沿用 #387 工作名，跨文档一致" },
+        { "name": "震击", "recommended": false, "note": "更重击感" },
+        { "name": "夯", "recommended": false, "note": "单字，粗粝街机感" }
+      ],
+      "context": "升级卡短句位，≤12 字；稀有度由 #387 定义；效果：破砖冲击波，碎邻近砖"
+    },
+    {
+      "id": "magnet_core",
+      "name_working": "磁心",
+      "rarity": "rare",
+      "short_phrase": "球听你的",
+      "phrase_draft": true,
+      "emotion": "掌控感",
+      "emotion_assertion": "价值极 技能/无能 → 向技能移动：\"球听你的\"",
+      "naming_candidates": [
+        { "name": "磁心", "recommended": true,  "note": "沿用 #387 工作名，跨文档一致" },
+        { "name": "引力核心", "recommended": false, "note": "磁力抽象为引力，更宏观" },
+        { "name": "磁握", "recommended": false, "note": "握=掌控感" }
+      ],
+      "context": "升级卡短句位，≤12 字；稀有度由 #387 定义；效果：挡板磁力吸球"
+    },
+    {
+      "id": "twin",
+      "name_working": "双生",
+      "rarity": "rare",
+      "short_phrase": "一球变两球",
+      "phrase_draft": true,
+      "emotion": "兴奋",
+      "emotion_assertion": "价值极 秩序/混沌：场面失控但归你",
+      "naming_candidates": [
+        { "name": "双生", "recommended": true,  "note": "沿用 #387 工作名，跨文档一致" },
+        { "name": "分裂", "recommended": false, "note": "更直白" },
+        { "name": "双子", "recommended": false, "note": "星座意象，雨夜星空" }
+      ],
+      "context": "升级卡短句位，≤12 字；稀有度由 #387 定义；效果：球分裂为 2"
+    },
+    {
+      "id": "slow_time",
+      "name_working": "缓时",
+      "rarity": "rare",
+      "short_phrase": "时间让路",
+      "phrase_draft": true,
+      "emotion": "时间主宰",
+      "emotion_assertion": "价值极 快/慢：世界等你",
+      "naming_candidates": [
+        { "name": "缓时", "recommended": true,  "note": "沿用 #387 工作名，跨文档一致" },
+        { "name": "凝时", "recommended": false, "note": "凝=冻结意象" },
+        { "name": "冻结", "recommended": false, "note": "最直白" }
+      ],
+      "context": "升级卡短句位，≤12 字；稀有度由 #387 定义；效果：球速冻结 2s"
+    },
+    {
+      "id": "pre_hole",
+      "name_working": "预开洞",
+      "rarity": "rare",
+      "short_phrase": "洞先开好",
+      "phrase_draft": true,
+      "emotion": "先手优势",
+      "emotion_assertion": "价值极 主动/被动：棋高一着",
+      "naming_candidates": [
+        { "name": "预开洞", "recommended": true,  "note": "沿用 #387 工作名，跨文档一致" },
+        { "name": "先行", "recommended": false, "note": "先手优势直译" },
+        { "name": "破晓", "recommended": false, "note": "洞=破晓之光，雨夜后黎明" }
+      ],
+      "context": "升级卡短句位，≤12 字；稀有度由 #387 定义；效果：开局自动在墙上开一洞"
+    },
+    {
+      "id": "stardust",
+      "name_working": "星尘",
+      "rarity": "legendary",
+      "short_phrase": "所过之处留痕",
+      "phrase_draft": true,
+      "emotion": "支配感",
+      "emotion_assertion": "价值极 支配/服从：全场都是你的痕迹",
+      "naming_candidates": [
+        { "name": "星尘", "recommended": true,  "note": "沿用 #387 工作名，跨文档一致" },
+        { "name": "星轨", "recommended": false, "note": "轨迹伤害意象" },
+        { "name": "余辉", "recommended": false, "note": "轨迹余晖" }
+      ],
+      "context": "升级卡短句位，≤12 字；稀有度由 #387 定义；效果：穿墙后留 2s 轨迹伤害"
+    },
+    {
+      "id": "phantom",
+      "name_working": "幻影",
+      "rarity": "legendary",
+      "short_phrase": "快得看不清",
+      "phrase_draft": true,
+      "emotion": "敏捷快感",
+      "emotion_assertion": "价值极 敏捷/笨拙：快得看不清",
+      "naming_candidates": [
+        { "name": "幻影", "recommended": true,  "note": "沿用 #387 工作名，跨文档一致" },
+        { "name": "残像", "recommended": false, "note": "残影意象" },
+        { "name": "影先行", "recommended": false, "note": "影先于身，敏捷" }
+      ],
+      "context": "升级卡短句位，≤12 字；稀有度由 #387 定义；效果：挡板残影多段判定"
+    }
+  ]
+}
