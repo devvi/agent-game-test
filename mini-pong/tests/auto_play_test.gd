@@ -1,17 +1,16 @@
 extends RefCounted
-## Auto-Play Test — 100-round AI-vs-AI simulation.
-## Verifies: no crash, scores reach 5, best-of-3 logic, winner exists, restart works.
-## Uses manual physics simulation + manual collision detection for CPU-speed execution
-## (avoids SceneTree timer awaits that would take minutes per match).
+## Auto-Play Test — 100-round AI-vs-AI simulation (双得分制 #385).
+## Verifies: no crash, scores reach 21 (WIN_SCORE), run-over winner exists, restart works.
+## Uses manual physics simulation + manual collision detection for CPU-speed execution.
 ##
 ## Run via run_tests.gd:
 ##   godot --path mini-pong/ --headless --script tests/run_tests.gd
 ##
-## 竖屏重写 (#383): SCREEN_W=720/SCREEN_H=1280；左右墙反弹 X；上下得分区 Y；
-## 挡板上下分列沿 X 移动；AI 追踪 X 轴。FSM/scoring 信号链不变。
+## 竖屏 (#383): SCREEN_W=720/SCREEN_H=1280；左右墙反弹 X；上下得分区 Y。
+## 双得分制 (#385): 终局 = 任一方 21 分（无局/比赛分层）；无砖墙 harness → 只有出界分。
 ##
 ## Design: docs/DESIGN/297-ai-auto-play-test.md — Approach C (minimal test scene).
-## Parent Issue: #297
+## Parent Issue: #297 (adapted #385)
 
 var passed: int = 0
 var failed: int = 0
@@ -27,8 +26,7 @@ const FIXED_DELTA: float = 1.0 / 60.0
 const TEST_AI_POSITION_ERROR: float = 60.0
 
 const _CONSTS = preload("res://gdscripts/constants.gd")
-const POINTS_TO_WIN: int = _CONSTS.POINTS_TO_WIN_GAME
-const GAMES_TO_WIN: int = _CONSTS.GAMES_TO_WIN_MATCH
+const WIN_SCORE: int = _CONSTS.WIN_SCORE
 const BALL_R: float = _CONSTS.BALL_RADIUS
 const PADDLE_HW: float = _CONSTS.PADDLE_WIDTH / 2.0   # 60 (半长)
 const PADDLE_HH: float = _CONSTS.PADDLE_HEIGHT / 2.0  # 10 (半厚)
@@ -47,8 +45,7 @@ var _total_frames: int = 0
 
 func run() -> void:
 	print("\n=== Auto-Play Test: %d Matches (AI vs AI) ===" % MATCH_COUNT)
-	print("  POINTS_TO_WIN_GAME=%d  GAMES_TO_WIN_MATCH=%d" % [POINTS_TO_WIN, GAMES_TO_WIN])
-	print("  MAX_FRAMES_PER_MATCH=%d  FIXED_DELTA=%.4f" % [MAX_FRAMES_PER_MATCH, FIXED_DELTA])
+	print("  WIN_SCORE=%d  MAX_FRAMES_PER_MATCH=%d  FIXED_DELTA=%.4f" % [WIN_SCORE, MAX_FRAMES_PER_MATCH, FIXED_DELTA])
 	print("  TEST_AI_POSITION_ERROR=%.1f  SCREEN=%dx%d" % [TEST_AI_POSITION_ERROR, int(SCREEN_W), int(SCREEN_H)])
 
 	var tree := Engine.get_main_loop() as SceneTree
@@ -147,17 +144,11 @@ func _spawn_scoring_manager(tree: SceneTree) -> Node:
 func _run_single_match(midx: int, ball: Area2D, left_wall: StaticBody2D, right_wall: StaticBody2D, p_bottom: Area2D, p_top: Area2D, sm: Node, gm: Node) -> bool:
 	_reset_match_state(ball, p_bottom, p_top, sm, gm)
 
-	var game_letters: Array[String] = []
-	var _on_game := func(w: String):
-		game_letters.append(w)
-	gm.game_won.connect(_on_game)
-
 	_serve_fast(ball)
 
 	var frame: int = 0
-	var winner: String = ""
 
-	while winner.is_empty() and frame < MAX_FRAMES_PER_MATCH:
+	while not gm.is_run_over() and frame < MAX_FRAMES_PER_MATCH:
 		_simulate_frame(ball, left_wall, right_wall, p_bottom, p_top, FIXED_DELTA)
 		frame += 1
 
@@ -165,49 +156,40 @@ func _run_single_match(midx: int, ball: Area2D, left_wall: StaticBody2D, right_w
 			printerr("Match %03d: NaN velocity at frame %d — ABORT" % [midx + 1, frame])
 			_crashes += 1
 			_total_frames += frame
-			gm.game_won.disconnect(_on_game)
 			return false
 
-		if gm.player_games_won >= GAMES_TO_WIN:
-			winner = "player"
-		elif gm.ai_games_won >= GAMES_TO_WIN:
-			winner = "ai"
-
-	gm.game_won.disconnect(_on_game)
 	_total_frames += frame
 
 	if frame >= MAX_FRAMES_PER_MATCH:
 		_timeouts += 1
-		print("Match %03d: TIMEOUT after %d frames (p=%d a=%d g=%d-%d) ❌" % [
-			midx + 1, frame, gm.player_score, gm.ai_score, gm.player_games_won, gm.ai_games_won
+		print("Match %03d: TIMEOUT after %d frames (p=%d a=%d) ❌" % [
+			midx + 1, frame, gm.player_score, gm.ai_score
 		])
 		return false
 
 	var ok: bool = true
 	var errors: Array[String] = []
 
+	var winner: String = "player" if gm.player_score >= WIN_SCORE else "ai"
 	if winner not in ["player", "ai"]:
 		errors.append("invalid winner '%s'" % winner)
 		ok = false
 
-	var wgames: int = gm.player_games_won if winner == "player" else gm.ai_games_won
-	if wgames < GAMES_TO_WIN:
-		errors.append("winner has only %d games (need >= %d)" % [wgames, GAMES_TO_WIN])
+	var winner_score: int = gm.player_score if winner == "player" else gm.ai_score
+	if winner_score < WIN_SCORE:
+		errors.append("winner has only %d points (need >= %d)" % [winner_score, WIN_SCORE])
 		ok = false
 
-	var lgames: int = gm.ai_games_won if winner == "player" else gm.player_games_won
-	if lgames >= GAMES_TO_WIN:
-		errors.append("loser also has >= %d games" % GAMES_TO_WIN)
+	var loser_score: int = gm.ai_score if winner == "player" else gm.player_score
+	if loser_score >= WIN_SCORE:
+		errors.append("loser also >= %d" % WIN_SCORE)
 		ok = false
 
-	if game_letters.size() < GAMES_TO_WIN:
-		errors.append("only %d game_won signals (need >= %d)" % [game_letters.size(), GAMES_TO_WIN])
-		ok = false
-
-	var sm_games: int = sm.player_games + sm.ai_games
-	var gm_games: int = gm.player_games_won + gm.ai_games_won
-	if sm_games != gm_games:
-		errors.append("SM games(%d) != GM games(%d)" % [sm_games, gm_games])
+	# 无砖墙 harness → 拆砖/穿墙计数必须为 0
+	var total_special: int = gm.get_brick_count("player") + gm.get_brick_count("ai") \
+		+ gm.get_pierce_count("player") + gm.get_pierce_count("ai")
+	if total_special != 0:
+		errors.append("unexpected brick/pierce counts (%d) in no-grid harness" % total_special)
 		ok = false
 
 	# 竖屏: 挡板沿 X 移动，越界检查 X ∈ [0, SCREEN_W]
@@ -218,11 +200,9 @@ func _run_single_match(midx: int, ball: Area2D, left_wall: StaticBody2D, right_w
 		errors.append("top paddle OOB x=%.1f" % p_top.position.x)
 		ok = false
 
-	var total_games: int = gm.player_games_won + gm.ai_games_won
-	var gstr := _fmt_games(game_letters)
 	var icon := "✅" if ok else "❌"
-	print("Match %03d: %s wins — %d games %s [%d frames] %s" % [
-		midx + 1, winner.capitalize(), total_games, gstr, frame, icon
+	print("Match %03d: %s wins %d-%d [%d frames] %s" % [
+		midx + 1, winner.capitalize(), gm.player_score, gm.ai_score, frame, icon
 	])
 
 	for e in errors:
@@ -308,11 +288,6 @@ func _simulate_frame(ball: Area2D, left_wall: StaticBody2D, right_wall: StaticBo
 
 func _reset_match_state(ball: Area2D, p_bottom: Area2D, p_top: Area2D, sm: Node, gm: Node) -> void:
 	gm.reset_match()
-	sm.player_score = 0
-	sm.ai_score = 0
-	sm.player_games = 0
-	sm.ai_games = 0
-	sm._is_match_over = false
 
 	ball.screen_width = SCREEN_W
 	ball.screen_height = SCREEN_H
@@ -321,6 +296,9 @@ func _reset_match_state(ball: Area2D, p_bottom: Area2D, p_top: Area2D, sm: Node,
 	ball.velocity = Vector2.ZERO
 	ball._bounce_cooldown = 0
 	ball._is_serving = false
+	ball.last_toucher = ""
+	ball._crossed_wall = false
+	ball._was_in_wall_band = true
 
 	p_bottom.position = Vector2(SCREEN_W / 2.0, PADDLE_Y_BOT)
 	p_top.position = Vector2(SCREEN_W / 2.0, PADDLE_Y_TOP)
@@ -340,14 +318,9 @@ func _serve_fast(ball: Area2D) -> void:
 	ball.velocity = Vector2(sin(angle), cos(angle) * direction) * ball.initial_speed
 	ball._is_serving = false
 	ball._scored_this_frame = false
-
-
-func _fmt_games(letters: Array) -> String:
-	var parts: Array[String] = []
-	for i in range(letters.size()):
-		var w: String = letters[i]
-		parts.append("%s" % w[0].to_upper())
-	return "(%s)" % " ".join(parts)
+	ball.last_toucher = ""
+	ball._crossed_wall = false
+	ball._was_in_wall_band = true
 
 
 # ── Summary ──

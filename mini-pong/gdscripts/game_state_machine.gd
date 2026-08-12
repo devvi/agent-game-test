@@ -137,11 +137,9 @@ func enter_state(state: State) -> void:
 			await _timer_1s()
 			_scored_timer_active = false
 			if current_state == State.SCORED:
-				if is_instance_valid(GameManager) and GameManager.has_method("get_winner"):
-					if GameManager.get_winner() != "":
-						transition_to(State.GAME_OVER)
-					else:
-						transition_to(State.SERVING)
+				# 21 分终局判定直达 GAME_OVER（#385 AC3，取代局/比赛制 get_winner）
+				if is_instance_valid(GameManager) and GameManager.has_method("is_run_over") and GameManager.is_run_over():
+					transition_to(State.GAME_OVER)
 				else:
 					transition_to(State.SERVING)
 

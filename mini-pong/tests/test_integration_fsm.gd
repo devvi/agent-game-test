@@ -1,9 +1,8 @@
 extends RefCounted
-## Integration tests for GameStateMachine ↔ GameManager contract (#294).
-## Verifies that state transitions don't corrupt autoload data —
-## catches the reset_match()-on-every-serve bug that the isolated
-## unit tests (test_scoring_manager.gd, test_game_state_machine.gd)
-## couldn't detect because they bypass the full signal chain.
+## Integration tests for GameStateMachine ↔ GameManager contract (#294 / #385).
+## 双得分制 (#385): 21 分 run 语义 —— 分数跨发球持续累积、拆砖/穿墙计数、
+## 21 分终局（is_run_over + match_over）、终局后分数冻结。
+## 5 分/2 局制断言已移除（games_won/get_winner/game_won 已删除）。
 ##
 ## Runs under godot --headless --script via run_tests.gd.
 
@@ -12,10 +11,10 @@ var failed: int = 0
 
 
 func run() -> void:
-	print("\n=== FSM Integration Tests (#294) ===")
-	_test_int1_games_won_persists_across_score_serve()
+	print("\n=== FSM Integration Tests (#294/#385) ===")
+	_test_int1_scores_persist_across_score_serve()
 	_test_int2_point_scoring_increments_correctly()
-	_test_int3_match_over_detected_after_two_games()
+	_test_int3_run_over_after_21()
 
 
 func _assert(condition: bool, name: String) -> void:
@@ -26,40 +25,33 @@ func _assert(condition: bool, name: String) -> void:
 		failed += 1
 
 
-# ── INT-1: Game won state survives score → game_won → next serve ──
-# Bug: FSM called GameManager.reset_match() on every SERVING transition,
-# wiping games_won counters. After 5 points → game won → new serve,
-# games_won should be 1, not 0.
+# ── INT-1: 分数跨发球持续累积（21 分制无局间清零）──
+# Bug 防护: FSM 不得在每次 SERVING 时调用 GameManager.reset_match()，
+# 否则 21 分 run 永远无法推进到终局。
 
-func _test_int1_games_won_persists_across_score_serve() -> void:
+func _test_int1_scores_persist_across_score_serve() -> void:
 	GameManager.reset_match()
 
-	# Simulate AI scoring 5 points (wins one game)
+	# 模拟 AI 连得 5 分（21 分制下只是普通分数累积，不触发任何局级重置）
 	for _i in range(5):
 		GameManager.add_score("ai")
 
-	_assert(GameManager.ai_games_won == 1,
-		"INT1-1: ai_games_won == 1 after 5 AI scores (game won)")
-	_assert(GameManager.player_games_won == 0,
-		"INT1-2: player_games_won unchanged")
-	_assert(GameManager.ai_score == 0,
-		"INT1-3: per-game scores reset after game win")
+	_assert(GameManager.ai_score == 5,
+		"INT1-1: ai_score == 5 after 5 scores (no game-level reset in 21-pt system)")
 	_assert(GameManager.player_score == 0,
-		"INT1-4: per-game scores reset after game win")
-	_assert(GameManager.get_winner() == "",
-		"INT1-5: match not over after 1 game (need 2 of 3)")
+		"INT1-2: player_score unchanged")
+	_assert(GameManager.is_run_over() == false,
+		"INT1-3: not run over at 5 points")
 
-	# Simulate a few more points in the next game — scores should accumulate
+	# 下一轮得分 —— 分数应继续累积
 	GameManager.add_score("player")
 	_assert(GameManager.player_score == 1,
-		"INT1-6: next game scoring starts from 0")
-	_assert(GameManager.ai_games_won == 1,
-		"INT1-7: games_won persists across game boundary")
+		"INT1-4: player scoring starts accumulating")
+	_assert(GameManager.ai_score == 5,
+		"INT1-5: ai scores persist across serves")
 
 
-# ── INT-2: Point scoring fires score_changed correctly ──
-# Bug: ScoreZone body_entered never fired for Area2D balls.
-# The GameManager.add_score() chain must work regardless.
+# ── INT-2: add_score 链与计数 —— 出界/拆砖/穿墙混合 ──
 
 func _test_int2_point_scoring_increments_correctly() -> void:
 	GameManager.reset_match()
@@ -72,33 +64,34 @@ func _test_int2_point_scoring_increments_correctly() -> void:
 	_assert(GameManager.player_score == 1, "INT2-3: player_score unchanged")
 	_assert(GameManager.ai_score == 1, "INT2-4: ai_score == 1")
 
-	GameManager.add_score("player")
-	GameManager.add_score("ai")
-	_assert(GameManager.player_score == 2, "INT2-5: player_score == 2 after 2+1")
-	_assert(GameManager.ai_score == 2, "INT2-6: ai_score == 2 after 2+1")
+	GameManager.add_score("player", 3, "pierce")
+	GameManager.add_score("ai", 1, "brick")
+	_assert(GameManager.player_score == 4, "INT2-5: player 1+3")
+	_assert(GameManager.ai_score == 2, "INT2-6: ai 1+1")
+	_assert(GameManager.get_pierce_count("player") == 1, "INT2-7: player pierce count 1")
+	_assert(GameManager.get_brick_count("ai") == 1, "INT2-8: ai brick count 1")
 
 
-# ── INT-3: Match ends correctly after 2 games won ──
-# Bug: if games_won kept getting reset, match would never end.
+# ── INT-3: 21 分终局 —— 先到 21 者赢，终局后冻结 ──
 
-func _test_int3_match_over_detected_after_two_games() -> void:
+func _test_int3_run_over_after_21() -> void:
 	GameManager.reset_match()
 
-	# Player wins game 1
-	for _i in range(5):
+	# 玩家到 20 分 —— 未终局
+	for _i in range(20):
 		GameManager.add_score("player")
-	_assert(GameManager.player_games_won == 1, "INT3-1: player won game 1")
-	_assert(GameManager.get_winner() == "", "INT3-2: match not over yet")
+	_assert(GameManager.is_run_over() == false, "INT3-1: 20 points not run over")
 
-	# Player wins game 2 → match over
-	for _i in range(5):
-		GameManager.add_score("player")
-	_assert(GameManager.player_games_won == 2, "INT3-3: player won game 2")
-	_assert(GameManager.get_winner() == "player", "INT3-4: match over — player wins")
+	# 第 21 分 → 终局
+	GameManager.add_score("player")
+	_assert(GameManager.is_run_over() == true, "INT3-2: 21 points → run over")
 
-	# Additional scores after match end are guarded by ScoringManager._is_match_over,
-	# not by GameManager.add_score itself. Testing GameManager directly shows it
-	# still accepts scores — the guard lives one level up.
+	# 终局后 add_score 被守卫拦截（失败路径 2）
 	GameManager.add_score("ai")
-	_assert(GameManager.ai_score == 1,
-		"INT3-5: GameManager accepts scores post-match (ScoringManager guard handles this)")
+	_assert(GameManager.ai_score == 0, "INT3-3: scores frozen after run over")
+	_assert(GameManager.player_score == 21, "INT3-4: winner score stays 21")
+
+	# reset_match 后可重新开局
+	GameManager.reset_match()
+	_assert(GameManager.is_run_over() == false, "INT3-5: reset_match clears run over")
+	_assert(GameManager.player_score == 0, "INT3-6: scores zeroed after reset")

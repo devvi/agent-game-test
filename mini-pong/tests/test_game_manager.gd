@@ -1,52 +1,43 @@
 extends RefCounted
-## Test suite for GameManager autoload (#293) — Global State Singleton.
+## Test suite for GameManager autoload (#293) — 双得分制重写 (#385)。
+## GameManager = 纯状态持有者: add_score(winner, amount, kind) / 21 分终局 / 查询 API。
 ## Runs under godot --headless --script via run_tests.gd.
-##
-## Tests the game_manager.gd logic directly by instantiating the script.
-## Autoload registration is verified by TC1 (godot --headless --quit exit 0).
 
 var passed: int = 0
 var failed: int = 0
 
-# ── Signal capture state (Pattern 11: member vars, not lambda closures) ──
-var _captured_scores: Array = []           # [[player_score, ai_score], ...]
-var _captured_game_wins: Array = []        # ["player", ...]
-var _captured_match_overs: Array = []      # ["player", ...]
+# ── Signal capture state ──
+var _captured_scores: Array = []
+var _captured_match_overs: Array = []
 
-# ── Signal handlers ──
 func _on_score_changed(p_score: int, a_score: int) -> void:
 	_captured_scores.append([p_score, a_score])
-
-func _on_game_won(winner: String) -> void:
-	_captured_game_wins.append(winner)
 
 func _on_match_over(winner: String) -> void:
 	_captured_match_overs.append(winner)
 
 
 func run() -> void:
-	print("\n=== GameManager Tests (#293) ===")
+	print("\n=== GameManager Tests (#293/#385) ===")
 	_test_tc2_initial_state()
 	_test_tc3_add_score_player()
 	_test_tc4_add_score_ai()
 	_test_tc5_add_score_invalid()
-	_test_tc6_five_scores_game_win()
-	_test_tc7_score_changed_signal()
-	_test_tc8_game_won_signal()
-	_test_tc9_match_over_signal()
-	_test_tc10_reset_game()
-	_test_tc11_reset_match()
-	_test_tc12_reset_match_idempotent()
-	_test_tc13_get_winner_empty()
-	_test_tc14_get_winner_player()
-	_test_tc15_get_winner_ai()
+	_test_add_score_amount_kind()
+	_test_brick_counting()
+	_test_pierce_counting()
+	_test_score_changed_signal()
+	_test_win_score_21_ends_run()
+	_test_ai_reaches_21()
+	_test_20_points_no_end()
+	_test_post_terminal_frozen()
+	_test_reset_match_full_reset()
+	_test_query_api()
+	_test_amount_zero_ignored()
 
 
 # ── Helpers ──
 
-## Create a fresh GameManager instance.
-## Uses Node.new() + set_script() pattern (Pattern 2 from godot-headless-test-patterns).
-## Returns null if instantiation fails (script parse error).
 func _make_gm():
 	var gm = Node.new()
 	gm.set_script(load("res://gdscripts/game_manager.gd"))
@@ -64,199 +55,238 @@ func _assert(condition: bool, name: String) -> void:
 
 func _clear_captures() -> void:
 	_captured_scores.clear()
-	_captured_game_wins.clear()
 	_captured_match_overs.clear()
 
 
 func _connect_signals(gm) -> void:
 	gm.score_changed.connect(_on_score_changed)
-	gm.game_won.connect(_on_game_won)
 	gm.match_over.connect(_on_match_over)
 
 
 func _disconnect_signals(gm) -> void:
 	if gm.score_changed.is_connected(_on_score_changed):
 		gm.score_changed.disconnect(_on_score_changed)
-	if gm.game_won.is_connected(_on_game_won):
-		gm.game_won.disconnect(_on_game_won)
 	if gm.match_over.is_connected(_on_match_over):
 		gm.match_over.disconnect(_on_match_over)
 
 
-# ── Scenario A: Autoload Registration ──
+# ── Scenario: 初始状态 ──
 
-## TC2: GameManager initial state — all variables zero
+## 双得分制初始状态: 分数/计数全零、未终局
 func _test_tc2_initial_state() -> void:
 	var gm = _make_gm()
 	_assert(gm != null, "TC2: GameManager script instantiates")
 	_assert(gm.player_score == 0, "TC2: player_score == 0")
 	_assert(gm.ai_score == 0, "TC2: ai_score == 0")
-	_assert(gm.player_games_won == 0, "TC2: player_games_won == 0")
-	_assert(gm.ai_games_won == 0, "TC2: ai_games_won == 0")
+	_assert(gm.player_brick_count == 0, "TC2: player_brick_count == 0")
+	_assert(gm.ai_brick_count == 0, "TC2: ai_brick_count == 0")
+	_assert(gm.player_pierce_count == 0, "TC2: player_pierce_count == 0")
+	_assert(gm.ai_pierce_count == 0, "TC2: ai_pierce_count == 0")
+	_assert(gm.is_run_over() == false, "TC2: is_run_over == false")
 
 
-# ── Scenario B: add_score() API ──
+# ── Scenario: add_score() API ──
 
-## TC3: add_score("player") increments player_score
+## 单参调用仍 +1（kind 默认 boundary，兼容既有调用点）
 func _test_tc3_add_score_player() -> void:
 	var gm = _make_gm()
 	gm.add_score("player")
 	_assert(gm.player_score == 1, "TC3: player_score == 1 after add_score(player)")
-	_assert(gm.ai_score == 0, "TC3: ai_score == 0 after add_score(player)")
+	_assert(gm.ai_score == 0, "TC3: ai_score == 0")
+	_assert(gm.get_brick_count("player") == 0, "TC3: boundary does not bump brick count")
 
 
-## TC4: add_score("ai") increments ai_score
 func _test_tc4_add_score_ai() -> void:
 	var gm = _make_gm()
 	gm.add_score("ai")
 	_assert(gm.ai_score == 1, "TC4: ai_score == 1 after add_score(ai)")
-	_assert(gm.player_score == 0, "TC4: player_score == 0 after add_score(ai)")
+	_assert(gm.player_score == 0, "TC4: player_score == 0")
 
 
-## TC5: add_score("invalid") — no change, no crash, no signals
+## 非法 winner: 无状态变更、无信号（TC5 语义保留）
 func _test_tc5_add_score_invalid() -> void:
 	var gm = _make_gm()
 	_clear_captures()
 	_connect_signals(gm)
 
 	gm.add_score("invalid")
-	_assert(gm.player_score == 0, "TC5: player_score unchanged for invalid winner")
-	_assert(gm.ai_score == 0, "TC5: ai_score unchanged for invalid winner")
-	_assert(_captured_scores.size() == 0, "TC5: no score_changed signal for invalid winner")
-	_assert(_captured_game_wins.size() == 0, "TC5: no game_won signal for invalid winner")
+	_assert(gm.player_score == 0, "TC5: player_score unchanged")
+	_assert(gm.ai_score == 0, "TC5: ai_score unchanged")
+	_assert(_captured_scores.size() == 0, "TC5: no score_changed")
+	_assert(_captured_match_overs.size() == 0, "TC5: no match_over")
 
 	_disconnect_signals(gm)
 
 
-## TC6: 5x add_score("player") → game won, score auto-resets, game counter increments
-func _test_tc6_five_scores_game_win() -> void:
+## amount/kind 参数: 穿墙 3 分进 pierce 计数、拆砖 1 分进 brick 计数
+func _test_add_score_amount_kind() -> void:
 	var gm = _make_gm()
-	for i in range(5):
-		gm.add_score("player")
-	_assert(gm.player_games_won == 1, "TC6: player_games_won == 1 after 5 scores")
-	_assert(gm.player_score == 0, "TC6: player_score auto-reset to 0 after game win")
-	_assert(gm.ai_score == 0, "TC6: ai_score still 0")
+	gm.add_score("player", 3, "pierce")
+	_assert(gm.player_score == 3, "AK: player_score == 3 after pierce")
+	_assert(gm.get_pierce_count("player") == 1, "AK: player_pierce_count == 1")
+	_assert(gm.get_brick_count("player") == 0, "AK: brick_count unchanged")
+
+	gm.add_score("ai", 1, "brick")
+	_assert(gm.ai_score == 1, "AK: ai_score == 1 after brick")
+	_assert(gm.get_brick_count("ai") == 1, "AK: ai_brick_count == 1")
+	_assert(gm.get_pierce_count("ai") == 0, "AK: ai_pierce_count == 0")
 
 
-## TC7: score_changed signal emitted after each add_score() with correct values
-func _test_tc7_score_changed_signal() -> void:
+## 拆砖计数累计
+func _test_brick_counting() -> void:
+	var gm = _make_gm()
+	for i in range(3):
+		gm.add_score("player", 1, "brick")
+	_assert(gm.player_score == 3, "BK: player_score == 3")
+	_assert(gm.player_brick_count == 3, "BK: player_brick_count == 3")
+	_assert(gm.ai_brick_count == 0, "BK: ai_brick_count == 0")
+
+
+## 穿墙计数累计
+func _test_pierce_counting() -> void:
+	var gm = _make_gm()
+	gm.add_score("ai", 3, "pierce")
+	gm.add_score("ai", 3, "pierce")
+	_assert(gm.ai_score == 6, "PK: ai_score == 6")
+	_assert(gm.ai_pierce_count == 2, "PK: ai_pierce_count == 2")
+
+
+## score_changed 信号值与次数
+func _test_score_changed_signal() -> void:
 	var gm = _make_gm()
 	_clear_captures()
 	_connect_signals(gm)
 
 	gm.add_score("player")
 	gm.add_score("ai")
-	gm.add_score("player")
+	gm.add_score("player", 1, "brick")
 
-	_assert(_captured_scores.size() >= 3, "TC7: score_changed emitted for each add_score")
-	_assert(_captured_scores[0] == [1, 0], "TC7: first signal: player=1, ai=0")
-	_assert(_captured_scores[1] == [1, 1], "TC7: second signal: player=1, ai=1")
-	_assert(_captured_scores[2] == [2, 1], "TC7: third signal: player=2, ai=1")
+	_assert(_captured_scores.size() == 3, "SC: score_changed emitted 3 times")
+	_assert(_captured_scores[0] == [1, 0], "SC: first [1,0]")
+	_assert(_captured_scores[1] == [1, 1], "SC: second [1,1]")
+	_assert(_captured_scores[2] == [2, 1], "SC: third [2,1]")
 
 	_disconnect_signals(gm)
 
 
-## TC8: game_won("player") signal emitted after 5th consecutive player score
-func _test_tc8_game_won_signal() -> void:
+# ── Scenario: 21 分终局（AC3）──
+
+## 恰好 21 分 → match_over 恰好一次
+func _test_win_score_21_ends_run() -> void:
 	var gm = _make_gm()
 	_clear_captures()
 	_connect_signals(gm)
 
-	for i in range(5):
+	for i in range(20):
 		gm.add_score("player")
+	_assert(_captured_match_overs.size() == 0, "W21: no match_over at 20")
 
-	_assert(_captured_game_wins.size() == 1, "TC8: game_won emitted exactly once")
-	_assert(_captured_game_wins[0] == "player", "TC8: game_won winner is 'player'")
+	gm.add_score("player", 1, "brick")
+	_assert(_captured_match_overs.size() == 1, "W21: match_over emitted exactly once")
+	_assert(_captured_match_overs[0] == "player", "W21: winner is 'player'")
+	_assert(gm.is_run_over() == true, "W21: is_run_over == true")
 
 	_disconnect_signals(gm)
 
 
-## TC9: match_over("player") signal emitted after 2 game wins
-func _test_tc9_match_over_signal() -> void:
+## AI 先到 21
+func _test_ai_reaches_21() -> void:
 	var gm = _make_gm()
 	_clear_captures()
 	_connect_signals(gm)
 
-	# Win game 1 (5 scores)
-	for i in range(5):
-		gm.add_score("player")
-	_assert(_captured_match_overs.size() == 0, "TC9: no match_over after 1 game win")
-
-	# Win game 2 (5 more scores)
-	for i in range(5):
-		gm.add_score("player")
-	_assert(_captured_match_overs.size() == 1, "TC9: match_over emitted after 2 game wins")
-	_assert(_captured_match_overs[0] == "player", "TC9: match_over winner is 'player'")
+	for i in range(21):
+		gm.add_score("ai")
+	_assert(_captured_match_overs.size() == 1, "AI21: match_over emitted exactly once")
+	_assert(_captured_match_overs[0] == "ai", "AI21: winner is 'ai'")
+	_assert(gm.is_run_over() == true, "AI21: is_run_over == true")
 
 	_disconnect_signals(gm)
 
 
-# ── Scenario C: reset_game() vs reset_match() ──
-
-## TC10: reset_game() zeros scores, preserves game counters
-func _test_tc10_reset_game() -> void:
+## 20 分不终局
+func _test_20_points_no_end() -> void:
 	var gm = _make_gm()
-	# Score some points
-	gm.add_score("player")
-	gm.add_score("player")
-	gm.add_score("player")
-	_assert(gm.player_score == 3, "TC10: player_score == 3 before reset")
+	_clear_captures()
+	_connect_signals(gm)
 
-	gm.reset_game()
-	_assert(gm.player_score == 0, "TC10: player_score == 0 after reset_game")
-	_assert(gm.ai_score == 0, "TC10: ai_score == 0 after reset_game")
-	_assert(gm.player_games_won == 0, "TC10: player_games_won unchanged by reset_game")
-	_assert(gm.ai_games_won == 0, "TC10: ai_games_won unchanged by reset_game")
-
-
-## TC11: reset_match() zeros everything (after partial progress)
-func _test_tc11_reset_match() -> void:
-	var gm = _make_gm()
-	# Win a game
-	for i in range(5):
+	for i in range(20):
 		gm.add_score("player")
-	_assert(gm.player_games_won == 1, "TC11: player_games_won == 1 before reset_match")
+	_assert(gm.is_run_over() == false, "20P: is_run_over == false")
+	_assert(_captured_match_overs.size() == 0, "20P: no match_over")
+
+	_disconnect_signals(gm)
+
+
+## 终局后分数冻结（失败路径 2）
+func _test_post_terminal_frozen() -> void:
+	var gm = _make_gm()
+	_clear_captures()
+	_connect_signals(gm)
+
+	for i in range(21):
+		gm.add_score("player")
+	_assert(gm.is_run_over() == true, "PT: run over")
+
+	gm.add_score("player", 3, "pierce")
+	_assert(gm.player_score == 21, "PT: player_score frozen")
+	_assert(gm.get_pierce_count("player") == 0, "PT: pierce not counted")
+	_assert(_captured_scores.size() == 21, "PT: no further score_changed")
+
+	gm.add_score("ai", 1, "brick")
+	_assert(gm.ai_score == 0, "PT: ai_score unchanged")
+
+	_disconnect_signals(gm)
+
+
+## reset_match 全量重置
+func _test_reset_match_full_reset() -> void:
+	var gm = _make_gm()
+	gm.add_score("player", 3, "pierce")
+	gm.add_score("ai", 1, "brick")
+	for i in range(21):
+		gm.add_score("player")
+	_assert(gm.is_run_over() == true, "RM: run over before reset")
 
 	gm.reset_match()
-	_assert(gm.player_score == 0, "TC11: player_score == 0 after reset_match")
-	_assert(gm.ai_score == 0, "TC11: ai_score == 0 after reset_match")
-	_assert(gm.player_games_won == 0, "TC11: player_games_won == 0 after reset_match")
-	_assert(gm.ai_games_won == 0, "TC11: ai_games_won == 0 after reset_match")
+	_assert(gm.player_score == 0, "RM: player_score == 0")
+	_assert(gm.ai_score == 0, "RM: ai_score == 0")
+	_assert(gm.player_brick_count == 0, "RM: player_brick_count == 0")
+	_assert(gm.ai_brick_count == 0, "RM: ai_brick_count == 0")
+	_assert(gm.player_pierce_count == 0, "RM: player_pierce_count == 0")
+	_assert(gm.ai_pierce_count == 0, "RM: ai_pierce_count == 0")
+	_assert(gm.is_run_over() == false, "RM: is_run_over == false")
+
+	gm.add_score("player")
+	_assert(gm.player_score == 1, "RM: scoring works after reset")
 
 
-## TC12: reset_match() on fresh state — idempotent
-func _test_tc12_reset_match_idempotent() -> void:
+# ── Scenario: 查询 API（AC5）──
+
+func _test_query_api() -> void:
 	var gm = _make_gm()
-	gm.reset_match()  # second call on fresh state
-	_assert(gm.player_score == 0, "TC12: player_score still 0")
-	_assert(gm.ai_score == 0, "TC12: ai_score still 0")
-	_assert(gm.player_games_won == 0, "TC12: player_games_won still 0")
-	_assert(gm.ai_games_won == 0, "TC12: ai_games_won still 0")
+	gm.add_score("player", 1, "brick")
+	gm.add_score("player", 3, "pierce")
+	gm.add_score("ai", 1, "brick")
+
+	_assert(gm.get_brick_count("player") == 1, "QA: player brick == 1")
+	_assert(gm.get_brick_count("ai") == 1, "QA: ai brick == 1")
+	_assert(gm.get_pierce_count("player") == 1, "QA: player pierce == 1")
+	_assert(gm.get_pierce_count("ai") == 0, "QA: ai pierce == 0")
 
 
-# ── Scenario D: get_winner() ──
+# ── Scenario: 边界 ──
 
-## TC13: get_winner() on fresh state returns ""
-func _test_tc13_get_winner_empty() -> void:
+## amount <= 0 直接忽略
+func _test_amount_zero_ignored() -> void:
 	var gm = _make_gm()
-	_assert(gm.get_winner() == "", "TC13: get_winner() returns empty string on fresh state")
+	_clear_captures()
+	_connect_signals(gm)
 
+	gm.add_score("player", 0, "brick")
+	gm.add_score("player", -1, "pierce")
+	_assert(gm.player_score == 0, "AZ: player_score unchanged")
+	_assert(gm.get_brick_count("player") == 0, "AZ: brick unchanged")
+	_assert(_captured_scores.size() == 0, "AZ: no signal")
 
-## TC14: After 2 player game wins → get_winner() == "player"
-func _test_tc14_get_winner_player() -> void:
-	var gm = _make_gm()
-	for g in range(2):
-		for i in range(5):
-			gm.add_score("player")
-	_assert(gm.player_games_won == 2, "TC14: player_games_won == 2")
-	_assert(gm.get_winner() == "player", "TC14: get_winner() returns 'player'")
-
-
-## TC15: After 2 AI game wins → get_winner() == "ai"
-func _test_tc15_get_winner_ai() -> void:
-	var gm = _make_gm()
-	for g in range(2):
-		for i in range(5):
-			gm.add_score("ai")
-	_assert(gm.ai_games_won == 2, "TC15: ai_games_won == 2")
-	_assert(gm.get_winner() == "ai", "TC15: get_winner() returns 'ai'")
+	_disconnect_signals(gm)

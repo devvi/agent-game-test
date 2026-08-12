@@ -480,3 +480,124 @@ func _test_speed_scale_f5() -> void:
 		ball._process(0.016)
 		elapsed += 0.016
 	_assert(abs(ball.speed_scale - 1.0) < 0.001, "TC-F5: speed_scale restored to 1.0 after 2s")
+
+
+# ── Dual Scoring (#385) — last_toucher / _crossed_wall 生命周期（DESIGN §2.9 / §9 Scenario F）──
+
+func _test_last_toucher_f1() -> void:
+	var ball = _make_ball()
+	ball.velocity = Vector2(0, 300)
+	ball.speed = 300.0
+	ball._bounce_cooldown = 0
+	ball.position = Vector2(360, 1240)
+
+	var p_player = _make_paddle_mock()
+	p_player.name = "PlayerPaddle"
+	p_player.position = Vector2(360, 1240)
+	ball._on_area_entered(p_player)
+	_assert(ball.last_toucher == "player", "TC-F1: PlayerPaddle → last_toucher == 'player'")
+
+	var p_ai = _make_paddle_mock()
+	p_ai.name = "AIPaddle"
+	p_ai.position = Vector2(360, 40)
+	ball.velocity = Vector2(0, -300)
+	ball.position = Vector2(360, 40)
+	ball._bounce_cooldown = 0
+	ball._on_area_entered(p_ai)
+	_assert(ball.last_toucher == "ai", "TC-F1: AIPaddle → last_toucher == 'ai'")
+
+	var p_unknown = _make_paddle_mock()
+	p_unknown.name = "WeirdPaddle"
+	p_unknown.position = Vector2(360, 1240)
+	ball.velocity = Vector2(0, 300)
+	ball.position = Vector2(360, 1240)
+	ball._bounce_cooldown = 0
+	ball._on_area_entered(p_unknown)
+	_assert(ball.last_toucher == "", "TC-F1: unknown paddle name → last_toucher == ''")
+
+
+## F-2: serve 复位 last_toucher / _crossed_wall；发球位 (360,640) 在墙带内 → _was_in_wall_band true
+func _test_serve_reset_f2() -> void:
+	var ball = _make_ball()
+	ball.screen_width = FALLBACK_SCREEN_WIDTH
+	ball.screen_height = FALLBACK_SCREEN_HEIGHT
+	ball.last_toucher = "player"
+	ball._crossed_wall = true
+	ball._was_in_wall_band = false
+
+	ball.serve()  # headless 无 tree → 立即路径
+
+	_assert(ball.last_toucher == "", "TC-F2: last_toucher reset by serve")
+	_assert(ball._crossed_wall == false, "TC-F2: _crossed_wall reset by serve")
+	_assert(ball._was_in_wall_band == true, "TC-F2: _was_in_wall_band true (serve pos in band)")
+	_assert(ball.position == Vector2(360, 640), "TC-F2: serve position at center")
+
+
+## F-3: 墙带边沿置位（带外→带内才置位；带内停留不重复）
+func _test_wall_band_edge_f3() -> void:
+	var ball = _make_ball()
+	ball.screen_width = FALLBACK_SCREEN_WIDTH
+	ball.screen_height = FALLBACK_SCREEN_HEIGHT
+	ball._is_serving = false
+	ball.velocity = Vector2.ZERO
+	ball.speed = 330.0
+	ball.position = Vector2(360, 600)  # 带外 (640±22 之外)
+	ball._was_in_wall_band = false
+	ball._crossed_wall = false
+
+	ball._process(0.016)
+	_assert(ball._crossed_wall == false, "TC-F3: outside band → not crossed")
+
+	ball.position = Vector2(360, 630)  # 带内
+	ball._process(0.016)
+	_assert(ball._crossed_wall == true, "TC-F3: outside→inside edge sets _crossed_wall")
+
+	ball.position = Vector2(360, 640)
+	ball._process(0.016)
+	_assert(ball._crossed_wall == true, "TC-F3: stays true inside band")
+
+
+## F-4: 发球位不误置位（边界 7）— serve 后带内移动不置位，离开再进入才置位
+func _test_serve_position_no_misflag_f4() -> void:
+	var ball = _make_ball()
+	ball.screen_width = FALLBACK_SCREEN_WIDTH
+	ball.screen_height = FALLBACK_SCREEN_HEIGHT
+	ball._is_serving = false
+	ball.velocity = Vector2.ZERO
+	ball.speed = 330.0
+
+	ball.serve()
+	_assert(ball.position == Vector2(360, 640), "TC-F4: serve at center")
+	_assert(ball._crossed_wall == false, "TC-F4: serve does not flag crossed")
+
+	ball.position = Vector2(360, 645)  # 带内移动
+	ball._process(0.016)
+	_assert(ball._crossed_wall == false, "TC-F4: in-band movement after serve → no mis-flag")
+
+	ball.position = Vector2(360, 600)  # 带外
+	ball._process(0.016)
+	_assert(ball._crossed_wall == false, "TC-F4: outside band → still not crossed")
+
+	ball.position = Vector2(360, 630)  # 重新进入带内
+	ball._process(0.016)
+	_assert(ball._crossed_wall == true, "TC-F4: re-enter band → crossed set")
+
+
+## F-5: 触球复位穿越标记（失败路径 4）
+func _test_paddle_resets_crossed_f5() -> void:
+	var ball = _make_ball()
+	ball.velocity = Vector2(0, 300)
+	ball.speed = 300.0
+	ball._bounce_cooldown = 0
+	ball.position = Vector2(360, 1240)
+	ball._crossed_wall = true
+	ball.last_toucher = ""
+
+	var paddle = _make_paddle_mock()
+	paddle.name = "PlayerPaddle"
+	paddle.position = Vector2(360, 1240)
+
+	ball._on_area_entered(paddle)
+
+	_assert(ball._crossed_wall == false, "TC-F5: paddle touch resets _crossed_wall")
+	_assert(ball.last_toucher == "player", "TC-F5: last_toucher set on touch")

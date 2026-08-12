@@ -13,6 +13,7 @@ func run() -> void:
 	_test_tc6_constants_values_match()
 	_test_tc7_preload_works()
 	_test_tc8_color_values()
+	_test_dual_scoring_constants()
 
 
 func _assert(condition: bool, name: String) -> void:
