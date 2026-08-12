@@ -135,3 +135,11 @@ const UPGRADE_RARITY_WEIGHTS: Array[int] = [60, 30, 10]
 const UPGRADE_CANDIDATE_COUNT: int = 3
 const UPGRADE_POOL_SIZE: int = 9
 const UPGRADE_JSON_PATH: String = "res://assets/content/upgrade_pool.json"
+
+# ── Failure Screen (#391) ──
+# 失败屏 (PLAN-rogue-pong §2.4; mechanical; 文案值归 #396 taste-draft)
+const FAILURE_TEXT_PATH: String = "res://content/wave_failure_text.json"  # #396 schema wave-failure-text/v1
+const FAILURE_TEXT_DEFAULT_PHRASE: String = "墙还在，雨未停"               # JSON 缺失/损坏兜底（≤10字、无感叹号/emoji，红线合规）
+const FAILURE_WAVE_TIER1_MAX: int = 2    # fp1 早败（波 1-2）
+const FAILURE_WAVE_TIER2_MAX: int = 5    # fp2 中败（波 3-5）
+const FAILURE_WAVE_TIER3_MIN: int = 6    # fp3 晚败（波 6+）

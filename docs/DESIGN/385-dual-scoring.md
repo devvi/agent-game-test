@@ -258,7 +258,7 @@ func _resolve_brick_winner() -> String:    # 新增：拆砖归属
 | `BreakoutGrid.brick_destroyed(brick, pos)` → `ScoringManager._on_brick_destroyed` | ScoringManager（消费逻辑本 Issue 交付） | #384 契约 / #393 场景接线 | 信号连接；`get_node_or_null("../BreakoutGrid")` best-effort，场景内正式接线归 #393 | ⬜ 待 #393（#384 实现落地前无事件源） |
 | `GameManager.score_changed` → HUD 总分 | GameManager | #292（已接线） | 现有信号链，拆砖/穿墙分自动更新总分 | ✅ 已接线（源码核实 game_hud.gd:16-20） |
 | `GameManager.match_over` → FSM GAME_OVER / GameOverScreen | GameManager（终局单一权威，D1） | #294/#292（已接线） | 现有信号链，21 分终局复用，零改动 | ✅ 已接线（源码核实） |
-| `get_bricks_destroyed(side)` / `get_wall_passes(side)` → 结算/失败屏 | GameManager | #391 失败屏 / #390 波次转场 | 查询接口（AC5），UI 消费归 #391 | ⬜ 待 #391 消费 |
+| `get_brick_count(side)` / `get_pierce_count(side)`（实现命名）→ 结算/失败屏 | GameManager | #391 失败屏 / #390 波次转场 | 查询接口（AC5），UI 消费归 #391 | ✅ #391 已消费（`_render_run_stats` 玩家单侧三项） |
 
 ---
 

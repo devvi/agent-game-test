@@ -465,11 +465,15 @@ func _test_e3_over_screen_reads_stats() -> void:
 	vbox.add_child(stats_label)
 	cc.add_child(vbox)
 	gos.add_child(cc)
+	# #391: 统计改为 @onready 引用（get_node_or_null 容错），无树测试需手动赋值
+	gos.run_stats_label = stats_label
 
-	gos._on_match_over("player")
+	# #391: 统计格式改为玩家单侧三项（波次/拆砖/穿墙），且仅 fail 分支渲染
+	gos._on_match_over("ai")
 
-	_assert(stats_label.text.contains("拆砖  P:1/A:1"), "E-3: stats label shows brick counts")
-	_assert(stats_label.text.contains("穿墙  P:1/A:0"), "E-3: stats label shows pierce counts")
+	_assert(stats_label.text.contains("拆砖 1"), "E-3: stats label shows player brick count")
+	_assert(stats_label.text.contains("穿墙 1"), "E-3: stats label shows player pierce count")
+	_assert(stats_label.text.contains("波次 0"), "E-3: stats label shows wave index")
 
 
 # ── Scenario H: 失败路径 ──
