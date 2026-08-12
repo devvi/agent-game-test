@@ -22,6 +22,10 @@ func run() -> void:
 	_test_node_hierarchy()          # TC-E1
 	_test_collision_shape()         # TC-E2
 	_test_script_attachment()       # TC-E3
+	_test_instance_width_f1()      # TC-F1 (#387 AC3)
+	_test_recalc_bounds_f2()        # TC-F2
+	_test_player_speed_instance_f3() # TC-F3
+	_test_ai_speed_instance_f4()     # TC-F4
 	# TC-D1 (zero exit code) and TC-D2 (no script errors) are covered by CI.
 
 
@@ -180,3 +184,68 @@ func _test_script_attachment() -> void:
 	var script = paddle.get_script()
 	_assert(script != null, "TC-E3: script attached")
 	_assert(script.resource_path.contains("paddle.gd"), "TC-E3: script path contains paddle.gd")
+
+
+# ── Scenario F: 实例参数下一帧生效（AC3, #387）──
+
+func _test_instance_width_f1() -> void:
+	# TC-F1: set_paddle_width 同步实例属性 + CollisionShape2D.size.x
+	var paddle = _make_paddle()
+	var cs = CollisionShape2D.new()
+	var shape = RectangleShape2D.new()
+	shape.size = Vector2(120.0, 20.0)
+	cs.shape = shape
+	paddle.add_child(cs)
+	paddle._ready()
+	paddle.set_paddle_width(156.0)
+	_assert(abs(paddle.paddle_width - 156.0) < 0.01, "TC-F1: paddle_width == 156 (instance property)")
+	_assert(abs(cs.shape.size.x - 156.0) < 0.01, "TC-F1: CollisionShape2D.size.x synced to 156")
+
+
+func _test_recalc_bounds_f2() -> void:
+	# TC-F2: setter 后 min_x/max_x 按新宽度重算，position.x clamp 回合法区间
+	var paddle = _make_paddle()
+	paddle._ready()
+	paddle.position.x = 700.0  # 超过新 max_x
+	paddle.set_paddle_width(156.0)  # half=78 → min 78 / max 720-78=642 (FALLBACK 720)
+	_assert(abs(paddle.min_x - 78.0) < 0.01, "TC-F2: min_x recalculated to 78")
+	_assert(abs(paddle.max_x - 642.0) < 0.01, "TC-F2: max_x recalculated to 642")
+	_assert(abs(paddle.position.x - 642.0) < 0.01, "TC-F2: position.x clamped to new max_x")
+
+
+func _test_player_speed_instance_f3() -> void:
+	# TC-F3: 玩家分支使用 paddle_speed 实例值（AC3 下一帧生效）。
+	# 源码断言 + 无输入行为断言（headless 下 Input 恒 false；不注入 Input 以免污染全局状态）
+	var source = FileAccess.get_file_as_string("res://gdscripts/paddle.gd")
+	_assert(source.contains("paddle_speed"), "TC-F3: _process references paddle_speed instance var")
+	_assert(not source.contains("const SPEED"), "TC-F3: const SPEED removed (instance-level, AC3)")
+	var paddle = _make_paddle()
+	paddle._ready()
+	paddle.paddle_speed = 500.0
+	paddle.position.x = 360.0
+	paddle._process(0.016)
+	_assert(paddle.position.x == 360.0, "TC-F3: no-input frame leaves position unchanged (instance speed set OK)")
+
+
+func _test_ai_speed_instance_f4() -> void:
+	# TC-F4: AI 分支同样读 paddle_speed（改值后 AI 帧位移按比例变化）
+	var paddle = _make_paddle()
+	paddle.mode = paddle.Mode.AI
+	paddle._ready()
+	var fake_ball = Node2D.new()
+	fake_ball.position.x = 600.0
+	paddle._ball_node = fake_ball
+	paddle._ai_delay_timer = 0.5   # 长延迟 → 帧内不更新目标（确定性）
+	paddle._ai_target_x = 600.0
+	paddle._ai_error_offset = 0.0
+	paddle.position.x = 100.0
+	paddle.paddle_speed = 430.0
+	var x1 = paddle.position.x
+	paddle._process(0.016)
+	var d1 = paddle.position.x - x1
+	paddle.paddle_speed = 860.0
+	var x2 = paddle.position.x
+	paddle._process(0.016)
+	var d2 = paddle.position.x - x2
+	_assert(d1 > 0.0 and d2 > 0.0, "TC-F4: AI moves toward target (d1=%.2f d2=%.2f)" % [d1, d2])
+	_assert(abs(d2 - 2.0 * d1) < 0.5, "TC-F4: AI move scales with paddle_speed (2× speed → 2× move)")

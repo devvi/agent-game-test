@@ -24,6 +24,8 @@ const BALL_RADIUS: float = CONSTS.BALL_RADIUS
 @export var speed_increment: float = SPEED_INCREMENT
 @export var max_bounce_angle: float = MAX_BOUNCE_ANGLE
 @export var serve_angle_range: float = SERVE_ANGLE_RANGE
+@export var speed_scale: float = 1.0          # #387 缓时: 位移乘数（0.0 冻结，定时恢复）
+var _slow_time_remaining: float = 0.0
 
 # ── Signals ──
 signal score(side: int)
@@ -40,6 +42,8 @@ var _scored_this_frame: bool = false
 
 
 func _ready() -> void:
+	# Register with balls group — UpgradePool ctx resolution (#387 gap 决议)
+	add_to_group("balls")
 	# Read viewport dimensions
 	var viewport = get_viewport()
 	if viewport != null:
@@ -125,9 +129,15 @@ func _process(delta: float) -> void:
 	# Reset dual-trigger flag at start of each frame (#295)
 	_scored_this_frame = false
 
+	# 缓时 (#387): 定时恢复倒计时（不依赖 SceneTreeTimer，headless 可测）
+	if _slow_time_remaining > 0.0:
+		_slow_time_remaining -= delta
+		if _slow_time_remaining <= 0.0:
+			speed_scale = 1.0
+
 	# Move ball — re-normalize to prevent drift
 	velocity = velocity.normalized() * speed
-	position += velocity * delta
+	position += velocity * delta * speed_scale
 
 	# X boundary safety net (wall bounce fallback, 竖屏左右墙)
 	if position.x < -BALL_RADIUS:
@@ -215,3 +225,9 @@ func _on_area_entered(area: Area2D) -> void:
 	# Anti-stick: push ball away from paddle (沿主轴 Y 推离)
 	var push_dist := BALL_RADIUS + 10.0 + 2.0  # ball radius + paddle half-thickness + margin
 	position.y += sign(velocity.y) * push_dist
+
+
+## #387 缓时升级入口: 设置速度倍率并启动倒计时；重复施放 = 重置倒计时（可堆叠语义）。
+func set_speed_scale_timed(scale: float, duration: float) -> void:
+	speed_scale = scale
+	_slow_time_remaining = duration
