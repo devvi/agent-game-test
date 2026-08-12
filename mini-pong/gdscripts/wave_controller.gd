@@ -20,6 +20,7 @@ const CONSTS = preload("res://gdscripts/constants.gd")
 @onready var rain_curtain = _find_rain_curtain()                   # #389 契约（Main.tscn: AtmosphereLayer/RainCurtain）
 
 var _settling: bool = false   # 结算中守卫：忽略重复 wall_cleared / 并发信号（边界 4）
+var settle_delay: float = CONSTS.WAVE_SETTLE_DELAY   # 结算 → 下一波延时（测试可注入短延时；#388 接线后由其接管推进时机）
 
 
 func _ready() -> void:
@@ -38,7 +39,7 @@ func _on_wall_cleared() -> void:
 		GameManager.end_wave_cycle()          # AC5：21 分后停止，不生成新墙
 		_settling = false
 		return
-	await get_tree().create_timer(CONSTS.WAVE_SETTLE_DELAY).timeout  # 结算延时（#388 接线后由其接管推进时机）
+	await get_tree().create_timer(settle_delay).timeout   # 结算延时（#388 接线后由其接管推进时机）
 	_advance_wave()
 	_settling = false
 
