@@ -15,6 +15,12 @@ const WIN_SCORE: int = CONSTS.WIN_SCORE
 # ── Signals ──
 signal score_changed(player_score: int, ai_score: int)
 signal match_over(winner: String)     # "player" | "ai" — 21 分终局（复用既有信号名，FSM/结算屏零新接线）
+
+# ── Wave Cycle (#386) ──
+enum WaveState { IDLE, RUNNING, SETTLED }
+
+signal wave_started(wave_index: int)   # 新一波开始（#390 转场「第 N 道墙」/ #393 HUD，AC3）
+signal wave_settled(wave_index: int)   # 墙清空结算挂点（#388 升级 UI 触发时机）
 # game_won 信号已删除（21 分制无「局」概念；HUD/FSM/结算屏均不消费）
 
 # ── State ──
@@ -25,6 +31,9 @@ var ai_brick_count: int = 0
 var player_pierce_count: int = 0
 var ai_pierce_count: int = 0
 var _is_run_over: bool = false        # 终局守卫（防终局后事件泄漏）
+
+var wave_index: int = 0                # 当前波次号：IDLE 期 0，首次 begin_wave() 后从 1 递增（AC3）
+var wave_state: WaveState = WaveState.IDLE
 
 # ── API ──
 
@@ -59,6 +68,29 @@ func is_run_over() -> bool:
 	return _is_run_over
 
 
+# ── Wave Cycle API (#386) ──
+
+func begin_wave() -> void:
+	wave_index += 1
+	wave_state = WaveState.RUNNING
+	wave_started.emit(wave_index)
+
+
+func settle_wave() -> void:
+	if wave_state == WaveState.IDLE:
+		return
+	wave_state = WaveState.SETTLED
+	wave_settled.emit(wave_index)
+
+
+func end_wave_cycle() -> void:
+	wave_state = WaveState.IDLE   # AC5 停止；wave_index 保留供 run 统计（GAME_OVER 屏「波次数」归 #391）
+
+
+func is_wave_cycle_active() -> bool:
+	return wave_state != WaveState.IDLE
+
+
 func reset_match() -> void:
 	player_score = 0
 	ai_score = 0
@@ -67,6 +99,8 @@ func reset_match() -> void:
 	player_pierce_count = 0
 	ai_pierce_count = 0
 	_is_run_over = false
+	wave_index = 0          # 波次重置（边界 1：首波从 1 起）
+	wave_state = WaveState.IDLE
 
 
 # ── Internal ──
