@@ -142,19 +142,24 @@ clamp(0.1, 1.0)
 
 ## 4. 架构影响与前置改造
 
-### 4.1 ⚠️ 前置: 轴交换 (已确认独立先行)
+### 4.1 ⚠️ 前置: 轴交换 + 竖屏 (已确认独立先行)
 
-**垂直布局 = 轴交换**, 影响所有物理代码, 必须作为**独立前置 Issue** 先做, 测试全绿后再叠砖墙:
+**垂直布局 = 轴交换 + 画幅竖屏, 同批做** — 坐标只改一遍:
 
 | 文件 | 改动 |
 |------|------|
+| `project.godot` | `viewport_width=720, viewport_height=1280` (9:16 竖屏, resizable=false) |
 | `ball.gd` | 得分 X边界→Y边界; 墙反弹 Y→X; 发球方向水平→垂直; 挡板反弹"左右"→"上下" |
 | `paddle.gd` | 移动轴 Y→X; 输入 WASD/上下→A/D或←/→; AI追踪球Y→X; min_y/max_y→min_x/max_x |
-| `Main.tscn` | 挡板位置(底690/顶30); 墙Left/Right; ScoreZone上下; 砖墙节点 |
-| `constants.gd` | 挡板尺寸语义 PADDLE_HEIGHT→PADDLE_WIDTH; 得分区常量 |
+| `Main.tscn` | 挡板位置(底 y≈1240/顶 y≈40); 墙Left/Right; ScoreZone上下; 砖墙节点 |
+| `constants.gd` | SCREEN_WIDTH/HEIGHT→720/1280; 挡板尺寸语义 PADDLE_HEIGHT→PADDLE_WIDTH |
+| `scripts/run-e2e-review.sh` | `--resolution 1280x720`→`720x1280` (已确认硬编码位置: L216) |
+| `mini-pong/e2e_shots.json` | 截图状态节点引用核对 (analyze_bmp 动态读宽高, 无需改) |
 | `tests/` | 物理测试大量重写 (左右得分→上下得分, 垂直反弹→水平反弹) |
 | `game_state_machine.gd` | 几乎不动 (布局无关) |
 | `scoring_manager.gd` | 不动 (信号链不变) |
+
+> **竖屏理由**: 垂直攻防主运动轴是 Y, 16:9 横屏只给 720px 纵深, 砖墙横跨 1280px — "攻城向上"的延伸感被压扁。720×1280 竖屏: 砖墙横跨 720px, 攻防纵深 1280px, 穿墙得分有"打上去翻过墙"的物理叙事; 雨幕垂直下落与球攻击方向完全同轴。对手在"头顶"而非"右上", 压迫感更强。
 
 ### 4.2 主玩法改造
 
