@@ -79,4 +79,18 @@ const GAMES_TO_WIN_MATCH: int = 2
 # ── Colors ──
 const PLAYER_NEON_BLUE: Color = Color(0.29, 0.56, 0.85, 1.0)   # #4a90d9
 const AI_NEON_RED: Color = Color(1.0, 0.2, 0.33, 1.0)            # #ff3355
+
+# -- Rain Curtain (#389) --
+# 雨量公式 = clamp(base + 球速因子 + 波次因子 + 紧张因子 + 事件脉冲 - 喘息, 0.1, 1.0)
+# 设计: docs/DESIGN/389-dynamic-rain-curtain.md 3.2；RAIN_MIN/RAIN_MAX 为唯一边界源。
+const RAIN_BASE: float = 0.3
+const RAIN_MIN: float = 0.1
+const RAIN_MAX: float = 1.0
+const RAIN_SMOOTH_TAU: float = 0.15
+const RAIN_SPEED_FACTOR_MAX: float = 0.3
+const RAIN_TENSION_THRESHOLD: int = 2
+const RAIN_TENSION_BONUS: float = 0.2
+const RAIN_WAVE_STEP: float = 0.1
+const RAIN_PULSE_PIERCE: float = 0.4
+const RAIN_BREATHING_DROP: float = 0.15
 const BG_COLOR: Color = Color(0.039, 0.039, 0.071, 1.0)          # #0a0a12

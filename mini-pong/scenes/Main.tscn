@@ -10,6 +10,7 @@
 [ext_resource type="Script" path="res://gdscripts/pause_overlay.gd" id="8"]
 [ext_resource type="PackedScene" path="res://scenes/world_environment.tscn" id="9_world_env"]
 [ext_resource type="Script" path="res://gdscripts/score_flash.gd" id="10_score_flash"]
+[ext_resource type="PackedScene" path="res://scenes/rain_curtain.tscn" id="11_rain_curtain"]
 
 [sub_resource type="RectangleShape2D" id="rect_wall_left"]
 size = Vector2(10, 1280)
@@ -23,6 +24,11 @@ size = Vector2(720, 20)
 [node name="Game" type="Node2D"]
 
 [node name="WorldEnvironment" parent="." instance=ExtResource("9_world_env")]
+
+[node name="AtmosphereLayer" type="CanvasLayer" parent="."]
+layer = 0
+
+[node name="RainCurtain" parent="AtmosphereLayer" instance=ExtResource("11_rain_curtain")]
 
 [node name="LeftWall" type="StaticBody2D" parent="." groups=["walls"]]
 position = Vector2(5, 640)
