@@ -146,6 +146,7 @@ func enter_state(state: State) -> void:
 		State.GAME_OVER:
 			_set_ui("game_over")
 			_freeze_paddles(true)
+			_freeze_ball(true)          # #391 AC4：新增 —— 球停止运动（软冻结扩展 #296）
 			_transition_lock = false
 
 
@@ -153,6 +154,8 @@ func exit_state(state: State) -> void:
 	match state:
 		State.SCORED:
 			_scored_timer_active = false
+		State.GAME_OVER:                # #391 AC4：新增 —— 离开终局屏解冻（SPACE → MENU 后新 run 球可动）
+			_freeze_ball(false)
 		_:
 			pass
 
@@ -190,6 +193,12 @@ func _freeze_paddles(freeze: bool) -> void:
 		player_paddle.set_frozen(freeze)
 	if ai_paddle and ai_paddle.has_method("set_frozen"):
 		ai_paddle.set_frozen(freeze)
+
+
+## 软冻结扩展（#296 约定）：has_method 守卫 —— 既有测试的 ball mock（无 set_frozen）不崩溃
+func _freeze_ball(freeze: bool) -> void:
+	if ball and ball.has_method("set_frozen"):
+		ball.set_frozen(freeze)
 
 
 func _timer_1s() -> void:

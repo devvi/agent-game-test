@@ -39,6 +39,7 @@ var screen_height: float = 0.0
 var _bounce_cooldown: int = 0
 var _is_serving: bool = false
 var _scored_this_frame: bool = false
+var frozen: bool = false        # #391 AC4：GAME_OVER 终局冻结（软冻结约定 #296，不用 SceneTree pause）
 var last_toucher: String = ""       # "player" | "ai" | ""（发球后未触任何挡板）(#385)
 var _crossed_wall: bool = false     # 本 rally 是否穿越过墙带（穿墙分判定依据）(#385)
 var _was_in_wall_band: bool = false # 上一帧是否处于墙带内（边沿触发辅助，防发球位误置位）(#385)
@@ -89,6 +90,7 @@ func serve() -> void:
 	velocity = Vector2.ZERO
 	_bounce_cooldown = 0
 	_is_serving = true
+	frozen = false              # #391 AC4：防御性复位——新发球/新 run 永不携带陈旧冻结
 	# 双得分制 (#385) 复位：发球后无归属、未穿越墙带；发球位 (360,640) 恰在墙带内 →
 	# _was_in_wall_band 预置为当前带内状态，配合边沿触发防发球位误置位（边界 7 / F-4）
 	last_toucher = ""
@@ -117,8 +119,15 @@ func serve() -> void:
 	_is_serving = false
 
 
+## 终局冻结/解冻（FSM GAME_OVER enter/exit 调用；headless 可测）
+func set_frozen(value: bool) -> void:
+	frozen = value
+
+
 func _process(delta: float) -> void:
 	if _is_serving:
+		return
+	if frozen:                  # #391 AC4：冻结期间不做任何位移/计分/墙带判定
 		return
 
 	# Guard delta: skip abnormal frames (pause / frame spike)

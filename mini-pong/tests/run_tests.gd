@@ -23,6 +23,7 @@ func _run_tests() -> void:
 	_run("res://tests/test_game_manager.gd", "GameManager")
 	_run("res://tests/test_dual_scoring.gd", "Dual Scoring")
 	_run("res://tests/test_ui_system.gd", "UI System")
+	_run("res://tests/test_failure_screen.gd", "Failure Screen")
 	_run("res://tests/test_game_state_machine.gd", "Game State Machine")
 	_run("res://tests/test_pause.gd", "Pause")
 	_run("res://tests/test_audio_engine.gd", "AudioEngine")

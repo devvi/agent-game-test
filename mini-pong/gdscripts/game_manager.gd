@@ -67,6 +67,10 @@ func get_pierce_count(side: String) -> int:   # AC5
 	return player_pierce_count if side == "player" else ai_pierce_count
 
 
+func get_wave_index() -> int:    # #391 AC2：失败屏波次数查询（wave_index 终局后保留供 run 统计）
+	return wave_index
+
+
 func is_run_over() -> bool:
 	return _is_run_over
 

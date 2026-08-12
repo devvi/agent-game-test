@@ -409,11 +409,11 @@ SPACE（FSM._input，GAME_OVER 状态，_transition_lock 防重入）
 |------|:---:|:---:|------|:---:|
 | `GameManager.match_over` → `GameOverScreen._on_match_over` | game_over_screen.gd | #385/#292 | 既有信号连接（`_ready` 内 `has_signal` 守卫） | ✅ 既有 |
 | `GameManager.match_over` → `FSM._on_match_over` → GAME_OVER | game_state_machine.gd | #294/#385 | 既有信号连接 + GAME_OVER 早退守卫 | ✅ 既有 |
-| `GameManager.get_wave_index()/get_brick_count/get_pierce_count` → RunStatsLabel | game_over_screen.gd | #385/#386 | 查询 API 只读（AC2，数据单一来源） | ⬜ 新增 |
-| `res://content/wave_failure_text.json` → 分档选句 | game_over_screen.gd `_load_failure_phrases` | #396 | FileAccess 只读 + schema 检查 + 逐级兜底（#395 先例） | ⬜ 新增 |
-| FSM GAME_OVER enter/exit → `ball.set_frozen` | game_state_machine.gd + ball.gd | #391 | `_freeze_ball` 助手（has_method 守卫） | ⬜ 新增 |
+| `GameManager.get_wave_index()/get_brick_count/get_pierce_count` → RunStatsLabel | game_over_screen.gd | #385/#386 | 查询 API 只读（AC2，数据单一来源） | ✅ #391 已接线 |
+| `res://content/wave_failure_text.json` → 分档选句 | game_over_screen.gd `_load_failure_phrases` | #396 | FileAccess 只读 + schema 检查 + 逐级兜底（#395 先例） | ✅ #391 已接线 |
+| FSM GAME_OVER enter/exit → `ball.set_frozen` | game_state_machine.gd + ball.gd | #391 | `_freeze_ball` 助手（has_method 守卫） | ✅ #391 已接线 |
 | #393 组装/HUD | Main.tscn 既有 GameOverScreen 实例 | #393 | 本 Issue 只改 GameOverScreen 内部；#393 接线时**勿覆盖** FailurePhraseLabel/RunStatsLabel 节点 | ⬜ 待 #393 遵守 |
-| `run_tests.gd` → test_failure_screen.gd | tests/ | #391 | 注册新套件（§9） | ⬜ 新增 |
+| `run_tests.gd` → test_failure_screen.gd | tests/ | #391 | 注册新套件（§9） | ✅ #391 已接线 |
 
 ---
 
