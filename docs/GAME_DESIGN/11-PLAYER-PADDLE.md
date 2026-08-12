@@ -8,6 +8,75 @@ The player paddle is a self-contained Area2D component with code-based InputMap 
 vertical movement, and boundary clamping. It can be dropped into any scene and works immediately
 with zero external dependencies beyond Godot built-in APIs.
 
+## 竖屏轴交换（#383, 2026-08-13）
+
+> **轴交换+竖屏（P0 前置）**：Mini Pong 由横屏 1280×720（左右对打）切换为 **竖屏 720×1280（上下对打）**。
+> 本 PR 为机械坐标轴交换（`content_ownership: mechanical`），手感数值（#367 定稿）不变。
+> 语义：paddle 上下分列、沿 X 移动；球沿 Y 垂直对打、上下出界得分；左右墙反弹。
+> 以下各章节的横屏描述（paddle_up/down、Y 轴移动）已被本节取代，竖屏语义以本节为准。
+
+### 设计决策
+
+- **竖屏对打语义**：Rogue Pong 攻城战 P0 前置 —— 垂直攻防主运动轴是 Y，砖墙横跨 720px、攻防纵深 1280px，后续 feature 直接建立在本竖屏坐标系上（「坐标只改一遍」，DESIGN §1）。
+- **机械映射、语义唯一**：每个轴交换点只有一种正确改法（DESIGN §3 总表）；FSM/scoring 信号链零改动。
+- **一次改完**：无 `PORTRAIT` 开关、无根节点旋转；横屏能力丢弃（DESIGN §9）。
+
+### 常量（constants.gd）
+
+| 常量 | 值 | 语义 |
+|------|-----|------|
+| `SCREEN_WIDTH` | 720 | 竖屏宽 |
+| `SCREEN_HEIGHT` | 1280 | 竖屏高 |
+| `PADDLE_WIDTH` | 120.0 | 横向长度（挡板横置） |
+| `PADDLE_HEIGHT` | 20.0 | 纵向厚度 |
+| `FALLBACK_VIEWPORT_X` | 720.0 | headless 回退（原 `FALLBACK_VIEWPORT_Y`） |
+
+### 输入与移动
+
+| 动作 | 键 | 语义 |
+|------|-----|------|
+| `paddle_left` | A, ← | 沿 X 左移 |
+| `paddle_right` | D, → | 沿 X 右移 |
+
+- 旧动作 `paddle_up` / `paddle_down`（W/S/↑/↓）**已从 paddle.gd 删除**（test_paddle TC-A1 断言动作不存在）。
+- 每帧：`position.x += move * SPEED * delta`，夹取 `min_x / max_x`。
+- 边界：`min_x = PADDLE_WIDTH/2 = 60`，`max_x = SCREEN_WIDTH − 60 = 660`（启动时 `_ready()` 同样夹取）。
+
+### AI 追踪（沿 X）
+
+- 目标：`_ai_target_x = ball.global_position.x + _ai_error_offset`。
+- 距离：`dist = |position.x − _ai_target_x|`；延迟/误差/速度阈值公式不变（#367 草稿值）。
+- 移动：`position.x += sign(_ai_target_x − position.x) * SPEED * factor * delta`，夹取同玩家。
+
+### 数据流
+
+```
+_ready()
+  ├── InputMap 绑定 paddle_left / paddle_right（has_action 防重）
+  ├── 边界计算（viewport 宽 720 或 FALLBACK_VIEWPORT_X）
+  └── 初始位置夹取 position.x = clamp(x, 60, 660)
+
+_process(delta) — 每帧
+  ├── 读输入（left/right，同时按 → 0）
+  ├── position.x += move * SPEED * delta
+  └── clamp(position.x, min_x, max_x)
+```
+
+## 竖屏轴交换（#383, 2026-08-13）
+
+> 本节为**当前设计**；下方旧节（InputMap Bindings / Movement & Clamping / AI Opponent Mode 处理流程）为 #383 之前的横屏语义，仅作历史参考。
+> 契约来源：`docs/DESIGN/383-axis-swap-portrait.md`。手感数值（#367 定稿）不变，仅轴语义与输入映射变更。
+
+| 维度 | 竖屏（当前） | 横屏（#383 前） |
+|------|-------------|----------------|
+| 输入动作 | `paddle_left`(A/←) + `paddle_right`(D/→)；`paddle_up`/`paddle_down` 已删除（test_paddle 断言动作不存在） | W/S/↑/↓ |
+| 移动轴 | X：`position.x += move * SPEED * delta` | Y |
+| 边界夹取 | `min_x = PADDLE_WIDTH/2 = 60`、`max_x = 720 − 60 = 660`（启动时 clamp 初始位置） | min_y / max_y |
+| 挡板尺寸 | 120 长 × 20 厚（`PADDLE_WIDTH=120` 横向长度、`PADDLE_HEIGHT=20` 纵向厚度） | 20×120 竖置 |
+| 场景位置 | 玩家 (360,1240)、AI (360,40) mode=1 | (50,360) / (1230,360) |
+| AI 追踪 | `_ai_target_x = ball.global_position.x + _ai_error_offset`；`dist = |position.x − _ai_target_x|`；延迟/误差/速度阈值公式不变（阈值 = `ai_position_error×2` = 48px） | 追踪球 Y |
+| Headless fallback | `FALLBACK_VIEWPORT_X = CONSTS.SCREEN_WIDTH = 720` | FALLBACK_VIEWPORT_Y = 720 |
+
 ## Node Tree
 
 ```

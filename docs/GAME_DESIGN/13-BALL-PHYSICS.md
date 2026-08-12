@@ -12,6 +12,33 @@ with precise control over bounce angles.
 The ball operates with zero autoload dependencies beyond Godot built-in APIs. It connects to
 walls via `body_entered`, paddles via `area_entered`, and emits `score(side: int)` on boundary exit.
 
+## 竖屏轴交换（#383, 2026-08-13）
+
+> 本节为**当前设计**；下方旧节（Wall Bounce / Scoring / Serve / Data Flow / Edge Cases / Integration Points）为 #383 之前的横屏语义，仅作历史参考。
+> 契约来源：`docs/DESIGN/383-axis-swap-portrait.md`。纯机械映射、无 taste 分支；手感数值（#367 定稿 11 参数）不变；`game_state_machine.gd` / `scoring_manager.gd` 零改动。
+
+| 语义维度 | 竖屏（当前） | 横屏（#383 前） |
+|---------|-------------|----------------|
+| 画幅 | **720×1280** | 1280×720 |
+| 对打主轴 | Y（上下对打，竖屏攻防纵深） | X（左右对打） |
+| 发球 | `velocity = Vector2(sin θ, cos θ·dir) * speed`，θ∈±30°、dir=±1 随机 | 水平 `(cos θ·dir, sin θ)` |
+| 得分边界 | `y < -R` → `score.emit(0)`（player 穿 AI 底线）；`y > SCREEN_HEIGHT+R` → `score.emit(1)`（ai 穿玩家底线） | X 左右出界 |
+| 墙反弹 | 左右墙 `velocity.x *= -1`（group "walls"：LeftWall/RightWall 竖墙） | 上下墙 Y 反转 |
+| paddle 反弹 | offset = `(ball.x − paddle.x) / (shape.size.x / 2)`（长度读 X=120）；方向 `-sign(velocity.y)` | offset 沿 Y、读 `size.y` |
+| 反卡位 | `position.y += sign(velocity.y) * push_dist`（沿主轴 Y 推离） | X 方向推离 |
+| NaN 防护 | 重置 `Vector2.DOWN * speed` | `Vector2.RIGHT * speed` |
+| ScoreZone 接线 | ScoreZoneTop(360,0) → emit(0)=player；ScoreZoneBottom(360,1280) → emit(1)=ai | 左右竖区 |
+
+### 数据流差异（#383 后）
+
+```
+_process(delta)
+  ├── X boundary safety net: clamp + 反弹（左右墙）
+  └── Y boundary: emit score(side) + serve()（上下得分区）
+```
+
+Headless fallback 随画幅更新：`FALLBACK_SCREEN_WIDTH=720`、`FALLBACK_SCREEN_HEIGHT=1280`（均取 `CONSTS.SCREEN_*`）。
+
 ## Node Tree
 
 ```
