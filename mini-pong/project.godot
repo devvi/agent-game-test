@@ -19,6 +19,7 @@ config/features=PackedStringArray("4.7")
 
 GameManager="*res://gdscripts/game_manager.gd"
 AudioEngine="*res://gdscripts/audio_engine.gd"
+UpgradePool="*res://gdscripts/upgrade_pool.gd"
 
 [display]
 

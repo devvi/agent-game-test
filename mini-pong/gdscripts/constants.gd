@@ -94,3 +94,12 @@ const RAIN_WAVE_STEP: float = 0.1
 const RAIN_PULSE_PIERCE: float = 0.4
 const RAIN_BREATHING_DROP: float = 0.15
 const BG_COLOR: Color = Color(0.039, 0.039, 0.071, 1.0)          # #0a0a12
+
+# ── Upgrade Pool (#387) ──
+# 稀有度权重 60/30/10（common/rare/legendary）——AC2 精确权重，研究 spike 已证伪
+# "升级粒度加权无放回"（边际分布漂移到 55.7/37.8/6.5）。抽取 = 稀有度先掷 →
+# 稀有度内均匀选（见 upgrade_pool.gd get_candidates）。
+const UPGRADE_RARITY_WEIGHTS: Array[int] = [60, 30, 10]
+const UPGRADE_CANDIDATE_COUNT: int = 3
+const UPGRADE_POOL_SIZE: int = 9
+const UPGRADE_JSON_PATH: String = "res://assets/content/upgrade_pool.json"

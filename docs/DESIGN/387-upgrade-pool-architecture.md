@@ -372,10 +372,10 @@ _ready → _load_display_names()
 |------|:---:|:---:|------|:---:|
 | 波次结算取卡 | `UpgradePool.get_candidates(3)` | #386 | 清墙 → 调接口 | ⬜ pending |
 | 三卡数据 + 确认应用 | `get_candidates` / `apply(id)` | #388 | UI 数据入口（`upgrade_applied` 信号可监听） | ⬜ pending |
-| 效果目标（球） | `ball.gd` `balls` 组 + `speed_scale`/`set_speed_scale_timed` | #387 | ctx 惰性解析 + 实例属性写入 | ⬜ pending |
-| 效果目标（挡板） | `paddle.gd` `paddles` 组 + `set_paddle_width`/`magnet_*` | #387 | ctx 惰性解析 + 实例属性写入 | ⬜ pending |
-| 砖墙钩子注册/分发 | `brick_upgrade_hooks.gd` + `BreakoutGrid.upgrade_hooks` | #384（未落地） | `register_all(grid)`；效果经 `apply_upgrade_hook(id, ctx)` | ⬜ pending（契约先行） |
-| 显示字段只读 | `upgrade_pool.gd._load_display_names()` | #395 | `FileAccess` + `JSON.parse_string` + 逐级兜底 | ⬜ pending |
+| 效果目标（球） | `ball.gd` `balls` 组 + `speed_scale`/`set_speed_scale_timed` | #387 | ctx 惰性解析 + 实例属性写入（`add_to_group("balls")` + `set_speed_scale_timed` 已交付，TC-F5 通过） | ✅ connected |
+| 效果目标（挡板） | `paddle.gd` `paddles` 组 + `set_paddle_width`/`magnet_*` | #387 | ctx 惰性解析 + 实例属性写入（const→@export + `set_paddle_width`/磁心已交付，TC-F1–F4 通过） | ✅ connected |
+| 砖墙钩子注册/分发 | `brick_upgrade_hooks.gd` + `BreakoutGrid.upgrade_hooks` | #384（未落地） | `register_all(grid)`；效果经 `apply_upgrade_hook(id, ctx)`；钩子侧已交付（TC-H1/H2 假 grid 通过），grid 侧接线随 #384 | ⬜ pending（契约先行，钩子侧已交付） |
+| 显示字段只读 | `upgrade_pool.gd._load_display_names()` | #395 | `FileAccess` + `JSON.parse_string` + 逐级兜底（#395 JSON 已存在，消费已交付，TC-G1–G3 通过） | ✅ connected |
 
 ---
 

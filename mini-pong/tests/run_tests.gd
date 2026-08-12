@@ -26,6 +26,7 @@ func _run_tests() -> void:
 	_run("res://tests/test_pause.gd", "Pause")
 	_run("res://tests/test_audio_engine.gd", "AudioEngine")
 	_run("res://tests/test_constants.gd", "Constants")
+	_run("res://tests/test_upgrade_pool.gd", "Upgrade Pool")
 	_run("res://tests/test_main_scene.gd", "Main Scene Assembly")
 	_run("res://tests/test_rain.gd", "Rain Curtain")
 	_run("res://tests/test_integration_fsm.gd", "FSM Integration")

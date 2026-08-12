@@ -50,6 +50,7 @@ func run() -> void:
 	_test_cooldown_dup_h1()          # TC-H1: duplicate collision suppressed
 	_test_cooldown_expiry_h2()       # TC-H2: cooldown expires, collision processed
 	_print_ci_tests()                # TC-G1/G2: covered by CI
+	_test_speed_scale_f5()          # TC-F5 (#387 AC3, ball speed_scale)
 
 
 func _assert(condition: bool, name: String) -> void:
@@ -463,3 +464,19 @@ func _print_ci_tests() -> void:
 	print("  CI-COVERED: TC-G1 (zero exit code) — verified by godot --headless --quit")
 	print("  CI-COVERED: TC-G2 (no script errors) — verified by parse check")
 	print("  MANUAL: TC-F4 (serve 0.5s delay) — requires tree context for await timer")
+
+
+func _test_speed_scale_f5() -> void:
+	# TC-F5 (#387 AC3): speed_scale 实例属性 — 0.0 冻结位移；set_speed_scale_timed 2s 后恢复 1.0
+	var ball = _make_ball()
+	ball._ready()
+	ball.speed_scale = 0.0
+	var pos_before = ball.position
+	ball._process(0.016)
+	_assert(ball.position.distance_to(pos_before) < 0.001, "TC-F5: speed_scale=0 → no movement")
+	ball.set_speed_scale_timed(0.0, 2.0)
+	var elapsed := 0.0
+	while elapsed < 2.0:
+		ball._process(0.016)
+		elapsed += 0.016
+	_assert(abs(ball.speed_scale - 1.0) < 0.001, "TC-F5: speed_scale restored to 1.0 after 2s")

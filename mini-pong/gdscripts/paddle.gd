@@ -5,15 +5,23 @@ extends Area2D
 
 const CONSTS = preload("res://gdscripts/constants.gd")
 
-const SPEED: float = CONSTS.PADDLE_SPEED
-const PADDLE_WIDTH: float = CONSTS.PADDLE_WIDTH
-const PADDLE_HEIGHT: float = CONSTS.PADDLE_HEIGHT
 const FALLBACK_VIEWPORT_X: float = float(CONSTS.SCREEN_WIDTH)
 
 # ── Mode enum ──
 enum Mode { PLAYER = 0, AI = 1 }
 
 @export var mode: Mode = Mode.PLAYER
+
+# ── 实例级手感参数 (#387 AC3: const → @export，默认值仍 = CONSTS，#367 定稿值不变) ──
+@export var paddle_speed: float = CONSTS.PADDLE_SPEED
+@export var paddle_width: float = CONSTS.PADDLE_WIDTH
+@export var paddle_height: float = CONSTS.PADDLE_HEIGHT
+var base_paddle_width: float = CONSTS.PADDLE_WIDTH  # _ready 捕获（长臂加算基准）
+
+# ── 磁心 (#387，默认关；数值占位归 taste 域 #395) ──
+@export var magnet_enabled: bool = false
+@export var magnet_pull_radius: float = 180.0
+@export var magnet_pull_strength: float = 600.0
 
 # ── AI parameters (tunable in editor) ──
 @export var ai_reaction_delay_min: float = CONSTS.AI_REACTION_DELAY_MIN
@@ -62,18 +70,8 @@ func _ready() -> void:
 			InputMap.action_add_event("paddle_right", ev_right)
 
 	# Boundary calculation from viewport size (X 轴, #383)
-	var viewport = get_viewport()
-	var w := FALLBACK_VIEWPORT_X
-	if viewport != null:
-		var vs := viewport.get_visible_rect().size
-		if vs.x > 0.0:
-			w = vs.x
-	var half_width := PADDLE_WIDTH / 2.0
-	min_x = half_width
-	max_x = w - half_width
-
-	# Clamp initial position (safety net)
-	position.x = clamp(position.x, min_x, max_x)
+	base_paddle_width = paddle_width
+	_recalc_bounds()
 
 	# Register with paddles group for ball collision detection
 	add_to_group("paddles")
@@ -89,6 +87,7 @@ func _process(delta: float) -> void:
 		return
 	if mode == Mode.AI:
 		_ai_process(delta)
+		_apply_magnet(delta)
 		return
 
 	# Read input — simultaneous left+right cancels to zero
@@ -101,7 +100,8 @@ func _process(delta: float) -> void:
 		move = 1.0
 
 	# Apply movement (frame-rate independent) and clamp
-	position.x += move * SPEED * delta
+	position.x += move * paddle_speed * delta
+	_apply_magnet(delta)
 	position.x = clamp(position.x, min_x, max_x)
 
 
@@ -137,5 +137,44 @@ func _ai_process(delta: float) -> void:
 
 	# Move toward target and clamp
 	var move: float = sign(_ai_target_x - position.x)
-	position.x += move * SPEED * factor * delta
+	position.x += move * paddle_speed * factor * delta
 	position.x = clamp(position.x, min_x, max_x)
+
+
+## #387 AC3/AC5: 长臂升级入口 — 同步实例属性 + CollisionShape2D.size.x（球读
+## shape.size.x → 下一帧即时感知），并重算边界 + clamp（DESIGN §4.2 伪代码）。
+func set_paddle_width(w: float) -> void:
+	paddle_width = w
+	# 同步碰撞体（球读 shape.size.x → 即时感知）。节点名优先（场景惯例
+	# "CollisionShape2D"），动态/测试构造的节点可能未命名 → 遍历 fallback。
+	var cs = get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if cs == null:
+		for child in get_children():
+			if child is CollisionShape2D:
+				cs = child
+				break
+	if cs != null and cs.shape is RectangleShape2D:
+		cs.shape.size.x = w
+	_recalc_bounds()
+
+
+func _recalc_bounds() -> void:
+	var viewport = get_viewport()
+	var w := FALLBACK_VIEWPORT_X
+	if viewport != null:
+		var vs := viewport.get_visible_rect().size
+		if vs.x > 0.0:
+			w = vs.x
+	var half_width := paddle_width / 2.0
+	min_x = half_width
+	max_x = w - half_width
+	position.x = clamp(position.x, min_x, max_x)
+
+
+## 磁心 (#387): 磁力拉球 — 球 X 在半径内时向球 X 逼近（数值占位归 taste 域）。
+func _apply_magnet(delta: float) -> void:
+	if not magnet_enabled or _ball_node == null:
+		return
+	if abs(_ball_node.global_position.x - position.x) <= magnet_pull_radius:
+		position.x = move_toward(position.x, _ball_node.global_position.x, magnet_pull_strength * delta)
+		position.x = clamp(position.x, min_x, max_x)
