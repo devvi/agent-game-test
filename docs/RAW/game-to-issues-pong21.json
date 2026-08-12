@@ -1,0 +1,614 @@
+{
+  "meta": {
+    "title": "PONG://21 攻城战肉鸽 (垂直布局 + 砖墙 + 21分制 + 升级池)",
+    "description": "Mini Pong → 垂直攻城战肉鸽: 玩家底部/AI顶部/中立砖墙, 穿墙3分+拆砖1分, 先到21分赢, 波次3选1升级, 雨夜竞技场。P0 轴交换+竖屏 720x1280。",
+    "engine": "Godot 4.7.1",
+    "platform": "macOS",
+    "created_at": "2026-08-13T00:30:00Z",
+    "model": "deepseek/deepseek-v4-flash",
+    "status": "draft",
+    "total_issues": 14,
+    "project": "PONG://21",
+    "language": "GDScript",
+    "path": "mini-pong/",
+    "resolution": "720x1280",
+    "orientation": "portrait",
+    "mode": "vertical_siege_roguelike",
+    "win_score": 21,
+    "scoring": {
+      "through_wall": 3,
+      "brick_break": 1
+    }
+  },
+  "versions": {
+    "mvp": {
+      "name": "最小可玩版",
+      "description": "P0+全部机械组件+组装+验证+升级池文案",
+      "issues": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ]
+    },
+    "full": {
+      "name": "完整版",
+      "description": "全部 Issue",
+      "issues": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14
+      ]
+    }
+  },
+  "issues": [
+    {
+      "id": 1,
+      "title": "[Refactor] 轴交换+竖屏(P0前置)",
+      "description": "将现有横屏 PONG 翻转为 720x1280 竖屏布局：得分轴 X→Y，发球改为垂直；paddle 移动轴 Y→X，输入使用 A/D；AI 追踪从 Y 轴改写为 X 轴；Main.tscn 中玩家挡板 y=1240、AI 挡板 y=40；constants 定义 SCREEN 720/1280；run-e2e-review.sh 支持 --resolution 720x1280；物理测试重写；FSM 与 scoring 流程保持不变。",
+      "context": "P0 前置：后续砖墙、雨幕、HUD 都依赖竖屏坐标系统。",
+      "depth": "deep",
+      "priority": "critical",
+      "dependencies": [],
+      "labels": [
+        "refactor",
+        "p0",
+        "vertical",
+        "input",
+        "ai",
+        "test"
+      ],
+      "estimate": 8,
+      "milestone": "mvp",
+      "content_ownership": "mechanical",
+      "acceptance_criteria": [
+        "项目以 720x1280 竖屏模式正常运行",
+        "玩家 paddle 位于 y=1240、AI paddle 位于 y=40，且 x 轴移动范围正确",
+        "A/D 控制玩家 paddle，AI 沿 X 轴追踪球；Y 轴输入不再影响 paddle",
+        "球从底部/顶部垂直发球，Y 方向出界触发得分，X 方向继续反弹",
+        "run-e2e-review.sh --resolution 720x1280 与物理测试全部通过，FSM/scoring 行为不变"
+      ]
+    },
+    {
+      "id": 2,
+      "title": "[Feature] 砖墙系统",
+      "description": "新增 BreakoutGrid 节点：程序化生成横跨屏幕的砖墙，支持留缝、错位、缺口三种布局；球碰砖后砖块碎裂并反弹；洞口/缺口无碰撞体；整墙打空后发出 wall_cleared 信号。",
+      "context": "砖墙是拆砖得分、穿墙策略与波次重置的核心对象。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "labels": [
+        "brick",
+        "breakout",
+        "procedural",
+        "physics"
+      ],
+      "estimate": 5,
+      "milestone": "mvp",
+      "content_ownership": "mechanical",
+      "acceptance_criteria": [
+        "每波可生成至少 1 面横跨屏幕的砖墙，砖块布局包含留缝、错位和缺口",
+        "球与砖块碰撞后砖块移除并反弹，反弹方向符合物理规则",
+        "洞口/缺口区域无碰撞体，球可自由穿过",
+        "砖墙打空后只发出一次 wall_cleared 信号",
+        "生成参数集中在 BreakoutGrid 配置中，可驱动波次厚度/形状"
+      ]
+    },
+    {
+      "id": 3,
+      "title": "[Feature] 双得分制",
+      "description": "扩展 GameManager 支持双得分制：拆砖 1 分（计给最后触球方），穿墙 3 分；任意一方先到 21 分获胜；接入 BreakoutGrid 的拆砖事件和 ball 的穿越/出界事件，维护最后触球者；提供查询接口给 HUD/结算/失败屏。",
+      "context": "新的胜利条件与 roguelike 单局节奏绑定。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        1,
+        2
+      ],
+      "labels": [
+        "scoring",
+        "game_manager",
+        "win_condition"
+      ],
+      "estimate": 5,
+      "milestone": "mvp",
+      "content_ownership": "mechanical",
+      "acceptance_criteria": [
+        "拆掉一块砖给最后触球方 +1 分，并更新 HUD",
+        "球未被接住从上/下出界且穿越砖墙时，给得分方 +3 分",
+        "任意一方达到 21 分时 GameManager 进入终局状态",
+        "同一帧的拆砖/穿墙不会重复计分",
+        "GameManager 可查询每方拆砖数、穿墙数，供结算/失败屏使用"
+      ]
+    },
+    {
+      "id": 4,
+      "title": "[Feature] 波次循环",
+      "description": "实现波次循环：墙打空后触发结算，进入下一波；每波重建砖墙并增大难度（AI 速度/反应、墙厚/密度等）；维护 wave_index；GameManager 持有波次状态机。",
+      "context": "清墙→升级→更强 AI 的循环骨架。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        1,
+        2,
+        3
+      ],
+      "labels": [
+        "wave",
+        "loop",
+        "difficulty",
+        "game_manager"
+      ],
+      "estimate": 5,
+      "milestone": "mvp",
+      "content_ownership": "mechanical",
+      "acceptance_criteria": [
+        "每波清空后进入波次结算，然后自动生成新墙并开始下一波",
+        "下一波的 AI 速度/反应或砖墙厚度至少有一项高于上一波",
+        "全局 wave_index 从 1 开始递增，并在 UI/转场中可读",
+        "波次循环不会叠加多个旧墙，旧砖/旧粒子全部清理",
+        "任一玩家达到 21 分后波次循环停止，不再生成新墙"
+      ]
+    },
+    {
+      "id": 5,
+      "title": "[Feature] 升级池架构",
+      "description": "实现数据驱动升级池：9 个情绪化升级（长臂/燃烧弹/破城锤/磁心/双生/缓时/预开洞/星尘/幻影）；稀有度权重 60/30/10；将 ball/paddle 参数由 const 改为实例属性以支持动态修改；对砖墙类升级通过 BreakoutGrid 预留 upgrade_hooks；提供 UpgradePool 查询与抽取接口。",
+      "context": "升级是每波成长的核心，3 选 1 UI 的数据来源。",
+      "depth": "deep",
+      "priority": "high",
+      "dependencies": [
+        1,
+        2
+      ],
+      "labels": [
+        "upgrades",
+        "roguelike",
+        "data-driven",
+        "architecture"
+      ],
+      "estimate": 8,
+      "milestone": "mvp",
+      "content_ownership": "mechanical",
+      "acceptance_criteria": [
+        "升级池包含 9 个独立升级定义，每个都有 id/名称/稀有度/效果回调",
+        "抽取时按 60/30/10 权重返回升级，且支持不可重复或堆叠配置",
+        "升级后 ball/paddle 参数是实例级而不是常量，参数变化在下一帧生效",
+        "预开洞等砖墙类升级通过 BreakoutGrid upgrade_hooks 接入",
+        "提供 get_candidates(3) 与 apply(upgrade_id) 接口，供 3 选 1 UI 调用"
+      ]
+    },
+    {
+      "id": 6,
+      "title": "[Feature] 3选1升级UI",
+      "description": "实现波间 3 选 1 升级 UI：三张霓虹卡片展示候选；键盘左右切换、确认选择；选择后 reveal 稀有度并应用升级；UI 打开时暂停游戏。",
+      "context": "连接 UpgradePool 与波次循环的关键交互层。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        4,
+        5
+      ],
+      "labels": [
+        "ui",
+        "upgrades",
+        "input",
+        "pause"
+      ],
+      "estimate": 3,
+      "milestone": "mvp",
+      "content_ownership": "mechanical",
+      "acceptance_criteria": [
+        "波间自动弹出三张卡片，焦点默认在第一张",
+        "左右方向键切换焦点，确认键应用选中升级并关闭 UI",
+        "稀有度以颜色/边框显现，确认后才展示完整稀有度",
+        "UI 打开时游戏时间暂停，关闭后恢复",
+        "候选升级来自 UpgradePool.get_candidates(3)"
+      ]
+    },
+    {
+      "id": 7,
+      "title": "[Feature] 动态雨幕",
+      "description": "新建 GPUParticles2D 雨幕；雨量强度 = base + 球速 + 波次 + 紧张度 + 事件脉冲 - 喘息，clamp(0.1,1.0)；实时改变粒子的发射速率/速度/密度，形成雨夜竞技场。",
+      "context": "雨量是视觉紧张感的动态指示器。",
+      "depth": "standard",
+      "priority": "medium",
+      "dependencies": [
+        1
+      ],
+      "labels": [
+        "fx",
+        "rain",
+        "particles",
+        "atmosphere"
+      ],
+      "estimate": 3,
+      "milestone": "mvp",
+      "content_ownership": "mechanical",
+      "acceptance_criteria": [
+        "场景内存在 GPUParticles2D 雨幕且默认雨量可调",
+        "雨量由公式计算并 clamp 在 0.1..1.0",
+        "球速/波次/拆砖事件会提高雨量，喘息期会降低雨量",
+        "雨量变化在 0.5s 内平滑过渡，不产生突兀跳变",
+        "--headless 下粒子场景不报错"
+      ]
+    },
+    {
+      "id": 8,
+      "title": "[Feature] 波次转场",
+      "description": "波次开始前播放转场：大字显示“第 N 道墙”+ 副句；2 秒淡入/停留/淡出；转场期间暂停游戏；副句从文本配置读取。",
+      "context": "给每波一个清晰的呼吸点与仪式感。",
+      "depth": "light",
+      "priority": "medium",
+      "dependencies": [
+        4
+      ],
+      "labels": [
+        "ui",
+        "transition",
+        "wave"
+      ],
+      "estimate": 2,
+      "milestone": "mvp",
+      "content_ownership": "mechanical",
+      "acceptance_criteria": [
+        "每次新波开始播放“第 N 道墙”+副句",
+        "转场总时长 2.0 秒（淡入-停留-淡出）",
+        "转场期间游戏暂停，完成后解锁",
+        "字号/描边适配 720x1280，不遮挡 HUD 核心区域",
+        "副句内容从统一文本配置读取"
+      ]
+    },
+    {
+      "id": 9,
+      "title": "[Feature] 失败屏",
+      "description": "玩家失败后进入失败屏：展示一句短句 + run 数据（波次、拆砖、穿墙）；保持克制、不堆特效；数据来自 GameManager。",
+      "context": "让失败提供信息与氛围，而不是惩罚性界面。",
+      "depth": "light",
+      "priority": "medium",
+      "dependencies": [
+        3,
+        4
+      ],
+      "labels": [
+        "ui",
+        "game_over",
+        "run_data"
+      ],
+      "estimate": 2,
+      "milestone": "mvp",
+      "content_ownership": "mechanical",
+      "acceptance_criteria": [
+        "玩家失败时切换至失败屏",
+        "展示波次、总拆砖数、总穿墙数 3 项 run 数据",
+        "短句从配置读取且无 emoji/夸张语气",
+        "失败屏出现时游戏暂停",
+        "可重开进入新一轮"
+      ]
+    },
+    {
+      "id": 10,
+      "title": "[Feature] 霓虹UI升级",
+      "description": "升级 HUD 视觉和结构：霓虹字体描边+微投影；顶部 AI 红色区、底部玩家蓝色区；拆砖与穿墙分区分开显示；增加当前波次与剩余砖数；所有更新走信号。",
+      "context": "雨幕与霓虹 UI 共同构成竖屏赛博体育场观感。",
+      "depth": "standard",
+      "priority": "medium",
+      "dependencies": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "labels": [
+        "ui",
+        "neon",
+        "hud",
+        "typography"
+      ],
+      "estimate": 5,
+      "milestone": "mvp",
+      "content_ownership": "mechanical",
+      "acceptance_criteria": [
+        "HUD 所有数字使用霓虹描边+微投影样式，在雨幕动效下可读",
+        "玩家为蓝色，AI 为红色，拆砖和穿墙分数在两个独立区域",
+        "HUD 显示当前波次和剩余砖数（由 BreakoutGrid 提供）",
+        "720x1280 下 HUD 不遮挡球道与砖墙主体",
+        "分数更新来自 GameManager 信号，不使用轮询"
+      ]
+    },
+    {
+      "id": 11,
+      "title": "[Integration] 主场景组装",
+      "description": "将 1-10 全部组件接入 Main.tscn：BreakoutGrid、GameManager、UpgradePool、3 选 1 UI、雨幕、波次转场、失败屏、霓虹 HUD；确保信号链完整，清理临时调试代码。",
+      "context": "集成是所有功能首次协作的关键节点。",
+      "depth": "deep",
+      "priority": "critical",
+      "dependencies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "labels": [
+        "integration",
+        "main_scene",
+        "signals",
+        "gameplay"
+      ],
+      "estimate": 8,
+      "milestone": "mvp",
+      "content_ownership": "mechanical",
+      "acceptance_criteria": [
+        "Main.tscn 可直接运行完整一局，不需要额外手工连线",
+        "墙清空→波次结算→升级→新墙→AI 增强的循环完整",
+        "HUD 分数/波次/剩余砖数随信号实时更新",
+        "失败屏与获胜状态均可到达，无孤立信号或错误",
+        "运行 10 局无脚本错误/空引用，场景树无泄漏"
+      ]
+    },
+    {
+      "id": 12,
+      "title": "[Test] 端到端可玩验证",
+      "description": "编写 AI vs AI 自动对打端到端测试：自动完成波次循环直至 21 分；对砖墙生成、拆砖计分、穿墙计分、升级应用做脚本化断言；以 --headless 模式全绿。",
+      "context": "用自动化锁定可玩闭环，避免回归。",
+      "depth": "deep",
+      "priority": "high",
+      "dependencies": [
+        11
+      ],
+      "labels": [
+        "test",
+        "e2e",
+        "headless",
+        "ai"
+      ],
+      "estimate": 8,
+      "milestone": "mvp",
+      "content_ownership": "mechanical",
+      "acceptance_criteria": [
+        "新增 e2e 测试场景，AI vs AI 可自动打完一局到 21 分",
+        "断言每波生成砖墙且打空后触发升级 UI 数据流",
+        "断言拆砖 +1、穿墙 +3 的最终总分与事件计数一致",
+        "覆盖至少 3 个升级在测试局中被应用后参数变化生效",
+        "run-e2e-review.sh --headless 全部通过且 exit code 0"
+      ]
+    },
+    {
+      "id": 13,
+      "title": "[Content] 升级池文案定稿(B2/B5)",
+      "description": "为 9 个升级撰写短句与命名候选；每条含 #DRAFT 标注、情绪断言和 2-3 个候补命名；风格贴合雨夜竞技场；写入独立 content 资源。",
+      "context": "taste-draft：品味文案任务，不进入依赖链，不阻塞机械管线。",
+      "depth": "light",
+      "priority": "low",
+      "dependencies": [],
+      "labels": [
+        "content",
+        "upgrades",
+        "copywriting",
+        "taste-draft"
+      ],
+      "estimate": 2,
+      "milestone": "mvp",
+      "content_ownership": "taste-draft",
+      "acceptance_criteria": [
+        "9 个升级各有 1 条中文短句（≤12 字）",
+        "每个升级至少 2 个命名候选，并标注推荐项",
+        "每条含 #DRAFT 与情绪断言（如愤怒/好奇/克制）",
+        "文案不使用网络梗、emoji、感叹号",
+        "所有文案放入独立 content 资源文件，不硬编码在逻辑节点"
+      ]
+    },
+    {
+      "id": 14,
+      "title": "[Content] 波次副句与失败短句(B5)",
+      "description": "为波次副句与失败短句提供候选清单，2-3 选 1；海明威式克制短句；包含适用语境；写入独立 content 资源。",
+      "context": "taste-draft：内容插槽与 UI 已预留，本任务只决定最终文案。",
+      "depth": "light",
+      "priority": "low",
+      "dependencies": [],
+      "labels": [
+        "content",
+        "copywriting",
+        "wave",
+        "game_over",
+        "taste-draft"
+      ],
+      "estimate": 2,
+      "milestone": "full",
+      "content_ownership": "taste-draft",
+      "acceptance_criteria": [
+        "提供至少 3 条波次副句候选，每条 ≤15 字",
+        "提供至少 3 条失败短句候选，每条 ≤10 字",
+        "全部为海明威式短句，无形容词堆砌和感叹号",
+        "每条注明适用语境（第几波/失败 severity）",
+        "文案放入 content 资源配置，不作为注释散落代码"
+      ]
+    }
+  ],
+  "dependency_graph": {
+    "nodes": [
+      {
+        "id": 1
+      },
+      {
+        "id": 2
+      },
+      {
+        "id": 3
+      },
+      {
+        "id": 4
+      },
+      {
+        "id": 5
+      },
+      {
+        "id": 6
+      },
+      {
+        "id": 7
+      },
+      {
+        "id": 8
+      },
+      {
+        "id": 9
+      },
+      {
+        "id": 10
+      },
+      {
+        "id": 11
+      },
+      {
+        "id": 12
+      }
+    ],
+    "edges": [
+      {
+        "from": 2,
+        "to": 1
+      },
+      {
+        "from": 3,
+        "to": 1
+      },
+      {
+        "from": 3,
+        "to": 2
+      },
+      {
+        "from": 4,
+        "to": 1
+      },
+      {
+        "from": 4,
+        "to": 2
+      },
+      {
+        "from": 4,
+        "to": 3
+      },
+      {
+        "from": 5,
+        "to": 1
+      },
+      {
+        "from": 5,
+        "to": 2
+      },
+      {
+        "from": 6,
+        "to": 4
+      },
+      {
+        "from": 6,
+        "to": 5
+      },
+      {
+        "from": 7,
+        "to": 1
+      },
+      {
+        "from": 8,
+        "to": 4
+      },
+      {
+        "from": 9,
+        "to": 3
+      },
+      {
+        "from": 9,
+        "to": 4
+      },
+      {
+        "from": 10,
+        "to": 1
+      },
+      {
+        "from": 10,
+        "to": 2
+      },
+      {
+        "from": 10,
+        "to": 3
+      },
+      {
+        "from": 10,
+        "to": 4
+      },
+      {
+        "from": 11,
+        "to": 1
+      },
+      {
+        "from": 11,
+        "to": 2
+      },
+      {
+        "from": 11,
+        "to": 3
+      },
+      {
+        "from": 11,
+        "to": 4
+      },
+      {
+        "from": 11,
+        "to": 5
+      },
+      {
+        "from": 11,
+        "to": 6
+      },
+      {
+        "from": 11,
+        "to": 7
+      },
+      {
+        "from": 11,
+        "to": 8
+      },
+      {
+        "from": 11,
+        "to": 9
+      },
+      {
+        "from": 11,
+        "to": 10
+      },
+      {
+        "from": 12,
+        "to": 11
+      }
+    ]
+  }
+}
