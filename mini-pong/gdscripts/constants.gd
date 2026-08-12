@@ -143,3 +143,23 @@ const FAILURE_TEXT_DEFAULT_PHRASE: String = "墙还在，雨未停"             
 const FAILURE_WAVE_TIER1_MAX: int = 2    # fp1 早败（波 1-2）
 const FAILURE_WAVE_TIER2_MAX: int = 5    # fp2 中败（波 3-5）
 const FAILURE_WAVE_TIER3_MIN: int = 6    # fp3 晚败（波 6+）
+# ── Upgrade Pick UI (#388) ──
+# 3 选 1 升级选择层（PLAN-rogue-pong §3.3：3 张霓虹卡片、glow 边框、数值大字、
+# 动效 Tween 150–300ms）。色值为 taste 占位（沿 #387 机械占位先例），映射键机械定稿。
+const UPGRADE_UI_LAYER: int = 2                     # GameHUD(1) 之上、PauseOverlay(10) 之下（DESIGN #388 差异决策 1）
+const UPGRADE_UI_CARD_WIDTH: float = 180.0          # 卡片尺寸（taste 占位）
+const UPGRADE_UI_CARD_HEIGHT: float = 260.0
+const UPGRADE_UI_CARD_SEPARATION: float = 16.0
+const UPGRADE_UI_FOCUS_TWEEN: float = 0.15          # 焦点切换动效 150ms（PLAN §3.3 区间内）
+const UPGRADE_UI_REVEAL_TWEEN: float = 0.25         # reveal 动效 250ms
+const UPGRADE_UI_REVEAL_HOLD: float = 0.8           # reveal 展示时长（DESIGN 差异决策 2；taste 占位，测试可注入缩短）
+const UPGRADE_UI_NEUTRAL_BORDER: Color = Color(0.29, 0.56, 0.85, 0.6)   # 确认前中性霓虹边框（无稀有度线索，AC3）
+const UPGRADE_UI_FOCUS_BORDER: Color = Color(0.45, 0.75, 1.0, 1.0)      # 聚焦高亮边框
+const UPGRADE_UI_IDLE_MODULATE: Color = Color(0.7, 0.7, 0.75, 1.0)      # 非焦点卡调暗
+const UPGRADE_UI_FOCUS_MODULATE: Color = Color(1.0, 1.0, 1.0, 1.0)      # 焦点卡全亮
+const UPGRADE_RARITY_COLORS: Dictionary = {         # AC3：稀有度 → 边框/光晕色（taste 占位色值，映射键机械定稿）
+	0: Color(0.29, 0.56, 0.85, 1.0),   # COMMON    → 霓虹蓝系（PLAYER_NEON_BLUE 同系）
+	1: Color(0.62, 0.32, 0.95, 1.0),   # RARE      → 霓虹紫系
+	2: Color(1.0, 0.78, 0.2, 1.0),     # LEGENDARY → 金系
+}
+const UPGRADE_RARITY_NAMES: Dictionary = {0: "普通", 1: "稀有", 2: "传说"}   # AC3 稀有度名称（确认后展示）

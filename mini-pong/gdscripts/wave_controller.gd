@@ -21,9 +21,11 @@ const CONSTS = preload("res://gdscripts/constants.gd")
 
 var _settling: bool = false   # 结算中守卫：忽略重复 wall_cleared / 并发信号（边界 4）
 var settle_delay: float = CONSTS.WAVE_SETTLE_DELAY   # 结算 → 下一波延时（测试可注入短延时；#388 接线后由其接管推进时机）
+var settle_hold: bool = false   # #388 推进接管：true = 结算后暂停自动推进，等待 UpgradePickUI 调 advance_settlement()（默认 false 保持 #386 行为）
 
 
 func _ready() -> void:
+	add_to_group("wave_controllers")   # #388：UpgradePickUI 经 group 寻址推进接管（未挂载时 no-op）
 	if breakout_grid != null and breakout_grid.has_signal("wall_cleared"):
 		breakout_grid.wall_cleared.connect(_on_wall_cleared)
 	else:
@@ -39,9 +41,24 @@ func _on_wall_cleared() -> void:
 		GameManager.end_wave_cycle()          # AC5：21 分后停止，不生成新墙
 		_settling = false
 		return
-	await get_tree().create_timer(settle_delay).timeout   # 结算延时（#388 接线后由其接管推进时机）
+	if settle_hold:
+		return                                # #388：推进时机由 UI 接管（_settling 保持 true 等待 advance_settlement）
+	await get_tree().create_timer(settle_delay).timeout   # 结算延时（#386 自动推进路径，默认行为不变）
 	if not is_inside_tree():
 		return                     # 已移出场景（清理/场景切换）——不再推进波次，防悬挂协程泄漏
+	_advance_wave()
+	_settling = false
+
+
+## #388：UI 关闭后显式推进（等价原延时后的动作 + _settling 复位）。幂等：非结算期 no-op。
+## 终局竞态（边界 5）：reveal 期间到 21 分 → run-over 分支 end_wave_cycle，不生成新墙。
+func advance_settlement() -> void:
+	if not _settling:
+		return
+	if GameManager.is_run_over():
+		GameManager.end_wave_cycle()
+		_settling = false
+		return
 	_advance_wave()
 	_settling = false
 

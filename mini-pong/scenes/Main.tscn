@@ -11,6 +11,7 @@
 [ext_resource type="PackedScene" path="res://scenes/world_environment.tscn" id="9_world_env"]
 [ext_resource type="Script" path="res://gdscripts/score_flash.gd" id="10_score_flash"]
 [ext_resource type="PackedScene" path="res://scenes/rain_curtain.tscn" id="11_rain_curtain"]
+[ext_resource type="PackedScene" path="res://scenes/ui_upgrade_pick.tscn" id="12_upgrade_pick"]
 
 [sub_resource type="RectangleShape2D" id="rect_wall_left"]
 size = Vector2(10, 1280)
@@ -164,6 +165,8 @@ modulate = Color(1.0, 1.0, 1.0, 1.0)
 layer = 10
 visible = false
 script = ExtResource("8")
+
+[node name="UpgradePickUI" parent="." instance=ExtResource("12_upgrade_pick")]
 
 [node name="ColorRect" type="ColorRect" parent="PauseOverlay"]
 anchors_preset = 15
