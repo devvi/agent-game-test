@@ -101,3 +101,15 @@ func _test_tc8_color_values() -> void:
 	_assert(abs(CONSTS.BG_COLOR.r - 0.039) < 0.01, "TC8-4: BG_COLOR.r == 0.039")
 	_assert(abs(CONSTS.BG_COLOR.g - 0.039) < 0.01, "TC8-5: BG_COLOR.g == 0.039")
 	_assert(abs(CONSTS.BG_COLOR.b - 0.071) < 0.01, "TC8-6: BG_COLOR.b == 0.071")
+
+
+# ── TC9: Dual scoring constants (#385) match DESIGN spec ──
+
+func _test_dual_scoring_constants() -> void:
+	var CONSTS = load("res://gdscripts/constants.gd")
+	_assert(CONSTS != null, "TC9-1: constants.gd loads for dual-scoring tests")
+
+	# Dual scoring (#385): brick 1pt / pierce 3pt / 21-point match over
+	_assert(CONSTS.BRICK_SCORE == 1, "TC9-2: BRICK_SCORE == 1")
+	_assert(CONSTS.PIERCE_SCORE == 3, "TC9-3: PIERCE_SCORE == 3")
+	_assert(CONSTS.WIN_SCORE == 21, "TC9-4: WIN_SCORE == 21")
