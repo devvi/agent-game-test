@@ -9,12 +9,20 @@ var failed: int = 0
 # ── Signal capture state ──
 var _captured_scores: Array = []
 var _captured_match_overs: Array = []
+var _captured_wave_started: Array = []
+var _captured_wave_settled: Array = []
 
 func _on_score_changed(p_score: int, a_score: int) -> void:
 	_captured_scores.append([p_score, a_score])
 
 func _on_match_over(winner: String) -> void:
 	_captured_match_overs.append(winner)
+
+func _on_wave_started(idx: int) -> void:
+	_captured_wave_started.append(idx)
+
+func _on_wave_settled(idx: int) -> void:
+	_captured_wave_settled.append(idx)
 
 
 func run() -> void:
@@ -34,6 +42,13 @@ func run() -> void:
 	_test_reset_match_full_reset()
 	_test_query_api()
 	_test_amount_zero_ignored()
+	# Scenario G-2: 波次状态机 API (#386)
+	_test_wave_initial_state()
+	_test_wave_begin()
+	_test_wave_settle()
+	_test_wave_settle_idle_noop()
+	_test_wave_end_cycle()
+	_test_wave_reset_match()
 
 
 # ── Helpers ──
@@ -290,3 +305,84 @@ func _test_amount_zero_ignored() -> void:
 	_assert(_captured_scores.size() == 0, "AZ: no signal")
 
 	_disconnect_signals(gm)
+
+# ── Scenario G-2: 波次状态机 API (#386, DESIGN §2.2) ──
+
+## 初始状态: IDLE 期 wave_index == 0、is_wave_cycle_active == false
+func _test_wave_initial_state() -> void:
+	var gm = _make_gm()
+	_assert(gm.wave_index == 0, "W-1: 初始 wave_index == 0（IDLE 期）")
+	_assert(gm.wave_state == gm.WaveState.IDLE, "W-1: 初始 wave_state == IDLE")
+	_assert(gm.is_wave_cycle_active() == false, "W-1: 初始 is_wave_cycle_active == false")
+
+
+## begin_wave: wave_index +1 → RUNNING → wave_started(负载==index)
+func _test_wave_begin() -> void:
+	var gm = _make_gm()
+	_captured_wave_started.clear()
+	gm.wave_started.connect(_on_wave_started)
+
+	gm.begin_wave()
+	_assert(gm.wave_index == 1, "W-2: begin_wave → wave_index == 1")
+	_assert(gm.wave_state == gm.WaveState.RUNNING, "W-2: begin_wave → RUNNING")
+	_assert(gm.is_wave_cycle_active() == true, "W-2: begin_wave → is_wave_cycle_active == true")
+	_assert(_captured_wave_started.size() == 1 and _captured_wave_started[0] == 1,
+		"W-2: wave_started 恰好一次且负载 == 1")
+
+	gm.wave_started.disconnect(_on_wave_started)
+
+
+## settle_wave: RUNNING → SETTLED → wave_settled(负载==index)
+func _test_wave_settle() -> void:
+	var gm = _make_gm()
+	_captured_wave_settled.clear()
+	gm.wave_settled.connect(_on_wave_settled)
+	gm.begin_wave()
+
+	gm.settle_wave()
+	_assert(gm.wave_state == gm.WaveState.SETTLED, "W-3: settle_wave → SETTLED")
+	_assert(_captured_wave_settled.size() == 1 and _captured_wave_settled[0] == 1,
+		"W-3: wave_settled 恰好一次且负载 == 1")
+
+	gm.wave_settled.disconnect(_on_wave_settled)
+
+
+## settle_wave 在 IDLE 期调用 → no-op（无状态变更、无信号）
+func _test_wave_settle_idle_noop() -> void:
+	var gm = _make_gm()
+	_captured_wave_settled.clear()
+	gm.wave_settled.connect(_on_wave_settled)
+
+	gm.settle_wave()
+	_assert(gm.wave_state == gm.WaveState.IDLE, "W-4: IDLE 期 settle 为 no-op（保持 IDLE）")
+	_assert(_captured_wave_settled.size() == 0, "W-4: IDLE 期 settle 不发信号")
+
+	gm.wave_settled.disconnect(_on_wave_settled)
+
+
+## end_wave_cycle: → IDLE、wave_index 保留（run 统计可读）
+func _test_wave_end_cycle() -> void:
+	var gm = _make_gm()
+	gm.begin_wave()
+	gm.settle_wave()
+
+	gm.end_wave_cycle()
+	_assert(gm.wave_state == gm.WaveState.IDLE, "W-5: end_wave_cycle → IDLE")
+	_assert(gm.is_wave_cycle_active() == false, "W-5: end_wave_cycle → is_wave_cycle_active == false")
+	_assert(gm.wave_index == 1, "W-5: wave_index 保留（AC5 停止后 run 统计可读）")
+
+
+## reset_match: wave_index 归零 + IDLE（边界 1：首波从 1 起）
+func _test_wave_reset_match() -> void:
+	var gm = _make_gm()
+	gm.begin_wave()
+	gm.settle_wave()
+	_assert(gm.wave_index == 1, "W-6: 前置 wave_index == 1")
+
+	gm.reset_match()
+	_assert(gm.wave_index == 0, "W-6: reset_match → wave_index == 0")
+	_assert(gm.wave_state == gm.WaveState.IDLE, "W-6: reset_match → IDLE")
+	_assert(gm.is_wave_cycle_active() == false, "W-6: reset_match → is_wave_cycle_active == false")
+
+	gm.begin_wave()
+	_assert(gm.wave_index == 1, "W-6: reset 后首波仍从 1 起")

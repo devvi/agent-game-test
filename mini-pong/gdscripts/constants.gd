@@ -85,6 +85,17 @@ const WIN_SCORE: int = 21         # 终局分：任一方总分先到 21 获胜�
 const GRID_WALL_Y: float = 640.0  # 砖墙中线 Y（与 #384 DESIGN #414 同值；#393 组装时统一对齐）
 const WALL_BAND_HALF_HEIGHT: float = 22.0  # 墙带判定半高 = BRICK_SIZE.y/2(12) + BALL_RADIUS(10)，防高速球单帧漏判
 
+# ── Wave Cycle (#386) ──
+# 波次循环 (PLAN-rogue-pong §2.1; mechanical; 数值曲线占位归 taste-draft)
+const WAVE_START_THICKNESS: int = 1        # 首波厚度（行数）——机械占位，taste-draft 可调
+const WAVE_THICKNESS_STEP: int = 1         # 每波厚度增量（AC2 厚度杠杆）
+const WAVE_MAX_INDEX: int = 99             # 波次上限防御（21 分制下实际远早触发 AC5）
+const WAVE_SETTLE_DELAY: float = 1.0       # 结算 → 下一波自动延时（#388 接线后由其接管推进时机）
+const AI_DIFFICULTY_FACTOR: float = 0.9    # 每波 AI 参数收紧系数（<1 = 更难；taste-draft 占位）
+const AI_REACTION_DELAY_MIN_FLOOR: float = 0.05  # 收紧下限（clamp，防过度）
+const AI_REACTION_DELAY_MAX_FLOOR: float = 0.12
+const AI_POSITION_ERROR_FLOOR: float = 8.0
+
 # ── Colors ──
 const PLAYER_NEON_BLUE: Color = Color(0.29, 0.56, 0.85, 1.0)   # #4a90d9
 const AI_NEON_RED: Color = Color(1.0, 0.2, 0.33, 1.0)            # #ff3355

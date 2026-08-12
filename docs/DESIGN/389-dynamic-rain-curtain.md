@@ -105,7 +105,7 @@ current += (target_rain − current) × (1 − exp(−delta / RAIN_SMOOTH_TAU)) 
 
 | API | 语义 | 来源 Issue | 默认 |
 |-----|------|-----------|:----:|
-| `set_wave_factor(wave_index: int)` | 波次因子 = wave_index × +0.1 | #386 波次循环 | 0 |
+| `set_wave_factor(wave_index: int)` | 波次因子 = wave_index × +0.1（#386 WaveController._advance_wave 已接线调用） | #386 波次循环 | 0 |
 | `trigger_event_pulse(amount: float)` | 事件脉冲（穿墙 +0.4 回落 / 波失败 1.0 / 拆砖小脉冲） | #384/#385/#386 | 0 |
 | `set_breathing(active: bool)` | 喘息窗口 −0.15 | #388 升级 UI | false |
 | `set_intensity(value: float)` | 调试口：直接设目标雨量（不走公式） | — | — |

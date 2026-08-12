@@ -285,12 +285,13 @@ _advance_wave（仅测试直调时）：grid 无 generate_wave → push_warning�
 
 | Integration | Our Component | Target Issue | How | Status |
 |-------------|:---:|:---:|-----|:---:|
-| `BreakoutGrid.wall_cleared()` → 波次推进 | WaveController._on_wall_cleared | #384 → 本 Issue 消费 | signal connect（`get_node_or_null` 容错，节点名 `../BreakoutGrid`） | ⬜ pending |
-| `GameManager.wave_started(wave_index)` → 波次转场/HUD | —（本 Issue 只保证发出与负载） | #390 / #393 | 信号消费（「第 N 道墙」文案/布局归下游） | ⬜ pending |
-| `GameManager.wave_settled(wave_index)` → 升级抽取 | —（本 Issue 只发挂点） | #388 | 信号消费（升级 UI 归 #388，其触发时机=本挂点） | ⬜ pending |
+| `BreakoutGrid.wall_cleared()` → 波次推进 | WaveController._on_wall_cleared | #384 → 本 Issue 消费 | signal connect（`get_node_or_null` 容错，节点名 `../BreakoutGrid`） | ✅ 已接线 |
+| `GameManager.wave_started(wave_index)` → 波次转场/HUD | —（本 Issue 只保证发出与负载） | #390 / #393 | 信号消费（「第 N 道墙」文案/布局归下游） | ✅ 已发出（消费归 #390/#393） |
+| `GameManager.wave_settled(wave_index)` → 升级抽取 | —（本 Issue 只发挂点） | #388 | 信号消费（升级 UI 归 #388，其触发时机=本挂点） | ✅ 已发出（消费归 #388） |
 | `GameManager.match_over` → FSM GAME_OVER | GameStateMachine._on_match_over | 本 Issue 内部 | 既有连接（AC5 复用，零改动） | ✅ 已存在 |
-| paddle.gd AI 实例参数 → 每波缩放 | WaveController._apply_difficulty | 本 Issue 内部 | 运行时改实例属性（#387 已实例级 @export，PRD §7 实验 2 确认） | ✅ 已就绪 |
-| `GameManager.reset_match()` → 波次重置 | 本 Issue 内部 | reset_match() 追加 `wave_index=0` / `wave_state=IDLE` | ⬜ 新增 |
+| paddle.gd AI 实例参数 → 每波缩放 | WaveController._apply_difficulty | 本 Issue 内部 | 运行时改实例属性（#387 已实例级 @export，PRD §7 实验 2 确认） | ✅ 已接线 |
+| `GameManager.reset_match()` → 波次重置 | 本 Issue 内部 | reset_match() 追加 `wave_index=0` / `wave_state=IDLE` | ✅ 已实现 |
+| `RainCurtain.set_wave_factor(wave_index)` → 雨量波次因子 | WaveController._advance_wave | #389 契约（PRD §8 决策 6） | wave_started 时一行调用（`get_node_or_null` 容错，未接线静默跳过） | ✅ 已接线 |
 
 ---
 

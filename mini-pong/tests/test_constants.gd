@@ -14,6 +14,7 @@ func run() -> void:
 	_test_tc7_preload_works()
 	_test_tc8_color_values()
 	_test_dual_scoring_constants()
+	_test_wave_cycle_constants()
 
 
 func _assert(condition: bool, name: String) -> void:
@@ -113,3 +114,18 @@ func _test_dual_scoring_constants() -> void:
 	_assert(CONSTS.BRICK_SCORE == 1, "TC9-2: BRICK_SCORE == 1")
 	_assert(CONSTS.PIERCE_SCORE == 3, "TC9-3: PIERCE_SCORE == 3")
 	_assert(CONSTS.WIN_SCORE == 21, "TC9-4: WIN_SCORE == 21")
+
+# ── TC10: Wave Cycle constants (#386) match DESIGN §2.1 ──
+
+func _test_wave_cycle_constants() -> void:
+	var CONSTS = load("res://gdscripts/constants.gd")
+	_assert(CONSTS != null, "TC10-0: constants.gd loads for wave-cycle tests")
+
+	_assert(CONSTS.WAVE_START_THICKNESS == 1, "TC10-1: WAVE_START_THICKNESS == 1")
+	_assert(CONSTS.WAVE_THICKNESS_STEP == 1, "TC10-2: WAVE_THICKNESS_STEP == 1")
+	_assert(CONSTS.WAVE_MAX_INDEX == 99, "TC10-3: WAVE_MAX_INDEX == 99")
+	_assert(abs(CONSTS.WAVE_SETTLE_DELAY - 1.0) < 0.001, "TC10-4: WAVE_SETTLE_DELAY == 1.0")
+	_assert(abs(CONSTS.AI_DIFFICULTY_FACTOR - 0.9) < 0.001, "TC10-5: AI_DIFFICULTY_FACTOR == 0.9")
+	_assert(abs(CONSTS.AI_REACTION_DELAY_MIN_FLOOR - 0.05) < 0.001, "TC10-6: AI_REACTION_DELAY_MIN_FLOOR == 0.05")
+	_assert(abs(CONSTS.AI_REACTION_DELAY_MAX_FLOOR - 0.12) < 0.001, "TC10-7: AI_REACTION_DELAY_MAX_FLOOR == 0.12")
+	_assert(abs(CONSTS.AI_POSITION_ERROR_FLOOR - 8.0) < 0.001, "TC10-8: AI_POSITION_ERROR_FLOOR == 8.0")
