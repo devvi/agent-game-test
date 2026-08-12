@@ -66,7 +66,7 @@
       "id": 1,
       "title": "[Refactor] 轴交换+竖屏(P0前置)",
       "description": "将现有横屏 PONG 翻转为 720x1280 竖屏布局：得分轴 X→Y，发球改为垂直；paddle 移动轴 Y→X，输入使用 A/D；AI 追踪从 Y 轴改写为 X 轴；Main.tscn 中玩家挡板 y=1240、AI 挡板 y=40；constants 定义 SCREEN 720/1280；run-e2e-review.sh 支持 --resolution 720x1280；物理测试重写；FSM 与 scoring 流程保持不变。",
-      "context": "P0 前置：后续砖墙、雨幕、HUD 都依赖竖屏坐标系统。",
+      "context": "P0 前置：后续砖墙、雨幕、HUD 都依赖竖屏坐标系统。\n\n🔍 开源优先：开始实现前，先在 Godot Asset Library (assetlibrary.godotengine.org)、GitHub 和社区论坛搜索现有插件/模板/开源 assets（粒子、shader、UI 主题、砖块生成等），如有可用的成熟方案优先复用，不重复造轮子；找不到合适方案再自行实现，并在 PR 中说明调研结果。",
       "depth": "deep",
       "priority": "critical",
       "dependencies": [],
@@ -93,7 +93,7 @@
       "id": 2,
       "title": "[Feature] 砖墙系统",
       "description": "新增 BreakoutGrid 节点：程序化生成横跨屏幕的砖墙，支持留缝、错位、缺口三种布局；球碰砖后砖块碎裂并反弹；洞口/缺口无碰撞体；整墙打空后发出 wall_cleared 信号。",
-      "context": "砖墙是拆砖得分、穿墙策略与波次重置的核心对象。",
+      "context": "砖墙是拆砖得分、穿墙策略与波次重置的核心对象。\n\n🔍 开源优先：开始实现前，先在 Godot Asset Library (assetlibrary.godotengine.org)、GitHub 和社区论坛搜索现有插件/模板/开源 assets（粒子、shader、UI 主题、砖块生成等），如有可用的成熟方案优先复用，不重复造轮子；找不到合适方案再自行实现，并在 PR 中说明调研结果。",
       "depth": "standard",
       "priority": "high",
       "dependencies": [
@@ -120,7 +120,7 @@
       "id": 3,
       "title": "[Feature] 双得分制",
       "description": "扩展 GameManager 支持双得分制：拆砖 1 分（计给最后触球方），穿墙 3 分；任意一方先到 21 分获胜；接入 BreakoutGrid 的拆砖事件和 ball 的穿越/出界事件，维护最后触球者；提供查询接口给 HUD/结算/失败屏。",
-      "context": "新的胜利条件与 roguelike 单局节奏绑定。",
+      "context": "新的胜利条件与 roguelike 单局节奏绑定。\n\n🔍 开源优先：开始实现前，先在 Godot Asset Library (assetlibrary.godotengine.org)、GitHub 和社区论坛搜索现有插件/模板/开源 assets（粒子、shader、UI 主题、砖块生成等），如有可用的成熟方案优先复用，不重复造轮子；找不到合适方案再自行实现，并在 PR 中说明调研结果。",
       "depth": "standard",
       "priority": "high",
       "dependencies": [
@@ -147,7 +147,7 @@
       "id": 4,
       "title": "[Feature] 波次循环",
       "description": "实现波次循环：墙打空后触发结算，进入下一波；每波重建砖墙并增大难度（AI 速度/反应、墙厚/密度等）；维护 wave_index；GameManager 持有波次状态机。",
-      "context": "清墙→升级→更强 AI 的循环骨架。",
+      "context": "清墙→升级→更强 AI 的循环骨架。\n\n🔍 开源优先：开始实现前，先在 Godot Asset Library (assetlibrary.godotengine.org)、GitHub 和社区论坛搜索现有插件/模板/开源 assets（粒子、shader、UI 主题、砖块生成等），如有可用的成熟方案优先复用，不重复造轮子；找不到合适方案再自行实现，并在 PR 中说明调研结果。",
       "depth": "standard",
       "priority": "high",
       "dependencies": [
@@ -176,7 +176,7 @@
       "id": 5,
       "title": "[Feature] 升级池架构",
       "description": "实现数据驱动升级池：9 个情绪化升级（长臂/燃烧弹/破城锤/磁心/双生/缓时/预开洞/星尘/幻影）；稀有度权重 60/30/10；将 ball/paddle 参数由 const 改为实例属性以支持动态修改；对砖墙类升级通过 BreakoutGrid 预留 upgrade_hooks；提供 UpgradePool 查询与抽取接口。",
-      "context": "升级是每波成长的核心，3 选 1 UI 的数据来源。",
+      "context": "升级是每波成长的核心，3 选 1 UI 的数据来源。\n\n🔍 开源优先：开始实现前，先在 Godot Asset Library (assetlibrary.godotengine.org)、GitHub 和社区论坛搜索现有插件/模板/开源 assets（粒子、shader、UI 主题、砖块生成等），如有可用的成熟方案优先复用，不重复造轮子；找不到合适方案再自行实现，并在 PR 中说明调研结果。",
       "depth": "deep",
       "priority": "high",
       "dependencies": [
@@ -204,7 +204,7 @@
       "id": 6,
       "title": "[Feature] 3选1升级UI",
       "description": "实现波间 3 选 1 升级 UI：三张霓虹卡片展示候选；键盘左右切换、确认选择；选择后 reveal 稀有度并应用升级；UI 打开时暂停游戏。",
-      "context": "连接 UpgradePool 与波次循环的关键交互层。",
+      "context": "连接 UpgradePool 与波次循环的关键交互层。\n\n🔍 开源优先：开始实现前，先在 Godot Asset Library (assetlibrary.godotengine.org)、GitHub 和社区论坛搜索现有插件/模板/开源 assets（粒子、shader、UI 主题、砖块生成等），如有可用的成熟方案优先复用，不重复造轮子；找不到合适方案再自行实现，并在 PR 中说明调研结果。",
       "depth": "standard",
       "priority": "high",
       "dependencies": [
@@ -232,7 +232,7 @@
       "id": 7,
       "title": "[Feature] 动态雨幕",
       "description": "新建 GPUParticles2D 雨幕；雨量强度 = base + 球速 + 波次 + 紧张度 + 事件脉冲 - 喘息，clamp(0.1,1.0)；实时改变粒子的发射速率/速度/密度，形成雨夜竞技场。",
-      "context": "雨量是视觉紧张感的动态指示器。",
+      "context": "雨量是视觉紧张感的动态指示器。\n\n🔍 开源优先：开始实现前，先在 Godot Asset Library (assetlibrary.godotengine.org)、GitHub 和社区论坛搜索现有插件/模板/开源 assets（粒子、shader、UI 主题、砖块生成等），如有可用的成熟方案优先复用，不重复造轮子；找不到合适方案再自行实现，并在 PR 中说明调研结果。",
       "depth": "standard",
       "priority": "medium",
       "dependencies": [
@@ -259,7 +259,7 @@
       "id": 8,
       "title": "[Feature] 波次转场",
       "description": "波次开始前播放转场：大字显示“第 N 道墙”+ 副句；2 秒淡入/停留/淡出；转场期间暂停游戏；副句从文本配置读取。",
-      "context": "给每波一个清晰的呼吸点与仪式感。",
+      "context": "给每波一个清晰的呼吸点与仪式感。\n\n🔍 开源优先：开始实现前，先在 Godot Asset Library (assetlibrary.godotengine.org)、GitHub 和社区论坛搜索现有插件/模板/开源 assets（粒子、shader、UI 主题、砖块生成等），如有可用的成熟方案优先复用，不重复造轮子；找不到合适方案再自行实现，并在 PR 中说明调研结果。",
       "depth": "light",
       "priority": "medium",
       "dependencies": [
@@ -285,7 +285,7 @@
       "id": 9,
       "title": "[Feature] 失败屏",
       "description": "玩家失败后进入失败屏：展示一句短句 + run 数据（波次、拆砖、穿墙）；保持克制、不堆特效；数据来自 GameManager。",
-      "context": "让失败提供信息与氛围，而不是惩罚性界面。",
+      "context": "让失败提供信息与氛围，而不是惩罚性界面。\n\n🔍 开源优先：开始实现前，先在 Godot Asset Library (assetlibrary.godotengine.org)、GitHub 和社区论坛搜索现有插件/模板/开源 assets（粒子、shader、UI 主题、砖块生成等），如有可用的成熟方案优先复用，不重复造轮子；找不到合适方案再自行实现，并在 PR 中说明调研结果。",
       "depth": "light",
       "priority": "medium",
       "dependencies": [
@@ -312,7 +312,7 @@
       "id": 10,
       "title": "[Feature] 霓虹UI升级",
       "description": "升级 HUD 视觉和结构：霓虹字体描边+微投影；顶部 AI 红色区、底部玩家蓝色区；拆砖与穿墙分区分开显示；增加当前波次与剩余砖数；所有更新走信号。",
-      "context": "雨幕与霓虹 UI 共同构成竖屏赛博体育场观感。",
+      "context": "雨幕与霓虹 UI 共同构成竖屏赛博体育场观感。\n\n🔍 开源优先：开始实现前，先在 Godot Asset Library (assetlibrary.godotengine.org)、GitHub 和社区论坛搜索现有插件/模板/开源 assets（粒子、shader、UI 主题、砖块生成等），如有可用的成熟方案优先复用，不重复造轮子；找不到合适方案再自行实现，并在 PR 中说明调研结果。",
       "depth": "standard",
       "priority": "medium",
       "dependencies": [
@@ -342,7 +342,7 @@
       "id": 11,
       "title": "[Integration] 主场景组装",
       "description": "将 1-10 全部组件接入 Main.tscn：BreakoutGrid、GameManager、UpgradePool、3 选 1 UI、雨幕、波次转场、失败屏、霓虹 HUD；确保信号链完整，清理临时调试代码。",
-      "context": "集成是所有功能首次协作的关键节点。",
+      "context": "集成是所有功能首次协作的关键节点。\n\n🔍 开源优先：开始实现前，先在 Godot Asset Library (assetlibrary.godotengine.org)、GitHub 和社区论坛搜索现有插件/模板/开源 assets（粒子、shader、UI 主题、砖块生成等），如有可用的成熟方案优先复用，不重复造轮子；找不到合适方案再自行实现，并在 PR 中说明调研结果。",
       "depth": "deep",
       "priority": "critical",
       "dependencies": [
@@ -378,7 +378,7 @@
       "id": 12,
       "title": "[Test] 端到端可玩验证",
       "description": "编写 AI vs AI 自动对打端到端测试：自动完成波次循环直至 21 分；对砖墙生成、拆砖计分、穿墙计分、升级应用做脚本化断言；以 --headless 模式全绿。",
-      "context": "用自动化锁定可玩闭环，避免回归。",
+      "context": "用自动化锁定可玩闭环，避免回归。\n\n🔍 开源优先：开始实现前，先在 Godot Asset Library (assetlibrary.godotengine.org)、GitHub 和社区论坛搜索现有插件/模板/开源 assets（粒子、shader、UI 主题、砖块生成等），如有可用的成熟方案优先复用，不重复造轮子；找不到合适方案再自行实现，并在 PR 中说明调研结果。",
       "depth": "deep",
       "priority": "high",
       "dependencies": [
@@ -405,7 +405,7 @@
       "id": 13,
       "title": "[Content] 升级池文案定稿(B2/B5)",
       "description": "为 9 个升级撰写短句与命名候选；每条含 #DRAFT 标注、情绪断言和 2-3 个候补命名；风格贴合雨夜竞技场；写入独立 content 资源。",
-      "context": "taste-draft：品味文案任务，不进入依赖链，不阻塞机械管线。",
+      "context": "taste-draft：品味文案任务，不进入依赖链，不阻塞机械管线。\n\n🔍 开源优先：开始实现前，先在 Godot Asset Library (assetlibrary.godotengine.org)、GitHub 和社区论坛搜索现有插件/模板/开源 assets（粒子、shader、UI 主题、砖块生成等），如有可用的成熟方案优先复用，不重复造轮子；找不到合适方案再自行实现，并在 PR 中说明调研结果。",
       "depth": "light",
       "priority": "low",
       "dependencies": [],
@@ -430,7 +430,7 @@
       "id": 14,
       "title": "[Content] 波次副句与失败短句(B5)",
       "description": "为波次副句与失败短句提供候选清单，2-3 选 1；海明威式克制短句；包含适用语境；写入独立 content 资源。",
-      "context": "taste-draft：内容插槽与 UI 已预留，本任务只决定最终文案。",
+      "context": "taste-draft：内容插槽与 UI 已预留，本任务只决定最终文案。\n\n🔍 开源优先：开始实现前，先在 Godot Asset Library (assetlibrary.godotengine.org)、GitHub 和社区论坛搜索现有插件/模板/开源 assets（粒子、shader、UI 主题、砖块生成等），如有可用的成熟方案优先复用，不重复造轮子；找不到合适方案再自行实现，并在 PR 中说明调研结果。",
       "depth": "light",
       "priority": "low",
       "dependencies": [],
