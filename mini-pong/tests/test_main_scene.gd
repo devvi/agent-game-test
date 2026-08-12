@@ -23,6 +23,7 @@ func run() -> void:
 	_test_tc18_scorezone_ball_collision_contract()
 	_test_tc19_version_label_in_start_menu()
 	_test_tc20_portrait_layout_coords()
+	_test_tc21_atmosphere_layer()
 
 
 func _assert(condition: bool, name: String) -> void:
@@ -356,4 +357,30 @@ func _test_tc20_portrait_layout_coords() -> void:
 	if hud:
 		_assert(abs(hud.offset_right - 720.0) < 0.01, "TC20-11: GameHUD MarginContainer offset_right == 720")
 
+	game.queue_free()
+
+# ── TC21: AtmosphereLayer + RainCurtain (L0 氛围层, #389) ──
+
+func _test_tc21_atmosphere_layer() -> void:
+	if not ResourceLoader.exists("res://scenes/Main.tscn"):
+		print("  SKIP: Main.tscn not found")
+		return
+
+	var scene = load("res://scenes/Main.tscn")
+	if scene == null:
+		_assert(false, "TC21: Main.tscn failed to load")
+		return
+
+	var game = scene.instantiate()
+	_assert(game.has_node("AtmosphereLayer"), "TC21-1: AtmosphereLayer node exists")
+	var al = game.get_node_or_null("AtmosphereLayer")
+	if al:
+		_assert(al is CanvasLayer, "TC21-2: AtmosphereLayer is CanvasLayer")
+		_assert(al.layer == 0, "TC21-3: AtmosphereLayer layer == 0")
+	_assert(game.has_node("AtmosphereLayer/RainCurtain"), "TC21-4: RainCurtain instance exists")
+	var rc = game.get_node_or_null("AtmosphereLayer/RainCurtain")
+	if rc:
+		_assert(rc.has_node("Particles"), "TC21-5: RainCurtain has Particles child")
+		var p = rc.get_node_or_null("Particles")
+		_assert(p is GPUParticles2D, "TC21-6: Particles is GPUParticles2D")
 	game.queue_free()
