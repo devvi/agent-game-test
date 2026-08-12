@@ -352,10 +352,20 @@ func _test_tc20_portrait_layout_coords() -> void:
 		_assert(abs(ap.position.x - 360.0) < 0.01, "TC20-9: AIPaddle position.x == 360")
 		_assert(abs(ap.position.y - 40.0) < 0.01, "TC20-10: AIPaddle position.y == 40")
 
-	# GameHUD MarginContainer offset_right == 720
-	var hud = game.get_node_or_null("GameHUD/MarginContainer")
+	# GameHUD 三区安全区 (#392): TopZone/BottomZone 锚点全宽（替代旧 MarginContainer offset_right==720）
+	var hud = game.get_node_or_null("GameHUD")
 	if hud:
-		_assert(abs(hud.offset_right - 720.0) < 0.01, "TC20-11: GameHUD MarginContainer offset_right == 720")
+		var top_zone = hud.get_node_or_null("TopZone")
+		if top_zone:
+			_assert(abs(top_zone.anchor_right - 1.0) < 0.01, "TC20-11: GameHUD TopZone 锚点全宽")
+			_assert(abs(top_zone.offset_top - 12.0) < 0.01, "TC20-12: TopZone offset_top == 12")
+			_assert(abs(top_zone.offset_bottom - 84.0) < 0.01, "TC20-13: TopZone offset_bottom == 84")
+		var bottom_zone = hud.get_node_or_null("BottomZone")
+		if bottom_zone:
+			_assert(abs(bottom_zone.anchor_right - 1.0) < 0.01, "TC20-14: GameHUD BottomZone 锚点全宽")
+			_assert(abs(bottom_zone.anchor_top - 1.0) < 0.01 and abs(bottom_zone.anchor_bottom - 1.0) < 0.01,
+				"TC20-15: BottomZone 锚定底部")
+			_assert(abs(bottom_zone.offset_top - (-28.0)) < 0.01, "TC20-16: BottomZone offset_top == -28（y∈[1252,1280]）")
 
 	game.queue_free()
 

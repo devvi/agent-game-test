@@ -4,7 +4,7 @@
 [ext_resource type="PackedScene" path="res://scenes/player_paddle.tscn" id="2_player_paddle"]
 [ext_resource type="Script" path="res://gdscripts/scoring_manager.gd" id="3_scoring_manager"]
 [ext_resource type="Script" path="res://gdscripts/start_menu.gd" id="4_start_menu"]
-[ext_resource type="Script" path="res://gdscripts/game_hud.gd" id="5_game_hud"]
+[ext_resource type="PackedScene" path="res://scenes/ui_game_hud.tscn" id="5_game_hud"]
 [ext_resource type="Script" path="res://gdscripts/game_over_screen.gd" id="6_game_over"]
 [ext_resource type="Script" path="res://gdscripts/game_state_machine.gd" id="7_game_state_machine"]
 [ext_resource type="Script" path="res://gdscripts/pause_overlay.gd" id="8"]
@@ -129,32 +129,7 @@ text = "v1.0.0"
 theme_override_font_sizes/font_size = 16
 modulate = Color(0.29, 0.56, 0.85, 0.6)
 
-[node name="GameHUD" type="CanvasLayer" parent="."]
-layer = 1
-visible = false
-script = ExtResource("5_game_hud")
-
-[node name="MarginContainer" type="MarginContainer" parent="GameHUD"]
-offset_left = 0.0
-offset_top = 0.0
-offset_right = 720.0
-offset_bottom = 60.0
-
-[node name="HBoxContainer" type="HBoxContainer" parent="GameHUD/MarginContainer"]
-alignment = 1
-separation = 60
-
-[node name="PlayerScoreLabel" type="Label" parent="GameHUD/MarginContainer/HBoxContainer"]
-text = "Player: 0"
-horizontal_alignment = 1
-font_size = 28
-modulate = Color(0.29, 0.56, 0.85, 1.0)
-
-[node name="AIScoreLabel" type="Label" parent="GameHUD/MarginContainer/HBoxContainer"]
-text = "AI: 0"
-horizontal_alignment = 1
-font_size = 28
-modulate = Color(1.0, 0.2, 0.33, 1.0)
+[node name="GameHUD" parent="." instance=ExtResource("5_game_hud")]
 
 [node name="GameOverScreen" type="CanvasLayer" parent="."]
 layer = 1

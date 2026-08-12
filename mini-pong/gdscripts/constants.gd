@@ -115,6 +115,18 @@ const RAIN_PULSE_PIERCE: float = 0.4
 const RAIN_BREATHING_DROP: float = 0.15
 const BG_COLOR: Color = Color(0.039, 0.039, 0.071, 1.0)          # #0a0a12
 
+# ── Neon HUD (#392) ──
+# 霓虹描边/微投影/安全区常量（DESIGN §4.6；描边粗细、投影偏移、信息条配色 = taste-draft 可调）
+const HUD_OUTLINE_SIZE: int = 6            # 霓虹描边粗细（taste-draft 4–6）
+const HUD_SHADOW_OFFSET_X: int = 2         # 微投影偏移（taste-draft）
+const HUD_SHADOW_OFFSET_Y: int = 2
+const HUD_SHADOW_COLOR: Color = Color(0, 0, 0, 0.6)   # 微投影而非重阴影（克制优先）
+const HUD_INFO_COLOR: Color = Color(0.72, 0.76, 0.85, 1.0)  # 中立信息条色（taste-draft）
+const HUD_TOP_BAND_Y: float = 12.0         # 顶部安全区上缘
+const HUD_TOP_BAND_H: float = 72.0         # 顶部区高度 → y∈[12,84]
+const HUD_BOTTOM_BAND_Y: float = 1252.0    # 底部区上缘（玩家挡板 1230–1250 之下，零交集）
+const HUD_INFO_BAR_Y: float = 88.0         # 信息条 Y（顶部区下方）
+
 # ── Upgrade Pool (#387) ──
 # 稀有度权重 60/30/10（common/rare/legendary）——AC2 精确权重，研究 spike 已证伪
 # "升级粒度加权无放回"（边际分布漂移到 55.7/37.8/6.5）。抽取 = 稀有度先掷 →

@@ -11,6 +11,8 @@ var _captured_scores: Array = []
 var _captured_match_overs: Array = []
 var _captured_wave_started: Array = []
 var _captured_wave_settled: Array = []
+var _captured_brick_scored: Array = []
+var _captured_pierce_scored: Array = []
 
 func _on_score_changed(p_score: int, a_score: int) -> void:
 	_captured_scores.append([p_score, a_score])
@@ -23,6 +25,12 @@ func _on_wave_started(idx: int) -> void:
 
 func _on_wave_settled(idx: int) -> void:
 	_captured_wave_settled.append(idx)
+
+func _on_brick_scored(side: String) -> void:
+	_captured_brick_scored.append(side)
+
+func _on_pierce_scored(side: String) -> void:
+	_captured_pierce_scored.append(side)
 
 
 func run() -> void:
@@ -42,6 +50,12 @@ func run() -> void:
 	_test_reset_match_full_reset()
 	_test_query_api()
 	_test_amount_zero_ignored()
+	# Scenario (#392): 按类信号 brick_scored / pierce_scored
+	_test_class_signals_brick()
+	_test_class_signals_pierce()
+	_test_class_signals_boundary()
+	_test_class_signals_invalid()
+	_test_class_signals_post_terminal()
 	# Scenario G-2: 波次状态机 API (#386)
 	_test_wave_initial_state()
 	_test_wave_begin()
@@ -386,3 +400,89 @@ func _test_wave_reset_match() -> void:
 
 	gm.begin_wave()
 	_assert(gm.wave_index == 1, "W-6: reset 后首波仍从 1 起")
+
+
+# ── Scenario (#392): 按类信号 brick_scored / pierce_scored ──
+## DESIGN docs/DESIGN/392-neon-ui-upgrade.md §10 Scenario B TB-1/TB-2
+## kind 触发（brick→brick_scored、pierce→pierce_scored）；boundary 不触发；非法 winner 不触发；终局后不触发
+
+func _test_class_signals_brick() -> void:
+	var gm = _make_gm()
+	_captured_brick_scored.clear()
+	_captured_pierce_scored.clear()
+	gm.brick_scored.connect(_on_brick_scored)
+	gm.pierce_scored.connect(_on_pierce_scored)
+
+	gm.add_score("player", 1, "brick")
+	_assert(_captured_brick_scored.size() == 1 and _captured_brick_scored[0] == "player",
+		"CS-B: brick_scored(player) 恰好一次")
+	_assert(_captured_pierce_scored.size() == 0, "CS-B: pierce_scored 不触发")
+
+	gm.add_score("ai", 1, "brick")
+	_assert(_captured_brick_scored.size() == 2 and _captured_brick_scored[1] == "ai",
+		"CS-B: brick_scored(ai) 第二次")
+
+	gm.brick_scored.disconnect(_on_brick_scored)
+	gm.pierce_scored.disconnect(_on_pierce_scored)
+
+
+func _test_class_signals_pierce() -> void:
+	var gm = _make_gm()
+	_captured_brick_scored.clear()
+	_captured_pierce_scored.clear()
+	gm.brick_scored.connect(_on_brick_scored)
+	gm.pierce_scored.connect(_on_pierce_scored)
+
+	gm.add_score("ai", 3, "pierce")
+	_assert(_captured_pierce_scored.size() == 1 and _captured_pierce_scored[0] == "ai",
+		"CS-P: pierce_scored(ai) 恰好一次")
+	_assert(_captured_brick_scored.size() == 0, "CS-P: brick_scored 不触发")
+
+	gm.brick_scored.disconnect(_on_brick_scored)
+	gm.pierce_scored.disconnect(_on_pierce_scored)
+
+
+func _test_class_signals_boundary() -> void:
+	var gm = _make_gm()
+	_captured_brick_scored.clear()
+	_captured_pierce_scored.clear()
+	gm.brick_scored.connect(_on_brick_scored)
+	gm.pierce_scored.connect(_on_pierce_scored)
+
+	gm.add_score("player", 1, "boundary")
+	_assert(_captured_brick_scored.size() == 0, "CS-BD: boundary 不触发 brick_scored")
+	_assert(_captured_pierce_scored.size() == 0, "CS-BD: boundary 不触发 pierce_scored")
+
+	gm.brick_scored.disconnect(_on_brick_scored)
+	gm.pierce_scored.disconnect(_on_pierce_scored)
+
+
+func _test_class_signals_invalid() -> void:
+	var gm = _make_gm()
+	_captured_brick_scored.clear()
+	_captured_pierce_scored.clear()
+	gm.brick_scored.connect(_on_brick_scored)
+	gm.pierce_scored.connect(_on_pierce_scored)
+
+	gm.add_score("invalid", 1, "brick")
+	_assert(_captured_brick_scored.size() == 0, "CS-I: 非法 winner 不触发按类信号")
+
+	gm.brick_scored.disconnect(_on_brick_scored)
+	gm.pierce_scored.disconnect(_on_pierce_scored)
+
+
+func _test_class_signals_post_terminal() -> void:
+	var gm = _make_gm()
+	_captured_brick_scored.clear()
+	_captured_pierce_scored.clear()
+	gm.brick_scored.connect(_on_brick_scored)
+	gm.pierce_scored.connect(_on_pierce_scored)
+
+	for i in range(21):
+		gm.add_score("player")
+	_captured_brick_scored.clear()
+	gm.add_score("player", 1, "brick")
+	_assert(_captured_brick_scored.size() == 0, "CS-PT: 终局后不触发按类信号")
+
+	gm.brick_scored.disconnect(_on_brick_scored)
+	gm.pierce_scored.disconnect(_on_pierce_scored)
