@@ -1,7 +1,8 @@
 extends RefCounted
 ## Test suite for constants.gd (#295) — Global constants extraction.
 ## Runs under godot --headless --script via run_tests.gd.
-## 手感草稿 (#367): TC6 字面量随 docs/DESIGN/367-feel-calibration-draft.md §2 草稿值同步（机械部分，不写草稿注释）。
+## 竖屏重写 (#383): TC6-2/3 SCREEN 720/1280；TC6-11/12 PADDLE 尺寸语义翻转
+## （PADDLE_WIDTH=120 横向长度、PADDLE_HEIGHT=20 纵向厚度）。
 
 var passed: int = 0
 var failed: int = 0
@@ -29,9 +30,9 @@ func _test_tc6_constants_values_match() -> void:
 
 	_assert(CONSTS != null, "TC6-1: constants.gd loads successfully")
 
-	# Screen
-	_assert(CONSTS.SCREEN_WIDTH == 1280, "TC6-2: SCREEN_WIDTH == 1280")
-	_assert(CONSTS.SCREEN_HEIGHT == 720, "TC6-3: SCREEN_HEIGHT == 720")
+	# Screen (竖屏 720x1280, #383)
+	_assert(CONSTS.SCREEN_WIDTH == 720, "TC6-2: SCREEN_WIDTH == 720")
+	_assert(CONSTS.SCREEN_HEIGHT == 1280, "TC6-3: SCREEN_HEIGHT == 1280")
 
 	# Ball Physics
 	_assert(abs(CONSTS.BALL_INITIAL_SPEED - 330.0) < 0.01, "TC6-4: BALL_INITIAL_SPEED == 330.0")
@@ -41,10 +42,10 @@ func _test_tc6_constants_values_match() -> void:
 	_assert(abs(CONSTS.BALL_SERVE_ANGLE_RANGE - 30.0) < 0.01, "TC6-8: BALL_SERVE_ANGLE_RANGE == 30.0")
 	_assert(abs(CONSTS.BALL_RADIUS - 10.0) < 0.01, "TC6-9: BALL_RADIUS == 10.0")
 
-	# Paddle
+	# Paddle (竖屏语义: WIDTH=120 横向长度, HEIGHT=20 纵向厚度, #383)
 	_assert(abs(CONSTS.PADDLE_SPEED - 430.0) < 0.01, "TC6-10: PADDLE_SPEED == 430.0")
-	_assert(abs(CONSTS.PADDLE_WIDTH - 20.0) < 0.01, "TC6-11: PADDLE_WIDTH == 20.0")
-	_assert(abs(CONSTS.PADDLE_HEIGHT - 120.0) < 0.01, "TC6-12: PADDLE_HEIGHT == 120.0")
+	_assert(abs(CONSTS.PADDLE_WIDTH - 120.0) < 0.01, "TC6-11: PADDLE_WIDTH == 120.0")
+	_assert(abs(CONSTS.PADDLE_HEIGHT - 20.0) < 0.01, "TC6-12: PADDLE_HEIGHT == 20.0")
 
 	# AI
 	_assert(abs(CONSTS.AI_REACTION_DELAY_MIN - 0.15) < 0.01, "TC6-13: AI_REACTION_DELAY_MIN == 0.15")

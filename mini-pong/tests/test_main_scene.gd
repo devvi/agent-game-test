@@ -1,6 +1,9 @@
 extends RefCounted
 ## Test suite for Main Scene Assembly (#295) — Scene tree integrity, ScoreZones, ScoreFlash.
 ## Runs under godot --headless --script via run_tests.gd.
+## 竖屏重写 (#383): 得分区改上下 ScoreZoneTop(360,0)/ScoreZoneBottom(360,1280) 720×20；
+## 墙改左右 LeftWall(5,640)/RightWall(715,640) 10×1280；Ball(360,640)；
+## PlayerPaddle(360,1240)/AIPaddle(360,40)；GameHUD offset_right=720。
 
 var passed: int = 0
 var failed: int = 0
@@ -11,14 +14,15 @@ func run() -> void:
 	_test_tc1_scene_tree_nodes()
 	_test_tc2_ext_resource_references()
 	_test_tc3_world_environment()
-	_test_tc4_score_zone_left()
-	_test_tc5_score_zone_right()
+	_test_tc4_score_zone_top()
+	_test_tc5_score_zone_bottom()
 	_test_tc9_score_flash_node()
 	_test_tc12_score_zone_collision()
 	_test_tc14_scorezone_shape_dimensions()
 	_test_tc17_no_game_tscn_refs()
 	_test_tc18_scorezone_ball_collision_contract()
 	_test_tc19_version_label_in_start_menu()
+	_test_tc20_portrait_layout_coords()
 
 
 func _assert(condition: bool, name: String) -> void:
@@ -45,10 +49,10 @@ func _test_tc1_scene_tree_nodes() -> void:
 	var game = scene.instantiate()
 	_assert(game != null, "TC1-1: Main.tscn instantiates")
 
-	# Verify all mandatory nodes exist
+	# Verify all mandatory nodes exist (竖屏: LeftWall/RightWall, #383)
 	_assert(game.has_node("WorldEnvironment"), "TC1-2: WorldEnvironment node exists")
-	_assert(game.has_node("TopWall"), "TC1-3: TopWall node exists")
-	_assert(game.has_node("BottomWall"), "TC1-4: BottomWall node exists")
+	_assert(game.has_node("LeftWall"), "TC1-3: LeftWall node exists")
+	_assert(game.has_node("RightWall"), "TC1-4: RightWall node exists")
 	_assert(game.has_node("Ball"), "TC1-5: Ball node exists")
 	_assert(game.has_node("PlayerPaddle"), "TC1-6: PlayerPaddle node exists")
 	_assert(game.has_node("AIPaddle"), "TC1-7: AIPaddle node exists")
@@ -58,9 +62,9 @@ func _test_tc1_scene_tree_nodes() -> void:
 	_assert(game.has_node("GameHUD"), "TC1-11: GameHUD node exists")
 	_assert(game.has_node("GameOverScreen"), "TC1-12: GameOverScreen node exists")
 
-	# New nodes from #295
-	_assert(game.has_node("ScoreZoneLeft"), "TC1-13: ScoreZoneLeft node exists")
-	_assert(game.has_node("ScoreZoneRight"), "TC1-14: ScoreZoneRight node exists")
+	# 竖屏得分区 (#383)
+	_assert(game.has_node("ScoreZoneTop"), "TC1-13: ScoreZoneTop node exists")
+	_assert(game.has_node("ScoreZoneBottom"), "TC1-14: ScoreZoneBottom node exists")
 	_assert(game.has_node("ScoreFlash"), "TC1-15: ScoreFlash node exists")
 
 	game.queue_free()
@@ -110,9 +114,9 @@ func _test_tc3_world_environment() -> void:
 	game.queue_free()
 
 
-# ── TC4: ScoreZoneLeft is Area2D at pos (0, 360) ──
+# ── TC4: ScoreZoneTop is Area2D at pos (360, 0) ──
 
-func _test_tc4_score_zone_left() -> void:
+func _test_tc4_score_zone_top() -> void:
 	if not ResourceLoader.exists("res://scenes/Main.tscn"):
 		print("  SKIP: Main.tscn not found")
 		return
@@ -122,20 +126,22 @@ func _test_tc4_score_zone_left() -> void:
 		return
 
 	var game = scene.instantiate()
-	var zone = game.get_node_or_null("ScoreZoneLeft")
-	_assert(zone != null, "TC4-1: ScoreZoneLeft node exists")
+	var zone = game.get_node_or_null("ScoreZoneTop")
+	_assert(zone != null, "TC4-1: ScoreZoneTop node exists")
 	if zone:
-		_assert(zone is Area2D, "TC4-2: ScoreZoneLeft is Area2D")
-		_assert(zone.has_node("CollisionShape2D"), "TC4-3: ScoreZoneLeft has CollisionShape2D")
+		_assert(zone is Area2D, "TC4-2: ScoreZoneTop is Area2D")
+		_assert(abs(zone.position.x - 360.0) < 0.01, "TC4-3: ScoreZoneTop position.x == 360")
+		_assert(abs(zone.position.y - 0.0) < 0.01, "TC4-4: ScoreZoneTop position.y == 0")
+		_assert(zone.has_node("CollisionShape2D"), "TC4-5: ScoreZoneTop has CollisionShape2D")
 		var cs = zone.get_node("CollisionShape2D")
-		_assert(cs.shape != null, "TC4-4: ScoreZoneLeft CollisionShape2D has non-null shape")
+		_assert(cs.shape != null, "TC4-6: ScoreZoneTop CollisionShape2D has non-null shape")
 
 	game.queue_free()
 
 
-# ── TC5: ScoreZoneRight is Area2D at pos (1280, 360) ──
+# ── TC5: ScoreZoneBottom is Area2D at pos (360, 1280) ──
 
-func _test_tc5_score_zone_right() -> void:
+func _test_tc5_score_zone_bottom() -> void:
 	if not ResourceLoader.exists("res://scenes/Main.tscn"):
 		print("  SKIP: Main.tscn not found")
 		return
@@ -145,13 +151,15 @@ func _test_tc5_score_zone_right() -> void:
 		return
 
 	var game = scene.instantiate()
-	var zone = game.get_node_or_null("ScoreZoneRight")
-	_assert(zone != null, "TC5-1: ScoreZoneRight node exists")
+	var zone = game.get_node_or_null("ScoreZoneBottom")
+	_assert(zone != null, "TC5-1: ScoreZoneBottom node exists")
 	if zone:
-		_assert(zone is Area2D, "TC5-2: ScoreZoneRight is Area2D")
-		_assert(zone.has_node("CollisionShape2D"), "TC5-3: ScoreZoneRight has CollisionShape2D")
+		_assert(zone is Area2D, "TC5-2: ScoreZoneBottom is Area2D")
+		_assert(abs(zone.position.x - 360.0) < 0.01, "TC5-3: ScoreZoneBottom position.x == 360")
+		_assert(abs(zone.position.y - 1280.0) < 0.01, "TC5-4: ScoreZoneBottom position.y == 1280")
+		_assert(zone.has_node("CollisionShape2D"), "TC5-5: ScoreZoneBottom has CollisionShape2D")
 		var cs = zone.get_node("CollisionShape2D")
-		_assert(cs.shape != null, "TC5-4: ScoreZoneRight CollisionShape2D has non-null shape")
+		_assert(cs.shape != null, "TC5-6: ScoreZoneBottom CollisionShape2D has non-null shape")
 
 	game.queue_free()
 
@@ -202,23 +210,22 @@ func _test_tc14_scorezone_shape_dimensions() -> void:
 
 	var game = scene.instantiate()
 
-	# Check ScoreZoneLeft
-	var zone_left = game.get_node_or_null("ScoreZoneLeft")
-	if zone_left and zone_left.has_node("CollisionShape2D"):
-		var cs = zone_left.get_node("CollisionShape2D")
+	# 竖屏: ScoreZoneTop/Bottom shape 720×20 (#383)
+	var zone_top = game.get_node_or_null("ScoreZoneTop")
+	if zone_top and zone_top.has_node("CollisionShape2D"):
+		var cs = zone_top.get_node("CollisionShape2D")
 		var shape = cs.shape
 		if shape is RectangleShape2D:
-			_assert(abs(shape.size.x - 20.0) < 0.01, "TC14-1: ScoreZoneLeft shape width == 20")
-			_assert(abs(shape.size.y - 720.0) < 0.01, "TC14-2: ScoreZoneLeft shape height == 720")
+			_assert(abs(shape.size.x - 720.0) < 0.01, "TC14-1: ScoreZoneTop shape width == 720")
+			_assert(abs(shape.size.y - 20.0) < 0.01, "TC14-2: ScoreZoneTop shape height == 20")
 
-	# Check ScoreZoneRight
-	var zone_right = game.get_node_or_null("ScoreZoneRight")
-	if zone_right and zone_right.has_node("CollisionShape2D"):
-		var cs = zone_right.get_node("CollisionShape2D")
+	var zone_bottom = game.get_node_or_null("ScoreZoneBottom")
+	if zone_bottom and zone_bottom.has_node("CollisionShape2D"):
+		var cs = zone_bottom.get_node("CollisionShape2D")
 		var shape = cs.shape
 		if shape is RectangleShape2D:
-			_assert(abs(shape.size.x - 20.0) < 0.01, "TC14-3: ScoreZoneRight shape width == 20")
-			_assert(abs(shape.size.y - 720.0) < 0.01, "TC14-4: ScoreZoneRight shape height == 720")
+			_assert(abs(shape.size.x - 720.0) < 0.01, "TC14-3: ScoreZoneBottom shape width == 720")
+			_assert(abs(shape.size.y - 20.0) < 0.01, "TC14-4: ScoreZoneBottom shape height == 20")
 
 	game.queue_free()
 
@@ -234,9 +241,6 @@ func _test_tc17_no_game_tscn_refs() -> void:
 
 
 # ── TC18: ScoreZone ↔ Ball collision contract (Integration) ──
-# Verifies that ScoreZones can actually detect the ball entering —
-# catches collision_layer/mask mismatches and signal-type errors
-# that static node-existence checks miss.
 
 func _test_tc18_scorezone_ball_collision_contract() -> void:
 	if not ResourceLoader.exists("res://scenes/Main.tscn"):
@@ -249,30 +253,25 @@ func _test_tc18_scorezone_ball_collision_contract() -> void:
 
 	var game = scene.instantiate()
 
-	# ── TC18-1: Ball collision_layer/mask ──
 	var ball = game.get_node_or_null("Ball")
 	_assert(ball != null, "TC18-1: Ball node exists")
 	if ball:
 		_assert(ball is Area2D, "TC18-2: Ball is Area2D")
 
-	# ── TC18-3/4: ScoreZone collision_mask includes ball's collision_layer ──
-	var zone_left = game.get_node_or_null("ScoreZoneLeft")
-	if zone_left and ball:
-		_assert(zone_left.collision_mask & ball.collision_layer != 0,
-			"TC18-3: ScoreZoneLeft collision_mask includes ball's collision_layer")
-		_assert(ball.collision_mask & zone_left.collision_layer != 0,
-			"TC18-4: Ball collision_mask includes ScoreZoneLeft's collision_layer")
+	var zone_top = game.get_node_or_null("ScoreZoneTop")
+	if zone_top and ball:
+		_assert(zone_top.collision_mask & ball.collision_layer != 0,
+			"TC18-3: ScoreZoneTop collision_mask includes ball's collision_layer")
+		_assert(ball.collision_mask & zone_top.collision_layer != 0,
+			"TC18-4: Ball collision_mask includes ScoreZoneTop's collision_layer")
 
-	var zone_right = game.get_node_or_null("ScoreZoneRight")
-	if zone_right and ball:
-		_assert(zone_right.collision_mask & ball.collision_layer != 0,
-			"TC18-5: ScoreZoneRight collision_mask includes ball's collision_layer")
-		_assert(ball.collision_mask & zone_right.collision_layer != 0,
-			"TC18-6: Ball collision_mask includes ScoreZoneRight's collision_layer")
+	var zone_bottom = game.get_node_or_null("ScoreZoneBottom")
+	if zone_bottom and ball:
+		_assert(zone_bottom.collision_mask & ball.collision_layer != 0,
+			"TC18-5: ScoreZoneBottom collision_mask includes ball's collision_layer")
+		_assert(ball.collision_mask & zone_bottom.collision_layer != 0,
+			"TC18-6: Ball collision_mask includes ScoreZoneBottom's collision_layer")
 
-	# ── TC18-7/8: ball.gd uses area_entered (not body_entered) for ScoreZone ──
-	# Verify via source code since connections are wired in _ready()
-	# (which only runs when added to scene tree)
 	var ball_src = FileAccess.get_file_as_string("res://gdscripts/ball.gd")
 	_assert(ball_src != "", "TC18-7: ball.gd readable")
 	_assert(ball_src.contains("area_entered.connect"),
@@ -281,7 +280,6 @@ func _test_tc18_scorezone_ball_collision_contract() -> void:
 	game.queue_free()
 
 # ── TC19: StartMenu VersionLabel in Main.tscn inline tree (R2 sync) ──
-# DESIGN: docs/DESIGN/358-title-screen-version.md §9 Scenario C
 
 func _test_tc19_version_label_in_start_menu() -> void:
 	if not ResourceLoader.exists("res://scenes/Main.tscn"):
@@ -293,15 +291,12 @@ func _test_tc19_version_label_in_start_menu() -> void:
 		return
 	var game = scene.instantiate()
 
-	# C-1: StartMenu/VersionLabel exists in the inline tree (runtime tree)
 	var vl = game.get_node_or_null("StartMenu/VersionLabel")
 	_assert(vl != null, "TC19-1: StartMenu/VersionLabel exists in Main.tscn")
 	if vl:
-		# C-2: static text
 		_assert(vl is Label, "TC19-2: VersionLabel is Label type")
 		_assert(vl.text == "v1.0.0", "TC19-3: VersionLabel static text is 'v1.0.0'")
 
-		# C-3: config parity with ui_start_menu.tscn's VersionLabel (R2 anti-drift)
 		var packed = load("res://scenes/ui_start_menu.tscn")
 		if packed:
 			var ui_instance = packed.instantiate()
@@ -313,5 +308,52 @@ func _test_tc19_version_label_in_start_menu() -> void:
 				_assert(abs(vl.anchor_left - ui_vl.anchor_left) < 0.001 and abs(vl.anchor_top - ui_vl.anchor_top) < 0.001,
 					"TC19-6: anchors match ui_start_menu.tscn")
 			ui_instance.queue_free()
+
+	game.queue_free()
+
+
+# ── TC20: 竖屏布局坐标 (验收条件 AC2, #383) ──
+
+func _test_tc20_portrait_layout_coords() -> void:
+	if not ResourceLoader.exists("res://scenes/Main.tscn"):
+		print("  SKIP: Main.tscn not found")
+		return
+
+	var scene = load("res://scenes/Main.tscn")
+	if scene == null:
+		return
+
+	var game = scene.instantiate()
+
+	# 墙: LeftWall(5,640) / RightWall(715,640)
+	var left = game.get_node_or_null("LeftWall")
+	if left:
+		_assert(abs(left.position.x - 5.0) < 0.01, "TC20-1: LeftWall position.x == 5")
+		_assert(abs(left.position.y - 640.0) < 0.01, "TC20-2: LeftWall position.y == 640")
+	var right = game.get_node_or_null("RightWall")
+	if right:
+		_assert(abs(right.position.x - 715.0) < 0.01, "TC20-3: RightWall position.x == 715")
+		_assert(abs(right.position.y - 640.0) < 0.01, "TC20-4: RightWall position.y == 640")
+
+	# Ball(360,640)
+	var ball = game.get_node_or_null("Ball")
+	if ball:
+		_assert(abs(ball.position.x - 360.0) < 0.01, "TC20-5: Ball position.x == 360")
+		_assert(abs(ball.position.y - 640.0) < 0.01, "TC20-6: Ball position.y == 640")
+
+	# PlayerPaddle(360,1240) / AIPaddle(360,40)
+	var pp = game.get_node_or_null("PlayerPaddle")
+	if pp:
+		_assert(abs(pp.position.x - 360.0) < 0.01, "TC20-7: PlayerPaddle position.x == 360")
+		_assert(abs(pp.position.y - 1240.0) < 0.01, "TC20-8: PlayerPaddle position.y == 1240")
+	var ap = game.get_node_or_null("AIPaddle")
+	if ap:
+		_assert(abs(ap.position.x - 360.0) < 0.01, "TC20-9: AIPaddle position.x == 360")
+		_assert(abs(ap.position.y - 40.0) < 0.01, "TC20-10: AIPaddle position.y == 40")
+
+	# GameHUD MarginContainer offset_right == 720
+	var hud = game.get_node_or_null("GameHUD/MarginContainer")
+	if hud:
+		_assert(abs(hud.offset_right - 720.0) < 0.01, "TC20-11: GameHUD MarginContainer offset_right == 720")
 
 	game.queue_free()

@@ -12,15 +12,15 @@ extends RefCounted
 class_name GameConstants
 
 # ── Screen ──
-const SCREEN_WIDTH: int = 1280
-const SCREEN_HEIGHT: int = 720
+const SCREEN_WIDTH: int = 720
+const SCREEN_HEIGHT: int = 1280
 
 # ── Version ──
 const GAME_VERSION: String = "v1.0.0"
 
 # ── Ball Physics ──
 # 定稿 BALL_INITIAL_SPEED = 330.0（#367 用户全采纳）
-#   该值影响什么: 开局节奏与横穿时间（1280px: 300→4.3s, 330→3.9s）
+#   该值影响什么: 开局节奏（竖屏 720x1280 纵穿 1280px: 300→4.3s, 330→3.9s；横穿 720px 更快）
 #   情感断言: 利落开局——第一拍就有街机速度感
 const BALL_INITIAL_SPEED: float = 330.0
 # 定稿 BALL_SPEED_INCREMENT = 1.07（#367 用户全采纳）
@@ -42,12 +42,13 @@ const BALL_SERVE_ANGLE_RANGE: float = 30.0
 const BALL_RADIUS: float = 10.0
 
 # ── Paddle ──
+# 竖屏 (#383): PADDLE_WIDTH=120 横向长度、PADDLE_HEIGHT=20 纵向厚度。
 # 定稿 PADDLE_SPEED = 430.0（#367 用户全采纳）
 #   该值影响什么: 玩家操控响应速度（球速加快后必须跟得上）
 #   情感断言: 跟手——玩家感到"够得着"，挫败来自判断而非操作延迟
 const PADDLE_SPEED: float = 430.0
-const PADDLE_WIDTH: float = 20.0
-const PADDLE_HEIGHT: float = 120.0
+const PADDLE_WIDTH: float = 120.0
+const PADDLE_HEIGHT: float = 20.0
 
 # ── AI ──
 # 定稿 AI_REACTION_DELAY_MIN = 0.15（#367 用户全采纳）

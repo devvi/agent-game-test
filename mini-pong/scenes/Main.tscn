@@ -11,39 +11,39 @@
 [ext_resource type="PackedScene" path="res://scenes/world_environment.tscn" id="9_world_env"]
 [ext_resource type="Script" path="res://gdscripts/score_flash.gd" id="10_score_flash"]
 
-[sub_resource type="RectangleShape2D" id="rect_wall_top"]
-size = Vector2(1280, 10)
+[sub_resource type="RectangleShape2D" id="rect_wall_left"]
+size = Vector2(10, 1280)
 
-[sub_resource type="RectangleShape2D" id="rect_wall_bottom"]
-size = Vector2(1280, 10)
+[sub_resource type="RectangleShape2D" id="rect_wall_right"]
+size = Vector2(10, 1280)
 
 [sub_resource type="RectangleShape2D" id="rect_score_zone"]
-size = Vector2(20, 720)
+size = Vector2(720, 20)
 
 [node name="Game" type="Node2D"]
 
 [node name="WorldEnvironment" parent="." instance=ExtResource("9_world_env")]
 
-[node name="TopWall" type="StaticBody2D" parent="." groups=["walls"]]
-position = Vector2(640, 5)
+[node name="LeftWall" type="StaticBody2D" parent="." groups=["walls"]]
+position = Vector2(5, 640)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="TopWall"]
-shape = SubResource("rect_wall_top")
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LeftWall"]
+shape = SubResource("rect_wall_left")
 
-[node name="BottomWall" type="StaticBody2D" parent="." groups=["walls"]]
-position = Vector2(640, 715)
+[node name="RightWall" type="StaticBody2D" parent="." groups=["walls"]]
+position = Vector2(715, 640)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="BottomWall"]
-shape = SubResource("rect_wall_bottom")
+[node name="CollisionShape2D" type="CollisionShape2D" parent="RightWall"]
+shape = SubResource("rect_wall_right")
 
 [node name="Ball" parent="." instance=ExtResource("1_ball")]
-position = Vector2(640, 360)
+position = Vector2(360, 640)
 
 [node name="PlayerPaddle" parent="." instance=ExtResource("2_player_paddle")]
-position = Vector2(50, 360)
+position = Vector2(360, 1240)
 
 [node name="AIPaddle" parent="." instance=ExtResource("2_player_paddle")]
-position = Vector2(1230, 360)
+position = Vector2(360, 40)
 mode = 1
 
 [node name="ScoringManager" type="Node" parent="."]
@@ -60,18 +60,18 @@ player_paddle = NodePath("../PlayerPaddle")
 ai_paddle = NodePath("../AIPaddle")
 scoring_manager = NodePath("../ScoringManager")
 
-[node name="ScoreZoneLeft" type="Area2D" parent="."]
-position = Vector2(0, 360)
+[node name="ScoreZoneTop" type="Area2D" parent="."]
+position = Vector2(360, 0)
 collision_mask = 4
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="ScoreZoneLeft"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ScoreZoneTop"]
 shape = SubResource("rect_score_zone")
 
-[node name="ScoreZoneRight" type="Area2D" parent="."]
-position = Vector2(1280, 360)
+[node name="ScoreZoneBottom" type="Area2D" parent="."]
+position = Vector2(360, 1280)
 collision_mask = 4
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="ScoreZoneRight"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ScoreZoneBottom"]
 shape = SubResource("rect_score_zone")
 
 [node name="ScoreFlash" type="Node" parent="."]
@@ -131,7 +131,7 @@ script = ExtResource("5_game_hud")
 [node name="MarginContainer" type="MarginContainer" parent="GameHUD"]
 offset_left = 0.0
 offset_top = 0.0
-offset_right = 1280.0
+offset_right = 720.0
 offset_bottom = 60.0
 
 [node name="HBoxContainer" type="HBoxContainer" parent="GameHUD/MarginContainer"]

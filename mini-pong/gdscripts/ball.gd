@@ -1,6 +1,8 @@
 extends Area2D
 ## Ball physics for mini-pong — manual _process movement, wall/paddle collision, scoring, serve.
 ## Self-contained Area2D: manages velocity, collision responses, and scoring signals.
+## 竖屏 (#383): 垂直对打 — Y 出界得分（y<-R→player、y>H+R→ai）、左右墙反弹 X、
+## 垂直发球 (sin θ, cos θ·dir)、paddle 反弹读 shape.size.x（长度 120）。
 
 # ── Constants (via GameConstants, non-destructive migration #295) ──
 const CONSTS = preload("res://gdscripts/constants.gd")
@@ -25,7 +27,7 @@ const BALL_RADIUS: float = CONSTS.BALL_RADIUS
 
 # ── Signals ──
 signal score(side: int)
-# side: 0 = left scores (ball exited right), 1 = right scores (ball exited left)
+# side: 0 = player scores (ball exited top past AI), 1 = ai scores (ball exited bottom past player)
 
 # ── State ──
 var velocity: Vector2 = Vector2.ZERO
@@ -39,7 +41,7 @@ var _scored_this_frame: bool = false
 
 func _ready() -> void:
 	# Read viewport dimensions
-	var viewport := get_viewport()
+	var viewport = get_viewport()
 	if viewport != null:
 		var vs := viewport.get_visible_rect().size
 		screen_width = vs.x if vs.x > 0.0 else FALLBACK_SCREEN_WIDTH
@@ -60,14 +62,15 @@ func _ready() -> void:
 
 	# Connect ScoreZone Area2D area_entered signals (#295)
 	# NOTE: ScoreZones are Area2D, ball is Area2D — use area_entered, NOT body_entered.
-	var parent := get_parent()
+	# 竖屏 (#383): ScoreZoneTop(顶部)→player 得分(0)；ScoreZoneBottom(底部)→ai 得分(1)
+	var parent = get_parent()
 	if parent:
-		var zone_left := parent.get_node_or_null("ScoreZoneLeft")
-		if zone_left and zone_left is Area2D:
-			zone_left.area_entered.connect(func(a): _on_score_zone(1))
-		var zone_right := parent.get_node_or_null("ScoreZoneRight")
-		if zone_right and zone_right is Area2D:
-			zone_right.area_entered.connect(func(a): _on_score_zone(0))
+		var zone_top := parent.get_node_or_null("ScoreZoneTop")
+		if zone_top and zone_top is Area2D:
+			zone_top.area_entered.connect(func(a): _on_score_zone(0))
+		var zone_bottom := parent.get_node_or_null("ScoreZoneBottom")
+		if zone_bottom and zone_bottom is Area2D:
+			zone_bottom.area_entered.connect(func(a): _on_score_zone(1))
 
 	# Start first serve
 	serve()
@@ -88,7 +91,7 @@ func serve() -> void:
 		var direction: float = 1.0
 		if randi() % 2 == 0:
 			direction = -1.0
-		velocity = Vector2(cos(angle_rad) * direction, sin(angle_rad)) * speed
+		velocity = Vector2(sin(angle_rad), cos(angle_rad) * direction) * speed
 		_is_serving = false
 		return
 
@@ -98,7 +101,7 @@ func serve() -> void:
 	var direction: float = 1.0
 	if randi() % 2 == 0:
 		direction = -1.0
-	velocity = Vector2(cos(angle_rad) * direction, sin(angle_rad)) * speed
+	velocity = Vector2(sin(angle_rad), cos(angle_rad) * direction) * speed
 	_is_serving = false
 
 
@@ -112,7 +115,7 @@ func _process(delta: float) -> void:
 
 	# Guard NaN velocity
 	if is_nan(velocity.x) or is_nan(velocity.y):
-		velocity = Vector2.RIGHT * speed
+		velocity = Vector2.DOWN * speed
 		push_warning("ball.gd: NaN velocity detected, resetting")
 
 	# Decrement bounce cooldown
@@ -126,27 +129,27 @@ func _process(delta: float) -> void:
 	velocity = velocity.normalized() * speed
 	position += velocity * delta
 
-	# Y boundary safety net (wall bounce fallback)
-	if position.y < -BALL_RADIUS:
-		position.y = -BALL_RADIUS
-		velocity.y = abs(velocity.y)
-	if position.y > screen_height + BALL_RADIUS:
-		position.y = screen_height + BALL_RADIUS
-		velocity.y = -abs(velocity.y)
-
-	# X boundary — scoring (fallback dual-trigger guard #295)
+	# X boundary safety net (wall bounce fallback, 竖屏左右墙)
 	if position.x < -BALL_RADIUS:
+		position.x = -BALL_RADIUS
+		velocity.x = abs(velocity.x)
+	if position.x > screen_width + BALL_RADIUS:
+		position.x = screen_width + BALL_RADIUS
+		velocity.x = -abs(velocity.x)
+
+	# Y boundary — scoring (fallback dual-trigger guard #295, 竖屏上下得分)
+	if position.y < -BALL_RADIUS:
 		if not _scored_this_frame:
-			score.emit(1)  # Right player scores (ball exited left)
+			score.emit(0)  # Player scores (ball exited top past AI)
 			serve()
-	elif position.x > screen_width + BALL_RADIUS:
+	elif position.y > screen_height + BALL_RADIUS:
 		if not _scored_this_frame:
-			score.emit(0)  # Left player scores (ball exited right)
+			score.emit(1)  # AI scores (ball exited bottom past player)
 			serve()
 
 
 func _on_score_zone(side: int) -> void:
-	# ScoreZone body_entered handler — primary scoring path (#295)
+	# ScoreZone area_entered handler — primary scoring path (#295)
 	if _scored_this_frame:
 		return
 	_scored_this_frame = true
@@ -159,7 +162,7 @@ func _on_body_entered(body: Node2D) -> void:
 		return
 
 	if body.is_in_group("walls"):
-		velocity.y *= -1.0
+		velocity.x *= -1.0
 		_bounce_cooldown = BOUNCE_COOLDOWN_FRAMES
 		if is_instance_valid(AudioEngine):
 			AudioEngine.play_wall_bounce()
@@ -172,28 +175,28 @@ func _on_area_entered(area: Area2D) -> void:
 	if not area.is_in_group("paddles"):
 		return
 
-	# Read paddle height from CollisionShape2D, fall back to 120.0
-	var paddle_height: float = 120.0
+	# Read paddle length from CollisionShape2D (竖屏: 长度沿 X = size.x), fall back to 120.0
+	var paddle_length: float = 120.0
 	if area.has_node("CollisionShape2D"):
 		var cs := area.get_node("CollisionShape2D") as CollisionShape2D
 		if cs != null and cs.shape != null:
-			paddle_height = cs.shape.get("size").y
+			paddle_length = cs.shape.get("size").x
 
-	# Calculate impact offset
-	var paddle_center_y := area.global_position.y
-	var impact_offset: float = (global_position.y - paddle_center_y) / (paddle_height / 2.0)
+	# Calculate impact offset (沿 X)
+	var paddle_center_x := area.global_position.x
+	var impact_offset: float = (global_position.x - paddle_center_x) / (paddle_length / 2.0)
 	impact_offset = clamp(impact_offset, -1.0, 1.0)
 
 	# Calculate bounce angle
 	var bounce_angle_rad: float = deg_to_rad(impact_offset * max_bounce_angle)
 
-	# Determine horizontal direction (reverse current direction)
-	var direction: float = -sign(velocity.x)
+	# Determine vertical direction (reverse current direction, 主轴 Y)
+	var direction: float = -sign(velocity.y)
 	if direction == 0.0:
 		direction = 1.0
 
 	# Apply new velocity direction
-	velocity = Vector2(cos(bounce_angle_rad) * direction, sin(bounce_angle_rad))
+	velocity = Vector2(sin(bounce_angle_rad), cos(bounce_angle_rad) * direction)
 	velocity = velocity.normalized()
 
 	# Speed escalation
@@ -209,6 +212,6 @@ func _on_area_entered(area: Area2D) -> void:
 	if is_instance_valid(AudioEngine):
 		AudioEngine.play_paddle_hit()
 
-	# Anti-stick: push ball away from paddle
-	var push_dist := BALL_RADIUS + 10.0 + 2.0  # ball radius + paddle half-width + margin
-	position.x += sign(velocity.x) * push_dist
+	# Anti-stick: push ball away from paddle (沿主轴 Y 推离)
+	var push_dist := BALL_RADIUS + 10.0 + 2.0  # ball radius + paddle half-thickness + margin
+	position.y += sign(velocity.y) * push_dist
