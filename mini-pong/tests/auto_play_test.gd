@@ -7,34 +7,37 @@ extends RefCounted
 ## Run via run_tests.gd:
 ##   godot --path mini-pong/ --headless --script tests/run_tests.gd
 ##
+## 竖屏重写 (#383): SCREEN_W=720/SCREEN_H=1280；左右墙反弹 X；上下得分区 Y；
+## 挡板上下分列沿 X 移动；AI 追踪 X 轴。FSM/scoring 信号链不变。
+##
 ## Design: docs/DESIGN/297-ai-auto-play-test.md — Approach C (minimal test scene).
 ## Parent Issue: #297
 
 var passed: int = 0
 var failed: int = 0
 
-# ── Test parameters ──
+# ── Test parameters (竖屏 720x1280, #383) ──
 const MATCH_COUNT: int = 100
 const MAX_FRAMES_PER_MATCH: int = 100000
-const SCREEN_W: float = 1280.0
-const SCREEN_H: float = 720.0
+const SCREEN_W: float = 720.0
+const SCREEN_H: float = 1280.0
 const FIXED_DELTA: float = 1.0 / 60.0
 
 # Increased AI error for test: ensures matches complete in reasonable frame counts.
-# Default is 20.0 — with two identically-parameterized AIs, rallies can be extremely long.
-# 60.0 provides enough randomness that matches reliably conclude within 100K frames.
 const TEST_AI_POSITION_ERROR: float = 60.0
 
 const _CONSTS = preload("res://gdscripts/constants.gd")
 const POINTS_TO_WIN: int = _CONSTS.POINTS_TO_WIN_GAME
 const GAMES_TO_WIN: int = _CONSTS.GAMES_TO_WIN_MATCH
 const BALL_R: float = _CONSTS.BALL_RADIUS
-const PADDLE_HW: float = _CONSTS.PADDLE_WIDTH / 2.0
-const PADDLE_HH: float = _CONSTS.PADDLE_HEIGHT / 2.0
-const PADDLE_Y_MIN: float = PADDLE_HH
-const PADDLE_Y_MAX: float = SCREEN_H - PADDLE_HH
-const WALL_Y_TOP: float = 10.0
-const WALL_Y_BOT: float = SCREEN_H - 10.0
+const PADDLE_HW: float = _CONSTS.PADDLE_WIDTH / 2.0   # 60 (半长)
+const PADDLE_HH: float = _CONSTS.PADDLE_HEIGHT / 2.0  # 10 (半厚)
+const PADDLE_X_MIN: float = PADDLE_HW
+const PADDLE_X_MAX: float = SCREEN_W - PADDLE_HW
+const WALL_X_LEFT: float = 10.0
+const WALL_X_RIGHT: float = SCREEN_W - 10.0
+const PADDLE_Y_TOP: float = 50.0
+const PADDLE_Y_BOT: float = SCREEN_H - 50.0
 
 # ── Stats ──
 var _timeouts: int = 0
@@ -46,29 +49,29 @@ func run() -> void:
 	print("\n=== Auto-Play Test: %d Matches (AI vs AI) ===" % MATCH_COUNT)
 	print("  POINTS_TO_WIN_GAME=%d  GAMES_TO_WIN_MATCH=%d" % [POINTS_TO_WIN, GAMES_TO_WIN])
 	print("  MAX_FRAMES_PER_MATCH=%d  FIXED_DELTA=%.4f" % [MAX_FRAMES_PER_MATCH, FIXED_DELTA])
-	print("  TEST_AI_POSITION_ERROR=%.1f" % TEST_AI_POSITION_ERROR)
+	print("  TEST_AI_POSITION_ERROR=%.1f  SCREEN=%dx%d" % [TEST_AI_POSITION_ERROR, int(SCREEN_W), int(SCREEN_H)])
 
 	var tree := Engine.get_main_loop() as SceneTree
 	var gm: Node = tree.root.get_node("GameManager")
 
-	# ── Build minimal test scene ──
+	# ── Build minimal test scene (竖屏: 左右墙 + 上下挡板) ──
 	var ball: Area2D = _spawn_ball(tree)
-	var top_wall: StaticBody2D = _spawn_wall(tree, "TopWall", SCREEN_W / 2.0, 5.0)
-	var bot_wall: StaticBody2D = _spawn_wall(tree, "BottomWall", SCREEN_W / 2.0, SCREEN_H - 5.0)
-	var p_left: Area2D = _spawn_paddle(tree, "PlayerPaddle", Vector2(50.0, SCREEN_H / 2.0))
-	var p_right: Area2D = _spawn_paddle(tree, "AIPaddle", Vector2(SCREEN_W - 50.0, SCREEN_H / 2.0))
+	var left_wall: StaticBody2D = _spawn_wall(tree, "LeftWall", 5.0, SCREEN_H / 2.0)
+	var right_wall: StaticBody2D = _spawn_wall(tree, "RightWall", SCREEN_W - 5.0, SCREEN_H / 2.0)
+	var p_bottom: Area2D = _spawn_paddle(tree, "PlayerPaddle", Vector2(SCREEN_W / 2.0, PADDLE_Y_BOT))
+	var p_top: Area2D = _spawn_paddle(tree, "AIPaddle", Vector2(SCREEN_W / 2.0, PADDLE_Y_TOP))
 	var sm: Node = _spawn_scoring_manager(tree)
 
 	# Fix headless viewport dimensions
 	ball.screen_width = SCREEN_W
 	ball.screen_height = SCREEN_H
 	ball.position = Vector2(SCREEN_W / 2.0, SCREEN_H / 2.0)
-	p_left.min_y = PADDLE_Y_MIN; p_left.max_y = PADDLE_Y_MAX
-	p_right.min_y = PADDLE_Y_MIN; p_right.max_y = PADDLE_Y_MAX
+	p_bottom.min_x = PADDLE_X_MIN; p_bottom.max_x = PADDLE_X_MAX
+	p_top.min_x = PADDLE_X_MIN; p_top.max_x = PADDLE_X_MAX
 
 	# Increase AI position error for test: prevents infinite rallies
-	p_left.ai_position_error = TEST_AI_POSITION_ERROR
-	p_right.ai_position_error = TEST_AI_POSITION_ERROR
+	p_bottom.ai_position_error = TEST_AI_POSITION_ERROR
+	p_top.ai_position_error = TEST_AI_POSITION_ERROR
 
 	# Wait for _ready callbacks (signal connections)
 	for _i in range(5):
@@ -81,7 +84,7 @@ func run() -> void:
 	var start_ms := Time.get_ticks_msec()
 
 	for m in range(MATCH_COUNT):
-		var ok: bool = _run_single_match(m, ball, top_wall, bot_wall, p_left, p_right, sm, gm)
+		var ok: bool = _run_single_match(m, ball, left_wall, right_wall, p_bottom, p_top, sm, gm)
 		if ok:
 			passed += 1
 		else:
@@ -92,7 +95,7 @@ func run() -> void:
 	_print_summary(elapsed)
 
 	# Cleanup test nodes
-	for name in ["Ball", "PlayerPaddle", "AIPaddle", "TopWall", "BottomWall", "ScoringManager"]:
+	for name in ["Ball", "PlayerPaddle", "AIPaddle", "LeftWall", "RightWall", "ScoringManager"]:
 		var n := tree.root.get_node_or_null(name)
 		if n != null:
 			tree.root.remove_child(n)
@@ -115,7 +118,7 @@ func _spawn_wall(tree: SceneTree, wname: String, wx: float, wy: float) -> Static
 	w.add_to_group("walls")
 	var cs := CollisionShape2D.new()
 	var s := RectangleShape2D.new()
-	s.size = Vector2(SCREEN_W, 10.0)
+	s.size = Vector2(10.0, SCREEN_H)  # 竖屏: 左右墙 10 厚 × 1280 长
 	cs.shape = s
 	w.add_child(cs)
 	tree.root.add_child(w)
@@ -141,8 +144,8 @@ func _spawn_scoring_manager(tree: SceneTree) -> Node:
 
 # ── Match runner ──
 
-func _run_single_match(midx: int, ball: Area2D, top_wall: StaticBody2D, bot_wall: StaticBody2D, p_left: Area2D, p_right: Area2D, sm: Node, gm: Node) -> bool:
-	_reset_match_state(ball, p_left, p_right, sm, gm)
+func _run_single_match(midx: int, ball: Area2D, left_wall: StaticBody2D, right_wall: StaticBody2D, p_bottom: Area2D, p_top: Area2D, sm: Node, gm: Node) -> bool:
+	_reset_match_state(ball, p_bottom, p_top, sm, gm)
 
 	var game_letters: Array[String] = []
 	var _on_game := func(w: String):
@@ -155,7 +158,7 @@ func _run_single_match(midx: int, ball: Area2D, top_wall: StaticBody2D, bot_wall
 	var winner: String = ""
 
 	while winner.is_empty() and frame < MAX_FRAMES_PER_MATCH:
-		_simulate_frame(ball, top_wall, bot_wall, p_left, p_right, FIXED_DELTA)
+		_simulate_frame(ball, left_wall, right_wall, p_bottom, p_top, FIXED_DELTA)
 		frame += 1
 
 		if is_nan(ball.velocity.x) or is_nan(ball.velocity.y):
@@ -207,11 +210,12 @@ func _run_single_match(midx: int, ball: Area2D, top_wall: StaticBody2D, bot_wall
 		errors.append("SM games(%d) != GM games(%d)" % [sm_games, gm_games])
 		ok = false
 
-	if p_left.position.y < 0.0 or p_left.position.y > SCREEN_H:
-		errors.append("left paddle OOB y=%.1f" % p_left.position.y)
+	# 竖屏: 挡板沿 X 移动，越界检查 X ∈ [0, SCREEN_W]
+	if p_bottom.position.x < 0.0 or p_bottom.position.x > SCREEN_W:
+		errors.append("bottom paddle OOB x=%.1f" % p_bottom.position.x)
 		ok = false
-	if p_right.position.y < 0.0 or p_right.position.y > SCREEN_H:
-		errors.append("right paddle OOB y=%.1f" % p_right.position.y)
+	if p_top.position.x < 0.0 or p_top.position.x > SCREEN_W:
+		errors.append("top paddle OOB x=%.1f" % p_top.position.x)
 		ok = false
 
 	var total_games: int = gm.player_games_won + gm.ai_games_won
@@ -227,9 +231,9 @@ func _run_single_match(midx: int, ball: Area2D, top_wall: StaticBody2D, bot_wall
 	return ok
 
 
-# ── Physics simulation ──
+# ── Physics simulation (竖屏语义, #383) ──
 
-func _simulate_frame(ball: Area2D, top_wall: StaticBody2D, bot_wall: StaticBody2D, p_left: Area2D, p_right: Area2D, delta: float) -> void:
+func _simulate_frame(ball: Area2D, left_wall: StaticBody2D, right_wall: StaticBody2D, p_bottom: Area2D, p_top: Area2D, delta: float) -> void:
 	# ── Manual ball physics (avoids ball._process which calls serve()→await) ──
 	if not ball._is_serving:
 		# Normalize velocity to prevent drift
@@ -238,7 +242,7 @@ func _simulate_frame(ball: Area2D, top_wall: StaticBody2D, bot_wall: StaticBody2
 			if vlen > 0.0:
 				ball.velocity = ball.velocity.normalized() * ball.speed
 		else:
-			ball.velocity = Vector2.RIGHT * ball.speed
+			ball.velocity = Vector2.DOWN * ball.speed
 
 		# Decay bounce cooldown
 		if ball._bounce_cooldown > 0:
@@ -252,17 +256,17 @@ func _simulate_frame(ball: Area2D, top_wall: StaticBody2D, bot_wall: StaticBody2
 
 		# Collision detection (before applying position)
 		if ball._bounce_cooldown <= 0:
-			# Wall collision
-			if ny - BALL_R <= WALL_Y_TOP:
-				ball._on_body_entered(top_wall)
-			elif ny + BALL_R >= WALL_Y_BOT:
-				ball._on_body_entered(bot_wall)
+			# Wall collision (左右墙)
+			if nx - BALL_R <= WALL_X_LEFT:
+				ball._on_body_entered(left_wall)
+			elif nx + BALL_R >= WALL_X_RIGHT:
+				ball._on_body_entered(right_wall)
 
-			# Paddle collision (circle vs AABB)
-			for pdata in [[p_left, 50.0], [p_right, SCREEN_W - 50.0]]:
+			# Paddle collision (circle vs AABB) — 挡板上下分列、沿 X 移动
+			for pdata in [[p_top, PADDLE_Y_TOP], [p_bottom, PADDLE_Y_BOT]]:
 				var p: Area2D = pdata[0]
-				var px: float = pdata[1]
-				var py: float = p.position.y
+				var py: float = pdata[1]
+				var px: float = p.position.x
 				var cx: float = clamp(nx, px - PADDLE_HW, px + PADDLE_HW)
 				var cy: float = clamp(ny, py - PADDLE_HH, py + PADDLE_HH)
 				var dx: float = nx - cx
@@ -275,34 +279,34 @@ func _simulate_frame(ball: Area2D, top_wall: StaticBody2D, bot_wall: StaticBody2
 		bx = ball.position.x
 		by = ball.position.y
 
-		# Y boundary safety net
-		if by < -BALL_R:
-			ball.position.y = -BALL_R
-			ball.velocity.y = abs(ball.velocity.y)
-		elif by > SCREEN_H + BALL_R:
-			ball.position.y = SCREEN_H + BALL_R
-			ball.velocity.y = -abs(ball.velocity.y)
-
-		# X boundary scoring
+		# X boundary safety net (左右墙反弹 fallback)
 		if bx < -BALL_R:
+			ball.position.x = -BALL_R
+			ball.velocity.x = abs(ball.velocity.x)
+		elif bx > SCREEN_W + BALL_R:
+			ball.position.x = SCREEN_W + BALL_R
+			ball.velocity.x = -abs(ball.velocity.x)
+
+		# Y boundary scoring (上下出界得分)
+		if by < -BALL_R:
 			if not ball._scored_this_frame:
-				ball.score.emit(1)  # Player scores (ball exited left)
+				ball.score.emit(0)  # Player scores (ball exited top past AI)
 				ball._scored_this_frame = true
 			_serve_fast(ball)
-		elif bx > SCREEN_W + BALL_R:
+		elif by > SCREEN_H + BALL_R:
 			if not ball._scored_this_frame:
-				ball.score.emit(0)  # AI scores (ball exited right)
+				ball.score.emit(1)  # AI scores (ball exited bottom past player)
 				ball._scored_this_frame = true
 			_serve_fast(ball)
 
 	# ── Paddle AI ──
-	p_left._process(delta)
-	p_right._process(delta)
+	p_bottom._process(delta)
+	p_top._process(delta)
 
 
 # ── State helpers ──
 
-func _reset_match_state(ball: Area2D, p_left: Area2D, p_right: Area2D, sm: Node, gm: Node) -> void:
+func _reset_match_state(ball: Area2D, p_bottom: Area2D, p_top: Area2D, sm: Node, gm: Node) -> void:
 	gm.reset_match()
 	sm.player_score = 0
 	sm.ai_score = 0
@@ -318,10 +322,10 @@ func _reset_match_state(ball: Area2D, p_left: Area2D, p_right: Area2D, sm: Node,
 	ball._bounce_cooldown = 0
 	ball._is_serving = false
 
-	p_left.position = Vector2(50.0, SCREEN_H / 2.0)
-	p_right.position = Vector2(SCREEN_W - 50.0, SCREEN_H / 2.0)
-	p_left._ai_delay_timer = randf_range(p_left.ai_reaction_delay_min, p_left.ai_reaction_delay_max)
-	p_right._ai_delay_timer = randf_range(p_right.ai_reaction_delay_min, p_right.ai_reaction_delay_max)
+	p_bottom.position = Vector2(SCREEN_W / 2.0, PADDLE_Y_BOT)
+	p_top.position = Vector2(SCREEN_W / 2.0, PADDLE_Y_TOP)
+	p_bottom._ai_delay_timer = randf_range(p_bottom.ai_reaction_delay_min, p_bottom.ai_reaction_delay_max)
+	p_top._ai_delay_timer = randf_range(p_top.ai_reaction_delay_min, p_top.ai_reaction_delay_max)
 
 
 func _serve_fast(ball: Area2D) -> void:
@@ -330,9 +334,10 @@ func _serve_fast(ball: Area2D) -> void:
 	ball.velocity = Vector2.ZERO
 	ball._bounce_cooldown = 0
 	ball._is_serving = true
-	var angle: float = randf_range(-deg_to_rad(45.0), deg_to_rad(45.0))
+	var angle: float = randf_range(-deg_to_rad(30.0), deg_to_rad(30.0))
 	var direction: float = 1.0 if randi() % 2 == 0 else -1.0
-	ball.velocity = Vector2(cos(angle) * direction, sin(angle)) * ball.initial_speed
+	# 垂直发球: velocity = (sin θ, cos θ·dir)
+	ball.velocity = Vector2(sin(angle), cos(angle) * direction) * ball.initial_speed
 	ball._is_serving = false
 	ball._scored_this_frame = false
 

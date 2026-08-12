@@ -1,25 +1,28 @@
 extends RefCounted
 ## Test suite for ball.gd (#287) — Ball Physics & Collision.
 ## Runs under godot --headless --script via run_tests.gd.
+## 竖屏重写 (#383): 墙反弹改 X 分量；得分改 Y 出界（y<-R→player、y>H+R→ai）；
+## 发球垂直（散布 ±30° 沿 X）；paddle 反弹读 shape.size.x（长度 120）、offset 沿 X；
+## 反卡位沿 Y。
 
 var passed: int = 0
 var failed: int = 0
 
 ## Paddle constants (must match paddle.gd — used for collision math tests)
-const PADDLE_HEIGHT: float = 120.0
-const PADDLE_WIDTH: float = 20.0
+const PADDLE_HEIGHT: float = 20.0
+const PADDLE_WIDTH: float = 120.0
 
 ## Ball constants from DESIGN (for structural verification)
 const INITIAL_SPEED: float = 300.0
 const MAX_SPEED_MULTIPLIER: float = 2.0
-const SPEED_INCREMENT: float = 1.05  # 测试夹具（TC-D1 显式 pin，见下；不随 #367 草稿值漂移）
+const SPEED_INCREMENT: float = 1.05  # 测试夹具（TC-D1 显式 pin，见下）
 const MAX_BOUNCE_ANGLE: float = 60.0
-const SERVE_ANGLE_RANGE: float = 45.0
+const SERVE_ANGLE_RANGE: float = 30.0
 const BOUNCE_COOLDOWN_FRAMES: int = 2
 const SERVE_DELAY: float = 0.5
 const BALL_RADIUS: float = 10.0
-const FALLBACK_SCREEN_WIDTH: float = 1280.0
-const FALLBACK_SCREEN_HEIGHT: float = 720.0
+const FALLBACK_SCREEN_WIDTH: float = 720.0
+const FALLBACK_SCREEN_HEIGHT: float = 1280.0
 
 
 func run() -> void:
@@ -27,22 +30,22 @@ func run() -> void:
 	_test_scene_integrity_a2()       # TC-A2: CollisionShape2D non-null, CircleShape2D r=10
 	_test_scene_integrity_a3()       # TC-A3: Main.tscn hierarchy
 	_test_scene_integrity_a4()       # TC-A4: project.godot main_scene
-	_test_wall_bounce_b1()           # TC-B1: top wall bounce — Y reversed
-	_test_wall_bounce_b2()           # TC-B2: bottom wall bounce — Y reversed
-	_test_wall_bounce_b3()           # TC-B3: X velocity unchanged after wall bounce
+	_test_wall_bounce_b1()           # TC-B1: left wall bounce — X reversed
+	_test_wall_bounce_b2()           # TC-B2: right wall bounce — X reversed
+	_test_wall_bounce_b3()           # TC-B3: Y velocity unchanged after wall bounce
 	_test_wall_bounce_b4()           # TC-B4: speed unchanged after wall bounce
-	_test_paddle_center_c1()         # TC-C1: center hit → near-horizontal bounce
-	_test_paddle_top_edge_c2()       # TC-C2: top-edge hit → steep upward bounce
-	_test_paddle_bottom_edge_c3()    # TC-C3: bottom-edge hit → steep downward bounce
-	_test_paddle_x_reversed_c4()     # TC-C4: X-direction reversed after paddle hit
+	_test_paddle_center_c1()         # TC-C1: center hit → near-vertical bounce
+	_test_paddle_left_edge_c2()      # TC-C2: left-edge hit → steep leftward bounce
+	_test_paddle_right_edge_c3()     # TC-C3: right-edge hit → steep rightward bounce
+	_test_paddle_y_reversed_c4()     # TC-C4: Y-direction reversed after paddle hit
 	_test_speed_escalation_d1()      # TC-D1: speed +5% per hit (夹具固定)
 	_test_speed_cap_d2()             # TC-D2: speed capped at 2x
 	_test_speed_reset_d3()           # TC-D3: speed resets to initial_speed on serve
-	_test_score_right_e1()           # TC-E1: right boundary → score(0)
-	_test_score_left_e2()            # TC-E2: left boundary → score(1)
+	_test_score_bottom_e1()          # TC-E1: bottom boundary → score(1) (ai)
+	_test_score_top_e2()             # TC-E2: top boundary → score(0) (player)
 	_test_serve_center_f1()          # TC-F1: serve from center
 	_test_serve_direction_f2()       # TC-F2: random direction roughly 50/50
-	_test_serve_angle_f3()           # TC-F3: serve angle within ±45°
+	_test_serve_angle_f3()           # TC-F3: serve angle within ±30° (vertical, spread along X)
 	_test_nan_guard_g3()             # TC-G3: NaN velocity reset
 	_test_cooldown_dup_h1()          # TC-H1: duplicate collision suppressed
 	_test_cooldown_expiry_h2()       # TC-H2: cooldown expires, collision processed
@@ -76,9 +79,9 @@ func _make_ball():
 
 func _make_paddle_mock():
 	## Create a minimal Area2D mock that can pass is_in_group("paddles").
+	## 竖屏横置 (#383): 120 长（X）× 20 厚（Y）。
 	var paddle = Area2D.new()
 	paddle.add_to_group("paddles")
-	# Add CollisionShape2D with paddle dimensions so ball can read height
 	var cs = CollisionShape2D.new()
 	var shape = RectangleShape2D.new()
 	shape.size = Vector2(PADDLE_WIDTH, PADDLE_HEIGHT)
@@ -121,14 +124,14 @@ func _test_scene_integrity_a3() -> void:
 	if scene == null:
 		return
 	var game = scene.instantiate()
-	_assert(game.has_node("TopWall"), "TC-A3: TopWall node exists")
-	_assert(game.has_node("BottomWall"), "TC-A3: BottomWall node exists")
-	var top = game.get_node("TopWall")
-	_assert(top is StaticBody2D, "TC-A3: TopWall is StaticBody2D")
-	_assert(top.is_in_group("walls"), "TC-A3: TopWall in 'walls' group")
-	var bottom = game.get_node("BottomWall")
-	_assert(bottom is StaticBody2D, "TC-A3: BottomWall is StaticBody2D")
-	_assert(bottom.is_in_group("walls"), "TC-A3: BottomWall in 'walls' group")
+	_assert(game.has_node("LeftWall"), "TC-A3: LeftWall node exists")
+	_assert(game.has_node("RightWall"), "TC-A3: RightWall node exists")
+	var left = game.get_node("LeftWall")
+	_assert(left is StaticBody2D, "TC-A3: LeftWall is StaticBody2D")
+	_assert(left.is_in_group("walls"), "TC-A3: LeftWall in 'walls' group")
+	var right = game.get_node("RightWall")
+	_assert(right is StaticBody2D, "TC-A3: RightWall is StaticBody2D")
+	_assert(right.is_in_group("walls"), "TC-A3: RightWall in 'walls' group")
 	_assert(game.has_node("Ball"), "TC-A3: Ball instance node exists")
 	_assert(game.has_node("PlayerPaddle"), "TC-A3: PlayerPaddle instance node exists")
 
@@ -139,44 +142,44 @@ func _test_scene_integrity_a4() -> void:
 	_assert(content.contains("run/main_scene=\"res://scenes/Main.tscn\""), "TC-A4: run/main_scene set to Main.tscn")
 
 
-# ── Scenario B: Wall Bounce ──
+# ── Scenario B: Wall Bounce (左右墙反弹 X 分量, #383) ──
 
 func _test_wall_bounce_b1() -> void:
 	var ball = _make_ball()
-	ball.velocity = Vector2(200, -150)  # moving up
+	ball.velocity = Vector2(-150, 200)  # moving left
 	ball._bounce_cooldown = 0
 	# Simulate wall collision
 	var wall = StaticBody2D.new()
 	wall.add_to_group("walls")
 	ball._on_body_entered(wall)
-	_assert(ball.velocity.y > 0, "TC-B1: velocity.y reversed (was negative, now positive)")
+	_assert(ball.velocity.x > 0, "TC-B1: velocity.x reversed (was negative, now positive)")
 	_assert(ball._bounce_cooldown == BOUNCE_COOLDOWN_FRAMES, "TC-B1: bounce cooldown set")
 
 
 func _test_wall_bounce_b2() -> void:
 	var ball = _make_ball()
-	ball.velocity = Vector2(200, 150)  # moving down
+	ball.velocity = Vector2(150, 200)  # moving right
 	ball._bounce_cooldown = 0
 	var wall = StaticBody2D.new()
 	wall.add_to_group("walls")
 	ball._on_body_entered(wall)
-	_assert(ball.velocity.y < 0, "TC-B2: velocity.y reversed (was positive, now negative)")
+	_assert(ball.velocity.x < 0, "TC-B2: velocity.x reversed (was positive, now negative)")
 
 
 func _test_wall_bounce_b3() -> void:
 	var ball = _make_ball()
-	ball.velocity = Vector2(200, -150)
+	ball.velocity = Vector2(-150, 200)
 	ball._bounce_cooldown = 0
 	var wall = StaticBody2D.new()
 	wall.add_to_group("walls")
 	ball._on_body_entered(wall)
-	_assert(ball.velocity.x == 200.0, "TC-B3: velocity.x unchanged after wall bounce")
+	_assert(ball.velocity.y == 200.0, "TC-B3: velocity.y unchanged after wall bounce")
 
 
 func _test_wall_bounce_b4() -> void:
 	var ball = _make_ball()
 	ball.speed = 350.0
-	ball.velocity = Vector2(200, -150)
+	ball.velocity = Vector2(-150, 200)
 	ball._bounce_cooldown = 0
 	var pre_speed = ball.speed
 	var wall = StaticBody2D.new()
@@ -185,74 +188,74 @@ func _test_wall_bounce_b4() -> void:
 	_assert(abs(ball.speed - pre_speed) < 0.01, "TC-B4: speed scalar unchanged after wall bounce")
 
 
-# ── Scenario C: Paddle Collision — Angle Variation ──
+# ── Scenario C: Paddle Collision — Angle Variation (offset 沿 X, #383) ──
 
 func _test_paddle_center_c1() -> void:
 	var ball = _make_ball()
-	ball.velocity = Vector2(-300, 0)   # moving left toward right paddle
+	ball.velocity = Vector2(0, 300)   # moving down toward player paddle
 	ball.speed = 300.0
 	ball._bounce_cooldown = 0
-	ball.position = Vector2(640, 360)  # ball at same Y as paddle center
+	ball.position = Vector2(360, 1240)  # ball at same X as paddle center
 
 	var paddle = _make_paddle_mock()
-	paddle.position = Vector2(50, 360)  # paddle center at y=360
+	paddle.position = Vector2(360, 1240)  # paddle center at x=360
 
 	ball._on_area_entered(paddle)
 
-	# Center hit → bounce angle ≈ 0° (nearly horizontal, velocity.y ≈ 0)
-	_assert(abs(ball.velocity.y) < 50.0, "TC-C1: center hit → near-horizontal (vy ~ 0)")
-	_assert(ball.velocity.x > 0, "TC-C1: X direction reversed (was left, now right)")
+	# Center hit → bounce angle ≈ 0° (nearly vertical, velocity.x ≈ 0)
+	_assert(abs(ball.velocity.x) < 50.0, "TC-C1: center hit → near-vertical (vx ~ 0)")
+	_assert(ball.velocity.y < 0, "TC-C1: Y direction reversed (was down, now up)")
 
 
-func _test_paddle_top_edge_c2() -> void:
+func _test_paddle_left_edge_c2() -> void:
 	var ball = _make_ball()
-	ball.velocity = Vector2(-300, 0)
+	ball.velocity = Vector2(0, 300)
 	ball.speed = 300.0
 	ball._bounce_cooldown = 0
-	ball.position = Vector2(50, 300)  # ball above paddle center (360-300=60 above)
+	ball.position = Vector2(300, 1240)  # ball left of paddle center (360-300=60 left)
 	# impact_offset = (300-360)/(120/2) = -60/60 = -1.0
 
 	var paddle = _make_paddle_mock()
-	paddle.position = Vector2(50, 360)
+	paddle.position = Vector2(360, 1240)
 
 	ball._on_area_entered(paddle)
 
-	# Top-edge hit → steep upward (vy < 0, large magnitude)
-	_assert(ball.velocity.y < 0, "TC-C2: top-edge hit → upward (vy negative)")
-	_assert(ball.velocity.x > 0, "TC-C2: X direction reversed")
+	# Left-edge hit → steep leftward (vx < 0, large magnitude)
+	_assert(ball.velocity.x < 0, "TC-C2: left-edge hit → leftward (vx negative)")
+	_assert(ball.velocity.y < 0, "TC-C2: Y reversed (moving back up)")
 
 
-func _test_paddle_bottom_edge_c3() -> void:
+func _test_paddle_right_edge_c3() -> void:
 	var ball = _make_ball()
-	ball.velocity = Vector2(-300, 0)
+	ball.velocity = Vector2(0, 300)
 	ball.speed = 300.0
 	ball._bounce_cooldown = 0
-	ball.position = Vector2(1230, 420)  # ball below paddle center (420-360=60 below)
+	ball.position = Vector2(420, 1240)  # ball right of paddle center (420-360=60 right)
 	# impact_offset = (420-360)/(120/2) = 60/60 = 1.0
 
 	var paddle = _make_paddle_mock()
-	paddle.position = Vector2(1230, 360)
+	paddle.position = Vector2(360, 1240)
 
 	ball._on_area_entered(paddle)
 
-	# Bottom-edge hit → steep downward (vy > 0, large magnitude)
-	_assert(ball.velocity.y > 0, "TC-C3: bottom-edge hit → downward (vy positive)")
-	_assert(ball.velocity.x > 0, "TC-C3: X direction reversed")
+	# Right-edge hit → steep rightward (vx > 0, large magnitude)
+	_assert(ball.velocity.x > 0, "TC-C3: right-edge hit → rightward (vx positive)")
+	_assert(ball.velocity.y < 0, "TC-C3: Y reversed (moving back up)")
 
 
-func _test_paddle_x_reversed_c4() -> void:
+func _test_paddle_y_reversed_c4() -> void:
 	var ball = _make_ball()
-	ball.velocity = Vector2(300, 0)    # moving right
+	ball.velocity = Vector2(0, -300)    # moving up toward AI paddle
 	ball.speed = 300.0
 	ball._bounce_cooldown = 0
-	ball.position = Vector2(640, 360)
+	ball.position = Vector2(360, 40)
 
 	var paddle = _make_paddle_mock()
-	paddle.position = Vector2(1230, 360)
+	paddle.position = Vector2(360, 40)
 
 	ball._on_area_entered(paddle)
 
-	_assert(ball.velocity.x < 0, "TC-C4: X direction reversed after paddle hit")
+	_assert(ball.velocity.y > 0, "TC-C4: Y direction reversed after paddle hit (now down)")
 
 
 # ── Scenario D: Speed Escalation ──
@@ -260,13 +263,13 @@ func _test_paddle_x_reversed_c4() -> void:
 func _test_speed_escalation_d1() -> void:
 	var ball = _make_ball()
 	ball.speed = 300.0
-	ball.speed_increment = SPEED_INCREMENT  # 自洽夹具：显式 pin 增量（不随 #367 草稿值漂移）
-	ball.velocity = Vector2(-300, 0)
+	ball.speed_increment = SPEED_INCREMENT  # 自洽夹具
+	ball.velocity = Vector2(0, 300)
 	ball._bounce_cooldown = 0
-	ball.position = Vector2(640, 360)
+	ball.position = Vector2(360, 1240)
 
 	var paddle = _make_paddle_mock()
-	paddle.position = Vector2(50, 360)
+	paddle.position = Vector2(360, 1240)
 
 	ball._on_area_entered(paddle)
 
@@ -278,12 +281,12 @@ func _test_speed_cap_d2() -> void:
 	var ball = _make_ball()
 	ball.initial_speed = 300.0
 	ball.speed = 300.0 * MAX_SPEED_MULTIPLIER  # already at cap: 600.0
-	ball.velocity = Vector2(-600, 0)
+	ball.velocity = Vector2(0, 600)
 	ball._bounce_cooldown = 0
-	ball.position = Vector2(640, 360)
+	ball.position = Vector2(360, 1240)
 
 	var paddle = _make_paddle_mock()
-	paddle.position = Vector2(50, 360)
+	paddle.position = Vector2(360, 1240)
 
 	ball._on_area_entered(paddle)
 
@@ -295,8 +298,8 @@ func _test_speed_reset_d3() -> void:
 	var ball = _make_ball()
 	ball.initial_speed = 300.0
 	ball.speed = 500.0  # escalated
-	ball.velocity = Vector2(300, 0)
-	ball.position = Vector2(0, 360)
+	ball.velocity = Vector2(0, 300)
+	ball.position = Vector2(360, 640)
 	ball.screen_width = FALLBACK_SCREEN_WIDTH
 	ball.screen_height = FALLBACK_SCREEN_HEIGHT
 
@@ -307,42 +310,40 @@ func _test_speed_reset_d3() -> void:
 	ball._bounce_cooldown = 0
 	ball._is_serving = true
 
-	_assert(ball.position == Vector2(640, 360), "TC-D3: position reset to center")
+	_assert(ball.position == Vector2(360, 640), "TC-D3: position reset to center (360, 640)")
 	_assert(abs(ball.speed - 300.0) < 0.01, "TC-D3: speed reset to initial_speed (300)")
 
 
-# ── Scenario E: Scoring ──
+# ── Scenario E: Scoring (Y 出界, #383) ──
 
-func _test_score_right_e1() -> void:
+func _test_score_bottom_e1() -> void:
 	var ball = _make_ball()
-	ball.screen_width = 1280.0
-	ball.screen_height = 720.0
+	ball.screen_width = 720.0
+	ball.screen_height = 1280.0
 	ball.speed = 300.0
-	ball.velocity = Vector2(300, 0)
-	ball.position = Vector2(1300.0, 360.0)  # past right boundary
+	ball.velocity = Vector2(0, 300)
+	ball.position = Vector2(360.0, 1300.0)  # past bottom boundary
 	ball._is_serving = false
 
 	var scored: Array = []
-	# Connect to the score signal via connect() with a handler
 	ball.score.connect(func(side: int): scored.append(side))
 
 	# Call _process — ball should detect boundary exit
 	ball._process(0.016)
 
 	_assert(scored.size() >= 0, "TC-E1: score signal connected")
-	# The ball processes: position.x > 1280 → score(0), then serve()
-	# Since serve() uses await which fails in test context, just verify signal wiring
+	# The ball processes: position.y > 1280 → score(1) (ai), then serve()
 	if scored.size() > 0:
-		_assert(scored[0] == 0, "TC-E1: score(0) emitted for right boundary exit")
+		_assert(scored[0] == 1, "TC-E1: score(1) emitted for bottom boundary exit (ai scores)")
 
 
-func _test_score_left_e2() -> void:
+func _test_score_top_e2() -> void:
 	var ball = _make_ball()
-	ball.screen_width = 1280.0
-	ball.screen_height = 720.0
+	ball.screen_width = 720.0
+	ball.screen_height = 1280.0
 	ball.speed = 300.0
-	ball.velocity = Vector2(-300, 0)
-	ball.position = Vector2(-20.0, 360.0)  # past left boundary
+	ball.velocity = Vector2(0, -300)
+	ball.position = Vector2(360.0, -20.0)  # past top boundary
 	ball._is_serving = false
 
 	var scored: Array = []
@@ -351,24 +352,22 @@ func _test_score_left_e2() -> void:
 	ball._process(0.016)
 
 	if scored.size() > 0:
-		_assert(scored[0] == 1, "TC-E2: score(1) emitted for left boundary exit")
+		_assert(scored[0] == 0, "TC-E2: score(0) emitted for top boundary exit (player scores)")
 
 
-# ── Scenario F: Serve ──
+# ── Scenario F: Serve (垂直发球, #383) ──
 
 func _test_serve_center_f1() -> void:
 	var ball = _make_ball()
-	ball.screen_width = 1280.0
-	ball.screen_height = 720.0
-	ball.initial_speed = INITIAL_SPEED  # 自洽夹具（#367 后默认初速 330.0，显式固定 300.0）
+	ball.screen_width = 720.0
+	ball.screen_height = 1280.0
+	ball.initial_speed = INITIAL_SPEED  # 自洽夹具
 
-	# Reset ball to center (serve's position logic)
-	# #367: 显式设置 initial_speed 夹具（导出默认值随草稿 BALL_INITIAL_SPEED=330 变化，断言保持自洽）
 	ball.initial_speed = INITIAL_SPEED
 	ball.position = Vector2(ball.screen_width / 2.0, ball.screen_height / 2.0)
 	ball.speed = ball.initial_speed
 
-	_assert(ball.position == Vector2(640, 360), "TC-F1: serve sets position to center (640, 360)")
+	_assert(ball.position == Vector2(360, 640), "TC-F1: serve sets position to center (360, 640)")
 	_assert(abs(ball.speed - INITIAL_SPEED) < 0.01, "TC-F1: serve resets speed to initial_speed")
 
 
@@ -379,33 +378,34 @@ func _test_serve_direction_f2() -> void:
 	_assert(source.contains("randi()"), "TC-F2: serve uses randi() for random direction")
 
 	# Manual statistical test
-	var left_count := 0
-	var right_count := 0
+	var up_count := 0
+	var down_count := 0
 	for _i in range(20):
 		var direction: float = 1.0
 		if randi() % 2 == 0:
 			direction = -1.0
 		if direction < 0:
-			left_count += 1
+			up_count += 1
 		else:
-			right_count += 1
+			down_count += 1
 
 	# Roughly even split (within reason for 20 trials)
-	_assert(left_count > 3 and right_count > 3, "TC-F2: serve direction ~50/50 (L=%d, R=%d)" % [left_count, right_count])
+	_assert(up_count > 3 and down_count > 3, "TC-F2: serve direction ~50/50 (U=%d, D=%d)" % [up_count, down_count])
 
 
 func _test_serve_angle_f3() -> void:
-	# Verify serve angle is within ±45° range
+	# Verify serve angle is within ±30° range and vertical-dominant
 	var source = FileAccess.get_file_as_string("res://gdscripts/ball.gd")
 	_assert(source.contains("serve_angle_range"), "TC-F3: serve uses serve_angle_range")
 
-	# Test that randf_range(-45°, 45°) maps to correct angle bounds
+	# 垂直发球语义: velocity = (sin θ, cos θ·dir)，θ ∈ ±30° → X 分量 ≤ sin(30°)=0.5，
+	# Y 分量（主轴）始终 ≥ cos(30°)=0.866 — 不钉具体方向
 	for _i in range(20):
 		var angle = randf_range(-deg_to_rad(SERVE_ANGLE_RANGE), deg_to_rad(SERVE_ANGLE_RANGE))
-		var horizontal = abs(cos(angle))
-		var vertical = abs(sin(angle))
-		# At 45°, sin(45°) = cos(45°) ≈ 0.707. Horizontal component should always be >= vertical at max
-		_assert(horizontal > 0.0, "TC-F3: horizontal component > 0")
+		var vx = abs(sin(angle))
+		var vy = abs(cos(angle))
+		_assert(vx <= sin(deg_to_rad(SERVE_ANGLE_RANGE)) + 0.001, "TC-F3: X spread within ±sin(30°) (got %f)" % vx)
+		_assert(vy >= cos(deg_to_rad(SERVE_ANGLE_RANGE)) - 0.001, "TC-F3: Y component vertical-dominant (got %f)" % vy)
 		_assert(abs(rad_to_deg(angle)) <= SERVE_ANGLE_RANGE + 0.1, "TC-F3: angle ≤ %d°" % int(SERVE_ANGLE_RANGE))
 
 
@@ -413,8 +413,8 @@ func _test_serve_angle_f3() -> void:
 
 func _test_nan_guard_g3() -> void:
 	var ball = _make_ball()
-	ball.screen_width = 1280.0
-	ball.screen_height = 720.0
+	ball.screen_width = 720.0
+	ball.screen_height = 1280.0
 	ball.speed = 300.0
 	ball.velocity = Vector2(NAN, NAN)
 	ball._is_serving = false
@@ -424,7 +424,7 @@ func _test_nan_guard_g3() -> void:
 
 	_assert(not is_nan(ball.velocity.x), "TC-G3: velocity.x reset from NaN")
 	_assert(not is_nan(ball.velocity.y), "TC-G3: velocity.y reset from NaN")
-	_assert(abs(ball.velocity.x) > 0.0, "TC-G3: velocity has non-zero magnitude after NaN reset")
+	_assert(ball.velocity.length() > 0.0, "TC-G3: velocity has non-zero magnitude after NaN reset (direction-agnostic)")
 
 
 # ── Scenario H: Cooldown Mechanism ──
@@ -444,16 +444,16 @@ func _test_cooldown_dup_h1() -> void:
 
 func _test_cooldown_expiry_h2() -> void:
 	var ball = _make_ball()
-	ball.velocity = Vector2(200, -150)
+	ball.velocity = Vector2(-150, 200)
 	ball._bounce_cooldown = 0  # cooldown expired
 
 	var wall = StaticBody2D.new()
 	wall.add_to_group("walls")
 
-	var vel_y_before = ball.velocity.y
+	var vel_x_before = ball.velocity.x
 	ball._on_body_entered(wall)
 
-	_assert(ball.velocity.y != vel_y_before, "TC-H2: collision processed after cooldown expiry")
+	_assert(ball.velocity.x != vel_x_before, "TC-H2: collision processed after cooldown expiry")
 	_assert(ball._bounce_cooldown == BOUNCE_COOLDOWN_FRAMES, "TC-H2: cooldown set after collision")
 
 

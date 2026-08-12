@@ -213,7 +213,7 @@ PY
     maybe cp "$CAPTURE_SRC" "$OUT/capture.gd"
     log "  running capture (real rendering, display-sleep immune)"
     ( cd "$WT" && "$GODOT" --path "$SUBPROJECT/" --display-driver macos --rendering-driver opengl3 \
-        --resolution 1280x720 --script "$OUT/capture.gd" -- "$OUT/plan.json" > "$OUT/P5-visual.log" 2>&1 )
+        --resolution 720x1280 --script "$OUT/capture.gd" -- "$OUT/plan.json" > "$OUT/P5-visual.log" 2>&1 )
     local_capture=$?
     log "  capture exit=$local_capture"
 

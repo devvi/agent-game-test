@@ -4,16 +4,16 @@
 [ext_resource type="Material" path="res://assets/neon_glow_material.tres" id="2_neon_mat"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_paddle"]
-size = Vector2(20, 120)
+size = Vector2(120, 20)
 
 [node name="PlayerPaddle" type="Area2D"]
 script = ExtResource("1_paddle")
 
 [node name="ColorRect" type="ColorRect" parent="."]
-offset_left = -10.0
-offset_top = -60.0
-offset_right = 10.0
-offset_bottom = 60.0
+offset_left = -60.0
+offset_top = -10.0
+offset_right = 60.0
+offset_bottom = 10.0
 color = Color(0.29, 0.56, 0.85, 1)
 material = ExtResource("2_neon_mat")
 
