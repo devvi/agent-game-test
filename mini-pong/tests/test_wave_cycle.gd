@@ -23,9 +23,11 @@ var _captured_wave_settled: Array = []
 var _grid_instances: int = 0
 
 func _on_wave_started(index: int) -> void:
+	print("  EMIT wave_started(%d) frame=%d" % [index, (Engine.get_main_loop() as SceneTree).get_frame()])
 	_captured_wave_started.append(index)
 
 func _on_wave_settled(index: int) -> void:
+	print("  EMIT wave_settled(%d) frame=%d" % [index, (Engine.get_main_loop() as SceneTree).get_frame()])
 	_captured_wave_settled.append(index)
 
 func _on_settled_reach_21(_index: int) -> void:
@@ -41,34 +43,33 @@ func run() -> void:
 	# Scenario A: 波次推进 (AC1)
 	await _test_a1_wall_cleared_settles()
 	await _test_a2_settle_advances_wave()
-	_test_a3_thickness_increments()
+	await _test_a3_thickness_increments()
 	await _test_a4_three_waves()
 	# Scenario B: 难度递增 (AC2)
-	_test_b1_thickness_strictly_increasing()
-	_test_b2_ai_params_tighten()
-	_test_b3_at_least_one_lever()
-	_test_b4_floor_clamp()
+	await _test_b1_thickness_strictly_increasing()
+	await _test_b2_ai_params_tighten()
+	await _test_b3_at_least_one_lever()
+	await _test_b4_floor_clamp()
 	# Scenario C: wave_index 生命周期 (AC3)
-	_test_c1_first_wave_is_one()
-	_test_c2_increments()
-	_test_c3_signal_payloads()
-	_test_c4_reset_zeroes()
+	await _test_c1_first_wave_is_one()
+	await _test_c2_increments()
+	await _test_c3_signal_payloads()
+	await _test_c4_reset_zeroes()
 	# Scenario D: 旧墙不叠加 (AC4)
-	_test_d1_single_instance()
-	_test_d2_only_generate_wave()
-	_test_d3_no_brick_residue()
-	_test_d4_duplicate_signal_ignored()
+	await _test_d1_single_instance()
+	await _test_d2_only_generate_wave()
+	await _test_d3_no_brick_residue()
+	await _test_d4_duplicate_signal_ignored()
 	# Scenario E: 21 分停止 (AC5)
-	_test_e1_no_settle_after_end()
-	_test_e2_end_wave_cycle_keeps_index()
+	await _test_e1_no_settle_after_end()
+	await _test_e2_end_wave_cycle_keeps_index()
 	# Scenario F: 容错与守卫
-	_test_f1_no_grid_no_crash()
-	_test_f2_no_ai_paddle_thickness_still_works()
-	_test_f3_settling_ignores_duplicate()
+	await _test_f1_no_grid_no_crash()
+	await _test_f2_no_ai_paddle_thickness_still_works()
+	await _test_f3_settling_ignores_duplicate()
 	await _test_f4_generate_wave_missing()
 	# Scenario G: 重置与防御
-	_test_g1_max_index_defense()
-
+	await _test_g1_max_index_defense()
 	GameManager.wave_started.disconnect(_on_wave_started)
 	GameManager.wave_settled.disconnect(_on_wave_settled)
 	print("  Wave Cycle: %d passed, %d failed" % [passed, failed])
@@ -92,6 +93,7 @@ func _reset() -> void:
 	GameManager.reset_match()
 	_captured_wave_started.clear()
 	_captured_wave_settled.clear()
+	_grid_instances = 0
 
 
 func _make_mock_grid(with_generate: bool) -> Node2D:
@@ -528,6 +530,7 @@ func _test_f3_settling_ignores_duplicate() -> void:
 
 ## F-4: grid 有 wall_cleared 但无 generate_wave → 警告跳过生成，wave_index 仍 +1（状态机不卡死）
 func _test_f4_generate_wave_missing() -> void:
+	print("  F4START frame=%d wave_index=%d" % [(Engine.get_main_loop() as SceneTree).get_frame(), GameManager.wave_index])
 	_reset()
 	var fx = _make_controller(true, true, true, false)   # 半实现 grid：有信号无 generate_wave
 	fx.grid.wall_cleared.emit()   # 触发 _on_wall_cleared → settle（IDLE 期 no-op）→ 延时后 advance
