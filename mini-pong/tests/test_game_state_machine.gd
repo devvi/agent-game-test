@@ -13,6 +13,7 @@ var failed: int = 0
 # ── Signal capture for GameManager mock ──
 var _gm_reset_match_called: int = 0
 var _gm_get_winner_returns: String = ""
+var _gm_is_run_over_returns: bool = false
 
 # ── Mock GameManager script (injected into Engine singleton for tests) ──
 const MOCK_GM_SCRIPT := "res://tests/test_game_state_machine.gd"
@@ -35,6 +36,7 @@ func run() -> void:
 	_test_tc15_paddle_unfrozen_playing()
 	_test_tc16_reset_match_on_serving()
 	_test_tc17_null_references_no_crash()
+	_test_tc18_scored_run_over_game_over()
 
 
 # ── Helpers ──
@@ -128,6 +130,11 @@ func get_winner() -> String:
 	if test and test.has_method("_on_gm_get_winner"):
 		return test._on_gm_get_winner()
 	return ""
+func is_run_over() -> bool:
+	var test = Engine.get_singleton("__test_fsm__")
+	if test and test.has_method("_on_gm_is_run_over"):
+		return test._on_gm_is_run_over()
+	return false
 """
 	mock_script.reload()
 	var gm = Node.new()
@@ -167,9 +174,15 @@ func _on_gm_get_winner() -> String:
 	return _gm_get_winner_returns
 
 
+
+func _on_gm_is_run_over() -> bool:
+	return _gm_is_run_over_returns
+
+
 func _reset_gm_mock_state() -> void:
 	_gm_reset_match_called = 0
 	_gm_get_winner_returns = ""
+	_gm_is_run_over_returns = false
 
 
 # ── Scenario A: FSM Instantiation (TC2) ──
@@ -434,3 +447,16 @@ func _test_tc17_null_references_no_crash() -> void:
 	fsm.enter_state(fsm.State.MENU)
 
 	_assert(true, "TC17.1: null references handled without crash")
+
+
+func _test_tc18_scored_run_over_game_over() -> void:
+	"""TC18: SCORED 计时结束 + 21 分终局 → GAME_OVER (#385 AC3)。用真实 GameManager 驱动终局。"""
+	var fsm = _make_fsm()
+	GameManager.reset_match()
+	for _i in range(21):
+		GameManager.add_score("player")
+	fsm.current_state = fsm.State.SCORED
+	fsm.enter_state(fsm.State.SCORED)
+	_assert(fsm.current_state == fsm.State.GAME_OVER,
+		"TC18.1: SCORED + is_run_over() → GAME_OVER")
+	GameManager.reset_match()

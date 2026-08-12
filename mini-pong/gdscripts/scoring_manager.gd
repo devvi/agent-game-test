@@ -1,108 +1,85 @@
 extends Node
-## ScoringManager — consumes ball.score(side) signals and tracks points/games/matches.
-## Event-driven: no polling, no _process. Uses await for pause-then-serve flow.
+## ScoringManager — 场景侧事件消费（双得分制 #385）。
+## 消费 ball.score(side) 与 BreakoutGrid.brick_destroyed(brick, pos)，
+## 判定归属/分值/类型 → GameManager.add_score(winner, amount, kind)。
+## 终局判定唯一权威在 GameManager（is_run_over() 守卫）；本节点只做事件路由。
 ##
 ## Signal chain:
-##   Ball._process() → ball.score(side: int)
+##   Ball._process() → ball.score(side)
 ##     → ScoringManager._on_ball_score(side)
-##       → scored(winner: String)     ← per-point UI updates
-##       → game_won(winner: String)   ← per-game conclusion (5 points)
-##       → match_over(winner: String) ← per-match conclusion (2 games)
+##       ├── ball._crossed_wall → add_score(winner, 3, "pierce")   (穿墙分 AC2)
+##       └── 否则               → add_score(winner, 1, "boundary") (普通出界兜底)
+##       → scored(winner)  ← 仅出界分触发 → FSM SCORED 暂停流；拆砖分不触发（边界 8）
+##   BreakoutGrid.brick_destroyed(brick, pos)   [#384 未接线时容错跳过（失败路径 1）]
+##     → ScoringManager._on_brick_destroyed
+##       → ball.last_toucher 非空 → add_score(toucher, 1, "brick") (拆砖分 AC1)
+## 同帧去重（AC4）: _brick_destroyed_this_frame 帧守卫 —— _process 帧首复位，
+## _on_brick_destroyed 置位，_on_ball_score 检查（同帧只计拆砖分）。
 ##
-## Design: docs/DESIGN/291-scoring-system.md §2.1
-## Parent Issue: #291
+## Design: docs/DESIGN/291-scoring-system.md §2.1 + docs/DESIGN/385-dual-scoring-system.md §2.3
+## Parent Issue: #291, #385
 
-# ── Configuration (via GameConstants #295) ──
+# ── Configuration (via GameConstants #295 / Dual Scoring #385) ──
 const CONSTS = preload("res://gdscripts/constants.gd")
-const POINTS_TO_WIN_GAME: int = CONSTS.POINTS_TO_WIN_GAME
-const GAMES_TO_WIN_MATCH: int = CONSTS.GAMES_TO_WIN_MATCH
+const BRICK_SCORE: int = CONSTS.BRICK_SCORE
+const PIERCE_SCORE: int = CONSTS.PIERCE_SCORE
 
 # ── Signals ──
-signal scored(winner: String)       # "player" | "ai" — emitted every point
-signal game_won(winner: String)     # "player" | "ai" — emitted when a game concludes
-signal match_over(winner: String)   # "player" | "ai" — emitted when the match concludes
-
-# ── State (publicly readable) ──
-var player_score: int = 0
-var ai_score: int = 0
-var player_games: int = 0
-var ai_games: int = 0
-var _is_match_over: bool = false
+signal scored(winner: String)   # 仅出界分（普通/穿墙）触发 → FSM SCORED 暂停流；拆砖分不触发（比赛继续）
 
 # ── Node References ──
 @onready var ball: Area2D = $"../Ball"
 @onready var score_flash: Node = get_node_or_null("../ScoreFlash")
+@onready var breakout_grid: Node = get_node_or_null("../BreakoutGrid")   # #384 容错：#393 接线前为 null
+
+# ── State ──
+var _brick_destroyed_this_frame: bool = false   # 同帧去重帧守卫（AC4，Flow 5）
 
 
 func _ready() -> void:
-	# Validate ball reference
 	if ball == null:
 		push_error("ScoringManager: Ball node not found — scoring disabled")
 		return
-
-	# Connect to ball's score signal
 	ball.score.connect(_on_ball_score)
-
-	# Wire score flash if present (best-effort — scoring works without it)
 	if score_flash != null and score_flash.has_method("_on_score_changed"):
 		scored.connect(score_flash._on_score_changed)
+	# #384 容错连接：grid 不存在/信号未实现 → 跳过并警告一次，不崩（失败路径 1）
+	if breakout_grid != null and breakout_grid.has_signal("brick_destroyed"):
+		breakout_grid.brick_destroyed.connect(_on_brick_destroyed)
+	else:
+		push_warning("ScoringManager: BreakoutGrid 未接线（#393 前）— 拆砖分暂不可用")
+
+
+func _process(_delta: float) -> void:
+	# 帧首复位（AC4 帧守卫）：每帧开始时清掉上一帧的拆砖标记
+	_brick_destroyed_this_frame = false
 
 
 func _on_ball_score(side: int) -> void:
-	# Guard: ignore scores after match concludes
-	if _is_match_over:
+	if is_instance_valid(GameManager) and GameManager.is_run_over():
+		return                       # 终局守卫（失败路径 2）
+	# 同帧去重（AC4）：同帧砖碎 + 出界 → 只计拆砖分（该帧出界不计 3 分，边界 1）
+	# 守卫消费即复位：本帧后续出界事件恢复正常计分（D-3 / 失败路径防护）
+	if _brick_destroyed_this_frame:
+		_brick_destroyed_this_frame = false
 		return
-
-	# Determine winner (side: 0 = right boundary → player, 1 = left boundary → AI)
 	var winner: String = "ai" if side == 1 else "player"
-
-	# Increment score
-	match winner:
-		"player":
-			player_score += 1
-		"ai":
-			ai_score += 1
-
-	# Emit per-point signal
-	scored.emit(winner)
-	GameManager.add_score(winner)
-
-	# Check game win threshold
-	if player_score >= POINTS_TO_WIN_GAME:
-		_win_game("player")
-	elif ai_score >= POINTS_TO_WIN_GAME:
-		_win_game("ai")
+	# 穿墙判定：ball 已穿越墙带 → 3 分（AC2）；否则普通出界 1 分兜底（无墙时期游戏不坏，边界 3）
+	var crossed: bool = ball != null and bool(ball.get("_crossed_wall"))
+	var amount: int = PIERCE_SCORE if crossed else 1
+	var kind: String = "pierce" if crossed else "boundary"
+	GameManager.add_score(winner, amount, kind)
+	scored.emit(winner)              # 出界分走 SCORED → 重发球流（边界 8）
 
 
-func _win_game(winner: String) -> void:
-	# Emit game-level signal
-	game_won.emit(winner)
-
-	# Increment game counter
-	match winner:
-		"player":
-			player_games += 1
-		"ai":
-			ai_games += 1
-
-	# Reset per-game scores
-	player_score = 0
-	ai_score = 0
-
-	# Check match win threshold
-	if player_games >= GAMES_TO_WIN_MATCH:
-		_is_match_over = true
-		match_over.emit("player")
+func _on_brick_destroyed(brick: Node2D, pos: Vector2) -> void:
+	if is_instance_valid(GameManager) and GameManager.is_run_over():
 		return
-	elif ai_games >= GAMES_TO_WIN_MATCH:
-		_is_match_over = true
-		match_over.emit("ai")
+	if ball == null:
 		return
-
-	# Match not over — FSM (#294) handles serve timing
-
-
-func _pause_and_serve() -> void:
-	# FSM (#294) handles pause + serve timing.
-	# ScoringManager now only emits signals; no longer controls ball serve.
-	pass
+	var toucher = ball.get("last_toucher")
+	if toucher == null or toucher == "":
+		return                       # 发球直撞砖：无归属，不计拆砖分（边界 2）；砖仍碎/反弹（#384 行为不变）
+	_brick_destroyed_this_frame = true
+	GameManager.add_score(toucher, BRICK_SCORE, "brick")
+	# 不 emit scored —— 拆砖不触发 FSM SCORED，比赛继续（边界 8）

@@ -56,6 +56,16 @@ func _on_match_over(winner: String) -> void:
 		_:
 			return
 
+	# Run 统计读取 (#385 AC5)：拆砖/穿墙数（数据路径；布局归 #391，节点不存在则跳过）
+	if is_instance_valid(GameManager) and GameManager.has_method("get_brick_count"):
+		var stats := "拆砖  P:%d/A:%d   穿墙  P:%d/A:%d" % [
+			GameManager.get_brick_count("player"), GameManager.get_brick_count("ai"),
+			GameManager.get_pierce_count("player"), GameManager.get_pierce_count("ai"),
+		]
+		var stats_label: Label = get_node_or_null("CenterContainer/VBoxContainer/RunStatsLabel") as Label
+		if stats_label != null:
+			stats_label.text = stats
+
 	# Hide HUD
 	var hud := _get_sibling("GameHUD")
 	if hud:

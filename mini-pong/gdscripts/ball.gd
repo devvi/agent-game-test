@@ -39,6 +39,9 @@ var screen_height: float = 0.0
 var _bounce_cooldown: int = 0
 var _is_serving: bool = false
 var _scored_this_frame: bool = false
+var last_toucher: String = ""       # "player" | "ai" | ""（发球后未触任何挡板）(#385)
+var _crossed_wall: bool = false     # 本 rally 是否穿越过墙带（穿墙分判定依据）(#385)
+var _was_in_wall_band: bool = false # 上一帧是否处于墙带内（边沿触发辅助，防发球位误置位）(#385)
 
 
 func _ready() -> void:
@@ -86,6 +89,11 @@ func serve() -> void:
 	velocity = Vector2.ZERO
 	_bounce_cooldown = 0
 	_is_serving = true
+	# 双得分制 (#385) 复位：发球后无归属、未穿越墙带；发球位 (360,640) 恰在墙带内 →
+	# _was_in_wall_band 预置为当前带内状态，配合边沿触发防发球位误置位（边界 7 / F-4）
+	last_toucher = ""
+	_crossed_wall = false
+	_was_in_wall_band = abs(position.y - CONSTS.GRID_WALL_Y) <= CONSTS.WALL_BAND_HALF_HEIGHT
 
 	# Headless mode: get_tree() returns null (no SceneTree context).
 	# Skip the visual serve delay and set velocity immediately.
@@ -147,6 +155,15 @@ func _process(delta: float) -> void:
 		position.x = screen_width + BALL_RADIUS
 		velocity.x = -abs(velocity.x)
 
+	# 墙带穿越标记 (#385)：边沿触发（带外→带内才置位），防高速球单帧漏判（边界 7）
+	# 触球/发球复位；穿墙分只在「穿越后未被接住」时成立（失败路径 4）
+	if not _crossed_wall:
+		var wall_y: float = CONSTS.GRID_WALL_Y
+		var in_band: bool = abs(position.y - wall_y) <= CONSTS.WALL_BAND_HALF_HEIGHT
+		if not _was_in_wall_band and in_band:
+			_crossed_wall = true
+		_was_in_wall_band = in_band
+
 	# Y boundary — scoring (fallback dual-trigger guard #295, 竖屏上下得分)
 	if position.y < -BALL_RADIUS:
 		if not _scored_this_frame:
@@ -184,6 +201,17 @@ func _on_area_entered(area: Area2D) -> void:
 
 	if not area.is_in_group("paddles"):
 		return
+
+	# 最后触球者判定 (#385)：按节点名（PlayerPaddle/AIPaddle，DESIGN §1.2 定稿），paddle.gd 不改
+	match area.name:
+		"PlayerPaddle":
+			last_toucher = "player"
+		"AIPaddle":
+			last_toucher = "ai"
+		_:
+			last_toucher = ""
+	_crossed_wall = false               # 触球复位：穿墙分只在「穿越后未被接住」时成立（失败路径 4）
+	_was_in_wall_band = false
 
 	# Read paddle length from CollisionShape2D (竖屏: 长度沿 X = size.x), fall back to 120.0
 	var paddle_length: float = 120.0

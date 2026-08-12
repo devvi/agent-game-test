@@ -1,49 +1,38 @@
 extends RefCounted
-## Test suite for scoring_manager.gd (#291) — Scoring System.
+## Test suite for scoring_manager.gd (#291) — 双得分制薄事件路由 (#385)。
+## 出界分 3/1 路由（穿墙/兜底）、brick_destroyed 消费、同帧去重、终局守卫。
 ## Runs under godot --headless --script via run_tests.gd.
 
 var passed: int = 0
 var failed: int = 0
 
-const POINTS_TO_WIN_GAME: int = 5
-const GAMES_TO_WIN_MATCH: int = 2
-
-# ── Signal capture state (Pattern 11: member vars, not lambda closures) ──
+# ── Signal capture state ──
 var _scored_winner: String = ""
 var _scored_count: int = 0
-var _game_won_winner: String = ""
-var _game_won_count: int = 0
-var _match_over_winner: String = ""
-var _match_over_count: int = 0
 
-# ── Signal handlers ──
 func _on_scored(winner: String) -> void:
 	_scored_winner = winner
 	_scored_count += 1
 
-func _on_game_won(winner: String) -> void:
-	_game_won_winner = winner
-	_game_won_count += 1
-
-func _on_match_over(winner: String) -> void:
-	_match_over_winner = winner
-	_match_over_count += 1
-
 
 func run() -> void:
+	print("\n=== Scoring Manager Tests (#291/#385) ===")
 	_test_tc1_player_scores()
 	_test_tc2_ai_scores()
-	_test_tc3_game_won()
-	_test_tc4_match_over()
-	_test_tc5_alternating_scores()
-	_test_tc6_game_won_by_ai()
-	_test_tc9_match_over_guard()
-	_test_tc10_double_game_over_guard()
-	_test_tc11_headless_no_tree()
-	_test_tc13_ball_missing()
-	_test_signal_scored_emitted()
-	_test_signal_game_won_emitted()
-	_test_signal_match_over_emitted()
+	_test_pierce_player_3pt()
+	_test_pierce_ai_3pt()
+	_test_boundary_no_cross_1pt()
+	_test_brick_player()
+	_test_brick_ai()
+	_test_brick_empty_toucher()
+	_test_brick_no_scored_signal()
+	_test_same_frame_brick_only()
+	_test_next_frame_both_count()
+	_test_guard_resets_next_frame()
+	_test_terminal_guard_ball_score()
+	_test_terminal_guard_brick()
+	_test_no_grid_tolerant()
+	_test_grid_connected_consumes()
 	_test_initial_state_zero()
 
 
@@ -58,16 +47,17 @@ func _assert(condition: bool, name: String) -> void:
 
 
 func _make_mock_ball():
-	## Create a mock ball with score signal and serve() method (Pattern 15: inline GDScript mock).
 	var code = GDScript.new()
 	code.source_code = """extends Area2D
 
 signal score(side: int)
 
-var serve_count: int = 0
+var last_toucher: String = ""
+var _crossed_wall: bool = false
 
 func serve() -> void:
-	serve_count += 1
+	last_toucher = ""
+	_crossed_wall = false
 """
 	code.reload()
 	var ball = Area2D.new()
@@ -76,241 +66,306 @@ func serve() -> void:
 	return ball
 
 
-func _make_sm(mock_ball = null):
-	## Create ScoringManager instance and set up mock ball.
-	var mb = mock_ball if mock_ball != null else _make_mock_ball()
+func _make_mock_grid():
+	var code = GDScript.new()
+	code.source_code = """extends Node
+
+signal brick_destroyed(brick: Node2D, pos: Vector2)
+"""
+	code.reload()
+	var grid = Node.new()
+	grid.name = "BreakoutGrid"
+	grid.set_script(code)
+	return grid
+
+
+func _make_sm(ball = null, grid = null):
+	var mb = ball if ball != null else _make_mock_ball()
 	var sm = Node.new()
 	sm.set_script(load("res://gdscripts/scoring_manager.gd"))
-	sm.ball = mb  # Set @onready var manually (no scene tree in headless)
+	sm.ball = mb
+	sm.breakout_grid = grid
+	return sm
+
+func _make_tree_sm(ball, grid):
+	## 树构建：_ready 由引擎在入树时触发，@onready ../Ball ../BreakoutGrid 正确解析。
+	## （手动调 _ready() 会重跑 @onready 赋值覆盖手动设置 —— Godot 4 行为，勿用）
+	var tree = Engine.get_main_loop() as SceneTree
+	ball.name = "Ball"
+	tree.root.add_child(ball)
+	if grid != null:
+		tree.root.add_child(grid)
+	var sm = Node.new()
+	sm.set_script(load("res://gdscripts/scoring_manager.gd"))
+	sm.name = "ScoringManager"
+	tree.root.add_child(sm)
 	return sm
 
 
-func _connect_signals(sm) -> void:
-	## Connect all ScoringManager signals to capture handlers.
-	sm.scored.connect(_on_scored)
-	sm.game_won.connect(_on_game_won)
-	sm.match_over.connect(_on_match_over)
+func _cleanup_tree(nodes: Array) -> void:
+	var tree = Engine.get_main_loop() as SceneTree
+	for n in nodes:
+		if n != null and is_instance_valid(n) and n.get_parent() != null:
+			n.get_parent().remove_child(n)
+			n.queue_free()
 
 
-func _reset_signal_state() -> void:
+func _reset_gm() -> void:
+	GameManager.reset_match()
 	_scored_winner = ""
 	_scored_count = 0
-	_game_won_winner = ""
-	_game_won_count = 0
-	_match_over_winner = ""
-	_match_over_count = 0
 
 
-# ── TC1: Player scores (right boundary) ──
+# ── TC1: 普通出界玩家得分（side 0 = 顶部出界 → player）──
 
 func _test_tc1_player_scores() -> void:
-	_reset_signal_state()
-	var mock_ball = _make_mock_ball()
-	var sm = _make_sm(mock_ball)
-	_connect_signals(sm)
+	_reset_gm()
+	var sm = _make_sm()
+	sm.scored.connect(_on_scored)
 
-	# Emit score(0) — right boundary → player scores
 	sm._on_ball_score(0)
 
-	_assert(sm.player_score == 1, "TC1: player_score == 1 after score(0)")
-	_assert(sm.ai_score == 0, "TC1: ai_score == 0 after score(0)")
-	_assert(_scored_winner == "player", "TC1: scored(\"player\") emitted")
+	_assert(GameManager.player_score == 1, "TC1: player_score == 1 (boundary)")
+	_assert(GameManager.ai_score == 0, "TC1: ai_score == 0")
+	_assert(GameManager.get_pierce_count("player") == 0, "TC1: no pierce counted")
+	_assert(_scored_winner == "player", "TC1: scored('player') emitted")
 	_assert(_scored_count == 1, "TC1: scored emitted exactly once")
 
 
-# ── TC2: AI scores (left boundary) ──
+# ── TC2: 普通出界 AI 得分（side 1 = 底部出界 → ai）──
 
 func _test_tc2_ai_scores() -> void:
-	_reset_signal_state()
+	_reset_gm()
 	var sm = _make_sm()
-	_connect_signals(sm)
+	sm.scored.connect(_on_scored)
 
 	sm._on_ball_score(1)
 
-	_assert(sm.ai_score == 1, "TC2: ai_score == 1 after score(1)")
-	_assert(sm.player_score == 0, "TC2: player_score == 0 after score(1)")
-	_assert(_scored_winner == "ai", "TC2: scored(\"ai\") emitted")
-	_assert(_scored_count == 1, "TC2: scored emitted exactly once")
+	_assert(GameManager.ai_score == 1, "TC2: ai_score == 1 (boundary)")
+	_assert(GameManager.player_score == 0, "TC2: player_score == 0")
+	_assert(_scored_winner == "ai", "TC2: scored('ai') emitted")
 
 
-# ── TC3: Game won at 5 points ──
+# ── 穿墙 3 分路由（AC2）──
 
-func _test_tc3_game_won() -> void:
-	_reset_signal_state()
-	var sm = _make_sm()
-	_connect_signals(sm)
-
-	# Pre-set player_score to 4
-	sm.player_score = 4
-	# Emit score(0) → player_score = 5 → game won
-	sm._on_ball_score(0)
-
-	_assert(sm.player_score == 0, "TC3: player_score reset to 0 after game win")
-	_assert(sm.ai_score == 0, "TC3: ai_score reset to 0 after game win")
-	_assert(sm.player_games == 1, "TC3: player_games == 1 after game win")
-	_assert(sm.ai_games == 0, "TC3: ai_games == 0")
-	_assert(_game_won_winner == "player", "TC3: game_won(\"player\") emitted")
-	_assert(_game_won_count == 1, "TC3: game_won emitted exactly once")
-
-
-# ── TC4: Match won at 2 games ──
-
-func _test_tc4_match_over() -> void:
-	_reset_signal_state()
-	var sm = _make_sm()
-	_connect_signals(sm)
-
-	# Pre-set: player already won 1 game, current game at 4 points
-	sm.player_games = 1
-	sm.player_score = 4
-
-	# Emit score(0) → player_score = 5 → game_won("player") → player_games = 2 → match_over
-	sm._on_ball_score(0)
-
-	_assert(_match_over_winner == "player", "TC4: match_over(\"player\") emitted")
-	_assert(_match_over_count == 1, "TC4: match_over emitted exactly once")
-	_assert(sm._is_match_over == true, "TC4: _is_match_over == true")
-
-
-# ── TC5: Alternating scores ──
-
-func _test_tc5_alternating_scores() -> void:
-	_reset_signal_state()
-	var sm = _make_sm()
-	_connect_signals(sm)
-
-	sm._on_ball_score(0)  # player=1
-	sm._on_ball_score(1)  # ai=1
-	sm._on_ball_score(0)  # player=2
-	sm._on_ball_score(1)  # ai=2
-
-	_assert(sm.player_score == 2, "TC5: player_score == 2 after alternating")
-	_assert(sm.ai_score == 2, "TC5: ai_score == 2 after alternating")
-	_assert(_scored_count == 4, "TC5: 4 scored signals emitted")
-	# Verify sequence: player, ai, player, ai
-	# (can only verify final values due to signal overwrite pattern)
-
-
-# ── TC6: Game won by AI side ──
-
-func _test_tc6_game_won_by_ai() -> void:
-	_reset_signal_state()
-	var sm = _make_sm()
-	_connect_signals(sm)
-
-	sm.ai_score = 4
-	sm._on_ball_score(1)  # ai_score = 5
-
-	_assert(sm.ai_score == 0, "TC6: ai_score reset to 0 after game win")
-	_assert(sm.player_score == 0, "TC6: player_score reset to 0 after game win")
-	_assert(sm.ai_games == 1, "TC6: ai_games == 1")
-	_assert(sm.player_games == 0, "TC6: player_games == 0")
-	_assert(_game_won_winner == "ai", "TC6: game_won(\"ai\") emitted")
-
-
-# ── TC9: Score after match_over is ignored ──
-
-func _test_tc9_match_over_guard() -> void:
-	_reset_signal_state()
-	var sm = _make_sm()
-	_connect_signals(sm)
-
-	sm._is_match_over = true
-	sm.player_score = 1
+func _test_pierce_player_3pt() -> void:
+	_reset_gm()
+	var ball = _make_mock_ball()
+	ball._crossed_wall = true
+	var sm = _make_sm(ball)
+	sm.scored.connect(_on_scored)
 
 	sm._on_ball_score(0)
 
-	_assert(sm.player_score == 1, "TC9: player_score unchanged after match_over guard")
-	_assert(_scored_count == 0, "TC9: no scored signal emitted after match_over")
+	_assert(GameManager.player_score == 3, "PZ-P: player_score == 3 (pierce)")
+	_assert(GameManager.get_pierce_count("player") == 1, "PZ-P: player_pierce_count == 1")
+	_assert(_scored_count == 1, "PZ-P: scored emitted (SCORED flow)")
 
 
-# ── TC10: Double game over guard ──
+func _test_pierce_ai_3pt() -> void:
+	_reset_gm()
+	var ball = _make_mock_ball()
+	ball._crossed_wall = true
+	var sm = _make_sm(ball)
+	sm.scored.connect(_on_scored)
 
-func _test_tc10_double_game_over_guard() -> void:
-	_reset_signal_state()
-	var sm = _make_sm()
-	_connect_signals(sm)
-
-	sm.player_games = 2
-	sm._is_match_over = true
-	sm.player_score = 0
-
-	# Try to score after match already over
-	sm._on_ball_score(0)
-
-	_assert(sm.player_score == 0, "TC10: player_score unchanged (match over guard)")
-	_assert(_scored_count == 0, "TC10: no signal after match over")
-
-
-# ── TC11: Headless — no tree, serve called immediately ──
-
-func _test_tc11_headless_no_tree() -> void:
-	_reset_signal_state()
-	var mock_ball = _make_mock_ball()
-	var sm = _make_sm(mock_ball)
-	_connect_signals(sm)
-
-	# In headless, get_tree() returns null for parentless nodes
-	# _pause_and_serve() should skip timer, call ball.serve() directly
-	sm._pause_and_serve()
-
-	_assert(mock_ball.serve_count == 0, "TC11: _pause_and_serve() is no-op — ball.serve() now handled by FSM #294 enter_state(SERVING)")
-
-
-# ── TC13: Ball node missing (failure path) ──
-
-func _test_tc13_ball_missing() -> void:
-	_reset_signal_state()
-	# Create SM without setting ball — make _ready() safe
-	var sm = Node.new()
-	sm.set_script(load("res://gdscripts/scoring_manager.gd"))
-	# ball is null (no scene tree, not manually set)
-	_assert(true, "TC13: ScoringManager can be created without crash")
-	# _ready() does push_error when ball is null — but instantiation itself succeeds
-
-
-# ── Signal integrity tests ──
-
-func _test_signal_scored_emitted() -> void:
-	_reset_signal_state()
-	var sm = _make_sm()
-	_connect_signals(sm)
-
-	sm._on_ball_score(0)
-	_assert(_scored_winner == "player", "SIG-S1: scored signal carries 'player'")
 	sm._on_ball_score(1)
-	_assert(_scored_winner == "ai", "SIG-S1: scored signal carries 'ai'")
+
+	_assert(GameManager.ai_score == 3, "PZ-A: ai_score == 3 (pierce)")
+	_assert(GameManager.get_pierce_count("ai") == 1, "PZ-A: ai_pierce_count == 1")
 
 
-func _test_signal_game_won_emitted() -> void:
-	_reset_signal_state()
-	var sm = _make_sm()
-	_connect_signals(sm)
+func _test_boundary_no_cross_1pt() -> void:
+	_reset_gm()
+	var ball = _make_mock_ball()
+	ball._crossed_wall = false
+	var sm = _make_sm(ball)
+	sm.scored.connect(_on_scored)
 
-	sm.player_score = 4
 	sm._on_ball_score(0)
-	_assert(_game_won_winner == "player", "SIG-S2: game_won signal carries 'player'")
-	_assert(_game_won_count == 1, "SIG-S2: game_won emitted once")
+
+	_assert(GameManager.player_score == 1, "BD: player_score == 1 (boundary fallback)")
+	_assert(GameManager.get_pierce_count("player") == 0, "BD: pierce_count == 0")
 
 
-func _test_signal_match_over_emitted() -> void:
-	_reset_signal_state()
-	var sm = _make_sm()
-	_connect_signals(sm)
+# ── 拆砖消费（AC1）──
 
-	sm.player_games = 1
-	sm.player_score = 4
+func _test_brick_player() -> void:
+	_reset_gm()
+	var ball = _make_mock_ball()
+	ball.last_toucher = "player"
+	var sm = _make_sm(ball)
+	sm.scored.connect(_on_scored)
+
+	sm._on_brick_destroyed(Node2D.new(), Vector2.ZERO)
+
+	_assert(GameManager.player_score == 1, "BR-P: player_score == 1")
+	_assert(GameManager.get_brick_count("player") == 1, "BR-P: player_brick_count == 1")
+	_assert(_scored_count == 0, "BR-P: no scored emitted")
+
+
+func _test_brick_ai() -> void:
+	_reset_gm()
+	var ball = _make_mock_ball()
+	ball.last_toucher = "ai"
+	var sm = _make_sm(ball)
+	sm.scored.connect(_on_scored)
+
+	sm._on_brick_destroyed(Node2D.new(), Vector2.ZERO)
+
+	_assert(GameManager.ai_score == 1, "BR-A: ai_score == 1")
+	_assert(GameManager.get_brick_count("ai") == 1, "BR-A: ai_brick_count == 1")
+	_assert(GameManager.get_brick_count("player") == 0, "BR-A: player unchanged")
+
+
+func _test_brick_empty_toucher() -> void:
+	_reset_gm()
+	var ball = _make_mock_ball()
+	ball.last_toucher = ""
+	var sm = _make_sm(ball)
+	sm.scored.connect(_on_scored)
+
+	sm._on_brick_destroyed(Node2D.new(), Vector2.ZERO)
+
+	_assert(GameManager.player_score == 0, "BR-E: player_score == 0")
+	_assert(GameManager.ai_score == 0, "BR-E: ai_score == 0")
+	_assert(GameManager.get_brick_count("player") == 0, "BR-E: brick_count == 0")
+	_assert(_scored_count == 0, "BR-E: no scored emitted")
+
+
+func _test_brick_no_scored_signal() -> void:
+	_reset_gm()
+	var ball = _make_mock_ball()
+	ball.last_toucher = "player"
+	var sm = _make_sm(ball)
+	sm.scored.connect(_on_scored)
+
+	sm._on_brick_destroyed(Node2D.new(), Vector2.ZERO)
+
+	_assert(_scored_count == 0, "BR-NS: brick destroy does NOT emit scored")
+
+
+# ── 同帧去重（AC4）──
+
+## 同帧拆砖 + 出界 → 只计拆砖
+func _test_same_frame_brick_only() -> void:
+	_reset_gm()
+	var ball = _make_mock_ball()
+	ball.last_toucher = "player"
+	ball._crossed_wall = true
+	var sm = _make_sm(ball)
+	sm.scored.connect(_on_scored)
+
+	sm._on_brick_destroyed(Node2D.new(), Vector2.ZERO)
 	sm._on_ball_score(0)
-	_assert(_match_over_winner == "player", "SIG-S3: match_over signal carries 'player'")
-	_assert(_match_over_count == 1, "SIG-S3: match_over emitted once")
+
+	_assert(GameManager.player_score == 1, "SF: only brick +1 (no +3)")
+	_assert(GameManager.get_pierce_count("player") == 0, "SF: pierce suppressed")
+	_assert(_scored_count == 0, "SF: no scored emitted")
 
 
-# ── Initial state ──
+## 不同帧各自计分
+func _test_next_frame_both_count() -> void:
+	_reset_gm()
+	var ball = _make_mock_ball()
+	ball.last_toucher = "player"
+	var sm = _make_sm(ball)
+	sm.scored.connect(_on_scored)
+
+	sm._on_brick_destroyed(Node2D.new(), Vector2.ZERO)
+	sm._process(0.016)  # 帧边界
+	ball._crossed_wall = true
+	sm._on_ball_score(0)
+
+	_assert(GameManager.player_score == 4, "NF: brick +1 and pierce +3 both counted")
+	_assert(GameManager.get_pierce_count("player") == 1, "NF: pierce_count == 1")
+
+
+## 帧守卫复位: 守卫被消费后下一帧正常计分
+func _test_guard_resets_next_frame() -> void:
+	_reset_gm()
+	var ball = _make_mock_ball()
+	ball.last_toucher = "player"
+	ball._crossed_wall = true
+	var sm = _make_sm(ball)
+	sm.scored.connect(_on_scored)
+
+	sm._on_brick_destroyed(Node2D.new(), Vector2.ZERO)
+	sm._on_ball_score(0)
+	_assert(GameManager.player_score == 1, "GR: same-frame only brick")
+
+	sm._on_ball_score(0)
+	_assert(GameManager.player_score == 4, "GR: next exit counted normally")
+	_assert(_scored_count == 1, "GR: scored emitted once for second exit")
+
+
+# ── 终局守卫（失败路径 2）──
+
+func _test_terminal_guard_ball_score() -> void:
+	_reset_gm()
+	GameManager._is_run_over = true
+	var ball = _make_mock_ball()
+	ball._crossed_wall = true
+	var sm = _make_sm(ball)
+	sm.scored.connect(_on_scored)
+
+	sm._on_ball_score(0)
+
+	_assert(GameManager.player_score == 0, "TG-B: no score after terminal")
+	_assert(_scored_count == 0, "TG-B: no scored emitted")
+	GameManager.reset_match()
+
+
+func _test_terminal_guard_brick() -> void:
+	_reset_gm()
+	GameManager._is_run_over = true
+	var ball = _make_mock_ball()
+	ball.last_toucher = "player"
+	var sm = _make_sm(ball)
+
+	sm._on_brick_destroyed(Node2D.new(), Vector2.ZERO)
+
+	_assert(GameManager.player_score == 0, "TG-R: no brick score after terminal")
+	_assert(GameManager.get_brick_count("player") == 0, "TG-R: brick_count == 0")
+	GameManager.reset_match()
+
+
+# ── 容错连接（失败路径 1）──
+
+## 无 BreakoutGrid → _ready 不崩、其余计分正常
+func _test_no_grid_tolerant() -> void:
+	_reset_gm()
+	var ball = _make_mock_ball()
+	var sm = _make_tree_sm(ball, null)
+	sm.scored.connect(_on_scored)
+
+	sm._on_ball_score(0)
+	_assert(GameManager.player_score == 1, "NG: boundary scoring works without grid")
+	_cleanup_tree([sm, ball])
+
+
+## 有 brick_destroyed 信号 → 连接成功、事件被消费
+func _test_grid_connected_consumes() -> void:
+	_reset_gm()
+	var ball = _make_mock_ball()
+	ball.last_toucher = "player"
+	var grid = _make_mock_grid()
+	var sm = _make_tree_sm(ball, grid)
+	sm.scored.connect(_on_scored)
+
+	grid.brick_destroyed.emit(Node2D.new(), Vector2.ZERO)
+
+	_assert(GameManager.player_score == 1, "GC: brick consumed via grid signal")
+	_assert(GameManager.get_brick_count("player") == 1, "GC: player_brick_count == 1")
+	_assert(_scored_count == 0, "GC: no scored emitted")
+	_cleanup_tree([sm, ball, grid])
+
+
+# ── 初始状态 ──
 
 func _test_initial_state_zero() -> void:
+	_reset_gm()
 	var sm = _make_sm()
-	_assert(sm.player_score == 0, "STATE: player_score initial == 0")
-	_assert(sm.ai_score == 0, "STATE: ai_score initial == 0")
-	_assert(sm.player_games == 0, "STATE: player_games initial == 0")
-	_assert(sm.ai_games == 0, "STATE: ai_games initial == 0")
-	_assert(sm._is_match_over == false, "STATE: _is_match_over initial == false")
+	_assert(sm._brick_destroyed_this_frame == false, "STATE: _brick_destroyed_this_frame initial false")
+	_assert(GameManager.player_score == 0, "STATE: player_score initial 0")
+	_assert(GameManager.ai_score == 0, "STATE: ai_score initial 0")

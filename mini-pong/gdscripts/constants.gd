@@ -73,8 +73,17 @@ const AI_SPEED_BOOST: float = 1.25
 const AI_SPEED_SLOW: float = 0.75
 
 # ── Scoring ──
+# 弃用 (#385): 21 分制无局/比赛分层 — 保留声明避免测试加载错误，不被任何代码引用
 const POINTS_TO_WIN_GAME: int = 5
 const GAMES_TO_WIN_MATCH: int = 2
+
+# ── Dual Scoring (#385) ──
+# 双得分制 (PLAN-rogue-pong §2.2/§2.4, 用户 2026-08-13 拍板, mechanical)
+const BRICK_SCORE: int = 1        # 拆砖分：最后触球方 +1
+const PIERCE_SCORE: int = 3       # 穿墙分：穿越墙带后出界未被接住 +3
+const WIN_SCORE: int = 21         # 终局分：任一方总分先到 21 获胜（取代 5 分/2 局制）
+const GRID_WALL_Y: float = 640.0  # 砖墙中线 Y（与 #384 DESIGN #414 同值；#393 组装时统一对齐）
+const WALL_BAND_HALF_HEIGHT: float = 22.0  # 墙带判定半高 = BRICK_SIZE.y/2(12) + BALL_RADIUS(10)，防高速球单帧漏判
 
 # ── Colors ──
 const PLAYER_NEON_BLUE: Color = Color(0.29, 0.56, 0.85, 1.0)   # #4a90d9
