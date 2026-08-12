@@ -1,7 +1,7 @@
 # Upgrade Pick UI — 波间 3 选 1 升级选择层
 
 > Reference: ../DESIGN/388-upgrade-pick-ui.md · PRD ../PRD/388-upgrade-pick-ui.md
-> Merged: #441 (2026-08-13) · Issue #388
+> Merged: #440 (2026-08-13) · Issue #388
 
 ## Overview
 
