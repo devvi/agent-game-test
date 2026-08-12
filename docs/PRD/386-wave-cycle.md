@@ -24,9 +24,10 @@ Mini Pong（`mini-pong/`，Godot 4.7.1，竖屏 720×1280）目前是**单局 21
 | `mini-pong/gdscripts/paddle.gd` | AI 模式参数已实例级 `@export`（#387 落地后）：`ai_reaction_delay_min/max`、`ai_position_error`、`ai_speed_boost/slow`、`paddle_speed` | ✅ **运行时可直接缩放 AI 难度**——每波改实例属性即可（AC2 的 AI 侧杠杆） |
 | `mini-pong/gdscripts/scoring_manager.gd` | 消费 `ball.score(side)` + `BreakoutGrid.brick_destroyed`（`get_node_or_null("../BreakoutGrid")` 容错，#385 已落地） | ✅ 提供了「#384 未接线时容错」的既有模式，本 Issue 的 wall_cleared 消费方照抄 |
 | `mini-pong/gdscripts/upgrade_pool.gd` + `brick_upgrade_hooks.gd` | autoload（#387 已合并 PR #423）：`get_candidates(n)` / `apply(id)` / `upgrade_applied` 信号 / `grid_ref/ball_ref/paddle_ref` 目标解析 / `register_all(grid)` | ⚠️ 升级池就绪但**无人触发**——波次结算（#388 依赖本 Issue）是升级抽取的触发点 |
+| `mini-pong/gdscripts/rain_curtain.gd` | 动态雨幕（#389 已合并，Main.tscn 已实例化）：`set_wave_factor(wave_index)` 契约 API——波次因子 = wave_index × +0.1（RAIN_WAVE_STEP） | ⚠️ 契约就绪但**无人调用**——#386 是 DESIGN #389 §3.5 指定的唯一写入口（波次开始一行接入） |
 | `mini-pong/gdscripts/constants.gd` | `WIN_SCORE=21`（#385）、AI 手感常量（#367 定稿值） | ❌ 无 `WAVE_*` 常量组（首波厚度/每波增量/上限） |
 | `mini-pong/scenes/Main.tscn` | 无 BreakoutGrid 节点（接线归 #393） | ⚠️ wall_cleared 信号源缺失 → 本 Issue 消费方必须容错 + 隔离测试 |
-| `mini-pong/tests/run_tests.gd` | 注册 14+ 测试套件 | ❌ 无波次循环测试 |
+| `mini-pong/tests/run_tests.gd` | 注册 17 个测试套件 | ❌ 无波次循环测试 |
 
 **#384 契约核查（本 Issue 消费的 API，来自 DESIGN #414）：**
 
@@ -104,7 +105,8 @@ Mini Pong（`mini-pong/`，Godot 4.7.1，竖屏 720×1280）目前是**单局 21
 | 文件 | 模块 | 改动性质 |
 |------|------|---------|
 | `mini-pong/gdscripts/game_manager.gd` | 波次状态机宿主 | **新增**：`wave_index`（从 1 起）、`wave_state` 枚举（IDLE/RUNNING/SETTLED）、`wave_started(wave_index)` / `wave_settled(wave_index)` 信号、`begin_wave()` / `settle_wave()` / `is_wave_cycle_active()` API |
-| `mini-pong/gdscripts/wave_controller.gd`（新） | 场景侧波次编排（ScoringManager 同构） | **新建**：消费 `BreakoutGrid.wall_cleared`（容错）→ `GameManager.settle_wave()` → 难度递增（厚度/AI 参数）→ `generate_wave(next_thickness, ...)` → 检查 `is_run_over()` 决定是否生成新墙 |
+| `mini-pong/gdscripts/wave_controller.gd`（新） | 场景侧波次编排（ScoringManager 同构） | **新建**：消费 `BreakoutGrid.wall_cleared`（容错）→ `GameManager.settle_wave()` → 难度递增（厚度/AI 参数）→ `generate_wave(next_thickness, ...)` → `RainCurtain.set_wave_factor(wave_index)`（#389 契约，一行接入）→ 检查 `is_run_over()` 决定是否生成新墙 |
+| `mini-pong/gdscripts/rain_curtain.gd` | 动态雨幕（#389 已合并，Main.tscn 已实例化）：`set_wave_factor(wave_index)` 契约 API——波次因子 = wave_index × +0.1（RAIN_WAVE_STEP） | ⚠️ 契约就绪但**无人调用**——#386 是 DESIGN #389 §3.5 指定的唯一写入口（波次开始一行接入） |
 | `mini-pong/gdscripts/constants.gd` | 波次常量 | **新增** `WAVE_*` 组：`WAVE_START_THICKNESS`、`WAVE_THICKNESS_STEP`、`WAVE_MAX_INDEX`（防御）、AI 难度缩放因子占位（taste-draft 可调） |
 | `mini-pong/tests/run_tests.gd` | 测试注册 | **修改**：注册 `test_wave_cycle.gd` |
 | `mini-pong/tests/test_wave_cycle.gd`（新） | 波次循环测试 | **新建**：见 §5 边界条件 |
@@ -145,6 +147,7 @@ WaveController._on_settled():
             difficulty: thickness = WAVE_START_THICKNESS + (wave_index-1)*WAVE_THICKNESS_STEP
                         AI 参数收紧 (ai_reaction_delay_min/max, ai_position_error)
             grid.generate_wave(thickness, layout, seed)   [内部 clear_wall() → AC4]
+            RainCurtain.set_wave_factor(wave_index)          [#389 契约：雨量波次因子 +0.1/波]
             wave_started.emit(wave_index) ──► #390 「第 N 道墙」 / #393 HUD (AC3)
 ```
 
@@ -316,7 +319,8 @@ WaveController._on_settled():
 |---|------|------|------|-------------|
 | 1 | 是否存在可复用的波次/肉鸽循环插件？ | Godot Asset Library（4.7 过滤 `wave`/`roguelike`/`spawn`）+ GitHub 搜索（`godot wave spawner`、`godot roguelike loop`） | Asset Library 0 相关结果；GitHub 无高星可插拔波次管理器（波次逻辑与游戏规则强耦合，且本项目波次=砖墙+AI 参数，无通用插件可套） | 确认第一方实现（Approach A），零第三方依赖（与 #384 调研结论一致） |
 | 2 | AI 难度能否运行时缩放？ | 读 `paddle.gd` L16-31（#387 落地后 `@export` 实例变量）与 `_ai_process`（L122-140 消费这些参数） | `ai_reaction_delay_min/max`、`ai_position_error`、`ai_speed_boost/slow` 均为实例级 @export，`_ai_process` 每帧读取 → **运行时改属性即生效**，无需重启/重建节点 | AC2 的 AI 侧杠杆可行：每波直接改 AIPaddle 实例属性 |
-| 3 | 旧墙清理能否复用 #384 契约？ | 读 DESIGN #414 §4.1（`generate_wave` 先 `clear_wall()`：快照 queue_free 全部旧砖 + 重置计数/守卫/集合）与 §5.1 再生用例（打空→再生→再打空，wall_cleared 恰好两次） | 清理契约完整且已测试规划：`generate_wave` 幂等再生，旧砖零残留、旧信号不泄漏 | AC4 直接依赖该 API；本 Issue 只保证「单实例 + 只调 generate_wave」，不重复实现清理 |
+| 3 | 波次因子如何接入雨幕？ | 读 `rain_curtain.gd`（#389 落地后）契约 API 与 DESIGN #389 §3.5 消费方表 | `set_wave_factor(wave_index)` 存在且 DESIGN 明确消费方 = **#386 波次循环**（默认 0 不报错，未接线时雨量 = base+球速+紧张） | AC3 的 wave_index 同时驱动雨量波次因子；WaveController 在 wave_started 时一行调用，未接线容错（#389 契约默认值安全） |
+| 4 | 旧墙清理能否复用 #384 契约？ | 读 DESIGN #414 §4.1（`generate_wave` 先 `clear_wall()`：快照 queue_free 全部旧砖 + 重置计数/守卫/集合）与 §5.1 再生用例（打空→再生→再打空，wall_cleared 恰好两次） | 清理契约完整且已测试规划：`generate_wave` 幂等再生，旧砖零残留、旧信号不泄漏 | AC4 直接依赖该 API；本 Issue 只保证「单实例 + 只调 generate_wave」，不重复实现清理 |
 
 ---
 
@@ -336,6 +340,7 @@ WaveController._on_settled():
 3. **AC4 不重复实现清理**：只调 `generate_wave()`（内部 `clear_wall()`），绝不 new 第二个网格
 4. **AC5 停止条件唯一**：`is_run_over()`；FSM 走既有 `match_over → GAME_OVER`
 5. **结算不依赖 #388**：`wave_settled` 后延时自动进下一波；升级 UI 接线后由其接管推进时机
+6. **雨幕波次因子（#389 契约）**：WaveController 在 wave_started 时调 `RainCurtain.set_wave_factor(wave_index)`——DESIGN #389 §3.5 指定 #386 为唯一写入口；未接线时契约默认值安全（雨量回退 base+球速+紧张）
 
 ### 下一步（plan agent）
 
@@ -343,4 +348,5 @@ WaveController._on_settled():
 2. 定 `constants.gd` `WAVE_*` 默认值（厚度起点/步进/AI 缩放因子，机械占位）
 3. 设计 `WaveController` 节点挂载路径（#393 接线；独立可实例化 + 隔离测试，同 #384 交付模式）
 4. 测试策略：mock grid 发 `wall_cleared`（同 test_dual_scoring 的 mock BreakoutGrid 模式）；断言 wave_index 递增、generate_wave 参数递增、21 分后不生成
+5. 雨幕接线：验证 `RainCurtain.set_wave_factor(wave_index)` 调用（headless 可断言 `_wave_index` 状态，见 test_rain.gd 既有模式）
 5. 若 #384 实现在本 Issue 实现前落地，接入真实信号；否则保持容错并注明
