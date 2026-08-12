@@ -455,3 +455,95 @@ get_node_or_null == null → push_warning 一次 → 跳过该路径（波次状
 | 失败屏两选项（换实例 or 补齐内联 Label） | `ui_game_over.tscn` 路径与 `game_over_screen.gd` 逐项匹配（已核实） | 定稿**换实例**（消除双份漂移；#391 交付物启用） |
 | 转场层建议 layer=3 | — | 确认 layer=3，新增 `WAVE_TRANSITION_LAYER` 常量收敛层序 |
 | 组装边界「不改 8 个已落地组件脚本逻辑」 | ball.gd bricks 分支为 #384 契约组成部分（PRD 明确豁免） | 遵守：唯一脚本改动 = ball.gd bricks 分支 + constants.gd 常量组 |
+
+
+---
+
+## 附录 B: 首波触发 + #387 组契约（plan agent 增补，2026-08-13）
+
+> **背景:** 本 DESIGN 初版（PR #442）未覆盖两个机械缺口——① **首波触发缺失**：全代码库无任何代码启动第 1 波；② **#387 组契约未落地**：BreakoutGrid 未满足 UpgradePool.grid_ref 组解析与升级钩子注册表。Research Round 2 修订（#393 PRD 工作副本）已将①列为「组装关键缺口」并注明「首波触发路径归 #393 组装」（PRD #390 边界 1 同文）。本增补与正文同权，为 implement 契约的一部分。
+
+### B.1 首波触发（缺口①，AC2 前置）
+
+**现状核实（2026-08-13）：**
+- 全库仅 `wave_controller.gd:_advance_wave()` 调用 `GameManager.begin_wave()`；`_advance_wave()` 仅由 `_on_wall_cleared`（墙清空后）与 `advance_settlement()`（#388）触发。
+- `game_state_machine.gd` MENU→SERVING→PLAYING 与 `start_menu.gd:_on_start_pressed()` 均不调用 begin_wave/generate_wave。
+- 结果：若不增补，**第 1 波永远不会开始**——无初始墙、无 `wave_started(1)`，AC2 循环无法启动（`start_menu` 中 `_on_start_pressed` 为孤儿代码——FSM 直接处理 SPACE 输入，不可作挂点）。
+
+**设计定稿：**
+
+1. `mini-pong/gdscripts/wave_controller.gd` 新增**幂等**公开方法 `start_first_wave()`（既有逻辑零改动；先例：#388 为 wave_controller.gd 新增 `advance_settlement`）：
+
+```gdscript
+## #393 增补：首波触发（PRD #390 边界 1）。幂等：仅 wave_index==0 且非 run-over 时生效。
+func start_first_wave() -> void:
+    if GameManager.wave_index != 0 or GameManager.is_run_over():
+        return
+    _advance_wave()   # begin_wave(1) + _apply_difficulty(1) + rain.set_wave_factor(1) + generate_wave(厚度 1)
+```
+
+2. `mini-pong/gdscripts/game_state_machine.gd` `enter_state(State.PLAYING)` 增补触发（additive ~5 行；FSM 不变项「不扩展状态机」语义保持——无新状态）：
+
+```gdscript
+State.PLAYING:
+    # ...既有逻辑不变（_set_ui/_freeze_paddles(false)/pause_overlay/AudioEngine）...
+    # #393 增补：首波触发 —— wave_index==0 时首次进入 PLAYING → 启动第 1 波（幂等，重复进入 no-op）
+    if is_instance_valid(GameManager) and GameManager.has_method("get_wave_index") \
+            and GameManager.get_wave_index() == 0:
+        var wc = get_tree().get_first_node_in_group("wave_controllers")
+        if wc and wc.has_method("start_first_wave"):
+            wc.start_first_wave()
+```
+
+- **触发时序**：发球动画完成 → PLAYING → `begin_wave(1)` → `wave_started(1)` → 转场冻结演员 2.0s → 解冻开打——与后续每波「begin_wave → 转场 → 对打」时序完全一致（AC3 冻结语义在首波同样成立）。
+- **为何选 PLAYING 而非 SERVING**：SERVING 触发会在 `ball.serve()`（ball.gd L93 防御性复位 `frozen=false`）之后失效冻结，AC3 破坏；PLAYING 进入时球已发球完毕，冻结语义与后续波次一致。
+- **为何 group + has_method 寻址**：与 #388 UpgradePickUI→WaveController 同模式；WaveController 未挂载时 no-op 不崩（容错惯例）。
+- **重开路径**：GAME_OVER → SPACE → MENU → SPACE → SERVING：FSM 首服分支 `reset_match()`（game_state_machine.gd L105-106）将 wave_index 归 0 → 再进 PLAYING 时 `get_wave_index()==0` → 新 run 首波正常触发（无残留状态）。
+
+**差异记录（vs 已合并契约）：**
+
+| 已合并契约 | 本增补 | 理由 |
+|-----------|--------|------|
+| TASKS「不动文件」含 `game_state_machine.gd` / `wave_controller.gd` | 两文件各 +1 additive 方法/调用（既有逻辑零改动） | 首波触发无处可挂：StartMenu._on_start_pressed 为孤儿代码；新节点轮询 FSM 状态违反零轮询惯例；唯一信号式入口即 FSM PLAYING 进入（Research Round 2 修订 gap 1 要求组装定义首波路径） |
+| DESIGN §4 Flow 1 从「最后一砖 destroy」起 | 前置 Flow 0：`PLAYING 首次进入 → start_first_wave → begin_wave(1) → 转场 + 首墙生成` | 补全循环入口；无 Flow 0 则 AC2 永不可达 |
+
+### B.2 #387 组契约 + 升级钩子（缺口②）
+
+**现状核实（2026-08-13）：** `upgrade_pool.gd` L156 `grid_ref = get_tree().get_first_node_in_group("breakout_grids")`（惰性解析，组不存在时 upgrade 的 grid 类效果为 no-op）；`brick_upgrade_hooks.gd` 头部契约：「注册时机归 grid 侧（BreakoutGrid._ready() 调 `BrickUpgradeHooks.register_all(self)`）」+ grid 需实现 `register_upgrade_hook` / `open_hole` / `blast_neighbors`。DESIGN #414 §4.1 本就含这三个 API（本 DESIGN §3.2 漏列）。
+
+**增补（并入 §3.2 BreakoutGrid 契约）：**
+
+- `_ready()`：`add_to_group("breakout_grids")` + `BrickUpgradeHooks.register_all(self)`（brick_upgrade_hooks.gd 契约注释指定注册时机归 grid 侧）
+- API 增补：
+  - `register_upgrade_hook(id: String, fn: Callable) -> void`：写入 `upgrade_hooks: Dictionary` 注册表
+  - `apply_upgrade_hook(id: String, ctx: Dictionary) -> void`：分发（ctx 注入 `"grid"` 键——brick_upgrade_hooks.gd 契约）
+  - `open_hole(count: int) -> void`：下波 `generate_wave()` 末尾消费 pending 洞请求，复用 HOLES 柱位逻辑
+  - `blast_neighbors(pos: Vector2, radius: float) -> void`：以 pos 为中心炸碎 radius 内砖——逐砖走 `_on_brick_destroyed` 语义（身份去重/递减/信号；归零时 wall_cleared 恰好一次）
+- 不动项：`brick_upgrade_hooks.gd` 不改（契约先行，已定稿；test_upgrade_pool.gd TC-H1/H2 假 grid 桩继续可用）
+
+### B.3 边界条件增补（并入 §5）
+
+| # | 场景 | 处理 |
+|---|------|------|
+| 11 | 首波触发重入（PLAYING 每分进入） | `start_first_wave()` 幂等（wave_index==0 守卫）——wave_index>0 时 no-op |
+| 12 | run-over 后重开 | `reset_match()` 归零 wave_index/状态 → 新 run PLAYING 再触发；`is_run_over()` 守卫防终局后误触发 |
+| 13 | 升级 hook 在下波生成前调用 | `open_hole` 请求挂起至下波 `generate_wave()` 末尾消费（pending 队列）；`blast_neighbors` 立即生效 |
+| 14 | WaveController 未挂载时首波触发 | group 寻址 null → no-op（容错惯例；测试 mock 树不受影响） |
+
+### B.4 集成点增补（并入 §7）
+
+| 集成 | 组件 | 目标 Issue | 方式 | 状态 |
+|------|:---:|:---:|------|:---:|
+| FSM PLAYING 首次进入 → WaveController.start_first_wave | FSM / WaveController | #386/#393 | group `wave_controllers` + has_method | ⬜ |
+| BreakoutGrid ← UpgradePool.grid_ref | BreakoutGrid | #387 | `_ready()` 加组 `breakout_grids`（惰性解析激活） | ⬜ |
+| BreakoutGrid ← BrickUpgradeHooks | BreakoutGrid | #387 | `_ready()` 调 `register_all(self)`；实现 register_upgrade_hook / apply_upgrade_hook / open_hole / blast_neighbors | ⬜ |
+
+### B.5 测试用例增补（并入 §9，Scenario H: 首波触发 + #387 组契约）
+
+- Test 1：`start_first_wave()` 幂等——连续调用两次 → wave_index 只到 1、`wave_started` 只发一次、墙只生成一面
+- Test 2：FSM PLAYING 首次进入（wave_index==0）→ begin_wave(1) → 墙生成 + 转场播放（TitleLabel「第 1 道墙」）；再次进入 PLAYING（wave_index==1）→ 不重复触发
+- Test 3：重开路径——GAME_OVER → MENU → 再开始 → reset_match 后新 run 首波正常触发
+- Test 4：run-over 后（is_run_over）→ `start_first_wave` no-op
+- Test 5：`breakout_grids` 组断言——实例化 BreakoutGrid 后 `is_in_group("breakout_grids")` 为真；UpgradePool 惰性 `grid_ref` 解析到真实 grid（非 null）
+- Test 6：升级钩子分发——`register_upgrade_hook` 后经 `BrickUpgradeHooks` 调 `apply_upgrade_hook("open_hole", {grid=…, count=1})` → 下波生成后洞数正确；`blast_neighbors(pos, r)` → 半径内砖碎、brick_destroyed/计数正确、归零 wall_cleared 恰好一次（test_upgrade_pool TC-H1/H2 的真实 grid 版）
+- Test 7：转场覆盖首波——首波 `wave_started(1)` 期间 Ball/双拍 frozen，结束后恢复（AC3 在首波同样成立）
