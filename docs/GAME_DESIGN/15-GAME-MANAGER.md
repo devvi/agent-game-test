@@ -74,6 +74,7 @@ signal match_over(winner: String)                          # "player" | "ai" —
 | `reset_game` | `func reset_game() -> void` | Zeros per-game scores; preserves game counters |
 | `reset_match` | `func reset_match() -> void` | Zeros all four state vars; full reset |
 | `get_winner` | `func get_winner() -> String` | Returns `"player"` / `"ai"` / `""` |
+| `get_wave_index` | `func get_wave_index() -> int` | Returns current wave index — 失败屏 run 数据查询 (#391 AC2)，终局后保留供统计 |
 
 ## Signal Emission Order
 

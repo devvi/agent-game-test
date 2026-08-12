@@ -52,6 +52,11 @@ MENU ──(SPACE)──→ SERVING ──(auto)──→ PLAYING ──(scored)
 - FSM calls `set_frozen(true)` in MENU, SERVING, SCORED, GAME_OVER.
 - FSM calls `set_frozen(false)` in PLAYING.
 
+### Ball Freeze（终局软冻结 #391 AC4）
+- `ball.gd` exposes `set_frozen(bool)` / `frozen` — `_process()` 早退（不做位移/计分/墙带判定），`serve()` 防御性复位 `frozen=false`。
+- FSM GAME_OVER `enter_state` → `_freeze_ball(true)`（终局画面球静止）；`exit_state(GAME_OVER)` → `_freeze_ball(false)`（SPACE → MENU 后新 run 球可动）。
+- 软冻结约定（#296 扩展）：不用 SceneTree.pause；`_freeze_ball` 用 `has_method` 守卫兼容既有测试 ball mock。
+
 ### UI Visibility
 - FSM's `_set_ui(layer)` toggles `visible` on CanvasLayer siblings.
 - Layers: StartMenu, GameHUD, GameOverScreen.
