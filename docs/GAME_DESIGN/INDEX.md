@@ -18,3 +18,4 @@
 | [21-WAVE-FAILURE-TEXT](21-WAVE-FAILURE-TEXT.md) | Wave failure text — 波次副句/失败短句红线, content JSON schema (wave-failure-text/v1), #390/#391 消费数据流, TASTE.md 定稿回写 |
 | [22-RAIN-CURTAIN](22-RAIN-CURTAIN.md) | L0 rain curtain — GPUParticles2D atmosphere layer, formula-driven rain intensity, contract API |
 | [23-UPGRADE-POOL](23-UPGRADE-POOL.md) | Upgrade pool — rogue-lite per-wave growth, 9 upgrades, 60/30/10 rarity draw, instance parameterization, upgrade_hooks contract |
+| [24-WAVE-CYCLE](24-WAVE-CYCLE.md) | Wave cycle — wave state machine, wall_cleared orchestration, dual-lever difficulty, 21-pt stop |
