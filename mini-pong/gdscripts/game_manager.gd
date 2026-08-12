@@ -21,6 +21,8 @@ enum WaveState { IDLE, RUNNING, SETTLED }
 
 signal wave_started(wave_index: int)   # 新一波开始（#390 转场「第 N 道墙」/ #393 HUD，AC3）
 signal wave_settled(wave_index: int)   # 墙清空结算挂点（#388 升级 UI 触发时机）
+signal brick_scored(side: String)      # 拆砖分（kind == "brick"，#392 霓虹 HUD 按类信号）
+signal pierce_scored(side: String)     # 穿墙分（kind == "pierce"，#392 霓虹 HUD 按类信号）
 # game_won 信号已删除（21 分制无「局」概念；HUD/FSM/结算屏均不消费）
 
 # ── State ──
@@ -52,6 +54,7 @@ func add_score(winner: String, amount: int = 1, kind: String = "boundary") -> vo
 			_bump_count("ai", kind)
 		_:
 			return                   # 非法 winner：无状态变更、无信号（保持 TC5 语义）
+	_emit_class_signals(winner, kind)       # #392: 按类信号（brick_scored / pierce_scored）
 	score_changed.emit(player_score, ai_score)
 	_check_run_end()
 
@@ -104,6 +107,16 @@ func reset_match() -> void:
 
 
 # ── Internal ──
+
+func _emit_class_signals(winner: String, kind: String) -> void:   # #392 纯增量：boundary 不触发
+	match kind:
+		"brick":
+			brick_scored.emit(winner)
+		"pierce":
+			pierce_scored.emit(winner)
+		_:
+			pass
+
 
 func _bump_count(side: String, kind: String) -> void:
 	match kind:

@@ -3,33 +3,84 @@
 [ext_resource type="Script" path="res://gdscripts/game_hud.gd" id="1_script"]
 
 [node name="GameHUD" type="CanvasLayer"]
-layer = 0
+layer = 1
 visible = false
 script = ExtResource("1_script")
 
-[node name="MarginContainer" type="MarginContainer" parent="."]
-anchors_preset = 2
-anchor_top = 0.0
+[node name="TopZone" type="Control" parent="."]
+anchors_preset = 10
 anchor_right = 1.0
-anchor_bottom = 0.0
-margin_top = 20.0
-margin_left = 40.0
-margin_right = -40.0
+offset_top = 12.0
+offset_bottom = 84.0
 grow_horizontal = 2
-grow_vertical = 0
 
-[node name="HBoxContainer" type="HBoxContainer" parent="MarginContainer"]
+[node name="VBoxContainer" type="VBoxContainer" parent="TopZone"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 alignment = 1
-separation = 60
 
-[node name="PlayerScoreLabel" type="Label" parent="MarginContainer/HBoxContainer"]
-text = "Player: 0"
-horizontal_alignment = 1
-theme_override_font_sizes/font_size = 28
-modulate = Color(0.29, 0.56, 0.85, 1.0)
-
-[node name="AIScoreLabel" type="Label" parent="MarginContainer/HBoxContainer"]
+[node name="AIScoreLabel" type="Label" parent="TopZone/VBoxContainer"]
 text = "AI: 0"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 28
-modulate = Color(1.0, 0.2, 0.33, 1.0)
+
+[node name="AISubRow" type="HBoxContainer" parent="TopZone/VBoxContainer"]
+alignment = 1
+separation = 24
+
+[node name="AIBrickLabel" type="Label" parent="TopZone/VBoxContainer/AISubRow"]
+text = "拆 0"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 20
+
+[node name="AIPierceLabel" type="Label" parent="TopZone/VBoxContainer/AISubRow"]
+text = "穿 0"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 20
+
+[node name="InfoBar" type="Label" parent="."]
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 88.0
+offset_bottom = 112.0
+grow_horizontal = 2
+text = "第 1 波 · 剩余 —"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 16
+
+[node name="BottomZone" type="Control" parent="."]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -28.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="HBoxContainer" type="HBoxContainer" parent="BottomZone"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+alignment = 1
+separation = 24
+
+[node name="PlayerScoreLabel" type="Label" parent="BottomZone/HBoxContainer"]
+text = "Player: 0"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 20
+
+[node name="PlayerBrickLabel" type="Label" parent="BottomZone/HBoxContainer"]
+text = "拆 0"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 20
+
+[node name="PlayerPierceLabel" type="Label" parent="BottomZone/HBoxContainer"]
+text = "穿 0"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 20

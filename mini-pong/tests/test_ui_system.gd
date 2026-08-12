@@ -197,7 +197,7 @@ func _test_tc5_start_menu_labels() -> void:
 	instance.queue_free()
 
 
-# ── TC6: GameHUD Labels Exist ──
+# ── TC6: GameHUD Labels Exist (三区霓虹布局 #392) ──
 
 func _test_tc6_game_hud_labels() -> void:
 	if not ResourceLoader.exists("res://scenes/ui_game_hud.tscn"):
@@ -207,18 +207,47 @@ func _test_tc6_game_hud_labels() -> void:
 	var instance = packed.instantiate()
 
 	_assert(instance.visible == false, "TC6-1: GameHUD starts visible=false")
+	_assert(instance.layer == 1, "TC6-2: GameHUD layer == 1")
 
-	var player_lbl: Label = instance.get_node_or_null("MarginContainer/HBoxContainer/PlayerScoreLabel")
-	_assert(player_lbl != null, "TC6-2: PlayerScoreLabel exists")
-	if player_lbl:
-		_assert(player_lbl.text == "Player: 0", "TC6-3: PlayerScoreLabel initial text")
-		_assert(player_lbl.get("theme_override_font_sizes/font_size") >= 24, "TC6-4: PlayerScoreLabel font_size >= 24")
-
-	var ai_lbl: Label = instance.get_node_or_null("MarginContainer/HBoxContainer/AIScoreLabel")
-	_assert(ai_lbl != null, "TC6-5: AIScoreLabel exists")
+	# 顶部 AI 红区（AIScoreLabel + 拆砖/穿墙双子区）
+	var ai_lbl: Label = instance.get_node_or_null("TopZone/VBoxContainer/AIScoreLabel")
+	_assert(ai_lbl != null, "TC6-3: AIScoreLabel exists")
 	if ai_lbl:
-		_assert(ai_lbl.text == "AI: 0", "TC6-6: AIScoreLabel initial text")
-		_assert(ai_lbl.get("theme_override_font_sizes/font_size") >= 24, "TC6-7: AIScoreLabel font_size >= 24")
+		_assert(ai_lbl.text == "AI: 0", "TC6-4: AIScoreLabel initial text")
+		_assert(ai_lbl.get("theme_override_font_sizes/font_size") >= 24, "TC6-5: AIScoreLabel font_size >= 24")
+
+	var ai_brick: Label = instance.get_node_or_null("TopZone/VBoxContainer/AISubRow/AIBrickLabel")
+	_assert(ai_brick != null, "TC6-6: AIBrickLabel exists")
+	if ai_brick:
+		_assert(ai_brick.text == "拆 0", "TC6-7: AIBrickLabel initial text")
+
+	var ai_pierce: Label = instance.get_node_or_null("TopZone/VBoxContainer/AISubRow/AIPierceLabel")
+	_assert(ai_pierce != null, "TC6-8: AIPierceLabel exists")
+	if ai_pierce:
+		_assert(ai_pierce.text == "穿 0", "TC6-9: AIPierceLabel initial text")
+
+	# 中立信息条（波次 · 剩余砖数）
+	var info: Label = instance.get_node_or_null("InfoBar")
+	_assert(info != null, "TC6-10: InfoBar exists")
+	if info:
+		_assert(info.text.contains("第 1 波"), "TC6-11: InfoBar initial wave text")
+
+	# 底部玩家蓝区（PlayerScoreLabel + 拆砖/穿墙双子区）
+	var player_lbl: Label = instance.get_node_or_null("BottomZone/HBoxContainer/PlayerScoreLabel")
+	_assert(player_lbl != null, "TC6-12: PlayerScoreLabel exists")
+	if player_lbl:
+		_assert(player_lbl.text == "Player: 0", "TC6-13: PlayerScoreLabel initial text")
+		_assert(player_lbl.get("theme_override_font_sizes/font_size") >= 16, "TC6-14: PlayerScoreLabel font_size >= 16")
+
+	var player_brick: Label = instance.get_node_or_null("BottomZone/HBoxContainer/PlayerBrickLabel")
+	_assert(player_brick != null, "TC6-15: PlayerBrickLabel exists")
+	if player_brick:
+		_assert(player_brick.text == "拆 0", "TC6-16: PlayerBrickLabel initial text")
+
+	var player_pierce: Label = instance.get_node_or_null("BottomZone/HBoxContainer/PlayerPierceLabel")
+	_assert(player_pierce != null, "TC6-17: PlayerPierceLabel exists")
+	if player_pierce:
+		_assert(player_pierce.text == "穿 0", "TC6-18: PlayerPierceLabel initial text")
 
 	instance.queue_free()
 
@@ -276,34 +305,38 @@ func _test_tc8_start_menu_transition() -> void:
 	_assert(start_menu.visible == true, "TC8-4: visible=true after show_menu")
 
 
-# ── TC9: HUD Signal Update — label text changes on score update ──
+# ── TC9: HUD Signal Update — label text changes on score update (三区布局 #392) ──
 
 func _test_tc9_hud_signal_update() -> void:
 	var script = _load_script("res://gdscripts/game_hud.gd")
 	if script == null:
 		_assert(false, "TC9: script not found")
 		return
-
-	var hud = _make_canvas_layer("res://gdscripts/game_hud.gd")
-	if hud == null:
-		_assert(false, "TC9: instantiation failed")
+	if not ResourceLoader.exists("res://scenes/ui_game_hud.tscn"):
+		_assert(false, "TC9: scene missing")
 		return
+	var packed = load("res://scenes/ui_game_hud.tscn")
+	var hud = packed.instantiate()
+	_assert(hud != null, "TC9-1: ui_game_hud instantiates")
+	_assert(hud.has_method("_on_score_changed"), "TC9-2: has _on_score_changed method")
 
-	_assert(hud.has_method("_on_score_changed"), "TC9-1: has _on_score_changed method")
-
-	# Test direct method call with various scores
+	var main_loop = Engine.get_main_loop()
+	main_loop.root.add_child(hud)
 	hud._on_score_changed(0, 0)
-	# Labels updated via the method
-	if hud.get_node_or_null("MarginContainer/HBoxContainer/PlayerScoreLabel"):
-		_assert(hud.get_node("MarginContainer/HBoxContainer/PlayerScoreLabel").text == "Player: 0", "TC9-2: score 0,0 → Player: 0")
-	if hud.get_node_or_null("MarginContainer/HBoxContainer/AIScoreLabel"):
-		_assert(hud.get_node("MarginContainer/HBoxContainer/AIScoreLabel").text == "AI: 0", "TC9-3: score 0,0 → AI: 0")
+	var p_lbl: Label = hud.get_node_or_null("BottomZone/HBoxContainer/PlayerScoreLabel")
+	var a_lbl: Label = hud.get_node_or_null("TopZone/VBoxContainer/AIScoreLabel")
+	if p_lbl:
+		_assert(p_lbl.text == "Player: 0", "TC9-3: score 0,0 → Player: 0")
+	if a_lbl:
+		_assert(a_lbl.text == "AI: 0", "TC9-4: score 0,0 → AI: 0")
 
 	hud._on_score_changed(5, 3)
-	if hud.get_node_or_null("MarginContainer/HBoxContainer/PlayerScoreLabel"):
-		_assert(hud.get_node("MarginContainer/HBoxContainer/PlayerScoreLabel").text == "Player: 5", "TC9-4: score 5,3 → Player: 5")
-	if hud.get_node_or_null("MarginContainer/HBoxContainer/AIScoreLabel"):
-		_assert(hud.get_node("MarginContainer/HBoxContainer/AIScoreLabel").text == "AI: 3", "TC9-5: score 5,3 → AI: 3")
+	if p_lbl:
+		_assert(p_lbl.text == "Player: 5", "TC9-5: score 5,3 → Player: 5")
+	if a_lbl:
+		_assert(a_lbl.text == "AI: 3", "TC9-6: score 5,3 → AI: 3")
+
+	hud.queue_free()
 
 
 # ── TC10: GameOverScreen Signal Update ──
