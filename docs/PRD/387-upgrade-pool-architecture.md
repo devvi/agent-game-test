@@ -1,13 +1,13 @@
 # PRD: [Feature] 升级池架构 (UpgradePool)
 
 > **Issue:** #387
-> **标签:** enhancement, gameplay, version/mvp, workflow/research
+> **标签:** enhancement, gameplay, version/mvp, workflow/available
 > **Agent:** game-research-agent
 > **日期:** 2026-08-13
-> **深度:** depth/standard（Issue 无 depth 标签，按 #358/#378/#383/#384 惯例按 standard 处理：Section 1–6 + 8 必填，Section 7 以研究期已执行的实验补齐）
-> **所有权:** `content_ownership: mechanical`（池结构/抽取算法/参数实例化/钩子契约 = 机械实现；升级数值平衡与文案归 taste 域，#395 已另行排队）
-> **上游方案:** `docs/PLAN-rogue-pong.md` §2.5 升级池（已确认 2026-08-13）：9 升级清单 + 稀有度 60/30/10 + 每波 3 选 1 + 情感误归因
-> **前置依赖:** #383（轴交换+竖屏，**已关闭** PR #409）、#384（砖墙 BreakoutGrid，DESIGN 已合并 PR #414，代码待落地）
+> **深度:** depth/standard（Issue 无 depth 标签，按 #358/#378/#383/#384 惯例按 standard 处理：Section 1–6 + 8 必填，Section 7 以研究期已执行实验补齐）
+> **所有权:** `content_ownership: mechanical`（纯机械架构：升级数据模型 + 权重抽取 + 参数实例化 + hooks 预留；文案/数值设计归 #395 与 taste-draft Issue）
+> **上游方案:** `docs/PLAN-rogue-pong.md` §2.5 升级池结构（60/30/10 权重 + 9 升级清单 + 情感断言，已确认 2026-08-13）
+> **前置依赖:** #383（轴交换+竖屏，**已合并** PR #409）→ #384（BreakoutGrid 砖墙系统，PRD #411 + DESIGN #414 **已合并**，代码实现未落地）→ 本 Issue
 
 ---
 
@@ -15,380 +15,342 @@
 
 ### 当前状态
 
-Mini Pong（`mini-pong/`，Godot 4.7.1，竖屏 720×1280）**不存在任何升级/波次系统**：球/挡板/计分/FSM/雨幕各司其职，但没有升级池、没有"每波成长"概念、没有 3 选 1 的数据源。Rogue Pong 的成长核心（升级池）完全缺失。
+Mini Pong（`mini-pong/`，Godot 4.7.1，竖屏 720×1280）**不存在任何升级系统**：波次循环（#386）、3 选 1 升级 UI（#388）等下游消费方已排期，但升级的数据模型、权重抽取、效果应用接口完全空白。ball/paddle 的全部手感参数仍以 `const` 常量形式固化（#295 单一事实源 constants.gd），无法被运行时修改；砖墙系统（#384）的 DESIGN 已定义 `brick_destroyed`/`wall_cleared` 信号契约，但**未预留任何升级挂钩点**。
 
 | 文件 | 当前状态 | 与 #387 需求的差距 |
 |------|---------|------------------|
-| `mini-pong/gdscripts/ball.gd` | 参数**已实例级**：`@export var initial_speed / max_speed_multiplier / speed_increment / max_bounce_angle / serve_angle_range`（默认值来自 GameConstants）；`serve()` 读实例 `initial_speed`；`_on_area_entered` 上限 `initial_speed * max_speed_multiplier` | ✅ AC3 ball 侧已达标；仅缺 `speed_scale` 类时序参数（缓时用） |
-| `mini-pong/gdscripts/paddle.gd` | `SPEED`/`PADDLE_WIDTH`/`PADDLE_HEIGHT` 仍为 **const**，`_process` 直接读 `SPEED`（玩家/AI 两处）；`_ready` 用 `PADDLE_WIDTH` 算边界；AI 参数已是 `@export` | ❌ AC3 paddle 侧未达标：需 const → 实例属性 + 宽度 setter 同步 CollisionShape2D |
-| `mini-pong/gdscripts/constants.gd` | GameConstants 单一事实源（#295）；手感常量带 #367 定稿注释 | ❌ 无 UPGRADE_* 常量（稀有度权重/池大小） |
-| `mini-pong/gdscripts/game_manager.gd` | autoload 单例，文档化职责 = "pure-data holder: scores, games won, reset APIs"（#293 DESIGN 明文） | ❌ 无 upgrade 状态；按概念分层（见 §2）不并入 GameManager |
-| `mini-pong/project.godot` | autoload：GameManager、AudioEngine | ❌ 未注册 UpgradePool |
-| `mini-pong/tests/run_tests.gd` | 注册 14+ 测试套件 | ❌ 无升级池测试 |
-| `mini-pong/gdscripts/breakout_grid.gd` | **不存在**（#384 DESIGN 已合并但代码未落地：issue CLOSED、无 impl/384 分支、gdscripts 无 breakout 文件） | ❌ 砖类升级的 `upgrade_hooks` 挂载点待增量设计 |
-| `mini-pong/assets/content/upgrade_pool.json` | **不存在**（#395 PRD 已定义 schema，status/human-review 待定稿） | — 本 Issue 只读消费显示字段，不写文案 |
-
-**关键事实核查（来自源码，方案可行性的依据）：**
-
-- `ball.gd` 五个手感参数全部 `@export` + 实例读取 → **AC3 的 ball 部分已由 #295 迁移完成**，本 Issue 只需验证 + 补时序参数
-- `paddle.gd` 的 `SPEED` 被 `_process` 直接引用（`position.x += move * SPEED * delta` 与 AI 分支各一处），`PADDLE_WIDTH` 用于边界计算 → 改实例属性后**每帧读取天然下一帧生效**
-- `ball.gd` 读挡板长度走 `CollisionShape2D.shape.get("size").x`（非 const）→ 长臂升级改宽度时**同步 shape 即可让球立即感知**
-- 缓时（球速冻结 2s）需要 ball 暴露时序速度参数；当前 `speed` 是实例 var，但无冻结/缩放层
+| `mini-pong/gdscripts/constants.gd` | ball/paddle 手感参数单一事实源（#295）；`BALL_*`、`PADDLE_*` 全部 `const` | ❌ AC3 要求参数实例级可修改——常量只作默认值来源 |
+| `mini-pong/gdscripts/ball.gd` | 已有 `@export` 实例变量（`initial_speed`/`max_speed_multiplier`/`speed_increment` 等，编辑器可调）且 `speed` 已是实例状态；但 `INITIAL_SPEED` 等 `const` 仍被直接引用（`var speed: float = INITIAL_SPEED`） | ⚠️ 部分满足 AC3（导出变量已是实例级），需消除常量直引用 |
+| `mini-pong/gdscripts/paddle.gd` | `const SPEED/PADDLE_WIDTH/PADDLE_HEIGHT` 直接用于移动与边界计算（`position.x += move * SPEED * delta`、`PADDLE_WIDTH / 2.0`） | ❌ AC3 未满足：宽度/速度全部 const，升级（长臂 +30% 等）无法落地 |
+| `mini-pong/scenes/player_paddle.tscn` | CollisionShape2D `Vector2(120,20)` 硬编码 | ⚠️ 升级改宽度时需同步改 shape（或运行时 set） |
+| `mini-pong/gdscripts/` | 无 `upgrade_pool.gd` / `upgrades/` 目录 | ❌ 升级池完全不存在（AC1/AC2/AC5 全空） |
+| `mini-pong/gdscripts/breakout_grid.gd` | **不存在**（#384 DESIGN #414 已合并但实现未落地；预期含 `generate_wave`/`clear_wall` + 两信号） | ❌ AC4 要求预留 `upgrade_hooks`——趁实现前在 DESIGN 契约中补挂钩点最经济 |
+| `mini-pong/assets/content/upgrade_pool.json` | 不存在（#395 文案 PRD 已定义 schema `upgrade-pool-content/v1`，实现未落地） | ⚠️ 本 Issue 定义机械接口，文案数据契约已归 #395，不重复 |
+| `mini-pong/tests/run_tests.gd` | 注册 14 个测试套件 | ❌ 无升级池测试 |
 
 ### 预期行为（验收条件，源自 Issue #387）
 
-1. **AC1 — 升级池包含 9 个独立升级定义，每个都有 id/名称/稀有度/效果回调** — `upgrade_defs.gd` 单一事实源；id 与 #395 JSON 对齐（long_arm/fireball/battering_ram/magnet_core/twin/slow_time/pre_hole/stardust/phantom）
-2. **AC2 — 抽取时按 60/30/10 权重返回升级，且支持不可重复或堆叠配置** — 稀有度先掷（每张卡 60/30/10），候选集内去重；每升级 `max_stacks` 配置（1 = 整局不可重复，>1 = 可堆叠）
-3. **AC3 — 升级后 ball/paddle 参数是实例级而不是常量，参数变化在下一帧生效** — paddle const → `@export`；ball 已验证；所有效果回调只写实例属性，`_process` 每帧读取 → 天然下一帧生效
-4. **AC4 — 预开洞等砖墙类升级通过 BreakoutGrid upgrade_hooks 接入** — BreakoutGrid 增量 `upgrade_hooks` 注册表 + `open_hole()`/`blast_neighbors()` API（契约先行，随 #384 落地或独立小 PR）
-5. **AC5 — 提供 get_candidates(3) 与 apply(upgrade_id) 接口，供 3 选 1 UI 调用** — UpgradePool autoload 公共 API（#388 直接消费）
+1. **AC1 — 升级池包含 9 个独立升级定义** — 每个定义含 `id`/名称/稀有度/效果回调；9 个升级 = 长臂/燃烧弹/破城锤/磁心/双生/缓时/预开洞/星尘/幻影（PLAN §2.5 确认清单）
+2. **AC2 — 抽取按 60/30/10 权重返回** — 普通 60% / 稀有 30% / 传说 10%；支持不可重复或堆叠配置（每升级可配 `stackable: bool` 与 `max_stacks`）
+3. **AC3 — 升级后 ball/paddle 参数是实例级** — 参数变化在下一帧生效；const 只作初始默认值
+4. **AC4 — 砖墙类升级通过 BreakoutGrid `upgrade_hooks` 接入** — 预开洞等升级通过 hooks 修改砖墙生成/砖销毁行为
+5. **AC5 — 提供 `get_candidates(3)` 与 `apply(upgrade_id)` 接口** — 供 #388 3 选 1 UI 调用
 
 ### 用户场景
 
 | # | 场景 | 频率 | 描述 |
 |---|------|------|------|
-| A | 每波升级 | 每波一次 | 墙打空 → #386 波次循环调 `UpgradePool.get_candidates(3)` → #388 UI 展示三卡 → 玩家确认 → `apply(id)` → 效果下一帧生效 |
-| B | 稀有度 reveal | 每次选择 | PLAN §2.5：稀有度**选择后才显示**（惊喜时刻）→ 池必须把稀有度作为候选元数据返回，UI 决定何时 reveal |
-| C | 不可重复/堆叠 | 整局 | 传说升级（星尘/幻影）整局至多一次（`max_stacks=1`）；普通升级可重复堆叠（长臂 +30% 两次 → +60%） |
-| D | 测试/自动对打 | 每 CI | `test_upgrade_pool.gd` 断言 9 定义、权重分布、去重、堆叠、apply 后实例参数变化 |
+| A | 波间升级（玩家） | 每波一次 | 砖墙打空 → #386 波次循环触发 → UI 调 `get_candidates(3)` 取三张卡 → 玩家选一 → `apply(id)` 生效 |
+| B | 稀有度 reveal（玩家） | 每波一次 | 3 选 1 卡片稀有度选择后 reveal（PLAN §2.5 情绪机制 2）——权重抽取保证 60/30/10 分布 |
+| C | 实现期回归 | 每次改参数 | 升级后 ball/paddle 参数下一帧生效；测试断言参数实例级变更 |
 
-### 技术约束（继承自 Issue #387 + PLAN-rogue-pong §2.5）
+### 技术约束（继承自 Issue #387 与上游）
 
 | 约束 | 细节 |
 |------|------|
-| 引擎/目录 | Godot 4.7.1，本项目 = `mini-pong/`（自有 `project.godot`，720×1280 竖屏，resizable=false） |
-| 稀有度权重 | 普通 60% / 稀有 30% / 传说 10%（PLAN §2.5 已确认） |
-| 9 升级 id | 与 #395 JSON `id` 完全一致：long_arm、fireball、battering_ram、magnet_core、twin、slow_time、pre_hole、stardust、phantom |
-| 不变项 | 手感常量默认值（#367 定稿）**不修改**——只允许运行时实例级修改；FSM/计分信号链/雨幕不变 |
-| 数据源 | 显示字段（短句/命名）来自 #395 `upgrade_pool.json`（draft，可能被用户改）→ 机械定义以 `upgrade_defs.gd` 为准，显示名运行时解析 JSON + 工作名兜底 |
-| 所有权 | mechanical：池/抽取/实例化/钩子为机械实现；升级数值（如 +30%、2s）与文案归 taste 域（#395/#367 域） |
-| 开源优先 | 调研结果见 §1.4 |
-
-### 1.4 开源优先调研结果（Issue body 要求）
-
-调研时间 2026-08-13，检索范围 Godot Asset Library + GitHub（带 auth 搜索，GDScript/Godot 4.x 过滤）：
-
-- **Godot Asset Library**（assetlibrary.godotengine.org，`filter=upgrade`）：**无 roguelike 3 选 1 升级池**。唯一接近项 Wyvernshield 2（don-tnowe，godot 4.0，0⭐）是**战斗触发技能系统**（combat triggers），不是肉鸽升级池；GDScript Code Upgrader 是工具类插件，无关
-- **GitHub 搜索**（`godot upgrade system language:GDScript` 按 star 排序）：全部 <5⭐ 教学 demo/项目骨架（noufbmdev/Godot-Systems 4⭐、dewald-els/godot-learnings_upgrades 1⭐、wangkaibo123/roguelike-tower-defense-godot 1⭐ 等），无可复用、可插拔的"稀有度加权升级池 + 效果回调"模块
-- **结论**：**没有可复用的第三方升级池系统**；本功能为第一方实现，Godot 4.7 内置能力（Array/Dictionary、Callable、RandomNumberGenerator、autoload 单例）完全覆盖，**不引入任何第三方资产**。与 #383/#384 的调研结论模式一致
-
-### Obsidian 知识检索
-
-- Vault 挂载于 `/Volumes/Obsidian`（WebDAV），`Knowledge Ocean/wiki/` 可读；检索命中两条与本 Issue 直接相关的设计语言：
-  - **`体验引擎-patterns.md` §14 变比率强化（Variable-Ratio Reinforcement）**："可预测的奖励变得无聊" → 在**不可预测的时间间隔**传递奖励（案例：《暗黑破坏神》掉落、扭蛋）→ 直接支撑 AC2 的 **60/30/10 加权随机抽取**：稀有度就是变比率强化的"时间间隔"，权重随机保证不可预测性
-  - **`极乐迪斯科—概率机制作为叙事语法.md`**："概率检定将文学中的偶然性从作者意图转移到系统规则中" + "思想有代价"（内化期惩罚）→ 支撑 PLAN §2.5 的稀有度 **reveal 时序**（选择后才显示）与**带代价的选择**（传说升级可选但带代价）——池的返回结构必须携带稀有度元数据供 UI 后置 reveal
-- PLAN-rogue-pong §2.5 已固化同一批 Obsidian 理论（情感误归因/不可预测奖励/带代价的选择），本 PRD 只做机械落地，不重复论证
-
-### 1.5 范围边界（与相邻 PRD 解冲突）
-
-| PRD | 覆盖范围 | 本 PRD 不重复覆盖 |
-|-----|---------|------------------|
-| #395 升级池文案 | 9 升级短句/命名候选/情绪断言 → `upgrade_pool.json`（taste-draft，human-review） | ❌ 不写文案；只**只读消费** JSON 的 id/显示字段（解析失败回退工作名） |
-| #388 3 选 1 升级 UI | 三张霓虹卡片/焦点切换/reveal/暂停 | ❌ 不做 UI；只提供 `get_candidates(3)`/`apply(id)` 数据接口 |
-| #386 波次循环 | 清墙→结算→新墙→AI 增强（GameManager 持波次状态机） | ❌ 不实现波次；池是波次结算时被调用的数据源 |
-| #384 砖墙 BreakoutGrid | 程序化生成/碰撞/`brick_destroyed`/`wall_cleared` 信号 | ❌ 不重设计砖墙；只**增量**加 `upgrade_hooks` 契约（见 §4.5） |
-| #385 双得分制 | 拆砖 1 分/穿墙 3 分/21 分制 | ❌ 不碰计分 |
+| 引擎/目录 | Godot 4.7.1，本项目 = `mini-pong/`（自有 `project.godot`；竖屏 720×1280，#383 已合并） |
+| 所有权 | mechanical——只做机械架构；9 升级的文案短句/命名候选归 #395（`assets/content/upgrade_pool.json`），数值手感归 taste-draft |
+| 依赖契约 | #384 已定义 `brick_destroyed(brick,pos)` / `wall_cleared()` 信号（DESIGN #414 §3.4）；`upgrade_hooks` 是本 Issue 在生成/销毁链路上追加的挂钩点 |
+| 消费方 | #388（3 选 1 UI，依赖 #386+#387）调用 `get_candidates(3)`/`apply()`；#386（波次循环）在波间触发升级窗口 |
+| 开源优先 | Issue 上下文要求先搜 Asset Library/GitHub——调研结论见 §7 实验 1：**无可复用成熟方案，第一方实现** |
 
 ---
 
 ## 2. 设计意图
 
-### 为什么当前状态存在
+### 为什么当前行为存在
 
-Mini Pong 从 #287（球物理）→ #288（挡板）→ #290（AI）→ #295（Main.tscn 组装）→ #383（竖屏）一路是**经典 Pong 语义**：无成长、无波次、无升级。升级池是 Rogue Pong 肉鸽改造（PLAN-rogue-pong §4.2「新: 升级池」）引入的全新系统；此前不存在是因为其消费方（#386 波次循环、#388 UI）与依赖方（#384 砖墙）都还在队列中，且 P0 前置（竖屏 #383）刚落地。
+升级池是 Rogue Pong 改造（PLAN-rogue-pong.md）引入的**全新系统**，项目从经典对打 Pong（#287-#297 时代）演进而来，彼时无波次/无升级概念；手感参数以 `const` 固化的设计（#295 单一事实源）在无动态修改需求时是正确的——简单、可静态校验。砖墙系统 #384 DESIGN 定义信号契约时，#387 尚未进入研究，故未预留升级挂钩点。
 
-| 现状来源 | Issue | 贡献 |
-|---------|-------|------|
-| ball 参数已实例级（@export + 实例读取） | #295 | AC3 ball 侧地基（非本次新做，验证即可） |
-| paddle const 参数 | #288 | AC3 paddle 侧缺口 |
-| GameManager autoload（纯分数职责） | #293 | 概念分层依据（升级池独立单例） |
-| 9 升级清单/稀有度/情感断言 | PLAN-rogue-pong §2.5 | 升级定义的内容依据 |
-| 文案 JSON schema | #395 | 显示字段消费契约 |
+| Issue/文档 | 创建现状的原因 |
+|-----------|---------------|
+| #295（GameConstants 单一事实源） | 收拢散落常量，当时无运行时修改需求 → 全 const 合理 |
+| #287-#297（经典 Pong 组件） | 无波次/升级概念 → 无升级相关代码 |
+| #384 DESIGN #414（BreakoutGrid 信号契约） | 只定义了砖墙自身的 `brick_destroyed`/`wall_cleared`，未预见升级挂钩需求 |
 
 ### 为什么现在改
 
-1. **MVP 依赖链就绪**：PLAN-rogue-pong 已拍板（2026-08-13），#384 砖墙 DESIGN 已合并、#386 波次/#388 UI 已排队（backlog OPEN）——升级池是这条链的**数据枢纽**，Issue 上下文明示"升级是每波成长的核心，3 选 1 UI 的数据来源"
-2. **AC3 窗口期**：ball 已实例级、paddle 未实例级——趁 #386/#388 尚未实现，把参数实例化一次做完，避免后续升级效果回调打到 const 上
-3. **文案先行不阻塞**：#395 文案草稿已 merge 进 human-review 队列（taste-draft 不进依赖链），机械层现在做不会与其冲突；#387 只读 JSON，用户定稿改名不影响机械 id
+1. **下游已排队**：#386 波次循环、#388 3 选 1 UI 均依赖本 Issue 的接口（`get_candidates(3)`/`apply()`）——升级池是整条波次成长链路的机械地基
+2. **时机窗口**：#384 砖墙**实现尚未落地**——此时补 `upgrade_hooks` 契约只需改 DESIGN 文档与实现清单，成本最低；若等 #384 实现完成后才补，需改已合入代码
+3. **PLAN 已确认**：§2.5 升级池结构（60/30/10 + 9 升级 + 情感断言）2026-08-13 用户已拍板，机械实现的前置设计决策已齐备
 
-### 概念分层（skill §6j：为什么不是 GameManager 的一个字段）
+### 前置约束
 
-| 维度 | GameManager（#293） | UpgradePool（本 Issue） |
-|------|--------------------|------------------------|
-| 范围 | 分数/局/场次 | 每波成长决策 |
-| 变化频率 | 每分每秒（对打中） | 每波一次（清墙结算时） |
-| 驱动 | 球得分事件 | 波次结算事件（#386 调用） |
-| 查询模式 | add_score/score_changed | get_candidates(3)/apply(id) |
-| 代表什么 | 比赛进度 | 玩家构筑（build） |
-
-≥3 个维度不同 → **独立概念层**。GameManager 的文档化职责是"pure-data holder for scores"，把升级状态塞进去会破坏 #293 DESIGN 的职责边界；独立 autoload（`UpgradePool`）与 GameManager/AudioEngine 单例惯例一致，任何场景/脚本可全局访问（效果回调要摸 ball/paddle/BreakoutGrid，必须全局可达）。
-
-### 先前约束
-
-| 约束 | 细节 |
+| 约束 | 详情 |
 |------|------|
-| 手感默认值（#367 定稿） | constants.gd 的 BALL_*/PADDLE_*/AI_* **默认值不变**；升级只改运行时实例属性，不改常量 |
-| 稀有度权重（PLAN §2.5） | 60/30/10 是**每张卡的稀有度概率**，不是升级粒度权重（§4.3 spike 证实） |
-| 升级 id（#395） | long_arm/fireball/battering_ram/magnet_core/twin/slow_time/pre_hole/stardust/phantom——跨文档一致，机械引用不漂移 |
-| 消费方契约（#388 AC） | `UpgradePool.get_candidates(3)` 为 UI 唯一数据入口 |
-| 测试即验收 | 新测试注册进 `run_tests.gd`；`godot --headless --script tests/run_tests.gd` 全绿 |
-| 并发安全 | 并行 agent 共享工作树：本 PRD 只显式 add 自身文件，不触碰他人未提交改动（如 #389 雨幕文件） |
+| 权重表 | 普通 60% / 稀有 30% / 传说 10%（PLAN §2.5 确认，唯一权威） |
+| 9 升级清单 | 长臂/燃烧弹/破城锤（普通）；磁心/双生/缓时/预开洞（稀有）；星尘/幻影（传说） |
+| 文案边界 | 短句/命名/情绪断言归 #395 JSON（`upgrade-pool-content/v1`），本 Issue 不重复 |
+| 信号契约 | `brick_destroyed(brick,pos)`→#385 拆砖分；`wall_cleared()`→#386 波次重置（#384 DESIGN §3.4） |
+| 参数来源 | `constants.gd` 仍为默认值单一事实源；实例属性初值 = 常量，运行时可变 |
 
 ---
 
 ## 3. 影响分析
 
-### 新文件
+### 直接影响模块
 
-| 文件 | 职责 |
+| 文件 | 模块 | 改动性质 |
+|------|------|---------|
+| `mini-pong/gdscripts/upgrade_pool.gd`（新） | 升级池核心 | **新增**：9 升级定义 + 权重抽取 + `get_candidates(3)`/`apply(id)` |
+| `mini-pong/gdscripts/upgrades/`（新目录，可选） | 升级效果回调 | **新增**：按升级拆分的回调脚本（或集中在一文件，见 §4 方案对比） |
+| `mini-pong/gdscripts/paddle.gd` | 挡板 | **修改**：`SPEED/PADDLE_WIDTH/PADDLE_HEIGHT` const → 实例属性（初值 = 常量）；移动/边界计算改用实例属性 |
+| `mini-pong/gdscripts/ball.gd` | 球 | **修改**：消除 `INITIAL_SPEED` 等常量直引用，统一走实例属性（export 变量已是实例级） |
+| `mini-pong/gdscripts/constants.gd` | 默认值 | **修改**：保持 const 不变（作为默认值来源），可能新增升级池权重常量组 |
+| `mini-pong/scenes/player_paddle.tscn` | 挡板场景 | **修改**（或运行时 set）：CollisionShape2D 尺寸改为可运行时调整（长臂升级） |
+| `mini-pong/gdscripts/breakout_grid.gd`（#384 待实现） | 砖墙 | **契约补充**：DESIGN 追加 `upgrade_hooks` 挂钩点（AC4，趁实现前） |
+| `mini-pong/tests/run_tests.gd` | 测试注册 | **修改**：注册 `test_upgrade_pool.gd` |
+| `mini-pong/tests/test_upgrade_pool.gd`（新） | 测试 | **新增**：权重分布/候选/apply/实例化生效用例 |
+
+### 间接影响模块
+
+| 文件 | 影响 |
 |------|------|
-| `mini-pong/gdscripts/upgrade_pool.gd` | **autoload 单例**（`UpgradePool`）：9 定义注册、`get_candidates(n)`（稀有度先掷 + 去重 + max_stacks 过滤）、`apply(upgrade_id)`（计数 + 调用效果回调 + 不可重复移除）、`rng`（可播种，测试确定性）、`RARITY_WEIGHTS` 只读 |
-| `mini-pong/gdscripts/upgrade_defs.gd` | 9 个升级定义的**单一事实源**（RefCounted 或 const 字典）：id/名称/稀有度/`effect: Callable`/`max_stacks`/效果说明；效果回调以静态方法或 lambda 形式挂载（§4.2） |
-| `mini-pong/gdscripts/brick_upgrade_hooks.gd` | 砖类升级效果实现（预开洞/燃烧弹/破城锤）：通过 BreakoutGrid `upgrade_hooks` 注册表注册 `open_hole`/`blast_neighbors` 回调（§4.5） |
-| `mini-pong/tests/test_upgrade_pool.gd` | 测试套件：9 定义齐全、稀有度分布（统计断言）、候选去重、max_stacks 不可重复/堆叠、apply 后 ball/paddle 实例参数变化、JSON 显示名解析兜底 |
+| `mini-pong/gdscripts/game_manager.gd` | 无直接改动；波次状态机归 #386，升级窗口触发归 #386 |
+| `mini-pong/gdscripts/scoring_manager.gd` | 无改动；拆砖分消费 `brick_destroyed`（#385），与升级池无交集 |
+| `mini-pong/gdscripts/game_state_machine.gd` | 无改动；升级 UI 暂停态归 #388 |
+| `docs/DESIGN/384-breakout-grid-brick-wall.md` | 追加 `upgrade_hooks` 契约小节（本 Issue 产出的契约补充） |
+| `mini-pong/assets/content/upgrade_pool.json` | #395 实现时被 `apply()` 读取（文案字段），本 Issue 不创建 |
 
-### 修改的文件
+### 数据流图（升级窗口 → 应用）
 
-| 文件 | 改动性质 | 说明 |
-|------|---------|------|
-| `mini-pong/gdscripts/paddle.gd` | **Modified** | `SPEED`/`PADDLE_WIDTH`/`PADDLE_HEIGHT` const → `@export var paddle_speed/paddle_width/paddle_height`（默认值仍 = CONSTS）；新增 `set_paddle_width(w)`：更新实例属性 + `CollisionShape2D.shape.size.x` + 重算 `min_x/max_x`（长臂/幻影升级入口） |
-| `mini-pong/gdscripts/ball.gd` | **Modified（小）** | 新增 `@export var speed_scale: float = 1.0`，`_process` 位移乘 `speed_scale`（缓时冻结 2s 用）；其余参数已实例级，仅验证 |
-| `mini-pong/gdscripts/constants.gd` | **Modified** | 新增 UPGRADE 常量组：`UPGRADE_RARITY_WEIGHTS`（60/30/10）、`UPGRADE_CANDIDATE_COUNT=3`、`UPGRADE_POOL_SIZE=9`（遵循 #295 单一事实源惯例） |
-| `mini-pong/project.godot` | **Modified** | `[autoload]` 注册 `UpgradePool="*res://gdscripts/upgrade_pool.gd"` |
-| `mini-pong/tests/run_tests.gd` | **Modified** | 注册 `test_upgrade_pool.gd` |
-| `mini-pong/tests/test_paddle.gd` | **Modified** | 新增实例属性用例（set_paddle_width 后下一帧生效 + shape 同步） |
-| `mini-pong/gdscripts/breakout_grid.gd` | **Modified（增量，随 #384 落地）** | 新增 `upgrade_hooks: Dictionary` + `register_upgrade_hook(id, callable)` + `apply_upgrade_hook(id, ctx)` + `open_hole(count)`/`blast_neighbors(pos, radius)`；不改变 #384 DESIGN 既有 API（§4.5 契约） |
+```
+#386 波次循环 (wall_cleared)
+    │
+    ▼
+UpgradePool.get_candidates(3)          ← AC5 接口
+    │  按 60/30/10 权重抽取 3 个不重复候选 (AC2)
+    ▼
+#388 3选1 UI 展示三张卡 → 玩家选择
+    │
+    ▼
+UpgradePool.apply(upgrade_id)          ← AC5 接口
+    │
+    ├──► 直接数值类 (长臂/燃烧弹/缓时/星尘)
+    │       └──► 改 ball/paddle 实例属性 → 下一帧 _process 生效 (AC3)
+    │
+    └──► 砖墙类 (预开洞/破城锤/燃烧弹-链式)
+            └──► 写 BreakoutGrid.upgrade_hooks (AC4)
+                  ├──► pre_wave hook：预开洞在 generate_wave 时强制开洞
+                  └──► on_brick_destroyed hook：破城锤/燃烧弹链式碎邻砖
+```
 
-### 间接影响的模块
+### 文档更新清单
 
-| 文件 | 影响 | 说明 |
-|------|------|------|
-| `mini-pong/assets/content/upgrade_pool.json` | **只读消费** | UpgradePool 运行时解析显示字段（`name_working`/`short_phrase`/`naming_candidates`）；文件缺失或解析失败 → 回退 `upgrade_defs.gd` 工作名，游戏不崩（#395 定稿前容错） |
-| `mini-pong/scenes/Main.tscn` | 本 Issue **不改** | 3 选 1 UI 接线归 #388；波次调用归 #386 |
-| `mini-pong/gdscripts/audio_engine.gd` | 可选（Stretch） | 新增 `play_upgrade_pick()` 合成音效；非 AC 阻塞项 |
-| `mini-pong/gdscripts/game_state_machine.gd` | 可选 | 若 #386 需要在升级时暂停 FSM，由 #386 负责接线；本 Issue 不碰 |
+- [x] `docs/PRD/387-upgrade-pool-architecture.md`（本文件）
+- [ ] `docs/DESIGN/384-breakout-grid-brick-wall.md` — plan agent 补充 `upgrade_hooks` 契约小节
+- [ ] `docs/PLAN-rogue-pong.md` — 无需改（§2.5 已是权威）
 
 ---
 
 ## 4. 方案对比
 
-### 4.1 UpgradePool 载体
+### Approach A：集中式数据驱动 UpgradePool（推荐）
 
-**Approach A：autoload 单例（推荐）**
+**描述**：`upgrade_pool.gd` 单文件（class_name UpgradePool）+ 9 条升级定义 Dictionary（id → {名称, 稀有度, 权重, 回调 Callable, stackable, max_stacks}）+ 权重抽取算法。效果回调注册为 Callable（可指向 `upgrades/` 下独立脚本或同文件内函数）。`apply(id)` 按升级类型分发：数值类写 ball/paddle 实例属性；砖墙类写 BreakoutGrid hooks。
 
-`project.godot` 注册 `UpgradePool`，全局可达。
+| 维度 | 内容 |
+|------|------|
+| 文件 | `upgrade_pool.gd`（+ 可选 `upgrades/` 回调脚本） |
+| 权重算法 | `randf()` × 累计权重区间映射（60/30/10） |
+| 接口 | `get_candidates(count) -> Array[Dictionary]`（去重采样）、`apply(id) -> bool`、`is_applied(id)`、`reset()` |
+| 回调组织 | Callable 字段：`effect: Callable`（apply 时调用） |
 
-- Pros：效果回调要摸 ball/paddle/BreakoutGrid/GameManager，全局可达最省接线；与 GameManager/AudioEngine 单例惯例一致；headless 测试直接 `UpgradePool.get_candidates(3)`；rng 种子集中管理可复现
-- Cons：多一个 autoload（当前 2 个 → 3 个，可控）
-- Risk: Low ／ Effort: 0.5 天
+**Pros**：
+- 单文件核心，接口面最小，测试易写（权重分布可注入随机种子）
+- Callable 天然适配"数据驱动"——升级定义即数据，回调即行为
+- 与项目现有"单一事实源"风格一致（constants.gd 默认值 + 实例属性）
 
-**Approach B：Game 场景节点**
+**Cons**：9 个回调集中在一文件会膨胀（~300 行）；需注意回调按 `upgrade_id` 分发清晰度。
 
-挂在 Main.tscn 下，由波次循环持有引用。
+**Risk**: Low — 纯新增模块，不改动核心碰撞/得分链路
+**Effort**: 1-2 周（含 paddle/ball 参数实例化改造 + 测试）
 
-- Pros：无全局状态，生命周期随场景
-- Cons：效果回调需到处传引用；#388 UI 与 #386 波次都要手动取节点；与 GameManager 的"全局状态在 autoload"惯例冲突
-- Risk: Med ／ Effort: 1 天
+### Approach B：每升级一个独立脚本 + 注册表
 
-**Approach C：静态/RefCounted 类**
+**描述**：`upgrades/` 目录下 9 个脚本（`long_arm.gd`/`incendiary.gd`/…），各继承 `UpgradeBase`（含 `id`/`name`/`rarity`/`weight`/`apply()` 虚方法），UpgradePool 启动时扫描注册。
 
-`UpgradePool` 为纯静态类，不注册 autoload。
+| 维度 | 内容 |
+|------|------|
+| 文件 | `upgrades/` × 9 + `upgrade_base.gd` + `upgrade_pool.gd` |
+| 权重算法 | 注册表遍历求和 + 区间映射 |
+| 接口 | 同 A |
+| 回调组织 | 每升级一个 `apply()` 覆写 |
 
-- Pros：零场景开销
-- Cons：无 `_ready` 生命周期（JSON 加载/信号连接时机难管理）；GDScript 静态类无法访问树节点做复杂效果（双生分裂球等需要实例化场景）
-- Risk: Med ／ Effort: 0.5 天
+**Pros**：升级间隔离清晰，未来扩升级（v1 分裂球/多球）只加文件不碰池；符合 OCP。
+**Cons**：9 个文件 + 基类对 MVP 偏重；Godot 无反射扫描，需手动注册表（List），仪式感大于收益。
 
-### 4.2 效果回调模型
+**Risk**: Low-Med — 文件多但无架构风险
+**Effort**: 1.5-2.5 周
 
-**Approach A：定义携带 Callable 效果回调（推荐）**
+### Approach C：纯 JSON 数据 + 通用解释器
 
-`upgrade_defs.gd` 中每个定义带 `effect: Callable`（静态方法引用或 lambda），`apply(id)` 查表后 `effect.call(ctx)`。ctx 为字典（ball/paddle/grid 引用 + 参数）。
+**描述**：升级定义全放 JSON（含效果参数），UpgradePool 用通用解释器逐字段应用。
 
-- Pros：数据驱动（AC1 字面满足"效果回调"）；9 个异构效果（改参数/开洞/分裂球/冻结）统一走一个调用点；新升级 = 加一条定义，零分支修改；可单测（直接调 effect.call）
-- Cons：lambda 调试略绕；需约定 ctx 结构
-- Risk: Low ／ Effort: 1 天
+| 维度 | 内容 |
+|------|------|
+| 文件 | `assets/content/upgrade_defs.json` + `upgrade_pool.gd` |
+| 权重算法 | 同 A |
+| 回调组织 | JSON 字段 → 解释器分支（`effect_type: "paddle_width_mult"` 等） |
 
-**Approach B：match(upgrade_id) 硬编码分支**
+**Pros**：数据与代码彻底分离；与 #395 文案 JSON 同构。
+**Cons**：Godot 无运行时反射，解释器需手写全效果分支——**等于把 Approach A 的回调拆成 if-elif 链**，可读性最差；类型安全弱（JSON 字符串易错）。
 
-`apply()` 内 match 9 个 id 分别实现。
+**Risk**: Med — 解释器膨胀 + 调试困难
+**Effort**: 2-3 周
 
-- Pros：实现直观，无回调间接层
-- Cons：**违反 AC1 的"每个定义带效果回调"**（效果散落在 apply 内，定义表只剩元数据）；新增升级要改 apply 本体；测试只能走 apply 全链路
-- Risk: Med ／ Effort: 1 天
+### 推荐
 
-**Approach C：每升级一个脚本类**
-
-`upgrades/long_arm.gd` 等 9 个类，各自实现 `apply(ctx)`。
-
-- Pros：OOP 清晰，每个效果独立文件
-- Cons：MVP 9 个文件过度设计；效果间共享逻辑（如砖类 3 个都调 blast）要抽象父类；.uid 文件噪音
-- Risk: Med ／ Effort: 1.5 天
-
-### 4.3 抽取算法（60/30/10）— 研究期 spike 关键发现
-
-**Approach A：先掷稀有度，再稀有度内选升级（推荐）**
-
-每张卡独立按 60/30/10 掷稀有度 → 在该稀有度未入选的升级中均匀选一个；候选集内按 id 去重；该稀有度抽空（如传说只有 2 个且都已在候选）→ 回退次高稀有度或按 `max_stacks` 允许重复。
-
-- Pros：**每张卡的稀有度精确保持 60/30/10**（AC2 语义）；实现简单（两段随机）；稀有度元数据天然随候选返回（UI reveal 用）
-- Cons：极端情况回退逻辑需定义清楚（测试覆盖）
-- Risk: Low ／ Effort: 0.5 天
-
-**Approach B：按升级粒度加权无放回（spike 证伪）**
-
-把每个升级的权重 = 其稀有度权重，无放回抽 3 个。研究期 20000 次模拟实测：**边际稀有度分布漂移到 55.7% / 37.8% / 6.5%**（3 个普通 × 0.6 权重 = 1.8 vs 4 个稀有 × 0.3 = 1.2，普通总权重被稀有反超）——玩家实际看到的稀有度频率偏离 AC2 的 60/30/10。
-
-- Pros：实现最简（单一权重池）
-- Cons：**违反 AC2**（分布漂移有实测证据）；传说更难出现（6.5% vs 10%）
-- Risk: High ／ Effort: 0.25 天
-
-**Approach C：均匀随机**
-
-- Pros：零实现
-- Cons：**直接违反 AC2**（无 60/30/10）；变比率强化失效，奖励变可预测
-- Risk: High ／ Effort: 0 天
-
-### 4.4 参数实例化（AC3）
-
-**Approach A：@export 实例属性 + 运行时 setter（推荐）**
-
-paddle 三常量 → `@export var`；`set_paddle_width()` 同步 CollisionShape2D；ball 补 `speed_scale`。效果回调只写实例属性，`_process` 每帧读取 → **下一帧天然生效**（无需事件/信号机制）。
-
-- Pros：Godot 惯例（ball 已如此）；编辑器可调；下一帧生效零额外机制；球读 shape.size.x 已实例化 → 长臂即时感知
-- Cons：需改 paddle.gd 现有引用点（2 处 SPEED + 边界计算），回归测试覆盖
-- Risk: Low ／ Effort: 0.5 天
-
-**Approach B：保留 const + 全局覆盖表**
-
-constants.gd 加 `var OVERRIDES = {}`，读取处查表。
-
-- Pros：不动 paddle 现有逻辑
-- Cons：**违反 AC3 字面**（"参数是实例级而不是常量"）；查表散落各读取点，易漏；测试语义混乱
-- Risk: High ／ Effort: 0.5 天
-
-**Approach C：信号驱动参数变更**
-
-`param_changed(name, value)` 信号广播，各节点监听应用。
-
-- Pros：解耦
-- Cons：**过度设计**——MVP 只有 9 个效果、3 个目标节点；信号链调试成本 > 直接 setter；下一帧生效反而不直观
-- Risk: Med ／ Effort: 1 天
-
-### 4.5 砖墙类升级钩子（AC4）
-
-**Approach A：BreakoutGrid 增量 upgrade_hooks 注册表（推荐，Issue 明示）**
-
-BreakoutGrid（#384 DESIGN 落地时）新增：`var upgrade_hooks: Dictionary = {}`、`func register_upgrade_hook(id: String, cb: Callable) -> void`、`func apply_upgrade_hook(id: String, ctx: Dictionary) -> bool`，外加 `open_hole(count)`（预开洞：`generate_wave` 后补开洞，复用 hole 布局逻辑）与 `blast_neighbors(pos, radius)`（燃烧弹/破城锤：碎邻近砖）。`brick_upgrade_hooks.gd` 在 `_ready` 时注册三个回调。
-
-- Pros：**Issue AC4 字面满足**（"通过 BreakoutGrid 预留 upgrade_hooks"）；增量不破坏 #384 DESIGN 既有 API（generate_wave/brick_destroyed/wall_cleared）；契约先行——#384 代码落地前可先定义接口与测试桩
-- Cons：#384 代码未落地 → 实现有先后依赖（风险见 §6）
-- Risk: Med ／ Effort: 0.5 天（契约）+ 随 #384 落地
-
-**Approach B：独立监听者模式（BrickHookManager）**
-
-新 autoload 监听 BreakoutGrid 的 `brick_destroyed`/`wall_cleared` 信号，拦截式实现开洞/连爆。
-
-- Pros：完全不动 #384 代码
-- Cons：**绕开 Issue 明示的 upgrade_hooks 挂载点**；开洞需要在生成后修改布局，信号监听只能事后补救（砖已实例化），语义别扭
-- Risk: Med ／ Effort: 1 天
-
-**Approach C：改 generate_wave 签名**
-
-`generate_wave(thickness, layout, seed, holes)` 加参数。
-
-- Pros：参数直达
-- Cons：破坏 #384 DESIGN 已合并的 API 签名（plan agent 已按 3 参数实现）；升级是运行时行为，不该进生成签名；多升级组合（预开洞 + 燃烧弹）无法表达
-- Risk: High ／ Effort: 0.25 天
-
-### 推荐与理由
-
-| 子系统 | 推荐 | 核心文件 |
-|--------|------|---------|
-| 池载体 | A: autoload 单例 | `upgrade_pool.gd` |
-| 效果模型 | A: Callable 回调定义 | `upgrade_defs.gd` |
-| 抽取算法 | A: 稀有度先掷（60/30/10 每卡） | `upgrade_pool.gd` |
-| 参数实例化 | A: @export + setter（下一帧生效） | `paddle.gd`/`ball.gd` |
-| 砖墙钩子 | A: BreakoutGrid upgrade_hooks 注册表 | `breakout_grid.gd` + `brick_upgrade_hooks.gd` |
-
-1. **AC 逐条命中**：A 组合 5 条 AC 全覆盖（Callable 定义 = AC1；稀有度先掷 = AC2 精确 60/30/10；@export + 每帧读取 = AC3 下一帧生效；upgrade_hooks = AC4 字面满足；get_candidates/apply = AC5）
-2. **数据驱动**：定义表 + 回调 + 稀有度元数据 = 3 选 1 UI（#388）与波次（#386）只需消费接口，不碰效果实现
-3. **不破坏既有契约**：不碰手感常量默认值（#367）、不碰 GameManager 职责（#293）、不重设计砖墙（#384）、不写文案（#395）
-4. **可测试**：rng 可播种 → 权重分布/去重/堆叠全部可断言；效果回调可直接单测
+**选 Approach A**。理由：
+1. **MVP 最小成本**：9 个升级一次性定义，单文件数据驱动足够清晰，无需 9 文件基类体系（B 的收益在 v1+ 扩升级时才显现）
+2. **可读性最优**：每个升级一条 Dictionary 记录 + 一个 Callable，比 C 的 if-elif 解释器可读、可测
+3. **AC 全覆盖**：AC1（9 定义）、AC2（权重+stackable）、AC5（两接口）在 A 中都是直接数据结构；AC3/AC4 是 `apply()` 分发的两分支，与文件组织无关
+4. **迁移路径清晰**：若 v1 需要升级爆炸式增长，A → B 的迁移是机械拆文件（每条记录抽出为脚本），不返工
 
 ---
 
 ## 5. 边界条件与验收标准
 
-### 验收标准（映射 Issue 5 条 AC）
+### 验收条件（源自 Issue #387）
 
-- [x] **AC1: 9 个独立升级定义（id/名称/稀有度/效果回调）** — `upgrade_defs.gd` 9 条全齐，`effect` 均为 Callable
-  - 验证：`test_upgrade_pool.gd` 断言 `UpgradePool.get_definitions().size() == 9` 且每条 `effect is Callable`
-- [x] **AC2: 60/30/10 权重抽取 + 不可重复/堆叠配置** — 稀有度先掷；`max_stacks` 字段（1 = 不可重复，>1 = 堆叠）
-  - 验证：统计测试（rng 固定种子 + 大样本）稀有度频率落在 60±5% / 30±5% / 10±5%；`max_stacks=1` 升级 apply 后不再出现在候选；`max_stacks>1` 可重复抽取
-- [x] **AC3: 参数实例级 + 下一帧生效** — paddle 三常量 → @export；ball 已实例级 + 新增 speed_scale
-  - 验证：`test_paddle.gd` 调 `set_paddle_width(156)` 后断言 `paddle_width == 156` 且 `CollisionShape2D.shape.size.x == 156`；下一帧 `_process` 用新值（`speed` 读取实例属性断言）
-- [x] **AC4: 砖墙类升级走 BreakoutGrid upgrade_hooks** — 注册表 + `open_hole`/`blast_neighbors` 契约（随 #384 落地）
-  - 验证：`test_upgrade_pool.gd` 对 hook 注册表做桩测试（假 grid 对象注册/调用链）；#384 落地后集成测试补真实砖墙
-- [x] **AC5: get_candidates(3) 与 apply(upgrade_id)** — autoload 公共 API
-  - 验证：`get_candidates(3)` 返回 3 个不同 id 的候选（含 rarity 元数据）；`apply("long_arm")` 后挡板宽度实例属性 +30%
+- [x] **AC1: 9 个独立升级定义** — `upgrade_pool.gd` 含 9 条记录：长臂/燃烧弹/破城锤（普通）、磁心/双生/缓时/预开洞（稀有）、星尘/幻影（传说）；每条含 `id`/`name`/`rarity`/`weight`/`effect` Callable
+  - 验证：遍历定义表断言 9 条、id 唯一、稀有度 ∈ {common, rare, legendary}
+- [x] **AC2: 60/30/10 权重抽取 + 不可重复/堆叠配置** — 抽取算法按权重区间采样；每条记录含 `stackable: bool`、`max_stacks: int`
+  - 验证：注入种子跑 N=10000 次统计分布 ≈ 60/30/10（±2%）；`get_candidates(3)` 返回 3 个**不重复** id；`stackable=false` 的升级重复抽中时被跳过/替换
+- [x] **AC3: ball/paddle 参数实例级** — `paddle.gd` 的 `SPEED/PADDLE_WIDTH/PADDLE_HEIGHT` 改实例属性（初值=常量）；`ball.gd` 消除常量直引用
+  - 验证：apply 长臂后 paddle 宽度实例属性变化且**下一帧** `_process` 生效（移动/边界/碰撞 shape 同步）；`constants.gd` 值不变
+- [x] **AC4: 砖墙类升级走 BreakoutGrid upgrade_hooks** — 预开洞（pre_wave hook）/破城锤、燃烧弹链式（on_brick_destroyed hook）
+  - 验证：`upgrade_hooks` 契约在 #384 DESIGN 中补充；apply 预开洞后 `generate_wave` 强制开洞；砖碎时链式触发
+- [x] **AC5: get_candidates(3) 与 apply(upgrade_id)** — 接口签名稳定，供 #388 调用
+  - 验证：`get_candidates(3)` 返回数组长度 3；`apply("long_arm")` 返回 true 且效果生效；`apply("unknown_id")` 返回 false 不崩溃
 
-### 边界条件
+### 边界情况
 
-1. **不改 #395 文案文件**：upgrade_pool.json 由 #395 implement 落地；#387 只读（FileAccess + JSON.parse_string），文件缺失/解析失败回退工作名，不崩
-2. **不改手感常量默认值**（#367 定稿）：只允许运行时实例级修改；constants.gd 只新增 UPGRADE_* 组
-3. **不实现波次/UI/计分**：清墙→调池是 #386 的事；三卡渲染是 #388 的事；拆砖/穿墙分是 #385 的事
-4. **稀有度 reveal 时序归 UI**：池只负责把 rarity 作为元数据返回；"选择后才显示"是 #388 的渲染决策（PLAN §2.5）
-5. **rng 可播种**：`UpgradePool.rng` 支持 `seed()` 注入，测试与自动对打（#297）确定性复现；生产默认随机
-6. **候选内去重**：get_candidates 返回 3 个不同升级 id（同一稀有度可多张，但升级不可重复出现在一次候选内）
-7. **不可重复是整局语义**：`max_stacks=1` = 整局至多拿一次（apply 后从池移除）；区别于"一次候选内不重复"
-8. **双生/星尘等复杂效果**：效果回调骨架本期落地（Callable 挂载 + 参数型效果完整实现）；需场景实例化的效果（双生分裂球、星尘轨迹伤害）以回调桩 + 说明实现，plan agent 决定随 #387 或独立小 PR 深化
+1. **候选不足 3 个**：9 升级全被选过且不可重复时，`get_candidates` 应返回剩余可用升级（可能 <3），或按规则放行已选升级——需明确行为并测试
+2. **重复抽中不可堆叠升级**：权重采样命中间隔内已应用且 `stackable=false` 的升级 → 跳过重抽（有限重试，防死循环）
+3. **堆叠上限**：`max_stacks=3` 的升级第 4 次抽中 → 视为不可用；数值类堆叠需定义叠加语义（乘法/加法）
+4. **apply 未知 id**：返回 `false` + `push_warning`，不抛异常不崩溃
+5. **权重和 ≠ 100**：防御性归一化（除以总和），保证任意权重配置不越界
+6. **升级后参数越界**：长臂多次堆叠使 paddle 宽度 > 屏幕 → clamp 到 [min, max] 边界（与 #383 边界逻辑一致）
+7. **hook 未注册**：BreakoutGrid 尚未实例化/未实现时 apply 砖墙类升级 → 挂起 hook 或返回 false，不空指针
+8. **测试种子确定性**：权重测试注入固定种子，CI 可复现
+
+### 失败路径
+
+1. **paddle.gd 改实例属性破坏现有测试**：#288/#383 测试钉死常量行为 → 改造必须保持默认值语义不变（初值=常量），跑全量回归
+2. **升级池与 #384 实现时序竞态**：本 Issue PRD 先行、#384 实现后置 → `upgrade_hooks` 契约先写入 DESIGN；若 #384 实现先落地，实现时按契约补 hooks
+3. **Callable 引用失效**：升级回调引用已释放节点 → `is_instance_valid` 守卫 + 日志
+4. **文案 JSON（#395）未就绪**：`apply()` 不依赖文案字段（机械独立），UI 展示才需文案 → 无阻塞
 
 ---
 
-## 6. 依赖
+## 6. 依赖与阻塞
 
-| 依赖 | 状态 | 关系 |
+### 依赖
+
+| 依赖 | 状态 | 风险 |
 |------|------|------|
-| #383 轴交换+竖屏 | ✅ CLOSED（PR #409） | 硬依赖：720×1280 坐标系是挡板宽度/砖墙钩子的前提 |
-| #384 砖墙 BreakoutGrid | ⚠️ DESIGN 已合并（PR #414），**代码未落地**（issue CLOSED 但无 impl 分支） | AC4 硬依赖：upgrade_hooks 挂在 BreakoutGrid 上。**风险缓解**：本 PRD 定义契约 + 测试桩先行；实现可与 #384 落地合并或紧随其后独立小 PR |
-| #395 升级池文案 | 🔄 status/human-review（draft 已 merge） | 软依赖：显示字段只读消费，缺失回退工作名 |
-| #386 波次循环 | 📋 backlog OPEN | 消费方：清墙结算时调 get_candidates(3) |
-| #388 3 选 1 升级 UI | 📋 backlog OPEN | 消费方：get_candidates(3)/apply(id) 数据入口 |
-| #385 双得分制 | 📋 backlog OPEN | 无直接依赖（拆砖分与升级效果正交） |
+| #383 轴交换+竖屏 | ✅ 已合并（PR #409） | 无 — 竖屏坐标系已就绪 |
+| #384 BreakoutGrid | ⚠️ PRD #411 + DESIGN #414 已合并，代码未实现 | Low — `upgrade_hooks` 契约趁实现前写入 DESIGN，零返工 |
+| #395 升级池文案 | ⚠️ PRD 已合并，JSON 未落地 | Low — 机械层独立，不依赖文案字段 |
+| PLAN-rogue-pong §2.5 | ✅ 已确认 2026-08-13 | 无 |
 
-**风险登记**：#384 代码未落地是 AC4 的最大风险。缓解：upgrade_hooks 作为**增量契约**设计（§4.5-A），不改变 #384 DESIGN 已合并的 API；brick_upgrade_hooks.gd 可先用假 grid 桩测试；若 #384 实现延期，AC4 的注册表 + 桩先行交付，集成测试随 #384 补齐。
+### 阻塞（下游消费者）
+
+| 下游 | 优先级 | 本 Issue 提供的契约 |
+|------|--------|-------------------|
+| #386 波次循环 | P0 | 波间触发升级窗口的数据源（可调用 `get_candidates`） |
+| #388 3 选 1 升级 UI | P0（依赖 #386+#387） | `get_candidates(3)` 候选 + `apply(id)` 应用 |
+| #393 主场景组装 | P0 | 升级池节点/autoload 接线清单 |
+
+### 依赖链
+
+```
+#383 (竖屏) ──✅──► #384 (BreakoutGrid) ──► #385 (双得分制, brick_destroyed)
+                          │                    └──► #386 (波次循环, wall_cleared)
+                          │                              │
+                          └── upgrade_hooks 契约(本Issue) └──► #387 (本Issue: 升级池)
+                                                                     │
+                                                                     └──► #388 (3选1 UI)
+```
+
+### 准备清单
+
+- [x] 开源优先调研（Asset Library + GitHub，§7 实验 1）
+- [x] 现有参数实例化水平核查（ball 部分满足/ paddle 全 const，§7 实验 2）
+- [x] #384 DESIGN 信号契约与 hooks 缺口核查（§7 实验 3）
+- [ ] plan agent：确认 `upgrade_hooks` 契约小节写入 #384 DESIGN 的措辞
+- [ ] plan agent：确认 paddle CollisionShape 运行时调整方式（tscn 修改 vs 代码 set）
 
 ---
 
-## 7. Spike / 实验（研究期已执行）
+## 7. Spike / 实验
 
-| # | 实验 | 方法 | 结果 | 决策影响 |
-|---|------|------|------|---------|
-| S1 | ball 参数实例级验证 | `grep '@export var' ball.gd` + 读 serve()/_on_area_entered | 5 个手感参数全 @export + 实例读取；speed 实例 var | AC3 ball 侧 ✅ 已达标，只需补 speed_scale |
-| S2 | paddle const 使用点盘点 | 读 paddle.gd `_process`/`_ready` | SPEED 2 处、PADDLE_WIDTH 1 处、PADDLE_HEIGHT 1 处直接引用 const | 改实例属性波及面明确（~4 处 + 边界重算） |
-| S3 | 抽取算法分布模拟 | Python 20000 次：升级粒度加权无放回 vs 稀有度先掷 | 升级粒度 → 55.7/37.8/6.5 **漂移**；稀有度先掷 → 精确 60/30/10，去重 0 失败 | **证伪 Approach B，选定 Approach A**（§4.3） |
-| S4 | 开源资产检索 | Godot Asset Library API + GitHub search | 无可用第三方升级池（见 §1.4） | 第一方实现，零依赖 |
+> 本 Issue 无 `depth/deep` 标签，按 standard 惯例 Section 7 可选；鉴于 Issue body 明确要求「开源优先」调研，以下 3 个实验已在**研究阶段实际执行**并给出结论。
+
+| # | 问题 | 方法 | 结果 | 对方案的影响 |
+|---|------|------|------|-------------|
+| 1 | 是否存在可复用的升级池/权重抽取插件？ | Godot Asset Library（4.x 过滤 `upgrade`/`roguelike`）+ GitHub 搜索（`godot upgrade system`） | Asset Library：`upgrade` 2 结果（Wyvernshield 2 战斗升级 4.0、GDScript Code Upgrader 工具类）、`roguelike` 0 结果；GitHub：全部 <5⭐ 学习向 demo（idleclicker/learnings_upgrades），无可插拔升级池模块 | 确认第一方实现（Approach A），零第三方依赖 |
+| 2 | ball/paddle 参数实例化现状如何？ | 读 `ball.gd`/`paddle.gd`/`constants.gd` 源码 | ball 已有 `@export` 实例变量（initial_speed 等）+ `speed` 实例状态，但 `var speed = INITIAL_SPEED` 常量直引用；paddle 的 `SPEED/PADDLE_WIDTH/PADDLE_HEIGHT` 全 const 且用于移动/边界计算 | Approach A 需改造 paddle（const→var，初值=常量）+ ball 消除常量直引用；测试回归由 #288/#383 兜底 |
+| 3 | BreakoutGrid 有无升级挂钩点？ | 读 #384 DESIGN #414 §3.4/§4.1 API 清单 | 仅 `brick_destroyed`/`wall_cleared` 两信号 + `generate_wave`/`clear_wall` API，无 hooks；#384 代码未落地 | 趁实现前在 DESIGN 补 `upgrade_hooks` 契约（pre_wave / on_brick_destroyed），成本最低 |
 
 ---
 
-## 8. 延续上下文（Continuation Context）
+## 8. 延续上下文（plan agent 交接）
 
-### 交付物
+### 系统状态
 
-- `docs/PRD/387-upgrade-pool-architecture.md`（本文件）
+- 竖屏 720×1280 就绪（#383，PR #409）；ball 为 Area2D（layer 3、mask 3），砖墙契约已在 #384 DESIGN（layer 2 空闲且球 mask 已含）
+- **ball.gd 参数已部分实例化**（`@export` 变量 + `speed` 实例状态）——AC3 工作量主要在 paddle 与常量直引用清理
+- **paddle.gd 全 const**：`SPEED`（移动）、`PADDLE_WIDTH`（边界）、`PADDLE_HEIGHT` 需改实例属性，`player_paddle.tscn` CollisionShape2D `Vector2(120,20)` 需可运行时调整
+- **无任何升级代码**；`assets/content/upgrade_pool.json` 属 #395（文案 schema `upgrade-pool-content/v1` 已定义）
+- **#384 代码未实现**：`upgrade_hooks` 契约必须在 plan 阶段写入 DESIGN #414 补充小节，避免实现后返工
 
-### plan agent 接手要点
+### 本 PRD 的核心决策（勿偏离）
 
-1. **先读**：`docs/DESIGN/384-breakout-grid-brick-wall.md`（upgrade_hooks 挂载点的宿主 API）、`docs/PRD/395-upgrade-pool-copy-draft.md` §4.1（JSON schema）、`docs/PLAN-rogue-pong.md` §2.5（9 升级/稀有度/情感断言）
-2. **接口契约（本 PRD 已定，DESIGN 直接采用）**：
-   - `UpgradePool.get_candidates(n: int = 3) -> Array[Dictionary]`：每卡含 `{id, name, rarity, max_stacks, effect_desc, display:{short_phrase, naming_candidates}}`；候选 id 互异
-   - `UpgradePool.apply(upgrade_id: String) -> bool`：计数 + `effect.call(ctx)` + max_stacks=1 时移出池；返回是否成功
-   - `UpgradePool.rng`：可 `seed()` 注入（测试/自动对打确定性）
-   - `paddle.set_paddle_width(w: float)`：实例属性 + CollisionShape2D.shape.size.x + 边界重算
-   - `ball.speed_scale: float`：_process 位移乘数（缓时 2s 冻结）
-   - `BreakoutGrid.register_upgrade_hook(id, cb)` / `apply_upgrade_hook(id, ctx)` / `open_hole(count)` / `blast_neighbors(pos, radius)`（增量，随 #384）
-3. **实现顺序建议**：constants UPGRADE 组 → upgrade_defs.gd（9 定义 + 回调）→ upgrade_pool.gd（autoload）→ paddle/ball 实例化 → project.godot 注册 → 测试注册 → brick_upgrade_hooks.gd（桩/随 #384）
-4. **与 #386/#388 协调**：池不主动触发任何流程；波次（#386）调 get_candidates，UI（#388）调 apply——本 Issue 不接线，避免与并行 PR 冲突
-5. **测试注册**：`run_tests.gd` 添加 `_run("res://tests/test_upgrade_pool.gd", "Upgrade Pool")`；headless 全绿为验收
-6. **风险交接**：#384 代码未落地 → upgrade_hooks 契约与桩先行；若 #384 实现先到，集成测试立即补齐
-7. **E2E**：`e2e_shots.json` 现有 shot 不涉及升级卡（#388 落地前无 UI）——本 Issue 无 E2E 影响
+1. **Approach A**：`upgrade_pool.gd` 单文件数据驱动（9 条 Dictionary 定义 + Callable 回调 + 权重区间抽取）
+2. **权重**：普通 60% / 稀有 30% / 传说 10%（PLAN §2.5 唯一权威），防御性归一化
+3. **AC3 落地**：const → 实例属性（初值=常量）；paddle 移动/边界/CollisionShape 全走实例值；ball 消除 `INITIAL_SPEED` 等直引用
+4. **AC4 落地**：BreakoutGrid 追加 `upgrade_hooks`（`pre_wave: Array[Callable]`、`on_brick_destroyed: Array[Callable]`）——预开洞挂 pre_wave，破城锤/燃烧弹挂 on_brick_destroyed
+5. **接口**：`get_candidates(count) -> Array[Dictionary]`（去重）、`apply(id) -> bool`（未知 id 返回 false）、`is_applied(id)`、`reset()`
+6. **文案边界**：不碰 #395 的 JSON；`apply()` 机械独立
+
+### 新建文件清单
+
+| 文件 | 要点 |
+|------|------|
+| `mini-pong/gdscripts/upgrade_pool.gd` | 9 升级定义 + 权重抽取 + `get_candidates`/`apply`/`is_applied`/`reset` |
+| `mini-pong/tests/test_upgrade_pool.gd` | 见下「测试要点」 |
+
+### 修改文件清单
+
+| 文件 | 改动 |
+|------|------|
+| `mini-pong/gdscripts/paddle.gd` | `SPEED/PADDLE_WIDTH/PADDLE_HEIGHT` → 实例属性；移动/边界用实例值 |
+| `mini-pong/gdscripts/ball.gd` | 消除常量直引用（`var speed` 初值改走实例）；确保升级可改 `speed_increment`/`max_speed_multiplier` 等 |
+| `mini-pong/scenes/player_paddle.tscn` | CollisionShape2D 尺寸可运行时调整（或 paddle.gd 代码 set） |
+| `mini-pong/gdscripts/constants.gd` | 不变（默认值来源）；如需新增 `UPGRADE_WEIGHTS` 常量组 |
+| `mini-pong/tests/run_tests.gd` | 注册 `test_upgrade_pool.gd` |
+| `docs/DESIGN/384-breakout-grid-brick-wall.md` | plan 阶段追加 `upgrade_hooks` 契约小节 |
+
+### 测试要点（test_upgrade_pool.gd）
+
+- 定义完整性：9 条、id 唯一、稀有度/权重合法
+- 权重分布：固定种子 × 10000 次抽样 ≈ 60/30/10（±2%）
+- 去重候选：`get_candidates(3)` 三 id 互不重复；候选不足时行为明确
+- stackable：false 的升级不重复入池；max_stacks 上限生效
+- apply：数值类改实例属性且下一帧生效（paddle 宽度、ball 速度）；砖墙类写入 hooks；未知 id 返回 false
+- 回归：#288/#383 既有 paddle/ball 测试全绿（默认值语义不变）
+
+### 主要风险
+
+- **paddle const→var 回归**：默认值语义必须不变（初值=常量），#288/#383 测试兜底
+- **#384 时序**：upgrade_hooks 契约先入 DESIGN，实现后置——plan agent 必须在 #384 实现 PR 前完成 DESIGN 补充
+- **Callable 生命周期**：回调引用守卫 `is_instance_valid`
+
+### 下一步
+
+1. plan agent 依据本 PRD 产出 DESIGN（含 `upgrade_hooks` 契约补充小节 + paddle 实例化细节）
+2. #384 实现时按契约落地 `upgrade_hooks`（或 #387 实现时若 #384 已落地则直接接线）
+3. implement agent 实现 upgrade_pool.gd + paddle/ball 改造 + 测试
+4. #386 波次循环在波间调用 `get_candidates`；#388 UI 消费候选与 `apply`
