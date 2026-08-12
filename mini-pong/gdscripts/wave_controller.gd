@@ -40,6 +40,8 @@ func _on_wall_cleared() -> void:
 		_settling = false
 		return
 	await get_tree().create_timer(settle_delay).timeout   # 结算延时（#388 接线后由其接管推进时机）
+	if not is_inside_tree():
+		return                     # 已移出场景（清理/场景切换）——不再推进波次，防悬挂协程泄漏
 	_advance_wave()
 	_settling = false
 

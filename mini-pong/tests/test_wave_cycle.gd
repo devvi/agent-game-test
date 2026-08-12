@@ -23,11 +23,9 @@ var _captured_wave_settled: Array = []
 var _grid_instances: int = 0
 
 func _on_wave_started(index: int) -> void:
-	print("  EMIT wave_started(%d) frame=%d" % [index, (Engine.get_main_loop() as SceneTree).get_frame()])
 	_captured_wave_started.append(index)
 
 func _on_wave_settled(index: int) -> void:
-	print("  EMIT wave_settled(%d) frame=%d" % [index, (Engine.get_main_loop() as SceneTree).get_frame()])
 	_captured_wave_settled.append(index)
 
 func _on_settled_reach_21(_index: int) -> void:
@@ -93,7 +91,7 @@ func _reset() -> void:
 	GameManager.reset_match()
 	_captured_wave_started.clear()
 	_captured_wave_settled.clear()
-	_grid_instances = 0
+	_grid_instances = 0   # D-1: 每测试独立计数（WaveController 绝不 new 网格）
 
 
 func _make_mock_grid(with_generate: bool) -> Node2D:
@@ -530,7 +528,6 @@ func _test_f3_settling_ignores_duplicate() -> void:
 
 ## F-4: grid 有 wall_cleared 但无 generate_wave → 警告跳过生成，wave_index 仍 +1（状态机不卡死）
 func _test_f4_generate_wave_missing() -> void:
-	print("  F4START frame=%d wave_index=%d" % [(Engine.get_main_loop() as SceneTree).get_frame(), GameManager.wave_index])
 	_reset()
 	var fx = _make_controller(true, true, true, false)   # 半实现 grid：有信号无 generate_wave
 	fx.grid.wall_cleared.emit()   # 触发 _on_wall_cleared → settle（IDLE 期 no-op）→ 延时后 advance
