@@ -40,6 +40,8 @@ func run() -> void:
 	await _test_regeneration_clears_old()
 	await _test_destroy_idempotent()
 	await _test_constants()
+	await _test_upgrade_hook_open_hole()
+	await _test_upgrade_hook_blast()
 	print("  Breakout Grid: %d passed, %d failed" % [passed, failed])
 
 
@@ -315,3 +317,59 @@ func _test_constants() -> void:
 	_assert(CONSTS.BRICK_SIZE.x >= 14.0 and CONSTS.BRICK_SIZE.y >= 14.0,
 		"CONST: BRICK_SIZE 两轴 >= 14 (got %s)" % str(CONSTS.BRICK_SIZE))
 	_assert(CONSTS.GRID_WALL_Y == 640.0, "CONST: GRID_WALL_Y == 640（#385/#384 对齐）")
+
+
+# ── #387 升级钩子（DESIGN #393 附录 B.5 Test 6：真实 grid 版）──
+
+## open_hole 请求挂起 → 下波 generate_wave 末尾消费：洞柱位补开、砖数减少、无残留请求
+func _test_upgrade_hook_open_hole() -> void:
+	_reset_signals()
+	var grid = _make_grid()
+	grid.generate_wave(2, 0, 5)              # GAPS 2 行: 8×2 == 16 砖
+	var before: int = grid.remaining_bricks
+	grid.open_hole(1)                        # 结算期请求（升级调用路径）
+	_assert(grid._pending_holes.size() == 1, "HOOK: open_hole 请求挂起 (got %d)" % grid._pending_holes.size())
+	_assert(grid.remaining_bricks == before, "HOOK: 当前墙不立即改变（下波生效）")
+	grid.generate_wave(2, 0, 5)              # 下波生成 → 消费
+	await _wait(0.02)                       # queue_free 生效（洞柱位砖延迟帧末释放）
+	_assert(grid._pending_holes.is_empty(), "HOOK: 挂起队列已清空")
+	var w: float = maxf(CONSTS.BRICK_SIZE.x, CONSTS.BRICK_MIN_DIM)
+	var cols: int = grid._compute_cols()
+	var start_x: float = grid._compute_start_x(cols)
+	var hole_ok: bool = true
+	for c in grid._hole_columns:
+		for b in _brick_children(grid):
+			if abs(b.position.x - (start_x + c * (w + grid.brick_gap))) < w / 2.0:
+				hole_ok = false
+	_assert(hole_ok, "HOOK: 洞柱位无砖节点")
+	_assert(grid.remaining_bricks < _expected_plain_bricks(2), "HOOK: 洞后砖数减少 (got %d)" % grid.remaining_bricks)
+	await _cleanup(grid)
+
+
+## blast_neighbors(pos, r): 半径内砖碎、计数/信号正确；归零时 wall_cleared 恰好一次
+func _test_upgrade_hook_blast() -> void:
+	_reset_signals()
+	var grid = _make_grid()
+	grid.generate_wave(1, 0, 5)              # 单行 8 砖，砖心 y==640
+	var bricks = _brick_children(grid)
+	var center: Vector2 = Vector2(360, 640)  # 墙中心
+	var radius: float = 200.0                # 覆盖约 6-7 砖
+	var in_range: int = 0
+	for b in bricks:
+		if b.position.distance_to(center) <= radius:
+			in_range += 1
+	grid.blast_neighbors(center, radius)
+	_assert(_destroyed_events.size() == in_range,
+		"BLAST: 半径内砖全部销毁 (%d/%d)" % [_destroyed_events.size(), in_range])
+	_assert(grid.remaining_bricks == 8 - in_range,
+		"BLAST: remaining == 8 - 半径内 (%d)" % grid.remaining_bricks)
+	# 全部清空 → wall_cleared 恰好一次
+	for b in _brick_children(grid):
+		b.destroy()
+	_assert(_cleared_count == 1, "BLAST: 归零 wall_cleared 恰好一次 (got %d)" % _cleared_count)
+	await _cleanup(grid)
+
+
+## GAPS 无洞布局的满格砖数（供 HOOK 断言）：cols=10 − 2 缝列 == 8
+func _expected_plain_bricks(thickness: int) -> int:
+	return 8 * thickness

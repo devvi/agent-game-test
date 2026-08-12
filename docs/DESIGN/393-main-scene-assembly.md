@@ -344,8 +344,8 @@ get_node_or_null == null → push_warning 一次 → 跳过该路径（波次状
 
 ## 7. 集成点
 
-> **Status 约定：** ✅ = 待 implement 接线（节点挂载/信号连接后完成）；✅ = 脚本内已连接（组装即激活）。
-> implement agent 完成接线后更新本表；review agent 验证全部 ✅ 已解决或显式推迟。
+> **Status 约定：** ⬜ = 待 implement 接线（节点挂载/信号连接后完成）；✅ = 脚本内已连接（组装即激活）。
+> implement agent 完成接线后更新本表；review agent 验证全部 ⬜ 已解决或显式推迟。
 
 | 集成 | 我们的组件 | 目标 Issue | 方式 | 状态 |
 |------|:---:|:---:|------|:---:|
