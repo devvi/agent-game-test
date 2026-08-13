@@ -21,6 +21,8 @@ func run() -> void:
 	_test_contract_api()
 	_test_nan_guard()
 	_test_resource_integrity()
+	_test_emission_config()
+	_test_base_values()
 
 
 func _assert(condition: bool, name: String) -> void:
@@ -263,3 +265,63 @@ func _test_resource_integrity() -> void:
 			var p = inst.get_node_or_null("Particles")
 			_assert(p is GPUParticles2D, "TC-res-20: Particles 是 GPUParticles2D")
 			inst.queue_free()
+
+# ── #465 发射配置断言 (场景 A: tscn 静态文本, headless 可跑) ──
+
+func _test_emission_config() -> void:
+	# 场景 A: 发射几何/可视窗口/基值 — D1 (visibility_rect 剔除) + D2 (半宽语义) 修复
+	var tscn: String = FileAccess.get_file_as_string("res://scenes/rain_curtain.tscn")
+	_assert(tscn != "", "TC-A0: rain_curtain.tscn 可读")
+	# A1 节点居中 → 发射区/可视窗口与屏幕对齐
+	_assert(tscn.contains("position = Vector2(360, 640)"), "TC-A1: Particles 节点居中 position = Vector2(360, 640)")
+	# A2 全屏发射区 (半宽语义 → 720x1280)
+	_assert(tscn.contains("emission_rect_extents = Vector2(360, 640)"), "TC-A2: 全屏发射区 emission_rect_extents = Vector2(360, 640)")
+	# A3 全屏可视窗口 (D1 修复核心: 缺省默认 Rect2(-100,-100,200,200) 会剔除发射区边缘粒子)
+	_assert(tscn.contains("visibility_rect = Rect2(-360, -640, 720, 1280)"), "TC-A3: 全屏可视窗口 visibility_rect = Rect2(-360, -640, 720, 1280)")
+	# A4 粒子数量 (规范带 400-800 中值)
+	_assert(tscn.contains("amount = 600"), "TC-A4: amount = 600 (400-800 规范带中值)")
+	# A5 斜落方向一致 (spread 6-10° 微斜)
+	_assert(tscn.contains("direction = Vector3(0, 1, 0)"), "TC-A5a: direction = Vector3(0, 1, 0)")
+	_assert(tscn.contains("spread = 8.0"), "TC-A5b: spread = 8.0 (∈[6,10])")
+	# A6 速度/尺寸基值
+	_assert(tscn.contains("initial_velocity_min = 800.0"), "TC-A6a: initial_velocity_min = 800.0")
+	_assert(tscn.contains("initial_velocity_max = 1200.0"), "TC-A6b: initial_velocity_max = 1200.0")
+	_assert(tscn.contains("scale_min = 0.5"), "TC-A6c: scale_min = 0.5")
+	_assert(tscn.contains("scale_max = 1.2"), "TC-A6d: scale_max = 1.2")
+	# A7 颜色 alpha 带 ∈ [0.2, 0.4] (解析 material color 字面)
+	var alpha: float = -1.0
+	for line in tscn.split("\n"):
+		if line.contains("color = Color("):
+			var inner: String = line.get_slice("Color(", 1).trim_suffix(")")
+			var parts: PackedStringArray = inner.split(", ")
+			if parts.size() >= 4:
+				alpha = float(parts[3])
+			break
+	_assert(alpha >= 0.2 and alpha <= 0.4, "TC-A7: material color alpha ∈ [0.2, 0.4] (实际 %.3f)" % alpha)
+
+
+# ── #465 基值断言 (场景 B: gd 常量 + alpha 公式 + amount 红线) ──
+
+func _test_base_values() -> void:
+	var c = _make_curtain()
+	# B1 速度基值常量
+	_assert(abs(c.BASE_VELOCITY_MIN - 800.0) < 0.0001, "TC-B1a: BASE_VELOCITY_MIN == 800.0")
+	_assert(abs(c.BASE_VELOCITY_MAX - 1200.0) < 0.0001, "TC-B1b: BASE_VELOCITY_MAX == 1200.0")
+	# B2 尺寸基值常量
+	_assert(abs(c.BASE_SCALE_MIN - 0.5) < 0.0001, "TC-B2a: BASE_SCALE_MIN == 0.5")
+	_assert(abs(c.BASE_SCALE_MAX - 1.2) < 0.0001, "TC-B2b: BASE_SCALE_MAX == 1.2")
+	# B3 alpha 公式行为: 默认雨 0.3 → 0.225; 最大雨 1.0 → 0.40 (全带 ∈ [0.2,0.4])
+	c._material = ParticleProcessMaterial.new()
+	c._particles = null
+	c.current_rain = 0.3
+	c._apply_to_particles()
+	_assert(c._material.color.a >= 0.2 and c._material.color.a <= 0.4, "TC-B3a: 默认雨 r=0.3 alpha ∈ [0.2,0.4] (%.3f)" % c._material.color.a)
+	_assert(abs(c._material.color.a - 0.225) < 0.0001, "TC-B3b: 默认雨 r=0.3 alpha == 0.225 (%.3f)" % c._material.color.a)
+	c.current_rain = 1.0
+	c._apply_to_particles()
+	_assert(c._material.color.a <= 0.4 + 0.0001, "TC-B3c: 最大雨 r=1.0 alpha ≤ 0.4 (%.3f)" % c._material.color.a)
+	_assert(abs(c._material.color.a - 0.40) < 0.0001, "TC-B3d: 最大雨 r=1.0 alpha == 0.40 (%.3f)" % c._material.color.a)
+	var gd_src: String = FileAccess.get_file_as_string("res://gdscripts/rain_curtain.gd")
+	_assert(gd_src.contains("0.15 + 0.25 * r"), "TC-B3e: gd 源码含 alpha 公式 0.15 + 0.25 * r")
+	# B4 amount 红线回归 (#389 契约: 运行时禁写 amount)
+	_assert(not gd_src.contains("amount =") and not gd_src.contains("amount="), "TC-B4: gd 无 amount 写入 (#389 契约红线)")

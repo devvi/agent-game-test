@@ -210,9 +210,9 @@ rain_curtain.gd 公式引擎（0.1..1.0）
 
 | 集成 | 本组件 | 目标 Issue | 方式 | 状态 |
 |------|:---:|:---:|------|:---:|
-| #389 调制契约 | `rain_curtain.gd` ↔ `rain_curtain.tscn` | #389 | `_apply_to_particles()` 每帧写 material 属性（velocity/scale/alpha/emitting）；禁写 amount；契约 API 签名不变 | ⬜ |
-| 场景挂载 | `RainCurtain` 实例 ↔ `Main.tscn` AtmosphereLayer | #383/#389 | 零改动（继承场景内节点配置） | ⬜ 仅回归 |
-| 测试注册 | `test_rain.gd` ↔ `run_tests.gd` 第 34 行 | #389 | 既有注册行保留，扩展文件内容 | ⬜ 仅回归 |
+| #389 调制契约 | `rain_curtain.gd` ↔ `rain_curtain.tscn` | #389 | `_apply_to_particles()` 每帧写 material 属性（velocity/scale/alpha/emitting）；禁写 amount；契约 API 签名不变 | ✅ 回归守住（TC-C/TC-B4） |
+| 场景挂载 | `RainCurtain` 实例 ↔ `Main.tscn` AtmosphereLayer | #383/#389 | 零改动（继承场景内节点配置） | ✅ 回归通过（TC-res-6/7） |
+| 测试注册 | `test_rain.gd` ↔ `run_tests.gd` 第 34 行 | #389 | 既有注册行保留，扩展文件内容 | ✅ 注册行保留，TC-A/B 已注册 |
 | E2E 视觉 | 02_midgame 截图 ↔ `e2e_shots.json`（gdscripts/.*\.gd 命中 rain_curtain.gd） | #358 | 全屏雨幕截图 + 4 重断言 + 3 区密度偏差 <30% | ⬜ |
 | 并行隔离 | 本 PR 文件域 vs #464（颜色） | #464 | 文件域零重叠；提交前 merge main 由 worktree-commit.sh 自动处理 | ✅ 结构保证 |
 
