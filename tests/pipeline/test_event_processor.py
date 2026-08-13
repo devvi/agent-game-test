@@ -261,7 +261,7 @@ class TestPreprocess(unittest.TestCase):
         return list(evs)
 
     def _run_preprocess(self, events, fake_run=None, spawn_state_file=None,
-                        issue_cache=None):
+                        issue_cache=None, opencode_up=True):
         # Mock the subprocess gh call inside preprocess (PR body lookup) so
         # tests stay hermetic and fast. Empty body → no parent match → falls
         # back to issue=PR number.
@@ -281,6 +281,7 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "_parent_issue_blocked", return_value=False), \
              mock.patch.object(ep, "_ensure_issues_cache", return_value=issue_cache), \
              mock.patch.object(ep, "_SPAWN_STATE_FILE", spawn_state_file), \
+             mock.patch.object(ep, "opencode_healthy", return_value=opencode_up), \
              mock.patch.object(ep, "_GH_CACHE", {}):
             return ep.preprocess()
 
@@ -586,6 +587,45 @@ class TestPreprocess(unittest.TestCase):
         self.assertFalse(any(l.startswith("SPAWN: implement,issue=393") for l in out),
                          f"PR exists → must skip spawn: {out}")
 
+    def test_implement_spawn_blocked_when_opencode_down(self):
+        """Key-path gate (2026-08-13): implement SPAWN must NOT emit when
+        OpenCode is down — BLOCKED instead + workflow auto-paused. Without
+        this, the agent falls back to manual writes, burns the 50-call
+        budget, and stalls (#466)."""
+        ev = {"_key": "issues.labeled#466:workflow/implement",
+              "type": "issues.labeled", "issue": 466, "label": "workflow/implement"}
+        with tempfile.TemporaryDirectory() as td:
+            cfg_path = os.path.join(td, "workflow-config.json")
+            with mock.patch.object(ep, "WORKFLOW_CONFIG", cfg_path), \
+                 mock.patch.object(ep, "OPENCODE_CRITICAL_FILE", os.path.join(td, "m")):
+                out = self._run_preprocess(self._events(ev), opencode_up=False)
+            self.assertFalse(any(l.startswith("SPAWN: implement,issue=466") for l in out),
+                             f"opencode down → must NOT spawn: {out}")
+            self.assertTrue(any(l.startswith("BLOCKED: implement") and "opencode-down" in l for l in out),
+                            f"must emit BLOCKED reason=opencode-down: {out}")
+            # auto-pause wrote the config
+            with open(cfg_path) as f:
+                cfg = json.load(f)
+            self.assertFalse(cfg["enabled"])
+            self.assertIn("opencode-down", cfg["paused_reason"])
+
+    def test_implement_spawn_emits_when_opencode_up(self):
+        """OpenCode healthy → normal SPAWN: implement (key-path gate passes)."""
+        ev = {"_key": "issues.labeled#466:workflow/implement",
+              "type": "issues.labeled", "issue": 466, "label": "workflow/implement"}
+        out = self._run_preprocess(self._events(ev), opencode_up=True)
+        self.assertTrue(any(l.startswith("SPAWN: implement,issue=466") for l in out),
+                        f"opencode up → normal spawn: {out}")
+
+    def test_research_spawn_not_blocked_by_opencode_down(self):
+        """OpenCode is implement-only. A research spawn must pass even when
+        OpenCode is down (research doesn't need it)."""
+        ev = {"_key": "issues.labeled#466:workflow/research",
+              "type": "issues.labeled", "issue": 466, "label": "workflow/research"}
+        out = self._run_preprocess(self._events(ev), opencode_up=False)
+        self.assertTrue(any(l.startswith("SPAWN: research,issue=466") for l in out),
+                        f"research must not be blocked by opencode: {out}")
+
     def test_stale_stage_event_blocked(self):
         """Stale workflow/available label (never removed on advance) injected
         every tick → phantom `SPAWN: research` for an issue already at
@@ -736,6 +776,59 @@ class TestPreprocess(unittest.TestCase):
                         f"picker must emit the research spawn: {picker_lines}")
         self.assertFalse(any("SPAWN: research,issue=502" in l for l in echo_lines),
                          f"gate must dedup the webhook echo: {echo_lines}")
+
+    def test_picker_implement_blocked_when_opencode_down(self):
+        """Picker path key-path gate: workflow/implement issue + OpenCode down
+        → BLOCKED (no SPAWN) + auto-pause, same as preprocess path."""
+        issue = {"number": 466, "labels": [{"name": "workflow/implement"}]}
+
+        def fake_run(cmd, *a, **kw):
+            joined = " ".join(str(c) for c in cmd)
+            if "pr" in joined and "list" in joined:
+                return mock.Mock(stdout="0", returncode=0)  # no impl PR yet
+            return mock.Mock(stdout="", returncode=1)
+
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "is_paused", return_value=False), \
+             mock.patch.object(ep, "current_workflow_count", return_value=0), \
+             mock.patch.object(ep, "_pick_candidates", return_value=[]), \
+             mock.patch.object(ep, "opencode_healthy", return_value=False), \
+             mock.patch.object(ep, "WORKFLOW_CONFIG", os.path.join(td, "wf.json")), \
+             mock.patch.object(ep, "OPENCODE_CRITICAL_FILE", os.path.join(td, "m")), \
+             mock.patch.object(ep, "_ensure_issues_cache",
+                               return_value=[issue]), \
+             mock.patch("subprocess.run", fake_run):
+            lines = ep.pick_next_issue()
+        self.assertFalse(any("SPAWN: implement,issue=466" in l for l in lines),
+                         f"opencode down → picker must NOT spawn implement: {lines}")
+        self.assertTrue(any("BLOCKED: implement" in l and "opencode-down" in l for l in lines),
+                        f"picker must emit BLOCKED reason=opencode-down: {lines}")
+
+    def test_picker_implement_emits_when_opencode_up(self):
+        """Picker path: OpenCode healthy → normal SPAWN: implement."""
+        issue = {"number": 466, "labels": [{"name": "workflow/implement"}]}
+
+        def fake_run(cmd, *a, **kw):
+            joined = " ".join(str(c) for c in cmd)
+            if "pr" in joined and "list" in joined:
+                return mock.Mock(stdout="0", returncode=0)
+            return mock.Mock(stdout="", returncode=1)
+
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "is_paused", return_value=False), \
+             mock.patch.object(ep, "current_workflow_count", return_value=0), \
+             mock.patch.object(ep, "_pick_candidates", return_value=[]), \
+             mock.patch.object(ep, "opencode_healthy", return_value=True), \
+             mock.patch.object(ep, "_ensure_issues_cache",
+                               return_value=[issue]), \
+             mock.patch("subprocess.run", fake_run):
+            lines = ep.pick_next_issue()
+        self.assertTrue(any("SPAWN: implement,issue=466" in l for l in lines),
+                        f"opencode up → picker must spawn implement: {lines}")
 
     def test_stalled_scan_gated(self):
         """The same impl PR scanned twice emits STALLED: check-review once —

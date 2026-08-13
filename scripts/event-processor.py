@@ -900,7 +900,18 @@ def pick_next_issue() -> list:
                           "--jq", "length")
             if existing is None or int(existing) == 0:
                 if _spawn_gate(n, "implement"):
-                    spawn_lines.append(f"SPAWN: implement,issue={n},label=workflow/implement")
+                    # ── Key-path OpenCode gate (2026-08-13) ──
+                    # OpenCode is implement's ONLY code path. Check at the
+                    # moment of spawn (not every tick): if it's down, don't
+                    # emit SPAWN — an implement agent without OpenCode falls
+                    # back to manual writes, burns the call budget, and
+                    # stalls with a dirty worktree (#466). Auto-pause and
+                    # surface [CRITICAL] instead; human fixes + resumes.
+                    if not opencode_healthy():
+                        _pause_workflow(f"opencode-down (implement spawn blocked, issue {n})")
+                        spawn_lines.append(f"BLOCKED: implement,issue={n},reason=opencode-down — workflow auto-paused, fix OpenCode Serve and `/workflow resume`")
+                    else:
+                        spawn_lines.append(f"SPAWN: implement,issue={n},label=workflow/implement")
         elif "workflow/available" in labels:
             # Available rescan (2026-08-13): deterministic dead-agent recovery.
             # An issue stuck at workflow/available with no research PR (agent
@@ -1274,6 +1285,17 @@ def preprocess():
                     "workflow/available": "workflow/research",
                 }
                 spawn_label = spawn_label_map.get(label, label)
+                # ── Key-path OpenCode gate (2026-08-13) ──
+                # Same gate as the picker: check OpenCode exactly when an
+                # implement spawn is about to be emitted. OpenCode down →
+                # don't emit SPAWN, auto-pause, surface BLOCKED for the LLM.
+                if stage == "implement" and not opencode_healthy():
+                    _pause_workflow(f"opencode-down (implement spawn blocked, issue {issue_int})")
+                    output_lines.append(f"BLOCKED: implement,issue={issue_int},reason=opencode-down — workflow auto-paused, fix OpenCode Serve and `/workflow resume`")
+                    event_key = event.get("_key", "")
+                    if event_key:
+                        discarded_keys.add(event_key)
+                    continue
                 spawn_line = f"SPAWN: {stage},issue={issue},label={spawn_label}"
                 # ── Cost governance (P4b): implement after repeated self-correct
                 # cycles burns the most tokens. Force depth=light beyond the
@@ -1451,16 +1473,6 @@ def main():
         # preprocess() output, then applies sort → cap → audit → print.
         picker_lines: list = []
         in_window = _time_in_window(cfg)
-        # OpenCode is a HARD dependency for implement (mandatory path). Check
-        # every tick (not just window entry): if it drops mid-flight, auto-pause
-        # immediately instead of letting agents fall back to manual writes.
-        if in_window and not is_paused():
-            if not opencode_healthy():
-                _pause_workflow("opencode-down (auto-paused, per-tick check)")
-                hc = health_check()
-                print(hc, file=sys.stderr)
-                print("[CRITICAL] workflow auto-paused: OpenCode Serve DOWN — implement would fall back to manual writes. Fix and `/workflow resume`.", file=sys.stderr)
-                return
         if in_window and was_outside:
             # Just entered work hours → health check
             hc = health_check()
