@@ -13,12 +13,15 @@ Its stdout is injected into the LLM's context.
 
 Output format (to stdout):
   Empty                                → no actionable events
-  P1: check_run.completed,issue=N,...  → one per line, sorted P1 first
+  STALLED: merge-pr,pr=N,branch=...    → non-impl PR CI done, merge it (2026-08-13)
+  SPAWN: <agent>,issue=N,...           → spawn directive
   P2: issues.labeled,issue=N,...      → labeled events follow
 
 File modification:
-  - REMOVES from file: pull_request.*, check_run.created, any non-actionable
-  - KEEPS in file: check_run.completed, issues.labeled (for LLM to process)
+  - REMOVES from file: pull_request.*, check_run.created, any non-actionable,
+    check_run.completed on non-impl (research/plan) branches (2026-08-13:
+    consumed as STALLED: merge-pr or dropped; NEVER emitted as P1)
+  - KEEPS in file: check_run.completed (impl/*), issues.labeled (for LLM to process)
 
 Uses atomic write (tempfile + rename) to avoid sibling-agent races.
 """
@@ -1176,11 +1179,32 @@ def preprocess():
                 # One-shot consumption (see self-correct SPAWN note above).
                 discarded_keys.add(event.get("_key", ""))
             else:
-                # Non-impl branch or unknown conclusion — let LLM decide
-                output_lines.append(
-                    f"P1: check_run.completed,issue={issue},"
-                    f"branch={branch},conclusion={conclusion}"
-                )
+                # ── Non-impl branch (research/plan/*) — 2026-08-13 ──
+                # check_run.completed 对非 impl 分支的语义是"前置阶段 PR 的
+                # CI 完成",推进动作是 merge(workflow-chain 在 PR merge 后才
+                # 推进 label)。旧行为把事件输出成 P1 让 cron LLM"决策"→
+                # cron 花 4 分钟调查一个已完成的推进(181544 trace,plan PR
+                # #462 CI 成功 → 全链已推进 → cron 白跑 4 分钟阻塞后续 tick)。
+                # 改为输出确定性 STALLED: merge-pr 指令(与 _quick_stalled_scan
+                # 同格式,cron prompt 已有对应 handler,一条 gh 命令执行完)。
+                # 其余情况(非 research/plan 前缀、非 success)对 cron 无可
+                # 操作项:静默消费 + audit,stalled scan 兜底复查。
+                if conclusion == "success" and (
+                    branch.startswith("research/") or branch.startswith("plan/")
+                ):
+                    output_lines.append(
+                        f"STALLED: merge-pr,pr={issue},branch={branch}"
+                    )
+                else:
+                    _audit(
+                        event="check_run.dropped",
+                        issue=issue,
+                        branch=branch,
+                        conclusion=conclusion,
+                        reason="non-impl-noop",
+                    )
+                # Consume either way: never re-emit a non-impl check_run.
+                discarded_keys.add(event.get("_key", ""))
         elif etype == "issues.labeled":
             label = event.get("label", "")
             stage_map = {

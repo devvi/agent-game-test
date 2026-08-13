@@ -298,11 +298,29 @@ class TestPreprocess(unittest.TestCase):
         self.assertTrue(any(l.startswith("SPAWN: review,issue=155") for l in out),
                         f"unexpected output: {out}")
 
-    def test_non_impl_branch_passes_to_llm(self):
+    def test_non_impl_branch_success_emits_merge_pr(self):
+        """Non-impl (research/plan) check_run.completed success must NOT be
+        emitted as P1 for the LLM to investigate — it becomes a deterministic
+        STALLED: merge-pr directive (2026-08-13, 181544 4-min tick trace:
+        cron LLM spent 4 min re-checking an already-completed advancement).
+        Event is consumed one-shot either way."""
         ev = {"_key": "check_run.completed#156", "type": "check_run",
               "issue": 156, "branch": "plan/156-z", "conclusion": "success"}
         out = self._run_preprocess(self._events(ev))
-        self.assertTrue(any(l.startswith("P1: check_run.completed,issue=156") for l in out))
+        self.assertTrue(any(l.startswith("STALLED: merge-pr,pr=156") for l in out),
+                        f"unexpected output: {out}")
+        self.assertFalse(any(l.startswith("P1:") for l in out),
+                         "P1 must never be emitted for non-impl check_run")
+
+    def test_non_impl_branch_failure_silently_dropped(self):
+        """Non-impl branch CI failure is not actionable by the cron (no
+        self-correct path for research/plan PRs) — dropped with audit;
+        the stalled scan re-checks the PR later."""
+        ev = {"_key": "check_run.completed#157", "type": "check_run",
+              "issue": 157, "branch": "plan/157-q", "conclusion": "failure"}
+        out = self._run_preprocess(self._events(ev))
+        self.assertFalse(any(l.startswith(("P1:", "SPAWN:", "STALLED:")) for l in out),
+                         f"expected no directives, got {out}")
 
     def test_idle_fast_path_not_silent_when_backlog_exists(self):
         """Backlog-only repo must NOT short-circuit to [SILENT] — the picker
