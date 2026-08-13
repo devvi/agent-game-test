@@ -2,8 +2,8 @@
 
 > **GDD Section:** 09  
 > **System:** Automated test suite for Mini Pong  
-> **Last Updated:** 2026-07-30  
-> **Related PRs:** #349 (Auto-Play test), #353 + #355 (fix pre-existing #346 failures)
+> **Last Updated:** 2026-08-13  
+> **Related PRs:** #349 (Auto-Play test), #353 + #355 (fix pre-existing #346 failures), #447 (E2E Playthrough)
 
 ---
 
@@ -57,7 +57,63 @@ godot --path mini-pong/ --headless --script tests/run_tests.gd
 
 ---
 
-## 3. Auto-Play Test (`auto_play_test.gd`)
+## 3. E2E Playthrough Test (`e2e_playthrough.gd`)
+
+> **PR:** #447 | **Issue:** #394 | **Design:** `docs/DESIGN/394-e2e-playability.md`
+
+### Purpose
+
+Drives **one real-physics AI-vs-AI match to 21 points** with real components (ball.tscn,
+player_paddle.tscn ×2 in AI mode, breakout_grid.tscn, wave_controller, scoring_manager,
+real UpgradePickUI, GameManager/UpgradePool autoloads) and asserts the full playability
+loop: per-wave wall generation (AC2), wall-clear → upgrade-pick UI data flow through the
+real UI (AC2), brick +1 / pierce +3 score reconstruction against event counts (AC3),
+and ≥3 mechanical upgrades producing measurable parameter changes (AC4). Self-implemented
+(Approach B) — no existing open-source AI-vs-AI full-match e2e template was found in the
+Godot Asset Library / GitHub search (PRD 开源优先 requirement).
+
+### Architecture
+
+```
+e2e_playthrough.gd (extends RefCounted)
+  ├── run()                    ← Entry point called by run_tests.gd (async)
+  ├── _make_fx()               ← Mirrors Main.tscn mini-tree with real components
+  ├── _play_match()            ← Frame-loop driver: serve → waves → upgrade UI → 21 pts
+  ├── _feed_accept()           ← Feeds ui_accept into real UpgradePickUI
+  ├── _assert_ac1()            ← run-over + winner + 21-pt dual gate (frame/wall-clock)
+  ├── _assert_ac2()            ← wall generation + upgrade UI data flow per wave
+  ├── _assert_ac3()            ← brick/pierce score reconstruction + signal counts
+  ├── _assert_ac4()            ← ≥3 mechanical upgrades take effect (long_arm/fireball/…)
+  ├── _test_f3_endgame_race()  ← 21 pts during upgrade reveal → no new wall (race guard)
+  └── _test_f4_restart_no_leak() ← reset → re-serve: no brick residue / signal leak
+```
+
+### Parameters
+
+| Parameter | Value | Purpose |
+|-----------|-------|---------|
+| `SEED` | 20260813 | Fixed UpgradePool RNG seed (reproducible AC4) |
+| `MAX_FRAMES` | 60,000 | Frame gate (~16 min @60fps) |
+| wall-clock gate | 300 s | Elapsed-time gate |
+| `WIN_SCORE` | 21 | From `constants.gd` |
+
+### L2 Runtime Driver (`playthrough_test.tscn` + `playthrough_driver.gd`)
+
+Instantiates the **real Main.tscn** headless with both paddles in AI mode
+(`ai_position_error=200`, mirroring `e2e_shots.json`), feeds `ui_accept` to start the
+match and to confirm each upgrade window (focus 0), and quits 0 when a full match
+completes (`is_run_over` + non-empty winner). This activates the `run-e2e-review.sh`
+L2 stage, which was `unavailable` before #447.
+
+### Validation (measured)
+
+Local E2E run (2026-08-13): total **2215 passed / 0 failed** (incl. E2E Playthrough 78;
+per-suite assertion count varies with in-match upgrade draws), L2 playthrough
+`winner='player' 21:20` in ~14.5 s.
+
+---
+
+## 4. Auto-Play Test (`auto_play_test.gd`)
 
 > **PR:** #349 | **Issue:** #297 | **Design:** `docs/DESIGN/297-ai-auto-play-test.md`
 
@@ -121,7 +177,7 @@ Match 100: Ai wins — 3 games (P A A) [246 frames] ✅
 
 ---
 
-## 4. Running Tests
+## 5. Running Tests
 
 ```bash
 # Full suite (all 13 test suites, 1002 tests)
@@ -142,7 +198,7 @@ Match 100: Ai wins — 3 games (P A A) [246 frames] ✅
 
 ---
 
-## 5. Test Coverage Map
+## 6. Test Coverage Map
 
 | Subsystem | Test File | Tests | Type |
 |-----------|-----------|:-----:|:----:|
@@ -164,7 +220,7 @@ Match 100: Ai wins — 3 games (P A A) [246 frames] ✅
 
 ---
 
-## 6. Local E2E Review Harness (`run-e2e-review.sh`)
+## 7. Local E2E Review Harness (`run-e2e-review.sh`)
 
 > **PR:** #377 | **Issue:** #372 | **Design:** `docs/DESIGN/372-e2e-harness-fixes.md`
 

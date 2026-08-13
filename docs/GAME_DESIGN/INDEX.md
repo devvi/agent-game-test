@@ -2,7 +2,7 @@
 
 | File | Description |
 |------|-------------|
-| [09-TESTING](09-TESTING.md) | Testing system — headless test runner, auto-play test, coverage map |
+| [09-TESTING](09-TESTING.md) | Testing system — headless test runner, E2E Playthrough (真实物理完整一局), auto-play test, local E2E review harness (L0-L3), coverage map |
 | [INDEX](INDEX.md) | Table of contents |
 | [10-SCENE-LAYOUT](10-SCENE-LAYOUT.md) | 3D scene layout — floor, walls, collision |
 | [11-PLAYER-PADDLE](11-PLAYER-PADDLE.md) | Player paddle & AI opponent — InputMap, movement, clamp, AI mode |

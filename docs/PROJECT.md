@@ -8,7 +8,7 @@
 | 可运行 | ✅ 能启动 |
 | 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D)、失败屏(win/fail双分支+run数据+软冻结) |
 | 最近构建 | 2026-08-13 |
-| 开放 Issues | 10（含 #395/#396 内容草稿待定稿） |
+| 开放 Issues | 1 |
 
 ## 模块地图
 
@@ -35,6 +35,7 @@
 | Mini Pong — Pause Overlay | `mini-pong/gdscripts/pause_overlay.gd` | ✅ | GDD |
 | Mini Pong — Audio Engine | `mini-pong/gdscripts/audio_engine.gd` | ✅ | GDD |
 | Mini Pong — Test Suite | `mini-pong/tests/run_tests.gd` | ✅ | GDD |
+| Mini Pong — E2E Playthrough 测试 | `mini-pong/tests/e2e_playthrough.gd` + `playthrough_test.tscn` + `playthrough_driver.gd` | ✅ | GDD |
 | E2E Review Harness | `scripts/run-e2e-review.sh` + `scripts/e2e/analyze_bmp.py` + `framework/templates/e2e_capture.gd` | ✅ | GDD |
 
 ## 功能
@@ -53,6 +54,7 @@
 | 296 | 暂停与音效 (Escape切换 + AudioStreamGenerator合成) | ✅ 已合并 | DESIGN / GDD |
 | 295 | 主场景组装 (Main.tscn + constants.gd + ScoreZones + ScoreFlash) | ✅ 已合并 | DESIGN / GDD |
 | 297 | 100回合AI自动对打测试 | ✅ 已合并 | DESIGN / GDD |
+| 394 | 端到端可玩验证 (AI vs AI 真实物理完整一局 E2E 测试 + L2 全链路 autoplay 驱动) | ✅ 已合并 | DESIGN / GDD |
 | 358 | Mini Pong 标题画面版本号 v1.0.0 | ✅ 已合并 | DESIGN / GDD |
 | 367 | Mini Pong 手感校准草稿 (球速/反弹角/AI 强度) | 🧪 草稿已合并，待用户定稿 | DESIGN / TASTE |
 | 378 | Mini Pong 正式命名定稿 — PONG://NEON (B2 命名) | ✅ 已定稿（用户裁决） | DESIGN / TASTE |
