@@ -183,7 +183,7 @@ func _test_tc5_start_menu_labels() -> void:
 	var title: Label = instance.get_node_or_null("CenterContainer/VBoxContainer/TitleLabel")
 	_assert(title != null, "TC5-2: TitleLabel exists")
 	if title:
-		_assert(title.text == "PONG://NEON", "TC5-3: TitleLabel text is 'PONG://NEON'")
+		_assert(title.text == "PONG://21", "TC5-3: TitleLabel text is 'PONG://21'")
 		_assert(title.horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER, "TC5-4: TitleLabel centered")
 		_assert(title.get("theme_override_font_sizes/font_size") >= 48, "TC5-5: TitleLabel font_size >= 48")
 
