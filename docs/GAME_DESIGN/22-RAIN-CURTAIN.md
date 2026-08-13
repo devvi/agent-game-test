@@ -1,7 +1,7 @@
 # L0 Rain Curtain — 动态雨幕 (Dynamic Rain Curtain)
 
 > Reference: ../DESIGN/389-dynamic-rain-curtain.md · PRD ../PRD/389-dynamic-rain-curtain.md
-> Merged: #416 (2026-08-13) · Issue #389
+> Merged: #416 (2026-08-13) · Issue #389 · Fix: #472 (2026-08-13) · Issue #465
 
 ## Overview
 
@@ -108,8 +108,40 @@ human finalization — does not block this issue.
 
 ## Testing
 
-`tests/test_rain.gd` — 48 cases: clamp dual boundaries / formula monotonicity /
+`tests/test_rain.gd` — 70 cases: clamp dual boundaries / formula monotonicity /
 tension equality edge / smooth no-jump ≤20% / 0.5 s convergence 95%+ / event pulse
 1.5 s monotonic decay / contract defaults / NaN guard / resource integrity.
 E2E: `e2e_shots.json` loop archetype hits `rain_curtain.gd`; 01_title/02_midgame/
 03_gameover screenshots carry the curtain through 4-fold anti-fake assertions.
+
+## #465 修复：全屏均匀雨滴分布 (2026-08-13, merged #472)
+
+> 漏水点根因 = D1（`visibility_rect` 缺省 → Godot 默认局部 `Rect2(-100,-100,200,200)` 剔除发射区边缘粒子）
+> + D2（`emission_rect_extents=Vector2(360,8)` 半宽语义 → 发射区仅 16px 高顶部窄带）。
+> 修复为**纯静态配置修正 + 基值对齐**：零新节点/脚本/依赖，#389 调制契约（禁写 `amount`、公式引擎、契约 API）零改动。
+
+### 发射几何（rain_curtain.tscn）
+
+| 参数 | 修复前 (#389) | 修复后 (#465) | 语义 |
+|------|--------------|--------------|------|
+| `Particles.position` | `(360, -20)` | `(360, 640)` | 节点居中 → 局部坐标与屏幕对齐（注释绑定 position↔visibility_rect） |
+| `emission_rect_extents` | `(360, 8)` | `(360, 640)` | 半宽语义 → 全屏 720×1280 发射区 |
+| `visibility_rect` | 缺省 `(-100,-100,200,200)` | `(-360,-640,720,1280)` | 全屏可视窗口（D1 剔除修复核心） |
+| `amount` | 400 | 600 | 规范带 400–800 中值（静态配置，仍禁运行时写入） |
+| `spread` | 6.0 | 8.0 | 斜落方向一致（∈[6,10]） |
+| `initial_velocity_min/max` | 700/900 | 800/1200 | 基值对齐规范带 |
+| `scale_min/max` | 0.7/1.3 | 0.5/1.2 | 基值对齐规范带 |
+| `color` alpha | 0.45 | 0.225 | 基值对齐（运行时被公式覆盖） |
+
+### 基值常量（rain_curtain.gd）
+
+- `BASE_VELOCITY_MIN/MAX` 800/1200、`BASE_SCALE_MIN/MAX` 0.5/1.2
+- alpha 公式 `tint.a = 0.15 + 0.25 * r`：默认雨 r=0.3 → 0.225、风暴 r=1.0 → 0.40，全带 ∈ [0.2, 0.4]
+- `amount` 红线保持：gd 无任何 `amount =` 写入（TC-B4 钉死）
+
+### 测试新增（test_rain.gd，48 → 70 cases）
+
+- **TC-A1–A7**：tscn 静态配置断言（position / emission rect / visibility_rect / amount / spread / 速度 / scale / alpha 带）
+- **TC-B1–B4**：gd 基值常量 + alpha 公式行为（r=0.3→0.225、r=1.0→0.40）+ amount 红线回归
+
+E2E 验证（本地 review, 2026-08-13）：L1 全量 2254 passed 0 failed；02_midgame 真实渲染截图 4 重反伪造断言通过（雨幕在 PLAYING 状态全屏渲染）。
