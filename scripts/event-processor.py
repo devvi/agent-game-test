@@ -344,6 +344,37 @@ def check_dependency_resolved(dep: dict) -> bool:
     return False
 
 
+# ── Closed-issues cache (2026-08-13) ──────────────────────────────
+# `gh issue list --state open` only sees open issues. A dependency missing
+# from that cache is CLOSED — but "closed" ≠ "resolved" (status/done).
+# #384/#390 were closed early WITHOUT status/done while their code only
+# landed in the still-unmerged #444; treating them as resolved let #393
+# advance on un-landed work. Lazy-fetch closed issues once per tick to
+# distinguish legit completion from suspicious early closure.
+_CLOSED_ISSUES_CACHE: dict = {}
+
+
+def _ensure_closed_issues_cache(force_refresh=False) -> dict:
+    """Map of closed issue number → label names (cached, 30s TTL)."""
+    now = time.time()
+    cached = _CLOSED_ISSUES_CACHE.get("issues")
+    fetched_at = _CLOSED_ISSUES_CACHE.get("fetched_at", 0)
+    if not force_refresh and cached and (now - fetched_at) < _GH_CACHE_TTL:
+        return cached
+    result = {}
+    raw = gh("issue", "list", "--state", "closed",
+             "--json", "number,labels", "--limit", "100")
+    if raw:
+        try:
+            for iss in json.loads(raw):
+                result[iss["number"]] = [l.get("name", "") for l in iss.get("labels", [])]
+        except (json.JSONDecodeError, KeyError):
+            pass
+    _CLOSED_ISSUES_CACHE["issues"] = result
+    _CLOSED_ISSUES_CACHE["fetched_at"] = now
+    return result
+
+
 def _has_unresolved_dependencies(issue_num: int) -> list[dict]:
     """Check if an issue has unresolved dependencies.
     Uses cached issue data (body + labels) instead of gh API calls.
@@ -372,7 +403,17 @@ def _has_unresolved_dependencies(issue_num: int) -> list[dict]:
         # If dependency issue is NOT in the open-issues cache, it must be
         # CLOSED — only open issues are returned by --state open.
         if cached is None:
-            continue  # closed = resolved
+            # 2026-08-13: closed ≠ resolved. A closed dep WITHOUT status/done
+            # (or status/human-review 定稿) is a suspicious early closure
+            # (e.g. #384/#390 closed while their code only landed in the
+            # unmerged #444). Block dependents — do NOT advance on un-landed
+            # work. This closes the "CLOSED Dependency = Resolved" hole
+            # documented in event-processor-dependency-parsing.
+            closed_labels = _ensure_closed_issues_cache().get(dep_num, [])
+            if "status/done" in closed_labels or "status/human-review" in closed_labels:
+                continue  # legitimately completed
+            unresolved.append({**dep, "closed_without_done": True})
+            continue
         
         # Got cached data — check labels
         dep_labels = [l.get("name","") for l in cached.get("labels",[])]
@@ -494,29 +535,43 @@ def _extract_parent_issue(pr_num: int) -> Optional[int]:
     return None
 
 
+def _pr_matches_issue(pr: dict, issue: int) -> bool:
+    """Client-side PR↔issue match: branch-prefix convention OR body/title
+    reference. GitHub's `--search head:...` qualifier is unreliable
+    (Patch 59, 2026-07-29: returns [] even for existing PRs), so all
+    PR-exists checks must use this deterministic matcher instead."""
+    head = pr.get("headRefName", "") or ""
+    body = pr.get("body", "") or ""
+    title = pr.get("title", "") or ""
+    if f"/{issue}-" in head or f"/{issue}/" in head or head.endswith(f"/{issue}"):
+        return True
+    if re.search(rf"(?:Parent|Closes|parent)\s*#{issue}\b", body):
+        return True
+    if re.search(rf"\(\s*#{issue}\s*\)|\b#{issue}\b", title):
+        return True
+    return False
+
+
 def _pr_exists_for_issue(stage: str, issue: int) -> bool:
     """Check if a GitHub PR already exists for this stage+issue combination.
     Returns True if a PR exists (SPAWN should be skipped).
+    Uses deterministic client-side matching over `gh pr list --state all`
+    (no --search qualifier — unreliable per Patch 59). The gh() 30s cache
+    makes repeated calls within a tick cheap.
     On error (gh unavailable, timeout), returns False so spawn still happens."""
     prefix = STAGE_BRANCH_PREFIX.get(stage)
     if not prefix:
         return False
-    branch = f"{prefix}{issue}"
+    raw = gh("pr", "list", "--state", "all",
+             "--json", "number,headRefName,body,title,state",
+             "--limit", "100")
+    if not raw:
+        return False
     try:
-        result = subprocess.run(
-            ["gh", "pr", "list",
-             "--search", f"head:{branch}",
-             "--json", "number",
-             "--jq", "length",
-             "--limit", "1"],
-            capture_output=True, text=True, timeout=10
-        )
-        if result.returncode == 0:
-            count = int(result.stdout.strip() or "0")
-            return count > 0
-    except (subprocess.TimeoutExpired, ValueError, OSError):
-        pass
-    return False  # on error, spawn anyway (cautious)
+        prs = json.loads(raw)
+    except json.JSONDecodeError:
+        return False
+    return any(_pr_matches_issue(p, issue) for p in prs)
 
 
 WORKDIR = os.path.expanduser("~/workspace/agent-game-test")
@@ -709,8 +764,48 @@ def _pick_candidates(limit: int) -> list[int]:
 # spawn gate records (issue, stage, ts) and suppresses re-emission within
 # TTL, so a phase agent gets ONE spawn per attempt. If the agent dies, the
 # TTL expiry re-enables spawning; PR creation stops it permanently.
+#
+# 2026-08-13: the gate now ALSO covers the webhook/reconcile SPAWN path in
+# preprocess() (see _spawn_gate calls there). The picker path was gated but
+# reconcile() re-injected issues.labeled events every tick, so the label
+# path re-emitted SPAWN every tick → 5 research + 3 plan + 6 implement
+# spawns for #393 in 30 min (07:15-07:45 audit). Shared gate = one spawn
+# per (issue, stage) per TTL regardless of which path fires first.
 _SPAWN_STATE_FILE = os.path.expanduser("~/.hermes/.spawned-state.json")
-_SPAWN_TTL_SECONDS = 1800  # 30 min
+# Stage-aware TTL: research agents routinely take 30-70 min to push a PR.
+# A uniform 30-min TTL would re-spawn a live-but-slow research agent. PR
+# existence stops spawning permanently (deterministic check, see
+# _pr_exists_for_issue).
+_SPAWN_TTL_BY_STAGE = {
+    "research": 5400,      # 90 min
+    "plan": 3600,          # 60 min
+    "implement": 3600,     # 60 min
+    "self-correct": 1800,  # 30 min
+}
+_SPAWN_TTL_SECONDS = _SPAWN_TTL_BY_STAGE["plan"]  # legacy uniform value (tests)
+
+
+# ── Stage ordering (2026-08-13, stale-stage guard) ─────────────────
+STAGE_ORDER = {
+    "workflow/available": 0,
+    "workflow/research": 1,
+    "workflow/plan": 2,
+    "workflow/implement": 3,
+    "workflow/self-correct": 4,
+}
+
+
+def _current_issue_labels(issue_num: int) -> list:
+    """Current labels for an open issue from the per-tick cache.
+    Defensive: on gh failure (e.g. mocked-down in tests, transient API
+    error) return [] so the stale-stage guard never blocks preprocess."""
+    try:
+        for iss in _ensure_issues_cache():
+            if iss.get("number") == issue_num:
+                return [l.get("name", "") for l in iss.get("labels", [])]
+    except Exception:
+        pass
+    return []
 
 
 def _read_spawn_state() -> dict:
@@ -741,7 +836,8 @@ def _spawn_gate(issue: int, stage: str) -> bool:
         state = _read_spawn_state()
         prev = state.get(str(issue), {})
         now = time.time()
-        if prev.get("stage") == stage and now - prev.get("ts", 0) < _SPAWN_TTL_SECONDS:
+        ttl = _SPAWN_TTL_BY_STAGE.get(stage, _SPAWN_TTL_SECONDS)
+        if prev.get("stage") == stage and now - prev.get("ts", 0) < ttl:
             return False
         state[str(issue)] = {"stage": stage, "ts": now}
         _write_spawn_state(state)
@@ -799,23 +895,69 @@ def pick_next_issue():
                     print(f"SPAWN: implement,issue={n},label=workflow/implement")
 
 
+# ── Reconcile label-state (2026-08-13) ────────────────────────────
+# reconcile() previously re-injected issues.labeled events for EVERY open
+# issue at EVERY active stage label on EVERY tick. Combined with the then-
+# ungated preprocess SPAWN path, this re-emitted SPAWN every tick → 14
+# duplicate agent spawns for #393 in 30 min (07:15-07:45 audit: 5 research
+# + 3 plan + 6 implement). Fix: track last-injected (issue, label) and only
+# inject on CHANGE — or after RECONCILE_REINJECT_AGE as a slow self-heal
+# fallback for lost webhooks. A >5-min tick gap (crash/pause) clears the
+# state so the next tick re-injects current GitHub state once.
+RECONCILE_LABEL_STATE_FILE = os.path.expanduser("~/.hermes/.reconcile-labels.json")
+RECONCILE_REINJECT_AGE = 3600     # 1h — slow fallback for lost webhooks
+RECONCILE_TICK_GAP_RESET = 300    # 5min — crash/pause recovery
+
+
+def _read_reconcile_label_state() -> dict:
+    try:
+        with open(RECONCILE_LABEL_STATE_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _write_reconcile_label_state(state: dict) -> None:
+    try:
+        tmp = RECONCILE_LABEL_STATE_FILE + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(state, f)
+        os.replace(tmp, RECONCILE_LABEL_STATE_FILE)
+    except Exception:
+        pass
+
+
 def reconcile():
     """After crash or pause resume: check GitHub state vs pending events.
     Uses cached issue list — iterates open issues once instead of
-    5 separate gh issue list calls."""
+    5 separate gh issue list calls.
+    Only injects label events on CHANGE (2026-08-13): a label already
+    injected within RECONCILE_REINJECT_AGE is not re-injected, so a
+    consumed event stays consumed. A tick gap > RECONCILE_TICK_GAP_RESET
+    clears the seen-state (crash recovery → full re-injection once)."""
     events = []
     try:
         events = read_pending()
     except Exception:
         pass
     existing_keys = {e.get("_key") for e in events}
-    
+    state: dict = _read_reconcile_label_state()
+    now = time.time()
+    # Crash/pause recovery: if we missed >5 min of ticks, forget seen
+    # labels so the next tick re-injects the current GitHub state once.
+    last_tick = state.get("_last_tick_ts", 0)
+    if last_tick and now - last_tick > RECONCILE_TICK_GAP_RESET:
+        state = {"_last_tick_ts": now}
+    else:
+        state["_last_tick_ts"] = now
+
     reconcile_labels = [
         "workflow/available", "workflow/research", "workflow/plan",
         "workflow/implement", "workflow/self-correct",
     ]
-    
+
     issues = _ensure_issues_cache()
+    injected = False
     for iss in issues:
         label_names = [l.get("name", "") for l in iss.get("labels", [])]
         n = iss["number"]
@@ -823,17 +965,24 @@ def reconcile():
             if label not in label_names:
                 continue
             event_key = f"issues.labeled#{n}:{label}"
-            if event_key not in existing_keys:
-                events.append({
-                    "_key": event_key,
-                    "type": "issues.labeled",
-                    "issue": n,
-                    "repo": PROJECT_REPO,
-                    "ts": time.time(),
-                    "label": label,
-                })
-    
-    if events:
+            if event_key in existing_keys:
+                continue  # real webhook event already queued
+            seen = state.get(str(n), {}).get(label, 0)
+            if seen and now - seen < RECONCILE_REINJECT_AGE:
+                continue  # already reconciled recently — one-shot consumed
+            events.append({
+                "_key": event_key,
+                "type": "issues.labeled",
+                "issue": n,
+                "repo": PROJECT_REPO,
+                "ts": now,
+                "label": label,
+            })
+            state.setdefault(str(n), {})[label] = now
+            injected = True
+
+    if injected:
+        _write_reconcile_label_state(state)
         write_pending(events)
 
 
@@ -1138,9 +1287,36 @@ def preprocess():
                 # Dedup: check if a PR already exists for this stage+issue
                 # before generating SPAWN (prevents redundant re-spawns).
                 issue_int = int(issue) if not isinstance(issue, int) else issue
+                # ── Stale-stage guard (2026-08-13) ──
+                # A label event for an EARLIER stage than the issue's current
+                # stage is stale — e.g. workflow/available lingering while the
+                # issue is already at workflow/implement (workflow-chain.yml
+                # only removed the immediate previous stage). Never spawn a
+                # backward stage (observed: phantom `SPAWN: research` for #393
+                # at 07:31 while the issue was already at plan/implement).
+                cur_stage = max(
+                    (STAGE_ORDER.get(l, -1) for l in _current_issue_labels(issue_int)),
+                    default=-1,
+                )
+                if STAGE_ORDER.get(label, -1) < cur_stage:
+                    event_key = event.get("_key", "")
+                    if event_key:
+                        discarded_keys.add(event_key)
+                    continue
                 if _pr_exists_for_issue(stage, issue_int):
                     # PR already exists — skip spawn, let flow continue via PR.
                     # Clean up from pending to avoid re-processing.
+                    event_key = event.get("_key", "")
+                    if event_key:
+                        discarded_keys.add(event_key)
+                    continue
+                # ── Spawn gate (2026-08-13) ──
+                # reconcile() re-injects label events; without a shared gate
+                # this path re-emits SPAWN every tick → duplicate agents
+                # (observed: 5 research + 3 plan + 6 implement spawns for
+                # #393, 07:15-07:45 audit). The picker path was already gated
+                # (canary #358); the webhook/reconcile path must share it.
+                if not _spawn_gate(issue_int, stage):
                     event_key = event.get("_key", "")
                     if event_key:
                         discarded_keys.add(event_key)
@@ -1228,55 +1404,46 @@ def preprocess():
 
 def _quick_stalled_scan():
     """Deterministic stalled PR scan. Outputs explicit STALLED commands.
-    
+
     Runs in <5 seconds (gh API only, no godot, no file reads).
-    Returns list of STALLED lines for the cron agent to execute.
-    """
+    NOTE (2026-08-13): the `--search head:... in:headRefName` qualifier is
+    unreliable (Patch 59 — returns [] even for existing PRs, intermittently).
+    A plain `gh pr list --state open` + client-side prefix filter is used so
+    impl PRs like #444 are never missed by the review re-spawn fallback."""
     cmds = []
-    
-    # 1. Check for stalled research/plan PRs (open + mergeable → merge)
-    for prefix in ("research/", "plan/"):
-        raw = gh("pr", "list", "--state", "open",
-                 "--search", f"head:{prefix} in:headRefName",
-                 "--json", "number,headRefName,mergeable", "--limit", "10")
-        if not raw:
+
+    # 1. Fetch open PRs once, filter client-side by branch prefix
+    raw = gh("pr", "list", "--state", "open",
+             "--json", "number,headRefName,mergeable,labels,body,title,state",
+             "--limit", "100")
+    if not raw:
+        return cmds
+    try:
+        prs = json.loads(raw)
+    except json.JSONDecodeError:
+        return cmds
+    for pr in prs:
+        # 🛡️ Verify PR is actually still OPEN (API caching may return stale merged PRs)
+        if pr.get("state") != "OPEN":
             continue
-        try:
-            prs = json.loads(raw)
-        except json.JSONDecodeError:
-            continue
-        for pr in prs:
+        branch = pr.get("headRefName", "")
+        labels = [l["name"] for l in pr.get("labels", [])]
+        pr_num = pr["number"]
+
+        if branch.startswith("research/") or branch.startswith("plan/"):
+            # Stalled research/plan PR — merge if mergeable
             if pr.get("mergeable") == "MERGEABLE":
                 cmds.append(
-                    f"STALLED: merge-pr,pr={pr['number']},"
-                    f"branch={pr['headRefName']}"
+                    f"STALLED: merge-pr,pr={pr_num},"
+                    f"branch={branch}"
                 )
-
-    # 2. Check for stalled impl/* PRs
-    raw = gh("pr", "list", "--state", "open",
-             "--search", "head:impl/ in:headRefName",
-             "--json", "number,headRefName,labels", "--limit", "10")
-    if raw:
-        try:
-            prs = json.loads(raw)
-        except json.JSONDecodeError:
-            prs = []
-        for pr in prs:
-            labels = [l["name"] for l in pr.get("labels", [])]
-            branch = pr["headRefName"]
-            pr_num = pr["number"]
-            
+        elif branch.startswith("impl/"):
+            # Stalled impl PR — check CI status, then review or self-correct
             if "status/blocked" in labels:
-                # Blocked PR — needs unblock check (run main tests)
-                cmds.append(
-                    f"STALLED: check-unblock,pr={pr_num},branch={branch}"
-                )
+                cmds.append(f"STALLED: check-unblock,pr={pr_num},branch={branch}")
             else:
-                # Normal impl PR — check if CI green, spawn review if so
-                cmds.append(
-                    f"STALLED: check-review,pr={pr_num},branch={branch}"
-                )
-    
+                cmds.append(f"STALLED: check-review,pr={pr_num},branch={branch}")
+
     return cmds
 
 
@@ -1295,6 +1462,7 @@ def main():
         # for cross-call dedup within the tick.
         _ISSUES_CACHE.clear()
         _BODY_CACHE.clear()
+        _CLOSED_ISSUES_CACHE.clear()
         
         # Window entry detection: if we just entered work hours, reconcile + pick
         was_outside = False

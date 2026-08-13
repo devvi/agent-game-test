@@ -112,13 +112,27 @@ jobs:
                 issue_number: parentNumber,
                 labels: [nextLabel],
               });
-              await github.rest.issues.removeLabel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: parentNumber,
-                name: activeLabel,
-              }).catch(() => {});
-
+              // Label hygiene (2026-08-13): remove ALL workflow stage labels
+              // except nextLabel. Previously only activeLabel (the PR's own
+              // stage) was removed, so workflow/available lingered on every
+              // issue for its whole lifecycle → reconcile() re-injected it
+              // every tick → the ungated preprocess path spawned phantom
+              // research agents (14 duplicate spawns observed for #393).
+              const stageLabels = [
+                'workflow/available', 'workflow/research',
+                'workflow/plan', 'workflow/implement',
+                'workflow/self-correct',
+              ];
+              for (const sl of stageLabels) {
+                if (sl !== nextLabel) {
+                  await github.rest.issues.removeLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: parentNumber,
+                    name: sl,
+                  }).catch(() => {});
+                }
+              }
               console.log(`PR #${pr.number} merged → Issue #${parentNumber}: ${activeLabel} → ${nextLabel}`);
 
               // Close the issue ONLY when reaching status/done (mechanical).
@@ -165,12 +179,21 @@ jobs:
                 issue_number: parentNumber,
                 state: 'closed',
               });
-              await github.rest.issues.removeLabel({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: parentNumber,
-                name: activeLabel,
-              }).catch(() => {});
+              // Remove ALL workflow stage labels (hygiene, 2026-08-13) —
+              // same rationale as the advance branch above.
+              const stageLabels = [
+                'workflow/available', 'workflow/research',
+                'workflow/plan', 'workflow/implement',
+                'workflow/self-correct',
+              ];
+              for (const sl of stageLabels) {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: parentNumber,
+                  name: sl,
+                }).catch(() => {});
+              }
 
               console.log(`PR #${pr.number} merged → Issue #${parentNumber} closed (implement → done)`);
 

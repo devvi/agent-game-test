@@ -102,13 +102,18 @@ class TestUnresolvedDependencies(unittest.TestCase):
         unresolved = self._call([dep, parent])
         self.assertEqual(unresolved, [], "status/done dep = resolved")
 
-    def test_closed_dep_counts_as_resolved(self):
-        """Closed dependency (absent from open-issues cache) is resolved."""
+    def test_closed_dep_without_done_counts_as_unresolved(self):
+        """2026-08-13 semantics change: a CLOSED dependency without
+        status/done (or status/human-review) is a suspicious early closure
+        (#384/#390 closed while their code only landed in unmerged #444) —
+        it must NOT count as resolved. Dependents stay blocked."""
         # Only the parent is in the cache — dep #1 is closed (not listed)
         parent = self._issue(100, ["workflow/available"])
         parent["body"] = "## 前置依赖\nDepends on: #1\n"
         unresolved = self._call([parent])
-        self.assertEqual(unresolved, [], "closed dep = resolved")
+        self.assertEqual(len(unresolved), 1, "closed-without-done dep blocks")
+        self.assertEqual(unresolved[0]["issue"], 1)
+        self.assertTrue(unresolved[0].get("closed_without_done"))
 
 
 class TestEventPriority(unittest.TestCase):
@@ -255,12 +260,17 @@ class TestPreprocess(unittest.TestCase):
     def _events(self, *evs):
         return list(evs)
 
-    def _run_preprocess(self, events, fake_run=None):
+    def _run_preprocess(self, events, fake_run=None, spawn_state_file=None,
+                        issue_cache=None):
         # Mock the subprocess gh call inside preprocess (PR body lookup) so
         # tests stay hermetic and fast. Empty body → no parent match → falls
         # back to issue=PR number.
         if fake_run is None:
             fake_run = mock.Mock(return_value=mock.Mock(stdout=""))
+        if spawn_state_file is None:
+            spawn_state_file = os.path.join(tempfile.mkdtemp(), "spawned.json")
+        if issue_cache is None:
+            issue_cache = []
         with mock.patch.object(ep, "read_pending", return_value=events), \
              mock.patch.object(ep, "write_pending", return_value=None), \
              mock.patch("subprocess.run", fake_run), \
@@ -268,7 +278,10 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "_is_issue_closed", return_value=False), \
              mock.patch.object(ep, "_extract_parent_issue", return_value=None), \
              mock.patch.object(ep, "_is_pr_blocked", return_value=False), \
-             mock.patch.object(ep, "_parent_issue_blocked", return_value=False):
+             mock.patch.object(ep, "_parent_issue_blocked", return_value=False), \
+             mock.patch.object(ep, "_ensure_issues_cache", return_value=issue_cache), \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE", spawn_state_file), \
+             mock.patch.object(ep, "_GH_CACHE", {}):
             return ep.preprocess()
 
     def test_check_run_failure_spawns_self_correct(self):
@@ -515,6 +528,150 @@ class TestPreprocess(unittest.TestCase):
             out = ep.preprocess()
         self.assertEqual(out, [])
         self.assertEqual(written["events"], [])  # removed from file
+
+    # ── 2026-08-13 duplicate-spawn regression suite (#393 trace) ──
+    # Audit evidence: 5 research + 3 plan + 6 implement SPAWNs for #393 in
+    # 30 min (07:15-07:45). Three compounding bugs, each pinned by a test:
+    #   1. reconcile() re-injected label events every tick (test below)
+    #   2. preprocess label path had no spawn gate (test below)
+    #   3. `--search head:...` PR checks missed existing PRs (test below)
+
+    def test_label_event_spawn_gated_within_ttl(self):
+        """preprocess label path must share the spawn gate: a re-injected
+        label event (reconcile re-injects) must NOT re-emit SPAWN within
+        TTL — observed 6 duplicate implement agents for #393."""
+        ev = {"_key": "issues.labeled#393:workflow/implement",
+              "type": "issues.labeled", "issue": 393, "label": "workflow/implement"}
+        with tempfile.TemporaryDirectory() as td:
+            sf = os.path.join(td, "spawned.json")
+            first = self._run_preprocess(self._events(ev), spawn_state_file=sf)
+            second = self._run_preprocess(self._events(ev), spawn_state_file=sf)
+        self.assertTrue(any(l.startswith("SPAWN: implement,issue=393") for l in first),
+                        f"first tick must spawn: {first}")
+        self.assertFalse(any(l.startswith("SPAWN: implement,issue=393") for l in second),
+                         f"gate must suppress re-emission within TTL: {second}")
+
+    def test_label_event_skips_spawn_when_pr_exists(self):
+        """Deterministic PR check: a label event for a stage that already has
+        a PR must NOT spawn. The old `--search head:impl/393` intermittently
+        returned [] for existing PRs (Patch 59) → duplicate implement agents."""
+        ev = {"_key": "issues.labeled#393:workflow/implement",
+              "type": "issues.labeled", "issue": 393, "label": "workflow/implement"}
+
+        def fake_run(cmd, *a, **kw):
+            joined = " ".join(str(c) for c in cmd)
+            if "pr" in joined and "list" in joined:
+                return mock.Mock(stdout=json.dumps([
+                    {"number": 444, "headRefName": "impl/393-main-scene-assembly",
+                     "body": "Closes #393", "title": "feat(393): 主场景组装",
+                     "state": "OPEN"}
+                ]), returncode=0)
+            return mock.Mock(stdout="", returncode=1)
+
+        out = self._run_preprocess(self._events(ev), fake_run=fake_run)
+        self.assertFalse(any(l.startswith("SPAWN: implement,issue=393") for l in out),
+                         f"PR exists → must skip spawn: {out}")
+
+    def test_stale_stage_event_blocked(self):
+        """Stale workflow/available label (never removed on advance) injected
+        every tick → phantom `SPAWN: research` for an issue already at
+        workflow/implement (audit 07:31:26, #393). Backward-stage events must
+        be discarded."""
+        ev = {"_key": "issues.labeled#393:workflow/available",
+              "type": "issues.labeled", "issue": 393, "label": "workflow/available"}
+        issue = {"number": 393, "labels": [{"name": "workflow/available"},
+                                           {"name": "workflow/implement"}]}
+        out = self._run_preprocess(self._events(ev), issue_cache=[issue])
+        self.assertFalse(any(l.startswith("SPAWN: research,issue=393") for l in out),
+                         f"stale available event must not spawn research: {out}")
+
+    def test_reconcile_injects_label_event_once(self):
+        """reconcile() must not re-inject the same label event every tick
+        (it re-emitted SPAWN every tick → 14 duplicate spawns for #393).
+        Label state is tracked: an injected label is not re-injected within
+        RECONCILE_REINJECT_AGE."""
+        issue = {"number": 393, "labels": [{"name": "workflow/implement"}]}
+        written = []
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "RECONCILE_LABEL_STATE_FILE",
+                               os.path.join(td, "reconcile-labels.json")), \
+             mock.patch.object(ep, "read_pending", return_value=[]), \
+             mock.patch.object(ep, "_ensure_issues_cache", return_value=[issue]), \
+             mock.patch.object(ep, "write_pending", side_effect=written.append):
+            ep.reconcile()
+            first_count = len(written[-1]) if written else 0
+            written.clear()
+            ep.reconcile()
+        self.assertEqual(first_count, 1, "first reconcile injects the label event")
+        self.assertEqual(len(written), 0, "second reconcile must NOT re-inject")
+
+    def test_stalled_scan_finds_impl_pr(self):
+        """`--search head:impl/` returned [] intermittently → #444 sat 90 min
+        with CI green + 0 reviews (no STALLED ever emitted). The deterministic
+        client-side filter must find impl PRs."""
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "pr" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 444, "headRefName": "impl/393-main-scene-assembly",
+                     "mergeable": "MERGEABLE", "labels": [], "body": "Closes #393",
+                     "title": "feat(393)", "state": "OPEN"}
+                ])
+            return ""
+        with mock.patch.object(ep, "gh", side_effect=fake_gh):
+            cmds = ep._quick_stalled_scan()
+        self.assertTrue(any("STALLED: check-review,pr=444" in c for c in cmds),
+                        f"stalled scan must see impl PR: {cmds}")
+
+    def test_stalled_scan_merges_stalled_research_pr(self):
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "pr" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 450, "headRefName": "research/380-x",
+                     "mergeable": "MERGEABLE", "labels": [], "body": "Parent #380",
+                     "title": "research", "state": "OPEN"}
+                ])
+            return ""
+        with mock.patch.object(ep, "gh", side_effect=fake_gh):
+            cmds = ep._quick_stalled_scan()
+        self.assertTrue(any("STALLED: merge-pr,pr=450" in c for c in cmds),
+                        f"stalled scan must merge mergeable research PR: {cmds}")
+
+    # ── 2026-08-13 dependency-hole regression tests (#384/#390 trace) ──
+    # Closed ≠ resolved: #384/#390 were closed early WITHOUT status/done while
+    # their code only landed in the unmerged #444 — old logic treated them as
+    # resolved and let #393 advance on un-landed work.
+
+    def test_dep_closed_without_done_is_unresolved(self):
+        issue = {"number": 100, "labels": [{"name": "workflow/backlog"}],
+                 "body": "## 前置依赖\n#5\n"}
+        with mock.patch.object(ep, "_ensure_issues_cache", return_value=[issue]), \
+             mock.patch.object(ep, "_ensure_closed_issues_cache",
+                               return_value={5: ["enhancement"]}):
+            unresolved = ep._has_unresolved_dependencies(100)
+        self.assertEqual(len(unresolved), 1)
+        self.assertEqual(unresolved[0]["issue"], 5)
+        self.assertTrue(unresolved[0].get("closed_without_done"))
+
+    def test_dep_closed_with_done_is_resolved(self):
+        issue = {"number": 101, "labels": [{"name": "workflow/backlog"}],
+                 "body": "## 前置依赖\n#6\n"}
+        with mock.patch.object(ep, "_ensure_issues_cache", return_value=[issue]), \
+             mock.patch.object(ep, "_ensure_closed_issues_cache",
+                               return_value={6: ["status/done"]}):
+            unresolved = ep._has_unresolved_dependencies(101)
+        self.assertEqual(unresolved, [])
+
+    def test_dep_closed_human_review_is_resolved(self):
+        """v4 人机共做: 用户 close 定稿后的 taste-draft 依赖视为已满足。"""
+        issue = {"number": 102, "labels": [{"name": "workflow/backlog"}],
+                 "body": "## 前置依赖\n#7\n"}
+        with mock.patch.object(ep, "_ensure_issues_cache", return_value=[issue]), \
+             mock.patch.object(ep, "_ensure_closed_issues_cache",
+                               return_value={7: ["status/human-review"]}):
+            unresolved = ep._has_unresolved_dependencies(102)
+        self.assertEqual(unresolved, [])
 
 
 class TestPickCandidates(unittest.TestCase):
