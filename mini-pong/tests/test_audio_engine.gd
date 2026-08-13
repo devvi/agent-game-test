@@ -22,6 +22,10 @@ func run() -> void:
 	_test_tc11_game_over_fade_out()
 	_test_tc12_headless_noop()
 	_test_tc13_audioengine_null_safety()
+	_test_tc14_brick_break_frame_count()
+	_test_tc15_brick_break_decay_envelope()
+	_test_tc16_brick_break_determinism()
+	_test_tc17_brick_break_headless_noop()
 
 
 # ── Helpers ──
@@ -215,6 +219,93 @@ func _test_tc13_audioengine_null_safety() -> void:
 		safe_call_works = false  # This branch should NOT execute
 	# Should fall through to here
 	_assert(safe_call_works, "TC13.2: null-guarded call pattern works (no crash)")
+
+
+# ── Scenario E: Brick Break Sound (#450, TC14-TC17) ──
+
+func _test_tc14_brick_break_frame_count() -> void:
+	"""TC14: play_brick_break() produces ~44100 × BRICK_BREAK_DURATION frames (80ms → 3528)."""
+	var CONSTS = load("res://gdscripts/constants.gd")
+	var ae = _make_audio_engine()
+	var playback = ae._playback
+
+	playback.clear_buffer()
+	ae.play_brick_break()
+
+	var frame_count = playback.frames.size()
+	_assert(frame_count > 0, "TC14.1: brick_break produced frames (got %d)" % frame_count)
+
+	var expected_samples = int(44100 * CONSTS.BRICK_BREAK_DURATION)
+	_assert(_approx_eq(float(frame_count) / expected_samples, 1.0, 0.02),
+		"TC14.2: ~%d frames for %ss brick_break (got %d)" % [expected_samples, CONSTS.BRICK_BREAK_DURATION, frame_count])
+
+
+func _test_tc15_brick_break_decay_envelope() -> void:
+	"""TC15: brick_break has fast exponential decay — early-segment mean > late-segment mean × 3."""
+	var ae = _make_audio_engine()
+	var playback = ae._playback
+
+	playback.clear_buffer()
+	ae.play_brick_break()
+
+	var frames = playback.frames
+	_assert(frames.size() > 10, "TC15.1: enough frames to analyze (%d)" % frames.size())
+
+	# Split into two halves: early (first 25%) vs late (last 25%)
+	var quarter = int(frames.size() / 4)
+	var early_sum := 0.0
+	var late_sum := 0.0
+	for i in range(quarter):
+		early_sum += abs(frames[i].x)
+	for i in range(frames.size() - quarter, frames.size()):
+		late_sum += abs(frames[i].x)
+	var early_avg = early_sum / quarter
+	var late_avg = late_sum / quarter
+
+	_assert(early_avg > late_avg * 3.0,
+		"TC15.2: early avg (%.4f) > late avg (%.4f) × 3 — decay envelope present" % [early_avg, late_avg])
+
+
+func _test_tc16_brick_break_determinism() -> void:
+	"""TC16: same seed → two calls produce identical frame sequences (deterministic synthesis)."""
+	var ae = _make_audio_engine()
+	var playback = ae._playback
+
+	playback.clear_buffer()
+	ae.play_brick_break()
+	var frames_a = playback.frames.duplicate()
+
+	playback.clear_buffer()
+	ae.play_brick_break()
+	var frames_b = playback.frames.duplicate()
+
+	_assert(frames_a.size() == frames_b.size(),
+		"TC16.1: same frame count across calls (%d vs %d)" % [frames_a.size(), frames_b.size()])
+
+	var identical := true
+	var first_diff := -1
+	for i in range(min(frames_a.size(), frames_b.size())):
+		if frames_a[i] != frames_b[i]:
+			identical = false
+			first_diff = i
+			break
+	_assert(identical, "TC16.2: deterministic frame sequence (first diff at index %d)" % first_diff)
+
+
+func _test_tc17_brick_break_headless_noop() -> void:
+	"""TC17: headless no-op — with _enabled=false, play_brick_break() no-ops without crash or frames."""
+	var ae_script = load("res://gdscripts/audio_engine.gd")
+	var ae = Node.new()
+	ae.set_script(ae_script)
+	ae.name = "AudioEngine"
+	ae._enabled = false
+	ae._playback = null
+
+	# Should no-op without error
+	ae.play_brick_break()
+	ae._play_noise_burst(0.08, 0.7, 450)
+
+	_assert(true, "TC17.1: play_brick_break() no-ops when _enabled=false (no crash)")
 
 
 # ── Local helpers ──
