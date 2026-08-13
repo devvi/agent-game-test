@@ -15,6 +15,7 @@
 [ext_resource type="Script" path="res://gdscripts/wave_controller.gd" id="14_wave_controller"]
 [ext_resource type="PackedScene" path="res://scenes/wave_transition.tscn" id="15_wave_transition"]
 [ext_resource type="PackedScene" path="res://scenes/ui_game_over.tscn" id="16_game_over_scene"]
+[ext_resource type="Script" path="res://gdscripts/bg_pulse.gd" id="17_bg_pulse"]
 
 [sub_resource type="RectangleShape2D" id="rect_wall_left"]
 size = Vector2(10, 1280)
@@ -31,6 +32,13 @@ size = Vector2(720, 20)
 
 [node name="AtmosphereLayer" type="CanvasLayer" parent="."]
 layer = 0
+
+[node name="BgPulse" type="ColorRect" parent="AtmosphereLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.29, 0.56, 0.85, 1)
+script = ExtResource("17_bg_pulse")
 
 [node name="RainCurtain" parent="AtmosphereLayer" instance=ExtResource("11_rain_curtain")]
 

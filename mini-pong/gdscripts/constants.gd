@@ -187,3 +187,11 @@ const UPGRADE_RARITY_COLORS: Dictionary = {         # AC3：稀有度 → 边框
 }
 const UPGRADE_RARITY_NAMES: Dictionary = {0: "普通", 1: "稀有", 2: "传说"}   # AC3 稀有度名称（确认后展示）
 
+
+# ── Background Pulse (#449) ──
+# 背景霓虹呼吸 (PLAN-rogue-pong §3.1 L0「背景光晕」执行层; 机制/常量 = mechanical,
+# 峰值不透明度与色调 = taste-draft, human-review 定稿, 调参零代码改动)
+const BG_PULSE_PERIOD: float = 4.0          # 呼吸周期 ~4s（AC1 默认，可配）
+const BG_PULSE_BASE_ALPHA: float = 0.08     # 基线 alpha
+const BG_PULSE_AMPLITUDE: float = 0.07      # 振幅 → alpha ∈ [0.01, 0.15]（克制 ≤15%，PLAN 暗角 ≤10% 同量级）
+const BG_PULSE_TINT: Color = Color(0.29, 0.56, 0.85, 1.0)  # 霓虹蓝同系（PLAYER_NEON_BLUE #4a90d9）
