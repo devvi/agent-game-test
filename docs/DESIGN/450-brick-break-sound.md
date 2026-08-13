@@ -7,7 +7,7 @@
 > **Reference PRD:** docs/PRD/450-brick-break-sound.md（research PR #453，已合并）
 > **上游方案:** docs/DESIGN/296-pause-and-sound.md §2.2（AudioEngine 合成音架构）+ docs/DESIGN/384-breakout-grid-brick-wall.md §4.1（brick.gd destroy() 语义）；PRD #384 §Stretch（play_brick_break 列为可选 Stretch，本 Issue 兑现延期链）
 > **所有权:** `content_ownership: mechanical`（合成音参数/触发接线 = 机械可测；音色/时长数值 = taste-draft，全部收敛于 `BRICK_BREAK_*` 常量交由 human-review 定稿，调参零代码改动）
-> **深度:** depth/standard —— 仅产出 DESIGN 文档；不产出 TASKS 文档（文件域 4 个、无迁移/弃用、单一音频子系统，未达 TASKS 阈值）；测试仅描述不写代码
+> **深度:** depth/standard —— 产出 DESIGN 文档 + 精简 TASKS 文档（operator 指引：worktree 并行测试 T3 需明确 AUDIO 区边界；文件域 4 个、无迁移/弃用、单一音频子系统，未达 skill TASKS 阈值）；测试仅描述不写代码
 > **并行上下文:** worktree 并行测试 T3 —— T1 #448（HUD 区，plan PR #454 已合并）/ T2 #449（BG 区）与本 Issue（AUDIO 区）同改 `constants.gd` 不同区，验证「提交前 merge main」自动合并。本 DESIGN 只改 docs，无代码冲突面
 
 ---
