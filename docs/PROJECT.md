@@ -6,7 +6,7 @@
 |------|:----:|
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
-| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D)、失败屏(win/fail双分支+run数据+软冻结) |
+| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D)、失败屏(win/fail双分支+run数据+软冻结)、球速 HUD 实时显示 |
 | 最近构建 | 2026-08-13 |
 | 开放 Issues | 1 |
 
@@ -66,6 +66,7 @@
 | 392 | Mini Pong 霓虹UI升级 (三区 HUD + 描边/微投影 + 按类信号 + 容错消费 BreakoutGrid) | ✅ 已合并 | DESIGN / GDD |
 | 391 | Mini Pong 失败屏 (win/fail 双分支 + 分档选句 + 三项 run 数据 + 终局软冻结) | ✅ 已合并 | DESIGN / GDD |
 | 388 | Mini Pong 3选1升级UI (波间三卡霓虹选择层 + 焦点环 + 确认后稀有度 reveal + 暂停/推进接管) | ✅ 已合并 | DESIGN / GDD |
+| 448 | Mini Pong 球速 HUD 显示 (GameHUD 实时球速数字, 10Hz Timer 轮询 round(speed) px/s) | ✅ 已合并 | DESIGN / GDD |
 
 ## 已知问题
 
