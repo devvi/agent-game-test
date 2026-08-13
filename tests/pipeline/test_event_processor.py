@@ -315,8 +315,8 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "is_paused", return_value=False), \
              mock.patch.object(ep, "_time_in_window", return_value=True), \
              mock.patch.object(ep, "health_check", return_value="ok"), \
-             mock.patch.object(ep, "reconcile"), \
-             mock.patch.object(ep, "pick_next_issue") as pick, \
+             mock.patch.object(ep, "pick_next_issue",
+                               return_value=[]) as pick, \
              mock.patch.object(ep, "reconcile_check_runs"), \
              mock.patch.object(ep, "_read_reconcile_state", return_value={}), \
              mock.patch.object(ep, "_write_reconcile_state"), \
@@ -339,8 +339,8 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "is_paused", return_value=False), \
              mock.patch.object(ep, "_time_in_window", return_value=True), \
              mock.patch.object(ep, "health_check", return_value="ok"), \
-             mock.patch.object(ep, "reconcile"), \
-             mock.patch.object(ep, "pick_next_issue") as pick, \
+             mock.patch.object(ep, "pick_next_issue",
+                               return_value=[]) as pick, \
              mock.patch.object(ep, "reconcile_check_runs"), \
              mock.patch.object(ep, "_read_reconcile_state", return_value={}), \
              mock.patch.object(ep, "_write_reconcile_state"), \
@@ -398,15 +398,12 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "_pick_candidates", return_value=[]), \
              mock.patch.object(ep, "_ensure_issues_cache",
                                return_value=[issue]), \
-             mock.patch("subprocess.run", fake_run), \
-             mock.patch("sys.stdout") as out:
-            ep.pick_next_issue()
-            first = "".join(str(c.args[0]) for c in out.write.call_args_list)
-            out.reset_mock()
-            ep.pick_next_issue()
-            second = "".join(str(c.args[0]) for c in out.write.call_args_list)
-        self.assertIn("SPAWN: plan,issue=358", first)
-        self.assertNotIn("SPAWN: plan,issue=358", second,
+             mock.patch("subprocess.run", fake_run):
+            first = ep.pick_next_issue()
+            second = ep.pick_next_issue()
+        self.assertTrue(any("SPAWN: plan,issue=358" in l for l in first),
+                        f"first tick must emit SPAWN: {first}")
+        self.assertFalse(any("SPAWN: plan,issue=358" in l for l in second),
                          "second tick within TTL must not re-emit SPAWN")
 
     def test_spawn_gate_reemits_after_ttl(self):
@@ -427,20 +424,19 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "_pick_candidates", return_value=[]), \
              mock.patch.object(ep, "_ensure_issues_cache",
                                return_value=[issue]), \
-             mock.patch("subprocess.run", fake_run), \
-             mock.patch("sys.stdout") as out:
-            ep.pick_next_issue()  # t=now → emits, records marker
-            out.reset_mock()
+             mock.patch("subprocess.run", fake_run):
+            first = ep.pick_next_issue()  # t=now → emits, records marker
             # advance clock past TTL
             old_time = ep.time.time
             ep.time.time = lambda: old_time() + ep._SPAWN_TTL_SECONDS + 10
             try:
-                ep.pick_next_issue()
+                second = ep.pick_next_issue()
             finally:
                 ep.time.time = old_time
-            after_ttl = "".join(str(c.args[0]) for c in out.write.call_args_list)
-        self.assertIn("SPAWN: plan,issue=359", after_ttl,
-                      "TTL expiry must allow re-spawn")
+        self.assertTrue(any("SPAWN: plan,issue=359" in l for l in first),
+                        f"first tick must emit SPAWN: {first}")
+        self.assertTrue(any("SPAWN: plan,issue=359" in l for l in second),
+                        "TTL expiry must allow re-spawn")
 
     def test_group_keeps_highest_priority_only(self):
         """Same issue with both a labeled event and a check_run event →
@@ -585,26 +581,6 @@ class TestPreprocess(unittest.TestCase):
         self.assertFalse(any(l.startswith("SPAWN: research,issue=393") for l in out),
                          f"stale available event must not spawn research: {out}")
 
-    def test_reconcile_injects_label_event_once(self):
-        """reconcile() must not re-inject the same label event every tick
-        (it re-emitted SPAWN every tick → 14 duplicate spawns for #393).
-        Label state is tracked: an injected label is not re-injected within
-        RECONCILE_REINJECT_AGE."""
-        issue = {"number": 393, "labels": [{"name": "workflow/implement"}]}
-        written = []
-        with tempfile.TemporaryDirectory() as td, \
-             mock.patch.object(ep, "RECONCILE_LABEL_STATE_FILE",
-                               os.path.join(td, "reconcile-labels.json")), \
-             mock.patch.object(ep, "read_pending", return_value=[]), \
-             mock.patch.object(ep, "_ensure_issues_cache", return_value=[issue]), \
-             mock.patch.object(ep, "write_pending", side_effect=written.append):
-            ep.reconcile()
-            first_count = len(written[-1]) if written else 0
-            written.clear()
-            ep.reconcile()
-        self.assertEqual(first_count, 1, "first reconcile injects the label event")
-        self.assertEqual(len(written), 0, "second reconcile must NOT re-inject")
-
     def test_stalled_scan_finds_impl_pr(self):
         """`--search head:impl/` returned [] intermittently → #444 sat 90 min
         with CI green + 0 reviews (no STALLED ever emitted). The deterministic
@@ -618,7 +594,10 @@ class TestPreprocess(unittest.TestCase):
                      "title": "feat(393)", "state": "OPEN"}
                 ])
             return ""
-        with mock.patch.object(ep, "gh", side_effect=fake_gh):
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "gh", side_effect=fake_gh):
             cmds = ep._quick_stalled_scan()
         self.assertTrue(any("STALLED: check-review,pr=444" in c for c in cmds),
                         f"stalled scan must see impl PR: {cmds}")
@@ -637,6 +616,156 @@ class TestPreprocess(unittest.TestCase):
             cmds = ep._quick_stalled_scan()
         self.assertTrue(any("STALLED: merge-pr,pr=450" in c for c in cmds),
                         f"stalled scan must merge mergeable research PR: {cmds}")
+
+    # ── 2026-08-13 event-driven restore (方案4 v2) ──────────────────
+    # Delete reconcile() synthetic event injection; the scheduler now emits
+    # research SPAWNs directly (picker promote + available rescan), all
+    # SPAWN/STALLED lines flow through the gate, and the stalled scan is
+    # self-correct aware. Each behavior below is pinned by a test.
+
+    def test_picker_promote_emits_research_spawn(self):
+        """Picker promote (backlog → available) must directly emit
+        SPAWN: research — no more webhook echo round-trip. The gate
+        records (issue, research) so a second tick does not re-spawn."""
+        issue = {"number": 500, "labels": [{"name": "workflow/backlog"}]}
+
+        def fake_run(cmd, *a, **kw):
+            joined = " ".join(str(c) for c in cmd)
+            if "issue" in joined and "edit" in joined:
+                return mock.Mock(stdout="ok", returncode=0)
+            if "pr" in joined and "list" in joined:
+                return mock.Mock(stdout="[]", returncode=0)
+            return mock.Mock(stdout="", returncode=1)
+
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "is_paused", return_value=False), \
+             mock.patch.object(ep, "current_workflow_count", return_value=0), \
+             mock.patch.object(ep, "_pick_candidates", return_value=[500]), \
+             mock.patch.object(ep, "_invalidate_issues_cache_for"), \
+             mock.patch.object(ep, "_ensure_issues_cache",
+                               return_value=[issue]), \
+             mock.patch("subprocess.run", fake_run):
+            first = ep.pick_next_issue()
+            second = ep.pick_next_issue()
+        self.assertIn("SPAWN: research,issue=500,label=workflow/research", first,
+                      f"promote must directly spawn research: {first}")
+        self.assertNotIn("SPAWN: research,issue=500", second,
+                         "gate must suppress re-spawn within TTL")
+
+    def test_picker_rescans_available_after_ttl(self):
+        """Dead research-agent recovery: an issue stuck at workflow/available
+        with no research PR is re-spawned after the research gate TTL."""
+        issue = {"number": 501, "labels": [{"name": "workflow/available"}]}
+
+        def fake_run(cmd, *a, **kw):
+            joined = " ".join(str(c) for c in cmd)
+            if "pr" in joined and "list" in joined:
+                return mock.Mock(stdout="[]", returncode=0)  # no PR exists
+            return mock.Mock(stdout="", returncode=1)
+
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "is_paused", return_value=False), \
+             mock.patch.object(ep, "current_workflow_count", return_value=9), \
+             mock.patch.object(ep, "_pick_candidates", return_value=[]), \
+             mock.patch.object(ep, "_ensure_issues_cache",
+                               return_value=[issue]), \
+             mock.patch("subprocess.run", fake_run):
+            first = ep.pick_next_issue()
+            old_time = ep.time.time
+            ep.time.time = lambda: old_time() + ep._SPAWN_TTL_BY_STAGE["research"] + 10
+            try:
+                second = ep.pick_next_issue()
+            finally:
+                ep.time.time = old_time
+        self.assertIn("SPAWN: research,issue=501,label=workflow/research", first,
+                      f"available issue must spawn research: {first}")
+        self.assertIn("SPAWN: research,issue=501,label=workflow/research", second,
+                      "TTL expiry must re-spawn a stalled available issue")
+
+    def test_picker_direct_and_webhook_echo_single_spawn(self):
+        """Direct picker spawn and the webhook echo (preprocess label path)
+        share one gate: whichever fires first, the second is suppressed
+        within TTL — exactly one SPAWN per (issue, stage) per TTL."""
+        issue = {"number": 502, "labels": [{"name": "workflow/available"}]}
+        ev = {"_key": "issues.labeled#502:workflow/available",
+              "type": "issues.labeled", "issue": 502, "label": "workflow/available"}
+
+        def fake_run(cmd, *a, **kw):
+            joined = " ".join(str(c) for c in cmd)
+            if "pr" in joined and "list" in joined:
+                return mock.Mock(stdout="[]", returncode=0)
+            return mock.Mock(stdout="", returncode=1)
+
+        with tempfile.TemporaryDirectory() as td:
+            sf = os.path.join(td, "spawned.json")
+            with mock.patch.object(ep, "_SPAWN_STATE_FILE", sf), \
+                 mock.patch.object(ep, "is_paused", return_value=False), \
+                 mock.patch.object(ep, "current_workflow_count", return_value=9), \
+                 mock.patch.object(ep, "_pick_candidates", return_value=[]), \
+                 mock.patch.object(ep, "_ensure_issues_cache",
+                                   return_value=[issue]), \
+                 mock.patch("subprocess.run", fake_run):
+                picker_lines = ep.pick_next_issue()
+            # webhook echo arrives next tick — same gate file
+            echo_lines = self._run_preprocess(self._events(ev),
+                                              spawn_state_file=sf,
+                                              issue_cache=[issue])
+        self.assertTrue(any("SPAWN: research,issue=502" in l for l in picker_lines),
+                        f"picker must emit the research spawn: {picker_lines}")
+        self.assertFalse(any("SPAWN: research,issue=502" in l for l in echo_lines),
+                         f"gate must dedup the webhook echo: {echo_lines}")
+
+    def test_stalled_scan_gated(self):
+        """The same impl PR scanned twice emits STALLED: check-review once —
+        the gate closes the 3b59ede hole (ungated per-tick review re-spawn)."""
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "pr" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 444, "headRefName": "impl/393-main-scene-assembly",
+                     "mergeable": "MERGEABLE", "labels": [], "body": "Closes #393",
+                     "title": "feat(393)", "state": "OPEN"}
+                ])
+            return ""
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "gh", side_effect=fake_gh):
+            first = ep._quick_stalled_scan()
+            second = ep._quick_stalled_scan()
+        self.assertTrue(any("STALLED: check-review,pr=444" in c for c in first),
+                        f"first scan must emit check-review: {first}")
+        self.assertFalse(any("STALLED: check-review,pr=444" in c for c in second),
+                         f"gate must suppress re-emission: {second}")
+
+    def test_stalled_scan_self_correct_aware(self):
+        """Parent issue already at workflow/self-correct (review agent's local
+        e2e failure) → STALLED: check-self-correct — not another review round."""
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "pr" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 460, "headRefName": "impl/393-main-scene-assembly",
+                     "mergeable": "MERGEABLE", "labels": [], "body": "Closes #393",
+                     "title": "feat(393)", "state": "OPEN"}
+                ])
+            return ""
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "gh", side_effect=fake_gh), \
+             mock.patch.object(ep, "_extract_parent_issue", return_value=393), \
+             mock.patch.object(ep, "_current_issue_labels",
+                               return_value=["workflow/self-correct"]):
+            cmds = ep._quick_stalled_scan()
+        self.assertTrue(any("STALLED: check-self-correct,pr=460" in c for c in cmds),
+                        f"self-correct-aware scan must emit check-self-correct: {cmds}")
+        self.assertFalse(any("STALLED: check-review,pr=460" in c for c in cmds),
+                         "must NOT emit check-review when parent is self-correcting")
 
     # ── 2026-08-13 dependency-hole regression tests (#384/#390 trace) ──
     # Closed ≠ resolved: #384/#390 were closed early WITHOUT status/done while

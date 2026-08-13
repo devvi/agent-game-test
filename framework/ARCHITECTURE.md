@@ -175,7 +175,7 @@ agent-game-test/
 - 需要手动配置 export preset
 - OpenCode 生成 GDScript 质量取决于模型能力
 - 多仓库 pending 事件（Patch 54）尚未支持 —— 单仓库假设, P3 manifest 参数化解决
-- webhook 链路（ngrok→gateway→route script）5 个故障点 —— stalled scan + check-run reconcile(P3b) 双兜底
+- webhook 链路（ngrok→gateway→route script）5 个故障点 —— 调度器状态检测兜底：label 事件丢失 → picker 直发/available 重扫（research）+ stalled scan（self-correct 感知）；check_run 丢失 → reconcile_check_runs（pr+sha 身份化对账）。reconcile() 合成事件注入已删除（2026-08-13）
 - **L3 截图阈值需按游戏校准**: 色数/帧间差异阈值、shot plan 可达性（如 ai_position_error）靠 deadline 失败反馈迭代, 游戏作者负责剧本
 - **单机依赖**: 本地 e2e 依赖 Mac mini 在线 + UURemote 防系统睡眠（外部依赖, 不在仓库内）
 - **runner 安全边界**: worktree 隔离防主工作区污染, 但不防恶意 GDScript 读主机文件——只对可信贡献者运行

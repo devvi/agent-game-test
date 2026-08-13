@@ -846,14 +846,16 @@ def _spawn_gate(issue: int, stage: str) -> bool:
         return True
 
 
-def pick_next_issue():
+def pick_next_issue() -> list:
     """Entry point: called after slot freed or at window entry.
     Fills up to MAX_CONCURRENT issues.
-    For research phase, directly creates the PR (deterministic).
-    For plan/implement phases, outputs SPAWN for each issue at
-    those labels that doesn't have a corresponding PR yet."""
+    Emits SPAWN lines for newly promoted issues (research), for
+    plan/implement issues without a PR yet, and for issues stuck at
+    workflow/available (dead-agent rescan). Returns the SPAWN line list
+    (no printing — main() owns the output via the unified lines pipeline)."""
+    spawn_lines: list = []
     if is_paused():
-        return
+        return spawn_lines
     
     # Pick from backlog — batch up to MAX_CONCURRENT at once
     current = current_workflow_count()
@@ -868,11 +870,14 @@ def pick_next_issue():
             if not r1 or not r2:
                 continue  # gh unavailable — retry next tick, don't corrupt cache
             _invalidate_issues_cache_for(n)
-            # Do NOT output SPAWN here — let webhook → pending → preprocess handle it.
-            # Preprocess() reads workflow/available events and outputs:
-            #   SPAWN: research,issue=N,label=workflow/research
+            # Direct research spawn (2026-08-13): the scheduler emits SPAWN
+            # itself right after promoting backlog → available — no longer
+            # relying on the webhook echo round-trip. The shared gate dedups
+            # against the webhook/reconcile label path.
+            if _spawn_gate(n, "research"):
+                spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
     
-    # Also output SPAWN for issues at plan/implement with no PR yet
+    # Also emit SPAWN for issues at plan/implement/available with no PR yet
     issues = _ensure_issues_cache()
     for iss in issues:
         labels = [l.get("name", "") for l in iss.get("labels", [])]
@@ -884,7 +889,7 @@ def pick_next_issue():
                           "--jq", "length")
             if existing is None or int(existing) == 0:
                 if _spawn_gate(n, "plan"):
-                    print(f"SPAWN: plan,issue={n},label=workflow/plan")
+                    spawn_lines.append(f"SPAWN: plan,issue={n},label=workflow/plan")
         elif "workflow/implement" in labels:
             existing = gh("pr", "list", "--state", "all",
                           "--search", f"head:impl/{n}- in:headRefName",
@@ -892,98 +897,15 @@ def pick_next_issue():
                           "--jq", "length")
             if existing is None or int(existing) == 0:
                 if _spawn_gate(n, "implement"):
-                    print(f"SPAWN: implement,issue={n},label=workflow/implement")
+                    spawn_lines.append(f"SPAWN: implement,issue={n},label=workflow/implement")
+        elif "workflow/available" in labels:
+            # Available rescan (2026-08-13): deterministic dead-agent recovery.
+            # An issue stuck at workflow/available with no research PR (agent
+            # died, label event lost) is re-spawned after the gate TTL.
+            if not _pr_exists_for_issue("research", n) and _spawn_gate(n, "research"):
+                spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
 
-
-# ── Reconcile label-state (2026-08-13) ────────────────────────────
-# reconcile() previously re-injected issues.labeled events for EVERY open
-# issue at EVERY active stage label on EVERY tick. Combined with the then-
-# ungated preprocess SPAWN path, this re-emitted SPAWN every tick → 14
-# duplicate agent spawns for #393 in 30 min (07:15-07:45 audit: 5 research
-# + 3 plan + 6 implement). Fix: track last-injected (issue, label) and only
-# inject on CHANGE — or after RECONCILE_REINJECT_AGE as a slow self-heal
-# fallback for lost webhooks. A >5-min tick gap (crash/pause) clears the
-# state so the next tick re-injects current GitHub state once.
-RECONCILE_LABEL_STATE_FILE = os.path.expanduser("~/.hermes/.reconcile-labels.json")
-RECONCILE_REINJECT_AGE = 3600     # 1h — slow fallback for lost webhooks
-RECONCILE_TICK_GAP_RESET = 300    # 5min — crash/pause recovery
-
-
-def _read_reconcile_label_state() -> dict:
-    try:
-        with open(RECONCILE_LABEL_STATE_FILE) as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-
-def _write_reconcile_label_state(state: dict) -> None:
-    try:
-        tmp = RECONCILE_LABEL_STATE_FILE + ".tmp"
-        with open(tmp, "w") as f:
-            json.dump(state, f)
-        os.replace(tmp, RECONCILE_LABEL_STATE_FILE)
-    except Exception:
-        pass
-
-
-def reconcile():
-    """After crash or pause resume: check GitHub state vs pending events.
-    Uses cached issue list — iterates open issues once instead of
-    5 separate gh issue list calls.
-    Only injects label events on CHANGE (2026-08-13): a label already
-    injected within RECONCILE_REINJECT_AGE is not re-injected, so a
-    consumed event stays consumed. A tick gap > RECONCILE_TICK_GAP_RESET
-    clears the seen-state (crash recovery → full re-injection once)."""
-    events = []
-    try:
-        events = read_pending()
-    except Exception:
-        pass
-    existing_keys = {e.get("_key") for e in events}
-    state: dict = _read_reconcile_label_state()
-    now = time.time()
-    # Crash/pause recovery: if we missed >5 min of ticks, forget seen
-    # labels so the next tick re-injects the current GitHub state once.
-    last_tick = state.get("_last_tick_ts", 0)
-    if last_tick and now - last_tick > RECONCILE_TICK_GAP_RESET:
-        state = {"_last_tick_ts": now}
-    else:
-        state["_last_tick_ts"] = now
-
-    reconcile_labels = [
-        "workflow/available", "workflow/research", "workflow/plan",
-        "workflow/implement", "workflow/self-correct",
-    ]
-
-    issues = _ensure_issues_cache()
-    injected = False
-    for iss in issues:
-        label_names = [l.get("name", "") for l in iss.get("labels", [])]
-        n = iss["number"]
-        for label in reconcile_labels:
-            if label not in label_names:
-                continue
-            event_key = f"issues.labeled#{n}:{label}"
-            if event_key in existing_keys:
-                continue  # real webhook event already queued
-            seen = state.get(str(n), {}).get(label, 0)
-            if seen and now - seen < RECONCILE_REINJECT_AGE:
-                continue  # already reconciled recently — one-shot consumed
-            events.append({
-                "_key": event_key,
-                "type": "issues.labeled",
-                "issue": n,
-                "repo": PROJECT_REPO,
-                "ts": now,
-                "label": label,
-            })
-            state.setdefault(str(n), {})[label] = now
-            injected = True
-
-    if injected:
-        _write_reconcile_label_state(state)
-        write_pending(events)
+    return spawn_lines
 
 
 # ── Check-run reconcile (P3b, 2026-07-31) ───────────────────────
@@ -1396,10 +1318,17 @@ def preprocess():
         write_pending(remaining)
 
     # SPAWN lines must come first — LLM reads top-to-bottom
-    output_lines.sort(key=lambda l: (0 if l.startswith("SPAWN:") else 1,
-                                     0 if "review" in l or "self-correct" in l else
-                                     1 if l.startswith("SPAWN:") else 2))
+    output_lines.sort(key=_output_sort_key)
     return output_lines
+
+
+def _output_sort_key(line: str) -> tuple:
+    """Shared output sort: SPAWN lines first (review/self-correct SPAWNs
+    before other SPAWNs), then P1/P2/STALLED lines. Used by preprocess()
+    and by main() when merging picker lines into the lines pipeline."""
+    return (0 if line.startswith("SPAWN:") else 1,
+            0 if "review" in line or "self-correct" in line else
+            1 if line.startswith("SPAWN:") else 2)
 
 
 def _quick_stalled_scan():
@@ -1438,11 +1367,29 @@ def _quick_stalled_scan():
                     f"branch={branch}"
                 )
         elif branch.startswith("impl/"):
-            # Stalled impl PR — check CI status, then review or self-correct
+            # Stalled impl PR — check CI status, then review or self-correct.
+            # All STALLED emissions go through _spawn_gate: the same PR must
+            # not re-emit STALLED every tick (3b59ede exposed the ungated
+            # per-tick review re-spawn hole). Gate is the ONLY dedup —
+            # review/self-correct each fire once per TTL per PR.
             if "status/blocked" in labels:
-                cmds.append(f"STALLED: check-unblock,pr={pr_num},branch={branch}")
+                if _spawn_gate(pr_num, "unblock"):
+                    cmds.append(f"STALLED: check-unblock,pr={pr_num},branch={branch}")
             else:
-                cmds.append(f"STALLED: check-review,pr={pr_num},branch={branch}")
+                # Self-correct awareness: the parent issue was already flagged
+                # workflow/self-correct by the review agent (local e2e failure,
+                # CI possibly green) → go straight to self-correct instead of
+                # burning another review round.
+                parent = _extract_parent_issue(pr_num)  # PR body Parent/Closes #N
+                if parent:
+                    p_labels = _current_issue_labels(parent)
+                    if "workflow/self-correct" in p_labels:
+                        if _spawn_gate(pr_num, "self-correct"):
+                            cmds.append(f"STALLED: check-self-correct,pr={pr_num},branch={branch}")
+                        continue
+                # Parent unresolved / no self-correct label → conservative review
+                if _spawn_gate(pr_num, "review"):
+                    cmds.append(f"STALLED: check-review,pr={pr_num},branch={branch}")
 
     return cmds
 
@@ -1464,7 +1411,7 @@ def main():
         _BODY_CACHE.clear()
         _CLOSED_ISSUES_CACHE.clear()
         
-        # Window entry detection: if we just entered work hours, reconcile + pick
+        # Window entry detection: if we just entered work hours, pick + health check
         was_outside = False
         try:
             state_file = os.path.expanduser("~/.hermes/.workflow-state.json")
@@ -1475,13 +1422,16 @@ def main():
         except Exception:
             pass
         
+        # Picker SPAWN lines join the unified lines pipeline (2026-08-13).
+        # All picker calls accumulate here; main() merges them with
+        # preprocess() output, then applies sort → cap → audit → print.
+        picker_lines: list = []
         in_window = _time_in_window(cfg)
         if in_window and was_outside:
             # Just entered work hours → health check
             hc = health_check()
             print(hc, file=sys.stderr)
-            reconcile()
-            pick_next_issue()
+            picker_lines += pick_next_issue() or []
         
         # ── Check-run reconcile (P3b): slow-cadence webhook-loss fallback ──
         # Runs every 5th tick (~5 min) regardless of work hours, so a lost
@@ -1503,7 +1453,7 @@ def main():
 
         # ── Idle fast path: pending empty + no active workflow issues → SILENT ──
         # When all issues are done and no events are queued, skip all expensive
-        # operations (reconcile, picker, preprocess, stalled scan). Only cost:
+        # operations (picker, preprocess, stalled scan). Only cost:
         # 1 gh issue list call + 1 local file read per tick.
         if in_window and not is_paused():
             events = read_pending()
@@ -1545,15 +1495,15 @@ def main():
             pass  # fall through to preprocess with proper filtering
         
         # Pick from backlog FIRST (fast, gh API only for picker)
-        # Then reconcile + preprocess (may be slower)
+        # Then preprocess (may be slower). Picker lines and preprocess lines
+        # share one output pipeline: sort → cap → audit → print.
         if in_window and not is_paused():
-            pick_next_issue()
-        
-        # Reconcile every in-window tick
-        if in_window:
-            reconcile()
+            picker_lines += pick_next_issue() or []
         
         lines = preprocess()
+        lines = lines + picker_lines
+        # SPAWN lines must come first — LLM reads top-to-bottom
+        lines.sort(key=_output_sort_key)
         
         # Filter lines by window/pause state
         if not in_window or is_paused():
@@ -1619,15 +1569,20 @@ def main():
             print("\n".join(lines))
             
             # If there was a status/done event, trigger picker to fill slot
+            # — its SPAWN lines merge into this tick's output.
             if in_window and any("status/done" in l for l in lines):
-                pick_next_issue()
+                extra_lines = pick_next_issue() or []
+                if extra_lines:
+                    print("\n".join(extra_lines))
         else:
             # No pending events → run quick stalled scan + picker
+            # Both produce lines; merged output, empty → [SILENT]
             if in_window and not is_paused():
-                pick_next_issue()
+                picker_lines2 = pick_next_issue() or []
                 stalled = _quick_stalled_scan()
-                if stalled:
-                    print("\n".join(stalled))
+                combined = picker_lines2 + stalled
+                if combined:
+                    print("\n".join(combined))
                 else:
                     print("[SILENT]")
             else:

@@ -206,15 +206,22 @@ Key design decisions extracted from docs/...
 > **⚠️ Duplicate-Spawn Root Cause (2026-08-13, #393 trace — READ FIRST if duplicates recur):**
 >
 > Audit evidence: 5 research + 3 plan + 6 implement `SPAWN:` lines for ONE
-> issue (#393) in 30 min (07:15-07:45). Three compounding bugs, all fixed in
-> commit `3b59ede`:
+> issue (#393) in 30 min (07:15-07:45). Three compounding bugs, fixed in
+> commits `3b59ede` + `event-driven restore` (方案4 v2):
 >
 > 1. **`reconcile()` re-injected label events every tick.** It regenerated
 >    `issues.labeled#N:<label>` for EVERY open issue at EVERY active stage
 >    label on EVERY tick, defeating the one-shot SPAWN consumption that
->    fixed canary #358. → Now injects only on label CHANGE, tracked in
->    `~/.hermes/.reconcile-labels.json` (1h slow self-heal re-inject; >5min
->    tick gap clears state for crash recovery).
+>    fixed canary #358. → **DELETED (2026-08-13, event-driven restore).**
+>    No synthetic event injection anymore: pending list is the ONLY event
+>    main path. Replacement mechanisms:
+>    - picker 直发 research（promote backlog→available 后直发 `SPAWN: research`，
+>      每 tick available 重扫兜底死 agent，`_spawn_gate` 去重）
+>    - stalled scan 全量过 `_spawn_gate`（同一 PR 的 review/self-correct 每 TTL
+>      只发一次）+ self-correct 感知（parent 有 `workflow/self-correct` → 直达
+>      `STALLED: check-self-correct`，不再多跑一轮 review）
+>    - main() 统一 lines 管道：picker 行与 preprocess 行合并 → 排序 → 槽位 cap
+>      → audit → print
 > 2. **The preprocess() label SPAWN path had NO spawn gate** (the picker
 >    path did, canary #358). Every reconcile-injected event became a SPAWN
 >    every tick. → Label path now consults the shared `_spawn_gate` with
@@ -242,10 +249,11 @@ Key design decisions extracted from docs/...
 >   #444 — dependents must not advance on un-landed work.
 >
 > **If you see repeated `SPAWN: <stage>,issue=N` lines in
-> `~/.hermes/workflow-audit.jsonl`, check:** (a) `~/.hermes/.reconcile-labels.json`
-> — is reconcile re-injecting? (b) `~/.hermes/.spawned-state.json` — is the
-> gate recording? (c) run `gh pr list --state all --json number,headRefName`
-> — does the PR exist while SPAWN still fires?
+> `~/.hermes/workflow-audit.jsonl`, check:** (a) `~/.hermes/.spawned-state.json`
+> — is the gate recording (one spawn per issue+stage per TTL)? (b) run
+> `gh pr list --state all --json number,headRefName` — does the PR exist
+> while SPAWN still fires? (c) label 事件丢失 → 调度器状态检测兜底
+> （available→research 重扫 + stalled scan self-correct 感知）是否在正常输出。
 
 The cron prompt lives in the `workflow-pending-poller` cron job (not in this skill as a template — the actual prompt is updated via `cronjob(action='update')`). This section documents the prompt structure for reference.
 
