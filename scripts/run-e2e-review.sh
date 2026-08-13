@@ -210,6 +210,11 @@ PY
   fi
 
   if [ "$VISUAL" != "fail" ] && [ "$DRY_RUN" = "0" ]; then
+    # #466: prefer the PR worktree's template — reviewing a template-changing
+    # PR must exercise the PR's template, not main's (main's typed
+    # `var req: Dictionary` crashes on the Array require form).
+    CAPTURE_SRC="$WT/framework/templates/e2e_capture.gd"
+    [ -f "$CAPTURE_SRC" ] || CAPTURE_SRC="$REPO_ROOT/framework/templates/e2e_capture.gd"
     maybe cp "$CAPTURE_SRC" "$OUT/capture.gd"
     log "  running capture (real rendering, display-sleep immune)"
     ( cd "$WT" && "$GODOT" --path "$SUBPROJECT/" --display-driver macos --rendering-driver opengl3 \
@@ -254,6 +259,15 @@ PY
           VISUAL_FAIL=1
         fi
         prev="$png"
+      done
+      # Missed-shot check (#466, DESIGN 466 §1.3 "missed 显式标注，不静默通过"):
+      # every planned shot must have a PNG — otherwise L3 fails instead of
+      # silently passing on a subset of shots.
+      for sname in $(python3 -c 'import json,sys;print(" ".join(s["name"] for s in json.load(open(sys.argv[1])).get("shots",[])))' "$OUT/plan.json" 2>/dev/null); do
+        if [ ! -f "$OUT/shots/$sname.png" ]; then
+          log "  ❌ planned shot missing: $sname.png"
+          VISUAL_FAIL=1
+        fi
       done
     fi
     VISUAL="pass"
