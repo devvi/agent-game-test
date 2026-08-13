@@ -25,4 +25,6 @@ func destroy() -> void:
 	_destroyed = true
 	if grid != null and is_instance_valid(grid) and grid.has_method("_on_brick_destroyed"):
 		grid._on_brick_destroyed(self)
+	if is_instance_valid(AudioEngine):   # #450 null-safe: 无 autoload 环境静默跳过
+		AudioEngine.play_brick_break()
 	queue_free()
