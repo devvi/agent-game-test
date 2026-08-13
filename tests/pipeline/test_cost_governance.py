@@ -82,6 +82,7 @@ class TestImplementSpawnBudget(unittest.TestCase):
              mock.patch.object(ep, "_ensure_issues_cache", return_value=[]), \
              mock.patch.object(ep, "_SPAWN_STATE_FILE",
                                os.path.join(self.base, "spawned.json")), \
+             mock.patch.object(ep, "opencode_healthy", return_value=True), \
              mock.patch.object(ep, "write_pending", return_value=None):
             return ep.preprocess()
 
@@ -108,6 +109,7 @@ class TestImplementSpawnBudget(unittest.TestCase):
              mock.patch.object(ep, "_ensure_issues_cache", return_value=[]), \
              mock.patch.object(ep, "_SPAWN_STATE_FILE",
                                os.path.join(self.base, "spawned.json")), \
+             mock.patch.object(ep, "opencode_healthy", return_value=True), \
              mock.patch.object(ep, "write_pending", return_value=None):
             out = ep.preprocess()
         line = next(l for l in out if l.startswith("SPAWN: implement"))
