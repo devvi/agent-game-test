@@ -18,6 +18,33 @@ tags:
 
 # Game Design Research Agent
 
+## 🛠️ WORKTREE 工作流（强制, 2026-08-13 起 — 多 agent 隔离红线）
+
+> **必须在独立 worktree 中开发, 禁止在主工作区操作。** 根因: 多 agent 并发共用
+> 主工作区导致 PR 互相污染 (#440 混入 #387 文件等)。方案见 docs/PLAN-worktree-isolation.md。
+
+```bash
+# 1. 创建 worktree (基于最新 origin/main, 幂等)
+WT=$(./scripts/worktree-setup.sh research <N> <slug>)
+
+# 2. 所有文件操作在 worktree 内 (绝对路径)
+#    写 PRD:  $WT/docs/PRD/<N>-<slug>.md
+
+# 3. 完成 → 提交 (脚本自动: 提交前 merge main + 冲突分级 + 白名单 add)
+./scripts/worktree-commit.sh <N> "docs(research): PRD for #<N> — <title>" "$WT/docs/PRD/<N>-<slug>.md"
+
+# 4. PR 创建 (worktree 内)
+cd "$WT" && gh pr create --base main --head research/<N>-<slug> --title "research: PRD for #<N>" --body "parent #<N>"
+
+# 5. 清理
+git worktree remove "$WT" --force
+```
+
+**红线:**
+- ❌ 绝不 `git add .` — worktree-commit.sh 强制白名单
+- ❌ 绝不 `git stash` — worktree 隔离后不需要 (stash 是污染时代的遗产)
+- ✅ merge 冲突: 脚本自动尝试合并, 失败则 abort + 报告, 不硬解
+
 > ⚠️ **Profile-level shadow of global skill.** This skill was created because
 > `skill_manage` cannot edit the global skill at
 > `~/.hermes/skills/software-development/game-research-agent/SKILL.md` from

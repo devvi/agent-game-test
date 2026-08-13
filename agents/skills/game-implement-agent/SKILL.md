@@ -6,6 +6,36 @@ tags: ["workflow", "implement", "tdd", "godot", "gdscript", "opencode"]
 
 # Game Implement Agent
 
+## 🛠️ WORKTREE 工作流（强制, 2026-08-13 起 — 多 agent 隔离红线）
+
+> **必须在独立 worktree 中开发, 禁止在主工作区操作。** 根因: 多 agent 并发共用
+> 主工作区导致 PR 互相污染 (#440 混入 #387 文件等)。方案见 docs/PLAN-worktree-isolation.md。
+
+```bash
+# 1. 创建 worktree (基于最新 origin/main, 幂等)
+WT=$(./scripts/worktree-setup.sh implement <N> <slug>)
+
+# 2. 所有文件操作在 worktree 内 (绝对路径)
+#    代码:  $WT/mini-pong/gdscripts/...  测试: $WT/mini-pong/tests/...
+#    文档:  $WT/docs/DESIGN/...          场景:  $WT/mini-pong/scenes/...
+
+# 3. 完成 → 提交 (脚本自动: 提交前 merge main + 冲突分级 + 白名单 add + 编译验证)
+./scripts/worktree-commit.sh <N> "feat(<N>): <feature description>" \
+  "$WT/mini-pong/gdscripts/<your-file>.gd" "$WT/mini-pong/tests/<your-test>.gd" ...
+
+# 4. PR 创建 (worktree 内)
+cd "$WT" && gh pr create --base main --head impl/<N>-<slug> --title "feat(<N>): <title>" --body "Parent #<N>"
+
+# 5. 清理
+git worktree remove "$WT" --force
+```
+
+**红线:**
+- ❌ 绝不 `git add .` — worktree-commit.sh 强制白名单
+- ❌ 绝不 `git stash` — worktree 隔离后不需要 (stash 是污染时代的遗产)
+- ✅ merge 冲突: 脚本自动尝试合并, 失败则 abort + 报告, 不硬解
+- ⛔ **绝不 `gh pr merge`** (见下方 CRITICAL INVARIANT)
+
 > The **code generation phase** of the game dev pipeline. Triggered by `SPAWN: implement` from the cron poller. Reads DESIGN + PRD, generates test files FIRST, then implementation code, creates `impl/` PR. **This agent must NEVER merge its own PR.**
 
 ## ⛔ CRITICAL INVARIANT: No Self-Merge
