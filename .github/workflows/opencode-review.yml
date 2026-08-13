@@ -65,19 +65,20 @@ jobs:
           exit_code=0
           if [ -f mini-pong/tests/check_compile.gd ]; then
             echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-            godot --path mini-pong/ --headless --script tests/check_compile.gd > compile-mini-pong-output.log 2>&1 && true
+            godot --path mini-pong/ --headless --script tests/check_compile.gd > compile-mini-pong-output.log 2>&1
             exit_code=$?
             cat compile-mini-pong-output.log
-            if grep -qE "FAIL|SCRIPT ERROR" compile-mini-pong-output.log; then
+            # 退出码非0 或 输出含 FAIL/SCRIPT ERROR = 编译失败
+            if [ "$exit_code" -ne 0 ] || grep -qE "FAIL|SCRIPT ERROR" compile-mini-pong-output.log; then
               echo "❌ COMPILE ERROR(s) in Mini Pong scripts"
               exit_code=1
             fi
           elif [ -d mini-pong ]; then
             # Fallback: quick project validation if check_compile.gd missing
             echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-            godot --path mini-pong/ --headless --quit > compile-mini-pong-output.log 2>&1 && true
+            godot --path mini-pong/ --headless --quit > compile-mini-pong-output.log 2>&1
             exit_code=$?
-            if grep -qE "FAIL|SCRIPT ERROR" compile-mini-pong-output.log; then
+            if [ "$exit_code" -ne 0 ] || grep -qE "FAIL|SCRIPT ERROR" compile-mini-pong-output.log; then
               echo "❌ COMPILE ERROR(s) detected"
               exit_code=1
             fi
@@ -92,16 +93,19 @@ jobs:
         run: |
           if [ -f tests/run_tests.gd ]; then
             echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-            godot --headless --script tests/run_tests.gd > test-output.log 2>&1 && true
+            godot --headless --script tests/run_tests.gd > test-output.log 2>&1
             TEST_EXIT=$?
             echo "Test output:"
             cat test-output.log
-            # SCRIPT ERROR in output = test failure
-            if grep -qE "SCRIPT ERROR" test-output.log; then
+            # 失败判定（2026-08-13 修复 critical 缺陷）: 任何一条命中即失败
+            #   1. 退出码非0（run_tests.gd quit(1) — 断言失败/脚本崩溃）
+            #   2. 输出含 SCRIPT ERROR（GDScript 运行时错误）
+            #   3. 输出含 failed 计数（"0 passed, N failed" / "❌ Failed: N"）
+            if [ "$TEST_EXIT" -ne 0 ] || grep -qE "SCRIPT ERROR" test-output.log || grep -qE "[1-9][0-9]* failed|Failed[:：] *[1-9]" test-output.log; then
               echo "❌ Error(s) detected in test output — marking as failure"
               echo "exit_code=1" >> $GITHUB_OUTPUT
             else
-              echo "exit_code=$TEST_EXIT" >> $GITHUB_OUTPUT
+              echo "exit_code=0" >> $GITHUB_OUTPUT
             fi
           else
             echo "SKIP: tests/run_tests.gd not found"
@@ -114,7 +118,7 @@ jobs:
         run: |
           if [ -f tests/smoke_test.gd ]; then
             echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-            godot --headless --script tests/smoke_test.gd > smoke-output.log 2>&1 && true
+            godot --headless --script tests/smoke_test.gd > smoke-output.log 2>&1
             echo "exit_code=$?" >> $GITHUB_OUTPUT
           else
             echo "SKIP: tests/smoke_test.gd not found"
@@ -126,7 +130,7 @@ jobs:
         id: rnp
         run: |
           if [ -d rainy-night-prometheus ]; then
-            godot --path rainy-night-prometheus/ --headless --quit > rnp-output.log 2>&1 && true
+            godot --path rainy-night-prometheus/ --headless --quit > rnp-output.log 2>&1
             echo "exit_code=$?" >> $GITHUB_OUTPUT
           else
             echo "SKIP: rainy-night-prometheus/ not found"
@@ -138,7 +142,7 @@ jobs:
         id: mini-pong
         run: |
           if [ -d mini-pong ]; then
-            godot --path mini-pong/ --headless --quit > mini-pong-output.log 2>&1 && true
+            godot --path mini-pong/ --headless --quit > mini-pong-output.log 2>&1
             echo "exit_code=$?" >> $GITHUB_OUTPUT
           else
             echo "SKIP: mini-pong/ not found"
@@ -151,16 +155,19 @@ jobs:
         run: |
           if [ -f mini-pong/tests/run_tests.gd ]; then
             echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-            godot --path mini-pong/ --headless --script tests/run_tests.gd > mini-pong-test-output.log 2>&1 && true
+            godot --path mini-pong/ --headless --script tests/run_tests.gd > mini-pong-test-output.log 2>&1
             TEST_EXIT=$?
             echo "Test output:"
             cat mini-pong-test-output.log
-            # SCRIPT ERROR in output = test failure
-            if grep -qE "SCRIPT ERROR" mini-pong-test-output.log; then
+            # 失败判定（2026-08-13 修复 critical 缺陷）: 任何一条命中即失败
+            #   1. 退出码非0（run_tests.gd quit(1) — 断言失败/脚本崩溃）
+            #   2. 输出含 SCRIPT ERROR（GDScript 运行时错误）
+            #   3. 输出含 failed 计数（"0 passed, N failed" / "❌ Failed: N"）
+            if [ "$TEST_EXIT" -ne 0 ] || grep -qE "SCRIPT ERROR" mini-pong-test-output.log || grep -qE "[1-9][0-9]* failed|Failed[:：] *[1-9]" mini-pong-test-output.log; then
               echo "❌ Error(s) detected in test output — marking as failure"
               echo "exit_code=1" >> $GITHUB_OUTPUT
             else
-              echo "exit_code=$TEST_EXIT" >> $GITHUB_OUTPUT
+              echo "exit_code=0" >> $GITHUB_OUTPUT
             fi
           else
             echo "SKIP: mini-pong/tests/run_tests.gd not found"
