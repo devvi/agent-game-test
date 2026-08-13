@@ -108,16 +108,11 @@ SPAWN: research,issue=N,label=workflow/available|research
 SPAWN: plan,issue=N,label=workflow/plan
 SPAWN: implement,issue=N,label=workflow/implement
 STALLED: merge-pr,pr=N,branch=research|plan/xxx      ← 非 impl PR CI 完成
-STALLED: impl-resume,issue=N,wt=/tmp/wt-implement-N  ← implement 截断恢复 (2026-08-13)
 BLOCKED: issue=N,depends-on=#M(full),...
 [NO_ACTIONABLE_EVENTS: run stalled scan]
 ```
 
-LLM 收到 SPAWN 必须执行（delegate_task），不得自行改写。stalled scan 覆盖：挂起 PR、未推进 label、未启动 phase、blocked PR 解锁（main 绿 → 移除 blocked → update-branch → 重新 CI）、**截断 implement 恢复**（issue 在 workflow/implement + worktree 脏 + 无 impl PR → `STALLED: impl-resume` → 重 spawn implement agent，worktree-setup.sh 幂等复用保留未提交改动）。
-
-**2026-08-13 修复（A+C，implement 预算截断 + OpenCode 未强制，#466 实测）：**
-- **A. 强制 OpenCode 为 implement 唯一代码生成路径**（`game-implement-agent` skill）：OpenCode run 是一次性外部进程，不消耗 agent 的 call 预算。手写 fallback 仅限 OpenCode 服务不可达（health 非 200），且 PR body 必须声明 `fallback: OpenCode unreachable`。原因：agent 手写+测试循环烧光 50-call 预算（`delegation.max_iterations`）→ `max_iterations_reached` 截断 → worktree 残留未提交改动 → pipeline 卡死。
-- **C. 截断检测 + 恢复**：stalled scan 新增 `_impl_resume_candidates()` —— issue label 含 `workflow/implement` + `/tmp/wt-implement-<N>` 存在 + worktree 有未提交改动（`git status --porcelain` 非空）+ 无 open `impl/<N>-*` PR → 输出 `STALLED: impl-resume,issue=N,wt=...`（走 `_spawn_gate` 去重，TTL 内不重复发）。cron 收到后重 spawn implement agent（带 worktree 上下文：复用已有 worktree、检查未提交改动、决定提交或继续、创建 PR、绝不手动 merge）。
+LLM 收到 SPAWN 必须执行（delegate_task），不得自行改写。stalled scan 覆盖：挂起 PR、未推进 label、未启动 phase、blocked PR 解锁（main 绿 → 移除 blocked → update-branch → 重新 CI）。
 
 **2026-08-13 修复（A+B，cron 181544 4 分钟 tick 阻塞后续 SPAWN 的根因）：**
 - **A. 非 impl 分支的 check_run.completed 不再输出 P1**。research/plan PR 的 CI 完成语义是"前置阶段 PR 就绪"，推进动作是 merge（workflow-chain 在 merge 后才推进 label）——不是让 cron LLM 调查。旧行为把事件输出成 `P1:` 让 LLM"决策"，cron 花了 4 分钟复查一个已完成/已推进的事件，期间 1-min tick 全被 `already running` 跳过，implement SPAWN 延迟 ~5 分钟。现在：

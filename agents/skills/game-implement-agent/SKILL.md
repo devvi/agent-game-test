@@ -71,14 +71,6 @@ search_files("scenes/", pattern="*.tscn", target="files")
 read_file("game-env/manifest.yaml")
 ```
 
-**Stale local main gotcha:** local `main` checkout lags behind `origin/main` (plan/research
-PRs merge upstream). DESIGN/PRD/TASKS docs for the issue may exist only on `origin/main` —
-`read_file` returns not-found locally. Recover without leaving the main workspace:
-`git fetch origin main && git show origin/main:docs/DESIGN/<N>-*.md > /tmp/design-<N>.md`
-(or just create the worktree first — it's based on origin/main and contains the docs).
-Never conclude "no DESIGN doc" from a stale local checkout; verify with `git show origin/main:...`
-before reporting the doc missing.
-
 ## TDD: Tests FIRST
 
 **This is non-negotiable.** The implementation follows a strict test-first workflow:
@@ -90,14 +82,6 @@ Step 3: Run tests → confirm RED (no implementation yet)
 Step 4: Write minimal implementation code → GREEN
 Step 5: Refactor → keep GREEN
 ```
-
-**RED confirmation gotcha (run_tests.gd harness):** the harness counts only asserts that
-EXECUTE. Calling a nonexistent method (e.g. `play_brick_break()` before implementation) raises
-`SCRIPT ERROR: Invalid call. Nonexistent function ...` which ABORTS the current test function —
-asserts after the call never run, so `passed`/`failed` stay unchanged (output may even show
-"0 failed"). The RED signal is the SCRIPT ERROR lines themselves:
-`... run_tests.gd 2>&1 | grep -E "SCRIPT ERROR|Invalid call"` — expect N error lines, one per
-test that touched the missing method. Don't gate RED on `failed > 0`.
 
 ### Pre-Implementation: Upstream Integration Scan
 
@@ -193,15 +177,7 @@ curl -s --max-time 5 -o /dev/null -w "%{http_code}" http://127.0.0.1:18765/healt
 # HTTP 200 = reachable (body may be HTML — that's normal)
 ```
 
-### 🔴 OpenCode is MANDATORY (2026-08-13, #466 实测教训)
-
-> **OpenCode 是默认且唯一的代码生成路径, 不是可选项。** #466 implement agent 读 skill 后
-> 退化为手写代码(64 次 terminal 直接编辑, 0 次 opencode 调用), 手写+测试循环烧光了
-> 50-call delegation 预算(`max_iterations_reached`), 留下未提交的 worktree 改动卡死 pipeline。
-> **OpenCode run 是一次性外部进程, 不消耗 agent 的 call 预算** — agent 只需 5-10 call
-> (调 opencode + 验证 + 提交)。手写 = 每个文件编辑/测试/重试都算一个 call, 必然截断。
-
-### OpenCode Run (MANDATORY — 默认动作)
+### OpenCode Run (Recommended)
 
 ```bash
 opencode run '<prompt>' --model deepseek/deepseek-v4-flash --thinking
@@ -213,22 +189,9 @@ The prompt should include:
 - Test files already written (OpenCode should make them pass)
 - Specific Godot 4.7 / GDScript 2.0 syntax requirements
 
-### Fallback: Direct File Writing (仅限 OpenCode 不可达, 且必须申报)
+### Fallback: Direct File Writing
 
-**手写 fallback 只允许在 OpenCode 服务不可达(health 非 200)时使用**, 且必须:
-1. PR body 注明 `fallback: OpenCode unreachable`(让 review agent 知道代码未经 OpenCode 生成)
-2. 只写 DESIGN 已详述的文件, 不自行发挥
-3. 注意预算: 手写模式要阶段提交(每完成一组文件就 commit), 不要攒到最后一次性提交 —
-   `max_iterations=50` 下"改完全部文件再验证"必截断
-
-### ⚠️ 预算截断 = 手写的必然结果 (诊断信号)
-
-`Turn ended: reason=max_iterations_reached(50/50)` + worktree 有未提交改动 + 无 impl PR =
-**agent 手写了代码但没走 OpenCode**。这不是偶发 — 是 OpenCode 未被强制时的系统性退化。
-修复方向见 `docs/PLAN-workflow-impl-budget-fix.md`(A: 强制 OpenCode / B: 提升预算 /
-C: stalled scan 识别 worktree-脏-无-PR 状态自动重 spawn)。若已截断且改动已验证正确,
-用 `scripts/worktree-commit.sh` 补提交收尾(见 workflow-pipeline-debugging skill 对应章节),
-然后修 skill/预算本身, 不要反复手动 delegate。
+If OpenCode is unreachable or returns HTML instead of code, write files directly via `write_file`. The DESIGN doc contains enough implementation detail to proceed manually.
 
 ### Layer Order
 
@@ -279,19 +242,6 @@ git push origin impl/<N>-<slug>
 
 ### 3. Create PR
 
-**Parallel-run PR may already exist:** in multi-agent spawns, a sibling run of the same task
-can create the PR before you (identical DESIGN contract → near-identical code). Check first:
-`gh pr list --head impl/<N>-<slug> --json number,headRefOid`. If a PR exists, VERIFY rather
-than duplicate: `headRefOid` == your pushed commit, diff == whitelist only
-(`gh pr diff <N> --name-only`), body starts with `Parent #<N>`, issue still OPEN. Reuse it;
-`gh pr create` will otherwise fail with "a pull request ... already exists".
-
-**Post-commit verification (worktree-commit.sh output can be ambiguous):** the script prints
-the commit banner interleaved with "nothing to commit, working tree clean" — don't trust the
-banner. Confirm state directly: `git log --oneline -3`, `git show --stat HEAD` (files ==
-whitelist), and `git ls-remote origin <branch>` (pushed). Commit messages may be augmented by
-repo hooks or sibling agents — verify file CONTENT (git show --stat), not the message text.
-
 ```bash
 gh pr create \
   --base $DEFAULT_BRANCH \
@@ -319,11 +269,6 @@ gh pr create \
 判断方法：`gh issue view <N> --json body --jq '.body' | grep -q "content_ownership.*taste-draft"`。
 draft 产出规范（# DRAFT 注释 + 候补选项 + 情感断言）见 game-to-issues 的
 `references/taste-ownership-domains.md`（v4）。
-
-**Operator instruction overrides:** if the SPAWN instruction explicitly says PR body 用
-"Parent #N"（无 Closes）for a mechanical issue, comply — the "Parent #N"-only form never
-auto-closes the issue, so it's safe whenever the issue should stay open until the review gate.
-Explicit task instruction beats the canonical "Closes #N" default.
 
 ### 4. Run Stage-Gate
 
@@ -398,20 +343,10 @@ curl -s -X POST -H "Content-Type: application/json" \
 | `git checkout <branch> -- <file>` fails for untracked files | `git checkout <other-branch> -- <path>` can only recover files that are **tracked** in the target branch. For new files that exist only as untracked additions (e.g. `constants.gd`, `Main.tscn`), this command returns `error: pathspec '...' did not match any file(s) known to git`. The only recovery path is **regeneration from DESIGN docs and memory**. See `references/sibling-revert-recovery.md` for the full step-by-step recipe including prevention, diagnosis, and verification. |
 | `git stash push <pathspec>` fails for deleted files | `git stash push -- <pathspec>` operates only on tracked files. If a pathspec includes a deleted file (e.g. `game.tscn` that was `rm`'d), the command fails with `error: pathspec '...' did not match any file(s) known to git`. Remove deleted-file pathspecs from the stash command or use `git stash push --include-untracked` without pathspecs to capture everything. |
 | Cross-branch ext_resource dependencies in TSCN files | A `.tscn` file may reference an ext_resource (`.gd` script, sub-scene) that exists on one branch but not another. When copying or creating TSCN files, verify that ALL `[ext_resource]` paths resolve on the **current branch** — not just the branch where the TSCN originated. Run `--headless --quit` immediately after creating/modifying TSCN files; any `"Parse Error: [ext_resource] referenced non-existent resource"` means a dependency is missing on the current branch. This is a pre-existing issue if the same error occurs with the original (unmodified) scene file. |
-| Baseline TOTAL varies run-to-run | Async suites (E2E playthrough, auto-play) make `=== TOTAL ===` fluctuate between runs (observed 2221 baseline vs 2225–2266 on later runs). Compare per-suite counts (e.g. `AudioEngine: 22 passed`) + `0 failed` + absence of SCRIPT ERRORs — don't assert exact TOTAL equality with the PRD's claimed baseline. |
-| Stage-gate auto-fixes labels + benign JSON error | `stage-gate.py` auto-adds a missing `workflow/implement` label (expected, not a failure) and may print `Could not disable auto-merge: Expecting value ...` (JSON parse hiccup) — benign; the gate still prints `STAGE GATE PASSED`. Don't treat either as a gate failure. |
-| `gh pr create` fails: PR already exists | In parallel spawns a sibling run of the same task may have created the PR first. Reuse after verifying headRefOid/diff/body (see §3 Create PR). Never force a second PR or push a divergent branch — the review agent triggers off the existing PR's check_run. |
 
-### GPUParticles2D: Godot 4.7.1 API 变化 (2026-08-13 #465 雨幕实测)
+### Audio Synthesis: AudioStreamGenerator Pitfalls
 
 | Pitfall | Pattern |
-|---------|---------|
-| `emission_shape = 1` 不是 RECTANGLE | **Godot 4.7 移除了 `EMISSION_SHAPE_RECTANGLE`**。`emission_shape = 1` 是 SPHERE;`emission_rect_extents` 属性被**静默忽略**(不报错但无效)→ 粒子从节点点源喷出 = "漏水点"现象。矩形发射用 `emission_shape = 3` (BOX) + `emission_box_extents = Vector3(w, h, 0)`(半宽语义, z=0 平面)。 |
-| `visibility_rect` 默认值截断粒子 | GPUParticles2D 的 `visibility_rect` 默认 `Rect2(-100,-100,200,200)` — 节点在 (360,-20) 时可视窗口只覆盖世界 x∈[260,460] 中心窄柱, 发射区边缘粒子全被剔除 → 只剩零星几颗。全屏粒子系统必须显式设 `visibility_rect` 覆盖整个发射区。 |
-| `ParticleProcessMaterial` 属性在 tscn 的 sub_resource 里 | `amount` 在节点上, `direction/spread/gravity/initial_velocity/scale/color/emission_*` 全在 `[sub_resource type="ParticleProcessMaterial"]` 里。改分布先看 sub_resource, 改数量看节点。 |
-| macOS Metal 兼容性兜底 | 若 emission 配置正确仍异常, 才怀疑 Metal 驱动; 兜底方案 CPUParticles2D(性能换兼容)。先查配置, 别先怪驱动。 |
-
-### Audio Synthesis: AudioStreamGenerator Pitfalls| Pitfall | Pattern |
 |---------|---------|
 | `stream_paused` on `AudioStreamGenerator` | `stream_paused` is an `AudioStreamPlayer` property, NOT on `AudioStreamGenerator`. Store the player reference (`_stream_player = player`) and set `_stream_player.stream_paused = true` — never `generator.stream_paused`. Godot 4.7 rejects this at compile time. |
 | `generator.get_playback()` | Use `player.get_stream_playback()` instead. On `AudioStreamPlayer`, the correct method is `get_stream_playback()`. |
@@ -428,7 +363,6 @@ Before considering the task done:
 - [ ] CollisionShape2D/3D shapes are non-null
 - [ ] `.tscn` files: format=3, uid:// present, sub_resources before nodes
 - [ ] PR created with body "Closes #N\n\nParent #N"
-- [ ] **代码由 OpenCode 生成** — 提交前确认: 日志有 `opencode run` 调用痕迹, 或 PR body 已声明 `fallback: OpenCode unreachable`(否则视为手写违规, review 应打回)
 - [ ] Stage-gate ran successfully on the PR
 - [ ] CI passing (or in progress)
 - [ ] gh pr merge was NEVER called

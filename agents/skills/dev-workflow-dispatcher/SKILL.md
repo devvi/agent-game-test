@@ -383,7 +383,6 @@ SPAWN: research,issue=N,label=workflow/research
 SPAWN: plan,issue=N,label=workflow/plan
 SPAWN: implement,issue=N,label=workflow/implement
 STALLED: merge-pr,pr=N,branch=research|plan/xxx       ← 非 impl PR CI 完成 (2026-08-13)
-STALLED: impl-resume,issue=N,wt=/tmp/wt-implement-N   ← implement 截断恢复 (2026-08-13)
 P2: issues.labeled,issue=N,label=workflow/xxx
 [NO_ACTIONABLE_EVENTS: run stalled scan]
 
@@ -436,17 +435,6 @@ Non-impl (research/plan) PR CI done → execute immediately, do NOT investigate:
 gh pr merge <N> --squash --delete-branch   # PR 状态脚本已核, merge 失败(如 conflict)则跳过, stalled scan 会重查
 ```
 Merge 后 workflow-chain.yml 自动推进父 Issue label → 下一 tick 的 labeled 事件驱动下一阶段。**禁止**先跑 git log / 查 worktree / 验证推进状态——这正是 181544 的 4 分钟浪费。
-
-### If STALLED: impl-resume directives (2026-08-13):
-Implement agent 被截断（`max_iterations_reached`，通常因手写代码未走 OpenCode）+ worktree
-残留未提交改动 + 无 impl PR → 重 spawn implement agent **带 worktree 恢复上下文**：
-```bash
-delegate_task implement-agent  # prompt 必须包含:
-#  ① worktree 已存在: /tmp/wt-implement-<N> (worktree-setup.sh 幂等, 复用不重建)
-#  ② 先 cd 进去 + git status --porcelain 检查未提交改动
-#  ③ 未提交改动正确 → 继续完成 → 提交 → 创建 impl/<N>-* PR; 不完整 → 补完再提交
-#  ④ 全程遵循 game-implement-agent skill (OpenCode MANDATORY, 绝不 gh pr merge)
-```
 
 ### If P2: issues.labeled events:
 For each:

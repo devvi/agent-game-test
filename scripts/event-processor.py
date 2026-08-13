@@ -14,7 +14,6 @@ Its stdout is injected into the LLM's context.
 Output format (to stdout):
   Empty                                → no actionable events
   STALLED: merge-pr,pr=N,branch=...    → non-impl PR CI done, merge it (2026-08-13)
-  STALLED: impl-resume,issue=N,wt=...  → implement agent truncated, dirty worktree + no PR, re-spawn (2026-08-13)
   SPAWN: <agent>,issue=N,...           → spawn directive
   P2: issues.labeled,issue=N,...      → labeled events follow
 
@@ -1356,80 +1355,15 @@ def _output_sort_key(line: str) -> tuple:
             1 if line.startswith("SPAWN:") else 2)
 
 
-def _impl_resume_candidates() -> list:
-    """Detect truncated implement agents: issue at workflow/implement with a
-    dirty worktree and no impl PR. Returns a list of issue numbers.
-
-    2026-08-13 #466 教训: implement agent 手写代码(未走 OpenCode)烧光 50-call
-    预算 → max_iterations_reached 截断 → worktree 残留未提交改动 + 无 impl PR
-    → 旧 stalled scan 不识别 → pipeline 卡死。此处补上该状态检测:
-      ① issue label 含 workflow/implement (implement 阶段)
-      ② /tmp/wt-implement-<N> worktree 存在
-      ③ worktree 有未提交改动 (git status --porcelain 非空)
-      ④ 无 open impl/<N>-* PR
-    全部满足 → STALLED: impl-resume → cron 重 spawn implement agent
-    (worktree-setup.sh 幂等复用, 保留未提交改动)。gh API + 本地 git status,
-    无 godot 调用, <5 秒。
-    """
-    found = []
-    raw = gh("issue", "list", "--state", "open",
-             "--json", "number,labels", "--limit", "100")
-    if not raw:
-        return found
-    try:
-        issues = json.loads(raw)
-    except json.JSONDecodeError:
-        return found
-    # Open impl PRs (for ④) — reuse a fresh pr list (cheap, cached)
-    raw_prs = gh("pr", "list", "--state", "open",
-                 "--json", "number,headRefName", "--limit", "100")
-    impl_pr_branches = set()
-    if raw_prs:
-        try:
-            impl_pr_branches = {
-                p["headRefName"] for p in json.loads(raw_prs)
-                if p.get("headRefName", "").startswith("impl/")
-            }
-        except json.JSONDecodeError:
-            pass
-    for issue in issues:
-        labels = [l["name"] for l in issue.get("labels", [])]
-        if "workflow/implement" not in labels:
-            continue
-        n = issue["number"]
-        wt = f"/tmp/wt-implement-{n}"
-        if not os.path.isdir(wt):
-            continue
-        # ③ worktree dirty?
-        try:
-            r = subprocess.run(
-                ["git", "-C", wt, "status", "--porcelain"],
-                capture_output=True, text=True, timeout=10)
-            if r.returncode != 0 or not r.stdout.strip():
-                continue
-        except (subprocess.TimeoutExpired, OSError):
-            continue
-        # ④ no open impl PR for this issue
-        if any(b.startswith(f"impl/{n}-") for b in impl_pr_branches):
-            continue
-        found.append(n)
-    return found
-
-
 def _quick_stalled_scan():
     """Deterministic stalled PR scan. Outputs explicit STALLED commands.
 
-    Runs in <5 seconds (gh API + local git status, no godot, no file reads).
+    Runs in <5 seconds (gh API only, no godot, no file reads).
     NOTE (2026-08-13): the `--search head:... in:headRefName` qualifier is
     unreliable (Patch 59 — returns [] even for existing PRs, intermittently).
     A plain `gh pr list --state open` + client-side prefix filter is used so
     impl PRs like #444 are never missed by the review re-spawn fallback."""
     cmds = []
-
-    # 0. Truncated implement agents: dirty worktree + no PR (2026-08-13)
-    for n in _impl_resume_candidates():
-        if _spawn_gate(n, "impl-resume"):
-            cmds.append(f"STALLED: impl-resume,issue={n},wt=/tmp/wt-implement-{n}")
 
     # 1. Fetch open PRs once, filter client-side by branch prefix
     raw = gh("pr", "list", "--state", "open",

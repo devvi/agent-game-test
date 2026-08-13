@@ -23,7 +23,7 @@ WT=$(./scripts/worktree-setup.sh plan <N> <slug>)
   "$WT/docs/DESIGN/<N>-<slug>.md" "$WT/docs/TASKS/<N>-<slug>.md"
 
 # 4. PR 创建 (worktree 内)
-cd "$WT" && gh pr create --base main --head plan/<N>-<slug> --title "docs(plan): DESIGN for #<N>" --body "Parent #<N>"
+cd "$WT" && gh pr create --base main --head plan/<N>-<slug> --title "docs(plan): DESIGN for #<N>" --body "parent #<N>"
 
 # 5. 清理
 git worktree remove "$WT" --force
@@ -482,24 +482,6 @@ If the stash contained *only* untracked/new files (DESIGN docs, test fixtures, s
 
 ### Missing game-plan-agent skill
 This skill (`game-plan-agent`) was missing from the skill registry as of 2026-07-24. The cron poller had to inline the plan agent instructions. If you're reading this, the skill exists now — use it.
-
-### DESIGN doc header/metadata convention — mirror the newest sibling doc (repo-specific)
-
-The skill's English template (Parent Issue / Agent / Date / Approach) is the *minimum*, not the norm. In this repo the actual convention (observed in docs/DESIGN/449-*, 450-*, 2026-08) is a richer Chinese metadata block:
-
-```
-> **Parent Issue:** #N
-> **Agent:** game-plan-agent
-> **Date:** <date>
-> **Approach:** <letter> — <确认 PRD 方案或说明分歧>
-> **Reference PRD:** docs/PRD/<N>-*.md（research PR #R，已合并）
-> **上游方案:** <design lineage, e.g. docs/DESIGN/<prev>-*.md §N>
-> **所有权:** content_ownership: mechanical（...taste 分离说明）
-> **深度:** depth/standard —— <TASKS 判定理由>
-> **并行上下文:** worktree 并行测试 Tx —— <constants.gd 分区冲突面说明>
-```
-
-plus the doc body conventionally ends with a §9 验收条件映射 (AC checklist from the issue body) and a 明确不修改 (explicitly-not-modified) list. Before writing, read the NEWEST file in docs/DESIGN/ and mirror its section numbering + metadata shape — the English template is only a fallback when no sibling doc exists. Example of a well-aligned doc: docs/DESIGN/450-brick-break-sound.md.
 
 ### DESIGN doc already exists (prior partial plan run)
 
