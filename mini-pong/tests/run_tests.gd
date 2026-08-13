@@ -38,6 +38,7 @@ func _run_tests() -> void:
 	await _run_async("res://tests/test_upgrade_pick_ui.gd", "Upgrade Pick UI")
 	await _run_async("res://tests/test_wave_transition.gd", "Wave Transition")
 	await _run_async("res://tests/test_integration_393.gd", "Assembly Integration")
+	await _run_async("res://tests/e2e_playthrough.gd", "E2E Playthrough")
 	await _run_async("res://tests/auto_play_test.gd", "Auto-Play")
 	print("
 === TOTAL: %d passed, %d failed ===" % [_pass, _fail])
