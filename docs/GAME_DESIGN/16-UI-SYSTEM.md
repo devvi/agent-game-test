@@ -70,6 +70,15 @@ Without this, GameManager signals never fire and the HUD never updates.
 - **单份定义**: Main.tscn 实例化 `ui_game_hud.tscn`（节点名 `GameHUD` 不变，layer=1），消除 #292 双份 HUD 定义
 - **球速实时显示（#448）**: 代码创建 `TopZone/SpeedLabel`（锚定 TopZone 右上独立放置，不挂 VBox——72px 放不下第三行）+ `SpeedPollTimer`（10Hz autostart，timeout 信号驱动）。10Hz 轻量轮询 `ball.speed` 公开属性（ball.gd 无速度变化信号，只读消费），显示 `round(speed)` + `px/s`；无 ball 时占位「球速 —」+ `_warned` 单次告警。零轮询契约保持：Timer 节点而非 `_process`（TF-1 静态断言），pause 时读数冻结 = 正确语义
 
+球速 HUD 常量（`constants.gd` 文件末尾新区，零触碰既有常量）：
+
+| 常量 | 值 | 语义 |
+|------|-----|------|
+| `HUD_SHOW_SPEED` | `true` | 总开关（#448 AC3；测试可注入 false） |
+| `HUD_SPEED_POLL_INTERVAL` | `0.1` | 轮询间隔 10Hz（Timer timeout 驱动） |
+| `HUD_SPEED_UNIT` | `"px/s"` | 显示单位 |
+| `HUD_SPEED_LABEL_PREFIX` | `"球速 "` | 显示前缀（taste 占位，#392 先例） |
+
 ### GameOverScreen（终局屏 win/fail 双分支 #391）
 
 - **WinnerLabel**: "YOU WIN!" at 72px, blue — win 分支（winner == "player"）专属宣告
