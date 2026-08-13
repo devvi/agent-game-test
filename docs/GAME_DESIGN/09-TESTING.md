@@ -52,7 +52,8 @@ godot --path mini-pong/ --headless --script tests/run_tests.gd
 | 10 | AudioEngine | `tests/test_audio_engine.gd` | Sync |
 | 11 | Constants | `tests/test_constants.gd` | Sync |
 | 12 | Main Scene Assembly | `tests/test_main_scene.gd` | Sync |
-| 13 | **Auto-Play** | `tests/auto_play_test.gd` | **Async** |
+| 13 | **E2E Playthrough** | `tests/e2e_playthrough.gd` | **Async** |
+| 14 | **Auto-Play** | `tests/auto_play_test.gd` | **Async** |
 
 ---
 

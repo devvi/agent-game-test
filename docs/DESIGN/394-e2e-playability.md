@@ -282,14 +282,14 @@ AC4 自然路径不足 3 个不同机械升级 →
 
 | 集成 | 我们的组件 | 目标组件 | 方式 | Status |
 |------|:---:|:---:|------|:---:|
-| 首波触发 | e2e_playthrough.gd | WaveController.start_first_wave | 直接调用（#393 B.1 入口） | ⬜ pending |
-| 拆砖分链路 | BreakoutGrid.brick_destroyed | ScoringManager._on_brick_destroyed → GameManager.add_score(1,"brick") | 信号连接（真实物理击砖触发） | ⬜ pending |
-| 穿墙分链路 | Ball.score | ScoringManager._on_ball_score → add_score(3,"pierce") | 信号连接（`_crossed_wall` 判定） | ⬜ pending |
-| 升级 UI 数据流 | UpgradePickUI.open | GameManager.wave_settled（_ready 自动连） | 信号（真实 UI） | ⬜ pending |
-| 升级应用 | UpgradePickUI._confirm | UpgradePool.apply(id) → upgrade_applied | 输入事件馈送 ui_accept | ⬜ pending |
-| 推进接管 | UpgradePickUI.close | WaveController.advance_settlement（group 寻址） | 方法调用（UI 内部） | ⬜ pending |
-| 套件注册 | run_tests.gd | e2e_playthrough.gd | `_run_async` 条目 | ⬜ pending |
-| L2 激活 | playthrough_test.tscn | run-e2e-review.sh L2 检查点 | 文件存在 → 实际执行 | ⬜ pending |
+| 首波触发 | e2e_playthrough.gd | WaveController.start_first_wave | 直接调用（#393 B.1 入口） | ✅ connected |
+| 拆砖分链路 | BreakoutGrid.brick_destroyed | ScoringManager._on_brick_destroyed → GameManager.add_score(1,"brick") | 信号连接（真实物理击砖触发） | ✅ connected |
+| 穿墙分链路 | Ball.score | ScoringManager._on_ball_score → add_score(3,"pierce") | 信号连接（`_crossed_wall` 判定） | ✅ connected |
+| 升级 UI 数据流 | UpgradePickUI.open | GameManager.wave_settled（_ready 自动连） | 信号（真实 UI） | ✅ connected |
+| 升级应用 | UpgradePickUI._confirm | UpgradePool.apply(id) → upgrade_applied | 输入事件馈送 ui_accept | ✅ connected |
+| 推进接管 | UpgradePickUI.close | WaveController.advance_settlement（group 寻址） | 方法调用（UI 内部） | ✅ connected |
+| 套件注册 | run_tests.gd | e2e_playthrough.gd | `_run_async` 条目 | ✅ connected |
+| L2 激活 | playthrough_test.tscn | run-e2e-review.sh L2 检查点 | 文件存在 → 实际执行 | ✅ connected |
 
 ---
 
