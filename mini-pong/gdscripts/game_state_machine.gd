@@ -121,6 +121,12 @@ func enter_state(state: State) -> void:
 				pause_overlay.hide_overlay()
 			if is_instance_valid(AudioEngine):
 				AudioEngine.resume_stream()
+			# #393 增补：首波触发（DESIGN 附录 B.1）——wave_index==0 时首次进入 PLAYING → 启动第 1 波。
+			# 幂等：wave_index>0 / run-over 时 no-op；WaveController 未挂载时 group 寻址 null → no-op。
+			# 选 PLAYING 而非 SERVING：SERVING 触发会被 ball.serve() 防御性复位 frozen=false 失效（AC3 破坏）。
+			if is_instance_valid(GameManager) and GameManager.has_method("get_wave_index") \
+					and GameManager.get_wave_index() == 0:
+				_start_first_wave()
 
 		State.PAUSED:
 			_set_ui("pause")
@@ -199,6 +205,17 @@ func _freeze_paddles(freeze: bool) -> void:
 func _freeze_ball(freeze: bool) -> void:
 	if ball and ball.has_method("set_frozen"):
 		ball.set_frozen(freeze)
+
+
+## #393 首波触发: 经 group wave_controllers 寻址（Main.tscn 组装节点），未挂载时 no-op
+## （既有测试的 mini-tree 无 WaveController 不崩）。GAME_OVER→MENU→SPACE 重开复用同一入口。
+func _start_first_wave() -> void:
+	var tree = get_tree() if is_inside_tree() else null
+	if tree == null:
+		return
+	var wc = tree.get_first_node_in_group("wave_controllers")
+	if wc != null and wc.has_method("start_first_wave"):
+		wc.start_first_wave()
 
 
 func _timer_1s() -> void:

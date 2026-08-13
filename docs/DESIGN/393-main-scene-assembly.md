@@ -349,19 +349,19 @@ get_node_or_null == null → push_warning 一次 → 跳过该路径（波次状
 
 | 集成 | 我们的组件 | 目标 Issue | 方式 | 状态 |
 |------|:---:|:---:|------|:---:|
-| BreakoutGrid.brick_destroyed → ScoringManager._on_brick_destroyed | BreakoutGrid | #385 | 信号连接（守卫已就绪，节点挂载即触发） | ⬜ |
-| BreakoutGrid.wall_cleared → WaveController._on_wall_cleared | BreakoutGrid | #386 | 信号连接（同上） | ⬜ |
-| BreakoutGrid.wall_generated → GameHUD._on_grid_wall_generated | BreakoutGrid | #392 | 信号连接（剩余砖数播种主路径） | ⬜ |
-| BreakoutGrid.brick_destroyed → GameHUD._on_grid_brick_destroyed | BreakoutGrid | #392 | 信号连接（剩余砖数递减） | ⬜ |
-| WaveController → AIPaddle 难度收紧 | WaveController | #386 | 节点引用 + 属性写入（`../AIPaddle`） | ⬜ |
-| WaveController → RainCurtain.set_wave_factor | WaveController | #389 | 节点引用 + 方法调用（`../AtmosphereLayer/RainCurtain`） | ⬜ |
-| GameManager.wave_started → WaveTransitionController._on_wave_started | WaveTransition | #390 | 信号连接（autoload，_ready 内 connect） | ⬜ |
+| BreakoutGrid.brick_destroyed → ScoringManager._on_brick_destroyed | BreakoutGrid | #385 | 信号连接（守卫已就绪，节点挂载即触发） | ✅ |
+| BreakoutGrid.wall_cleared → WaveController._on_wall_cleared | BreakoutGrid | #386 | 信号连接（同上） | ✅ |
+| BreakoutGrid.wall_generated → GameHUD._on_grid_wall_generated | BreakoutGrid | #392 | 信号连接（剩余砖数播种主路径） | ✅ |
+| BreakoutGrid.brick_destroyed → GameHUD._on_grid_brick_destroyed | BreakoutGrid | #392 | 信号连接（剩余砖数递减） | ✅ |
+| WaveController → AIPaddle 难度收紧 | WaveController | #386 | 节点引用 + 属性写入（`../AIPaddle`） | ✅ |
+| WaveController → RainCurtain.set_wave_factor | WaveController | #389 | 节点引用 + 方法调用（`../AtmosphereLayer/RainCurtain`） | ✅ |
+| GameManager.wave_started → WaveTransitionController._on_wave_started | WaveTransition | #390 | 信号连接（autoload，_ready 内 connect） | ✅ |
 | GameManager.wave_started → GameHUD 波次号 | GameHUD | #392 | 信号连接（脚本内已连接） | ✅ |
 | GameManager.wave_settled → UpgradePickUI.open | UpgradePickUI | #388 | 信号连接（脚本内已连接） | ✅ |
-| UpgradePickUI → WaveController.advance_settlement（group wave_controllers） | UpgradePickUI | #388 | group 寻址 + 方法调用（WaveController 挂载后激活） | ⬜ |
+| UpgradePickUI → WaveController.advance_settlement（group wave_controllers） | UpgradePickUI | #388 | group 寻址 + 方法调用（WaveController 挂载后激活） | ✅ |
 | GameManager.match_over → GameStateMachine GAME_OVER | GameStateMachine | #385/#391 | 信号连接（脚本内已连接） | ✅ |
 | GameManager.match_over → GameOverScreen win/fail 双分支 | GameOverScreen | #391 | 信号连接（脚本内已连接；换实例后 Label 全量生效） | ✅ |
-| Ball.bricks 分支 ↔ Brick.destroy | Ball/Brick | #384 | 碰撞 + 方法调用（组 "bricks" 识别） | ⬜ |
+| Ball.bricks 分支 ↔ Brick.destroy | Ball/Brick | #384 | 碰撞 + 方法调用（组 "bricks" 识别） | ✅ |
 
 ---
 
@@ -534,9 +534,9 @@ State.PLAYING:
 
 | 集成 | 组件 | 目标 Issue | 方式 | 状态 |
 |------|:---:|:---:|------|:---:|
-| FSM PLAYING 首次进入 → WaveController.start_first_wave | FSM / WaveController | #386/#393 | group `wave_controllers` + has_method | ⬜ |
-| BreakoutGrid ← UpgradePool.grid_ref | BreakoutGrid | #387 | `_ready()` 加组 `breakout_grids`（惰性解析激活） | ⬜ |
-| BreakoutGrid ← BrickUpgradeHooks | BreakoutGrid | #387 | `_ready()` 调 `register_all(self)`；实现 register_upgrade_hook / apply_upgrade_hook / open_hole / blast_neighbors | ⬜ |
+| FSM PLAYING 首次进入 → WaveController.start_first_wave | FSM / WaveController | #386/#393 | group `wave_controllers` + has_method | ✅ |
+| BreakoutGrid ← UpgradePool.grid_ref | BreakoutGrid | #387 | `_ready()` 加组 `breakout_grids`（惰性解析激活） | ✅ |
+| BreakoutGrid ← BrickUpgradeHooks | BreakoutGrid | #387 | `_ready()` 调 `register_all(self)`；实现 register_upgrade_hook / apply_upgrade_hook / open_hole / blast_neighbors | ✅ |
 
 ### B.5 测试用例增补（并入 §9，Scenario H: 首波触发 + #387 组契约）
 

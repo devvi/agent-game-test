@@ -24,6 +24,12 @@ const BALL_RADIUS: float = 10.0
 const FALLBACK_SCREEN_WIDTH: float = 720.0
 const FALLBACK_SCREEN_HEIGHT: float = 1280.0
 
+# ── #384 砖块用例信号捕获（member var —— GDScript lambda 按值捕获）──
+var _brick_cleared_count: int = 0
+
+func _on_brick_wall_cleared() -> void:
+	_brick_cleared_count += 1
+
 
 func run() -> void:
 	_test_scene_integrity_a1()       # TC-A1: ball.tscn node hierarchy
@@ -51,6 +57,9 @@ func run() -> void:
 	_test_cooldown_expiry_h2()       # TC-H2: cooldown expires, collision processed
 	_print_ci_tests()                # TC-G1/G2: covered by CI
 	_test_speed_scale_f5()          # TC-F5 (#387 AC3, ball speed_scale)
+	_test_brick_bounce_x_i1()         # TC-I1 (#384): 侧击翻 X
+	_test_brick_bounce_y_i2()         # TC-I2 (#384): 顶/底击翻 Y
+	_test_brick_removed_i3()          # TC-I3 (#384): 砖被移除 + grid 计数减一
 
 
 func _assert(condition: bool, name: String) -> void:
@@ -601,3 +610,64 @@ func _test_paddle_resets_crossed_f5() -> void:
 
 	_assert(ball._crossed_wall == false, "TC-F5: paddle touch resets _crossed_wall")
 	_assert(ball.last_toucher == "player", "TC-F5: last_toucher set on touch")
+
+
+# ── Scenario I: 砖块碰撞 (#384 DESIGN #414 §5.2, 实现随 #393 落地) ──
+
+func _make_brick(grid) -> StaticBody2D:
+	## 真实 brick.tscn 实例（不挂树 → _ready 不跑，手动加组；碰撞层由场景/脚本负责）。
+	var brick: StaticBody2D = load("res://scenes/brick.tscn").instantiate()
+	brick.add_to_group("bricks")
+	brick.grid = grid
+	return brick
+
+
+func _make_brick_grid(initial: int) -> Node2D:
+	## 真实 BreakoutGrid 脚本最小桩（不挂树 → 只验证计数递减 + 信号契约）。
+	var grid = Node2D.new()
+	grid.set_script(load("res://gdscripts/breakout_grid.gd"))
+	grid.remaining_bricks = initial
+	return grid
+
+
+## TC-I1: 侧击 → dominant-axis 翻 X（|vx| >= |vy|）、vy 不变；砖销毁
+func _test_brick_bounce_x_i1() -> void:
+	var ball = _make_ball()
+	var grid = _make_brick_grid(1)
+	var brick = _make_brick(grid)
+	ball.velocity = Vector2(300, 0)
+	ball._bounce_cooldown = 0
+	ball._on_body_entered(brick)
+	_assert(ball.velocity.x == -300.0, "TC-I1: 侧击 vx 翻转 (got %f)" % ball.velocity.x)
+	_assert(ball.velocity.y == 0.0, "TC-I1: 侧击 vy 不变 (got %f)" % ball.velocity.y)
+	_assert(brick.get("_destroyed") == true, "TC-I1: 砖已标记销毁")
+	_assert(grid.remaining_bricks == 0, "TC-I1: grid 计数减一 (got %d)" % grid.remaining_bricks)
+
+
+## TC-I2: 顶/底击 → dominant-axis 翻 Y（|vy| > |vx|）、vx 不变；砖销毁
+func _test_brick_bounce_y_i2() -> void:
+	var ball = _make_ball()
+	var grid = _make_brick_grid(1)
+	var brick = _make_brick(grid)
+	ball.velocity = Vector2(0, 300)
+	ball._bounce_cooldown = 0
+	ball._on_body_entered(brick)
+	_assert(ball.velocity.y == -300.0, "TC-I2: 顶击 vy 翻转 (got %f)" % ball.velocity.y)
+	_assert(ball.velocity.x == 0.0, "TC-I2: 顶击 vx 不变 (got %f)" % ball.velocity.x)
+	_assert(brick.get("_destroyed") == true, "TC-I2: 砖已标记销毁")
+	_assert(grid.remaining_bricks == 0, "TC-I2: grid 计数减一 (got %d)" % grid.remaining_bricks)
+
+
+## TC-I3: 撞砖后砖已 queue_free（延迟帧释放），grid 计数减一、wall_cleared 契约成立
+func _test_brick_removed_i3() -> void:
+	var ball = _make_ball()
+	var grid = _make_brick_grid(1)
+	_brick_cleared_count = 0
+	grid.wall_cleared.connect(_on_brick_wall_cleared)
+	var brick = _make_brick(grid)
+	ball.velocity = Vector2(150, -150)
+	ball._bounce_cooldown = 0
+	ball._on_body_entered(brick)
+	_assert(brick.get("_destroyed") == true, "TC-I3: 砖已标记销毁")
+	_assert(grid.remaining_bricks == 0, "TC-I3: 计数归零")
+	_assert(_brick_cleared_count == 1, "TC-I3: 最后一砖 → wall_cleared 一次 (got %d)" % _brick_cleared_count)

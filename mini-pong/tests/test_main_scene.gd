@@ -24,6 +24,7 @@ func run() -> void:
 	_test_tc19_version_label_in_start_menu()
 	_test_tc20_portrait_layout_coords()
 	_test_tc21_atmosphere_layer()
+	_test_tc22_assembly_nodes()
 
 
 func _assert(condition: bool, name: String) -> void:
@@ -393,4 +394,79 @@ func _test_tc21_atmosphere_layer() -> void:
 		_assert(rc.has_node("Particles"), "TC21-5: RainCurtain has Particles child")
 		var p = rc.get_node_or_null("Particles")
 		_assert(p is GPUParticles2D, "TC21-6: Particles is GPUParticles2D")
+	game.queue_free()
+
+
+# ── TC22: #393 组装 — BreakoutGrid / WaveController / WaveTransition 节点与接线契约 ──
+
+func _test_tc22_assembly_nodes() -> void:
+	if not ResourceLoader.exists("res://scenes/Main.tscn"):
+		_assert(false, "TC22: Main.tscn missing")
+		return
+	var scene = load("res://scenes/Main.tscn")
+	if scene == null:
+		_assert(false, "TC22: Main.tscn failed to load")
+		return
+	var game = scene.instantiate()
+	# 挂树触发 _ready（组注册/信号连接依赖 _ready；既有 TC 的 instantiate-only 模式无法断言组）
+	(Engine.get_main_loop() as SceneTree).root.add_child(game)
+
+	_assert(game.has_node("BreakoutGrid"), "TC22-1: BreakoutGrid node exists")
+	_assert(game.has_node("WaveController"), "TC22-2: WaveController node exists")
+	_assert(game.has_node("WaveTransition"), "TC22-3: WaveTransition node exists")
+
+	var grid = game.get_node_or_null("BreakoutGrid")
+	if grid:
+		_assert(grid.is_in_group("breakout_grids"), "TC22-4: BreakoutGrid in group breakout_grids")
+		_assert(grid.has_signal("brick_destroyed"), "TC22-5: grid has brick_destroyed signal")
+		_assert(grid.has_signal("wall_cleared"), "TC22-6: grid has wall_cleared signal")
+		_assert(grid.has_signal("wall_generated"), "TC22-7: grid has wall_generated signal")
+		_assert(grid.has_method("generate_wave"), "TC22-8: grid has generate_wave")
+
+	var wc = game.get_node_or_null("WaveController")
+	if wc:
+		_assert(wc.is_in_group("wave_controllers"), "TC22-9: WaveController in group wave_controllers")
+		_assert(wc.has_method("start_first_wave"), "TC22-10: WaveController has start_first_wave")
+
+	var wt = game.get_node_or_null("WaveTransition")
+	if wt:
+		_assert(wt is CanvasLayer, "TC22-11: WaveTransition is CanvasLayer")
+		_assert(wt.layer >= 2 and wt.layer < 10,
+			"TC22-12: WaveTransition layer 于 HUD(1) 与 PauseOverlay(10) 之间 (layer=%d)" % wt.layer)
+
+	# 层序: HUD(1) < UpgradePickUI(2) < WaveTransition < PauseOverlay(10)
+	var hud = game.get_node_or_null("GameHUD")
+	var pause = game.get_node_or_null("PauseOverlay")
+	if hud and wt:
+		_assert(hud.layer < wt.layer, "TC22-13: HUD layer < WaveTransition layer")
+	if wt and pause:
+		_assert(wt.layer < pause.layer, "TC22-14: WaveTransition layer < PauseOverlay layer")
+
+	# ── DESIGN §2.5 组装断言（#393）──
+	if grid:
+		_assert(abs(grid.position.y - 640.0) < 0.01,
+			"TC22-15: BreakoutGrid position.y == 640 (got %f)" % grid.position.y)
+		_assert(abs(float(grid.wall_y) - 640.0) < 0.01,
+			"TC22-16: BreakoutGrid wall_y 导出 == GRID_WALL_Y(640) (got %f)" % float(grid.wall_y))
+	if wc:
+		var wc_script = wc.get_script()
+		_assert(wc_script != null and String(wc_script.resource_path).ends_with("wave_controller.gd"),
+			"TC22-26: WaveController 挂载 wave_controller.gd")
+	_assert(game.has_node("GameOverScreen/CenterContainer/VBoxContainer/FailurePhraseLabel"),
+		"TC22-17: GameOverScreen 为 ui_game_over.tscn 实例（FailurePhraseLabel 存在）")
+	_assert(game.has_node("GameOverScreen/CenterContainer/VBoxContainer/RunStatsLabel"),
+		"TC22-18: GameOverScreen 为 ui_game_over.tscn 实例（RunStatsLabel 存在）")
+	var gos = game.get_node_or_null("GameOverScreen")
+	if gos:
+		_assert(gos is CanvasLayer, "TC22-19: GameOverScreen is CanvasLayer")
+		_assert(gos.layer == 1, "TC22-20: GameOverScreen layer == 1 (got %d)" % gos.layer)
+		_assert(gos.visible == false, "TC22-21: GameOverScreen 初始 visible == false")
+		_assert(gos.name == "GameOverScreen", "TC22-22: 节点名保持 GameOverScreen（FSM NodePath 契约）")
+	var upi = game.get_node_or_null("UpgradePickUI")
+	if upi:
+		_assert(upi.layer == 2, "TC22-23: UpgradePickUI.layer == 2（实例继承，无需 Main.tscn 覆盖）")
+	if wt:
+		_assert(wt.layer == 3, "TC22-24: WaveTransition.layer == WAVE_TRANSITION_LAYER(3) (got %d)" % wt.layer)
+		_assert(wt.visible == false, "TC22-25: WaveTransition 初始 visible == false")
+
 	game.queue_free()

@@ -5,13 +5,16 @@
 [ext_resource type="Script" path="res://gdscripts/scoring_manager.gd" id="3_scoring_manager"]
 [ext_resource type="Script" path="res://gdscripts/start_menu.gd" id="4_start_menu"]
 [ext_resource type="PackedScene" path="res://scenes/ui_game_hud.tscn" id="5_game_hud"]
-[ext_resource type="Script" path="res://gdscripts/game_over_screen.gd" id="6_game_over"]
 [ext_resource type="Script" path="res://gdscripts/game_state_machine.gd" id="7_game_state_machine"]
 [ext_resource type="Script" path="res://gdscripts/pause_overlay.gd" id="8"]
 [ext_resource type="PackedScene" path="res://scenes/world_environment.tscn" id="9_world_env"]
 [ext_resource type="Script" path="res://gdscripts/score_flash.gd" id="10_score_flash"]
 [ext_resource type="PackedScene" path="res://scenes/rain_curtain.tscn" id="11_rain_curtain"]
 [ext_resource type="PackedScene" path="res://scenes/ui_upgrade_pick.tscn" id="12_upgrade_pick"]
+[ext_resource type="PackedScene" path="res://scenes/breakout_grid.tscn" id="13_breakout_grid"]
+[ext_resource type="Script" path="res://gdscripts/wave_controller.gd" id="14_wave_controller"]
+[ext_resource type="PackedScene" path="res://scenes/wave_transition.tscn" id="15_wave_transition"]
+[ext_resource type="PackedScene" path="res://scenes/ui_game_over.tscn" id="16_game_over_scene"]
 
 [sub_resource type="RectangleShape2D" id="rect_wall_left"]
 size = Vector2(10, 1280)
@@ -52,6 +55,12 @@ position = Vector2(360, 1240)
 [node name="AIPaddle" parent="." instance=ExtResource("2_player_paddle")]
 position = Vector2(360, 40)
 mode = 1
+
+[node name="BreakoutGrid" parent="." instance=ExtResource("13_breakout_grid")]
+position = Vector2(0, 640)
+
+[node name="WaveController" type="Node" parent="."]
+script = ExtResource("14_wave_controller")
 
 [node name="ScoringManager" type="Node" parent="."]
 script = ExtResource("3_scoring_manager")
@@ -132,34 +141,9 @@ modulate = Color(0.29, 0.56, 0.85, 0.6)
 
 [node name="GameHUD" parent="." instance=ExtResource("5_game_hud")]
 
-[node name="GameOverScreen" type="CanvasLayer" parent="."]
+[node name="GameOverScreen" parent="." instance=ExtResource("16_game_over_scene")]
 layer = 1
 visible = false
-script = ExtResource("6_game_over")
-
-[node name="CenterContainer" type="CenterContainer" parent="GameOverScreen"]
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="VBoxContainer" type="VBoxContainer" parent="GameOverScreen/CenterContainer"]
-alignment = 1
-
-[node name="WinnerLabel" type="Label" parent="GameOverScreen/CenterContainer/VBoxContainer"]
-text = ""
-horizontal_alignment = 1
-font_size = 72
-modulate = Color(1.0, 1.0, 1.0, 1.0)
-
-[node name="Spacer" type="Control" parent="GameOverScreen/CenterContainer/VBoxContainer"]
-
-[node name="RestartPromptLabel" type="Label" parent="GameOverScreen/CenterContainer/VBoxContainer"]
-text = "按 SPACE 重新开始"
-horizontal_alignment = 1
-font_size = 28
-modulate = Color(1.0, 1.0, 1.0, 1.0)
 
 [node name="PauseOverlay" type="CanvasLayer" parent="."]
 layer = 10
@@ -167,6 +151,10 @@ visible = false
 script = ExtResource("8")
 
 [node name="UpgradePickUI" parent="." instance=ExtResource("12_upgrade_pick")]
+
+[node name="WaveTransition" parent="." instance=ExtResource("15_wave_transition")]
+layer = 3
+visible = false
 
 [node name="ColorRect" type="ColorRect" parent="PauseOverlay"]
 anchors_preset = 15

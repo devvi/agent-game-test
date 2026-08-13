@@ -18,6 +18,7 @@ func _run_tests() -> void:
 	_run("res://tests/test_paddle.gd", "Paddle")
 	_run("res://tests/test_neon.gd", "Neon Visual")
 	_run("res://tests/test_ball.gd", "Ball Physics")
+	await _run_async("res://tests/test_breakout_grid.gd", "Breakout Grid")
 	_run("res://tests/test_scoring_manager.gd", "Scoring Manager")
 	_run("res://tests/test_ai_paddle.gd", "AI Paddle")
 	_run("res://tests/test_game_manager.gd", "GameManager")
@@ -35,6 +36,8 @@ func _run_tests() -> void:
 	_run("res://tests/test_integration_fsm.gd", "FSM Integration")
 	await _run_async("res://tests/test_wave_cycle.gd", "Wave Cycle")
 	await _run_async("res://tests/test_upgrade_pick_ui.gd", "Upgrade Pick UI")
+	await _run_async("res://tests/test_wave_transition.gd", "Wave Transition")
+	await _run_async("res://tests/test_integration_393.gd", "Assembly Integration")
 	await _run_async("res://tests/auto_play_test.gd", "Auto-Play")
 	print("
 === TOTAL: %d passed, %d failed ===" % [_pass, _fail])
