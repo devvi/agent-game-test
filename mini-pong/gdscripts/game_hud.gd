@@ -25,6 +25,10 @@ var game_manager
 
 var _warned: bool = false   # grid 缺失只 push_warning 一次（防刷屏）
 
+# ── Ball Speed HUD (#448) ──
+var speed_hud_enabled: bool = CONSTS.HUD_SHOW_SPEED   # 开关（默认读常量；测试可注入 false — G4）
+var speed_label: Label                                 # 代码创建的球速 Label（TopZone 右上）
+
 
 # ── Lifecycle ──
 func _ready() -> void:
@@ -35,6 +39,7 @@ func _ready() -> void:
 	_apply_neon()
 	_connect_signals()
 	_seed_initial_values()
+	_setup_speed_hud()
 	visible = false  # Hidden until StartMenu triggers show
 
 
@@ -109,6 +114,7 @@ func _seed_initial_values() -> void:
 			ai_pierce_label.text = "穿 " + str(gm.get_pierce_count("ai"))
 	_refresh_info_bar(_wave_index())
 	_refresh_remaining()
+	_refresh_speed()
 
 
 # ── Signal Handlers (GameManager) ──
@@ -190,3 +196,60 @@ func _warn_once() -> void:
 		return
 	_warned = true
 	push_warning("HUD: BreakoutGrid 未接线 (#384/#393)，剩余砖数显示占位符")
+
+
+# ── Ball Speed HUD (#448) ──
+
+## 代码创建 SpeedLabel（TopZone 右上独立锚定 —— VBox 72px 放不下第三行）+
+## SpeedPollTimer（HUD_SPEED_POLL_INTERVAL=0.1s, autostart, timeout → _on_speed_tick）。
+## 开关 false → 直接 return（AC3）。不设 process_mode —— pause 时读数冻结 = 正确语义（PRD §5.2-7）。
+func _setup_speed_hud() -> void:
+	if not speed_hud_enabled:
+		return
+	var top_zone = get_node_or_null("TopZone")
+	if top_zone == null:
+		return
+	var lbl: Label = Label.new()
+	lbl.name = "SpeedLabel"
+	lbl.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	lbl.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	lbl.position.x = -8.0
+	lbl.text = CONSTS.HUD_SPEED_LABEL_PREFIX + "—"
+	NeonStyle.apply(lbl, CONSTS.HUD_INFO_COLOR)
+	top_zone.add_child(lbl)
+	speed_label = lbl
+	var timer: Timer = Timer.new()
+	timer.name = "SpeedPollTimer"
+	timer.wait_time = CONSTS.HUD_SPEED_POLL_INTERVAL
+	timer.autostart = true
+	timer.timeout.connect(_on_speed_tick)
+	add_child(timer)
+	_refresh_speed()   # 播种：HUD 显示时读数已就绪，不依赖首个 timeout
+
+
+## Timer timeout → 读速刷新（10Hz；命名不含 _process 子串 —— TF-1 命名红线）
+func _on_speed_tick() -> void:
+	_refresh_speed()
+
+
+## 按组找球（upgrade_pool.gd:152 先例）→ round(speed) + 单位；缺失 → 占位 + 单次告警
+func _refresh_speed() -> void:
+	if speed_label == null:
+		return
+	var ball = get_tree().get_first_node_in_group("balls")
+	if ball == null:
+		_warn_once_speed()
+		speed_label.text = CONSTS.HUD_SPEED_LABEL_PREFIX + "—"
+		return
+	var spd = ball.get("speed")
+	if spd == null:
+		spd = 0.0
+	speed_label.text = CONSTS.HUD_SPEED_LABEL_PREFIX + "%d %s" % [round(float(spd)), CONSTS.HUD_SPEED_UNIT]
+
+
+func _warn_once_speed() -> void:
+	if _warned:
+		return
+	_warned = true
+	push_warning("HUD: 未找到 ball（group \"balls\"），球速显示占位符 (#448)")
+
