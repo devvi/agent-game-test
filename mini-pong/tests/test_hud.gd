@@ -53,6 +53,13 @@ func run() -> void:
 	_test_tf1_no_polling()
 	_test_tf2_hud_constants()
 
+	# Scenario G: 球速 HUD (#448) — DESIGN docs/DESIGN/448-ball-speed-hud.md §4
+	await _test_g1_speed_label_exists()
+	await _test_g2_speed_updates()
+	await _test_g3_no_ball_placeholder()
+	await _test_g4_disabled_no_nodes()
+	_test_g5_tf1_still_green()
+
 	print("  Neon HUD: %d passed, %d failed" % [passed, failed])
 
 
@@ -440,3 +447,106 @@ func _test_tf2_hud_constants() -> void:
 	_assert(CONSTS.HUD_SHADOW_OFFSET_X > 0 and CONSTS.HUD_SHADOW_OFFSET_Y > 0, "TF-2: shadow offset > 0")
 	_assert(CONSTS.HUD_TOP_BAND_Y >= 0.0 and CONSTS.HUD_TOP_BAND_Y <= 1280.0, "TF-2: HUD_TOP_BAND_Y in [0,1280]")
 	_assert(CONSTS.HUD_BOTTOM_BAND_Y >= 0.0 and CONSTS.HUD_BOTTOM_BAND_Y <= 1280.0, "TF-2: HUD_BOTTOM_BAND_Y in [0,1280]")
+
+
+# ── Scenario G: 球速 HUD (#448) ──
+# DESIGN docs/DESIGN/448-ball-speed-hud.md §4 测试矩阵 G1–G5。
+# 机制: _ready → _setup_speed_hud 代码创建 TopZone/SpeedLabel + SpeedPollTimer
+# (10Hz autostart, timeout → _on_speed_tick → _refresh_speed 读 group "balls")。
+
+func _test_g1_speed_label_exists() -> void:
+	# G-1: HUD_SHOW_SPEED=true 时 TopZone/SpeedLabel 存在 + 中立色 (AC1/AC3)
+	_gm.reset_match()
+	var hud = _make_hud()
+	if hud == null:
+		_assert(false, "G-1: hud 加载失败")
+		return
+	_root.add_child(hud)
+	var lbl: Label = hud.get_node_or_null("TopZone/SpeedLabel")
+	_assert(lbl != null, "G-1: SpeedLabel exists under TopZone")
+	if lbl:
+		_assert(lbl.get("theme_override_colors/font_color") == CONSTS.HUD_INFO_COLOR,
+			"G-1: SpeedLabel 中立色 == HUD_INFO_COLOR")
+		var outline: int = lbl.get("theme_override_constants/outline_size")
+		_assert(outline > 0, "G-1: SpeedLabel outline_size > 0 (got %s)" % str(outline))
+	hud.queue_free()
+	await _wait(0.02)
+
+
+func _test_g2_speed_updates() -> void:
+	# G-2: mock 球 speed=350.4 → 一个 poll 周期后 SpeedLabel "球速 350 px/s" (AC1/AC2)
+	_gm.reset_match()
+	var hud = _make_hud()
+	if hud == null:
+		_assert(false, "G-2: hud 加载失败")
+		return
+	_root.add_child(hud)
+	var code = GDScript.new()
+	code.source_code = "extends Node\n## Mock Ball (#448 G2)\nvar speed: float = 0.0\n"
+	code.reload()
+	var ball = Node.new()
+	ball.set_script(code)
+	ball.name = "MockBall"
+	ball.add_to_group("balls")
+	_root.add_child(ball)
+	await _wait(0.05)
+	ball.speed = 350.4
+	await _wait(CONSTS.HUD_SPEED_POLL_INTERVAL * 1.2)
+	var lbl: Label = hud.get_node_or_null("TopZone/SpeedLabel")
+	if lbl:
+		_assert(lbl.text == "球速 350 px/s", "G-2: SpeedLabel == '球速 350 px/s' (got %s)" % lbl.text)
+	ball.remove_from_group("balls")
+	ball.queue_free()
+	hud.queue_free()
+	await _wait(0.02)
+
+
+func _test_g3_no_ball_placeholder() -> void:
+	# G-3: 无 ball → 不崩 + "球速 —" 占位（容错，_refresh_remaining 同款）
+	_gm.reset_match()
+	# 防御性清理 balls 组残留（G-2 已清理，双保险）
+	for b in (Engine.get_main_loop() as SceneTree).get_nodes_in_group("balls"):
+		b.queue_free()
+	await _wait(0.02)
+	var hud = _make_hud()
+	if hud == null:
+		_assert(false, "G-3: hud 加载失败")
+		return
+	_root.add_child(hud)
+	await _wait(CONSTS.HUD_SPEED_POLL_INTERVAL * 1.2)
+	var lbl: Label = hud.get_node_or_null("TopZone/SpeedLabel")
+	if lbl:
+		_assert(lbl.text == "球速 —", "G-3: 无球占位 '球速 —' (got %s)" % lbl.text)
+	_assert(true, "G-3: 无球轮询不崩")
+	hud.queue_free()
+	await _wait(0.02)
+
+
+func _test_g4_disabled_no_nodes() -> void:
+	# G-4: HUD_SHOW_SPEED=false（注入 speed_hud_enabled=false）→ 无 SpeedLabel / 无 Timer (AC3)
+	_gm.reset_match()
+	var hud = _make_hud()
+	if hud == null:
+		_assert(false, "G-4: hud 加载失败")
+		return
+	hud.speed_hud_enabled = false
+	_root.add_child(hud)
+	_assert(hud.get_node_or_null("TopZone/SpeedLabel") == null, "G-4: 关闭时无 SpeedLabel")
+	var has_timer: bool = false
+	for c in hud.get_children():
+		if c is Timer:
+			has_timer = true
+	_assert(not has_timer, "G-4: 关闭时无 SpeedPollTimer")
+	hud.queue_free()
+	await _wait(0.02)
+
+
+func _test_g5_tf1_still_green() -> void:
+	# G-5: TF-1 回归 — 新增球速 HUD 后源码仍无 _process/_physics_process (AC4，禁止放宽)
+	var script = load("res://gdscripts/game_hud.gd")
+	if script == null:
+		_assert(false, "G-5: game_hud.gd 加载失败")
+		return
+	var src: String = script.source_code
+	_assert(not src.contains("_process("), "G-5: game_hud.gd 无 _process 轮询")
+	_assert(not src.contains("_physics_process("), "G-5: game_hud.gd 无 _physics_process")

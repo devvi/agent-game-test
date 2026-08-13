@@ -187,3 +187,11 @@ const UPGRADE_RARITY_COLORS: Dictionary = {         # AC3：稀有度 → 边框
 }
 const UPGRADE_RARITY_NAMES: Dictionary = {0: "普通", 1: "稀有", 2: "传说"}   # AC3 稀有度名称（确认后展示）
 
+# ── Ball Speed HUD (#448) ──
+# 球速实时显示：GameHUD 顶部右上 Label + SpeedPollTimer 10Hz 轮询 ball.speed
+# （Timer timeout 信号驱动，非 _process —— #392 TF-1 零轮询契约）。显示值 = round(ball.speed) + px/s。
+const HUD_SHOW_SPEED: bool = true
+const HUD_SPEED_POLL_INTERVAL: float = 0.1
+const HUD_SPEED_UNIT: String = "px/s"
+const HUD_SPEED_LABEL_PREFIX: String = "球速 "
+
