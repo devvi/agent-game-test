@@ -635,6 +635,116 @@ class TestPreprocess(unittest.TestCase):
         self.assertTrue(any("STALLED: merge-pr,pr=450" in c for c in cmds),
                         f"stalled scan must merge mergeable research PR: {cmds}")
 
+    # ── 2026-08-13 impl-resume: 截断 implement agent 检测 (A+C 修复) ──
+    # #466 教训: implement agent 手写代码烧光 50-call 预算 → 截断 → worktree
+    # 残留未提交改动 + 无 impl PR → 旧 stalled scan 不识别 → 卡死。新检测:
+    # workflow/implement label + /tmp/wt-implement-N 存在 + worktree 脏 + 无 PR
+    # → STALLED: impl-resume → cron 重 spawn implement agent。
+
+    def test_impl_resume_detects_truncated_implement(self):
+        """Dirty worktree + implement label + no PR → STALLED: impl-resume."""
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "issue" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 466, "labels": [{"name": "workflow/implement"},
+                                               {"name": "enhancement"}]}
+                ])
+            if "pr" in joined and "list" in joined:
+                return json.dumps([{"number": 999, "headRefName": "impl/465-x"}])
+            return ""
+        def fake_isdir(p):
+            return p == "/tmp/wt-implement-466"
+        def fake_run(cmd, *a, **kw):
+            # git -C /tmp/wt-implement-466 status --porcelain → dirty
+            return mock.Mock(returncode=0, stdout=" M mini-pong/scenes/rain_curtain.tscn\n")
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "gh", side_effect=fake_gh), \
+             mock.patch.object(ep.os.path, "isdir", side_effect=fake_isdir), \
+             mock.patch.object(ep.subprocess, "run", side_effect=fake_run):
+            cmds = ep._quick_stalled_scan()
+        self.assertTrue(
+            any("STALLED: impl-resume,issue=466" in c for c in cmds),
+            f"stalled scan must emit impl-resume for truncated implement: {cmds}")
+
+    def test_impl_resume_skips_clean_worktree(self):
+        """Worktree exists but clean → no impl-resume (agent working normally)."""
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "issue" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 466, "labels": [{"name": "workflow/implement"}]}
+                ])
+            if "pr" in joined and "list" in joined:
+                return "[]"
+            return ""
+        def fake_isdir(p):
+            return p == "/tmp/wt-implement-466"
+        def fake_run(cmd, *a, **kw):
+            return mock.Mock(returncode=0, stdout="")
+        with mock.patch.object(ep, "gh", side_effect=fake_gh), \
+             mock.patch.object(ep.os.path, "isdir", side_effect=fake_isdir), \
+             mock.patch.object(ep.subprocess, "run", side_effect=fake_run):
+            cmds = ep._quick_stalled_scan()
+        self.assertFalse(
+            any("STALLED: impl-resume" in c for c in cmds),
+            f"clean worktree must not emit impl-resume: {cmds}")
+
+    def test_impl_resume_skips_when_pr_exists(self):
+        """Open impl PR exists for the issue → no impl-resume (PR supersedes)."""
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "issue" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 466, "labels": [{"name": "workflow/implement"}]}
+                ])
+            if "pr" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 501, "headRefName": "impl/466-main-scene-assembly"}
+                ])
+            return ""
+        def fake_isdir(p):
+            return p == "/tmp/wt-implement-466"
+        def fake_run(cmd, *a, **kw):
+            return mock.Mock(returncode=0, stdout=" M mini-pong/scenes/rain_curtain.tscn\n")
+        with mock.patch.object(ep, "gh", side_effect=fake_gh), \
+             mock.patch.object(ep.os.path, "isdir", side_effect=fake_isdir), \
+             mock.patch.object(ep.subprocess, "run", side_effect=fake_run):
+            cmds = ep._quick_stalled_scan()
+        self.assertFalse(
+            any("STALLED: impl-resume,issue=466" in c for c in cmds),
+            f"existing impl PR must suppress impl-resume: {cmds}")
+
+    def test_impl_resume_gated_within_ttl(self):
+        """impl-resume emissions go through _spawn_gate — no per-tick spam."""
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "issue" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 466, "labels": [{"name": "workflow/implement"}]}
+                ])
+            if "pr" in joined and "list" in joined:
+                return "[]"
+            return ""
+        def fake_isdir(p):
+            return p == "/tmp/wt-implement-466"
+        def fake_run(cmd, *a, **kw):
+            return mock.Mock(returncode=0, stdout=" M x\n")
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "gh", side_effect=fake_gh), \
+             mock.patch.object(ep.os.path, "isdir", side_effect=fake_isdir), \
+             mock.patch.object(ep.subprocess, "run", side_effect=fake_run):
+            first = ep._quick_stalled_scan()
+            second = ep._quick_stalled_scan()
+        self.assertTrue(any("STALLED: impl-resume,issue=466" in c for c in first),
+                        f"first scan must emit: {first}")
+        self.assertFalse(any("STALLED: impl-resume,issue=466" in c for c in second),
+                         f"second scan within TTL must be gated: {second}")
+
     # ── 2026-08-13 event-driven restore (方案4 v2) ──────────────────
     # Delete reconcile() synthetic event injection; the scheduler now emits
     # research SPAWNs directly (picker promote + available rescan), all

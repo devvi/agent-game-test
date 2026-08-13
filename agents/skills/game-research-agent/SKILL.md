@@ -40,6 +40,9 @@ cd "$WT" && gh pr create --base main --head research/<N>-<slug> --title "researc
 git worktree remove "$WT" --force
 ```
 
+> ⚠️ `WT=$(...)` 捕获了脚本的 log 行（log 打到 stdout）— 直接用确定性路径
+> `/tmp/wt-<phase>-<N>`（如 `/tmp/wt-research-465`）或 `WT=$(... | tail -1)`（Patch 4）。
+
 **红线:**
 - ❌ 绝不 `git add .` — worktree-commit.sh 强制白名单
 - ❌ 绝不 `git stash` — worktree 隔离后不需要 (stash 是污染时代的遗产)
@@ -138,6 +141,7 @@ following improvements discovered during real research sessions.
 | 18 | Minimum PRD quality gate (reject "Auto-generated") | ↓ §Patch 18 |
 | 19 | Issue constraint inheritance (engine/dir/platform) | ↓ §Patch 19 |
 | 20 | Assembly/Integration PRD scene gap analysis | ↓ §Patch 20 |
+| 21 | GPUParticles2D display diagnostics (visibility_rect culling + ClassDB verify) | ↓ §Patch 21 |
 
 > Patches 7-10 (research-type-specific flows) are at the top of this file —
 > they apply to NPC/bug/interaction research sessions. Patches 1-6 & 11-20
@@ -200,7 +204,10 @@ before proceeding: `gh pr view <N> --json state,mergedAt`.
 | Dirty working tree — `git checkout -b` silently lands on wrong branch | Check `git status --short` before branching. Stash dirty changes first: `git stash push -m "research-{N}-pre-branch"`. If commit landed on wrong branch, delete and cherry-pick: `git branch -D research/{N}-{slug}` → checkout main → create branch → `git cherry-pick <hash>` |
 | `docs/PRD/` directory does not exist yet | Run `mkdir -p docs/PRD` before writing the PRD file. While `write_file` auto-creates dirs, failing at this step wastes a round-trip |
 | `git stash pop` fails after PR merge updates main | After the PR merges, `git checkout main && git pull origin main` can leave stash entries with files that conflict with the updated main. Resolution: `git stash drop` (discard temp changes) or `git stash branch temp-branch` to apply stash on a new branch |
-| PR body `"parent #N"` vs `"Parent #N"` capitalization | Use **lowercase `p`** — this is the project convention and the user's explicit directive. The `workflow-chain.yml` parser regex is case-insensitive, but consistency matters for manual review and stage-gate checks. `parent: #N` (with colon) does NOT match. |
+| PR body `"parent #N"` vs `"Parent #N"` capitalization | Default convention is **lowercase `p`**, but if the task message explicitly specifies capitalization (e.g. `body 用 Parent #465`), follow it **verbatim** — the `workflow-chain.yml` parser is case-insensitive so either advances. `parent: #N` (with colon) does NOT match. |
+| `WT=$(./scripts/worktree-setup.sh ...)` captures log lines, not a clean path | The script's `log()` echoes to **stdout**, so the captured var is polluted and `cd "$WT"` fails. Use the deterministic path directly: `/tmp/wt-<phase>-<N>` (e.g. `/tmp/wt-research-465`), or strip logs: `WT=$(./scripts/worktree-setup.sh ... | tail -1)`. The worktree itself is created correctly either way (2026-08-13 #465 trace). |
+| godot headless `--script` output mixed with project autoload warnings | Project autoloads (e.g. audio_engine headless warnings) print to stdout BEFORE your script's output. Pipe through grep for your print markers: `godot --path mini-pong/ --headless --script /tmp/x.gd 2>&1 | grep 'default\|^==='` — don't read the raw tail. |
+| Issue file domain names a file that doesn't exist under that name | Map issue-named file → actual repo file in the PRD (2026-08-13 #465: issue says `test_rain_curtain.gd`, registered suite is `test_rain.gd`). Recommend extending the existing file (no duplicate suites), state the decision explicitly for the review gate; rename only if the gate requires the literal name. |
 | Feishu webhook URL unknown or not configured | The webhook URL is stored in the pipeline configuration, not in env vars. If you don't have it, skip the notification step — it's not blocking. |
 | PRD section structure differs from template | This project's PRDs use a specific 8-section format (see `references/prd-section-structure.md`) that diverges from `templates/PRD_TEMPLATE.md`. Always follow the established PRD patterns in `docs/PRD/` rather than the generic template. |
 | GitHub API returns HTTP 500 on PR creation | Both `gh pr create` (GraphQL) and `gh api repos/.../pulls -X POST` (REST) return 500/\"Something went wrong\". This is a **server-side GitHub failure**, not rate limit or auth — rate limit shows thousands remaining and auth is fine. Resolution: verify the branch has commits differing from base (`git log --oneline main..research/N-slug`), then generate a manual compare URL: `echo \"https://github.com/$OWNER/$REPO/compare/$BASE...research/N-slug?expand=1\"`. The user can open this in a browser to create the PR. |
@@ -765,3 +772,32 @@ and signal wiring completeness.
 
 **Reference PRD:** `docs/PRD/295-main-scene-assembly.md` (524 lines,
 Issue #295 — assembled 12 components from 8 predecessor issues into Main.tscn).
+
+### Patch 21: GPUParticles2D display diagnostics — "few/no particles" root causes
+
+Graphics/particle bug issues (like #465 — rain curtain "single leak point"): before
+writing the PRD's diagnosis, check the GPUParticles2D config against the three-candidate
+decision tree. **The #1 root cause for "particles only visible near one spot" is the
+default `visibility_rect = Rect2(-100,-100,200,200)`** (node-local coords) culling every
+particle outside a 200×200 window — verified live via a headless ClassDB dump
+(2026-08-13, Godot 4.7.1).
+
+Full detail + copy-paste verification script: `references/godot-particle-diagnostics.md`.
+
+Key facts to embed in the PRD:
+- `visibility_rect` is Rect2 in **local coords**; default culls particles far from the
+  node. Full-screen fix: node at screen center + `visibility_rect = Rect2(-w/2, -h/2, w, h)`.
+- `emission_rect_extents` is **half-extents** (Vector2(360,8) = 720×16, not 720×8).
+  World emission rect = node.position ± extents.
+- Verify ANY Godot property name/type/default without docs:
+  `ClassDB.class_get_property_list("Class")` / `class_get_property_default_value(...)`
+  in a `--headless --script` SceneTree script; grep stdout for your lines (autoload
+  warnings mix in).
+- Platform-backend bugs (macOS Metal GPU particles) are the LAST resort — fix
+  culling/geometry first (D1 → D2 → D3 order). Note: **CPUParticles2D has no
+  `process_material`** (ParticleProcessMaterial is GPU-only), so swapping breaks
+  `_material.*` modulation code and its tests.
+- Issue spec bands (e.g. "velocity 800–1200 px/s") map to the runtime-modulated BASE
+  constants; document the modulated band at default vs max intensity in the PRD.
+- Issue file-domain names can differ from actual repo files — map and note the decision
+  (see Patch 4 pitfalls table).

@@ -1241,6 +1241,44 @@ grep 'godot.*2>&1$' .github/workflows/*.yml
 
 See `references/bash-e-continue-on-error-gate-bypass.md` for the full trace from PR #349.
 
+### ⚠️ Pitfall: `&& true` + grep-only gate — failures pass CI anyway (2026-08-13 #447)
+
+**The 2026-07-30 fix above (`godot ... && true; TEST_EXIT=$?`) is NOT sufficient by itself.** The actual `opencode-review.yml` (pre-fix) had:
+
+```yaml
+godot --path mini-pong/ --headless --script tests/run_tests.gd > mini-pong-test-output.log 2>&1 && true
+TEST_EXIT=$?
+# gate: 只看 SCRIPT ERROR，从未使用 TEST_EXIT
+if grep -qE "SCRIPT ERROR" mini-pong-test-output.log; then exit_code=1; fi
+```
+
+**User reported (2026-08-13):** CI showed `test-and-report pass` while the log contained test failures/warnings (`❌ Failed: N`, `WARNING: ... 未接线`). Root cause: the gate **never consulted `TEST_EXIT`** — it only grepped `SCRIPT ERROR`, and `run_tests.gd` assertion failures do NOT emit `SCRIPT ERROR` (they print `❌ Failed: N` and `quit(1)`). So any assertion failure was silently green.
+
+**Robust gate — triple detection (the actual fix, commit `7123855`):**
+```yaml
+godot --path mini-pong/ --headless --script tests/run_tests.gd > mini-pong-test-output.log 2>&1
+TEST_EXIT=$?   # 不吞退出码：不再用 && true
+if [ "$TEST_EXIT" -ne 0 ] \
+   || grep -qE "SCRIPT ERROR" mini-pong-test-output.log \
+   || grep -qE "[1-9][0-9]* failed|Failed[:：] *[1-9]" mini-pong-test-output.log; then
+  exit_code=1
+else
+  exit_code=0
+fi
+```
+Any ONE of the three signals (nonzero exit / runtime crash / failed-count in output) fails the gate. The failed-count grep covers both half-width `Failed:` and full-width `Failed：` colon variants, and `[1-9][0-9]* failed` catches `3 failed` in `TOTAL: N passed, M failed`.
+
+**Verification of a gate fix (do this before trusting it):** simulate both sides —
+```bash
+# 失败侧必须被拦截: 0 passed, 1 failed
+printf '  Fake: 0 passed, 3 failed\n' > /tmp/gate.log
+grep -qE "[1-9][0-9]* failed|Failed[:：] *[1-9]" /tmp/gate.log && echo "CAUGHT ✓"
+# 通过侧必须放行: 2215 passed, 0 failed
+printf '=== TOTAL: 2215 passed, 0 failed ===\n' > /tmp/gate2.log
+grep -qE "[1-9][0-9]* failed|Failed[:：] *[1-9]" /tmp/gate2.log || echo "PASSES ✓"
+```
+Apply the same audit to EVERY test step in the workflow — search for `godot ... && true` and `grep SCRIPT ERROR` as the only gate; both are red flags.
+
 ### ⚠️ Pitfall: CI Timeout from Per-File `--check-only` Loops (2026-07-29)
 
 A compile-check CI step that loops over `.gd` files with individual `godot --check-only`
