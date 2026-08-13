@@ -203,3 +203,11 @@ const HUD_SPEED_POLL_INTERVAL: float = 0.1
 const HUD_SPEED_UNIT: String = "px/s"
 const HUD_SPEED_LABEL_PREFIX: String = "球速 "
 
+# ── Audio (#450) ──
+# 拆砖专属音效 (PRD #450 方案 B: 噪声突发 + 指数衰减; 机制/常量 = mechanical,
+# 音色/时长数值 = taste-draft, human-review 定稿, 调参零代码改动)
+const BRICK_BREAK_DURATION: float = 0.08    # 80ms 短促碎裂音
+const BRICK_BREAK_VOLUME: float = 0.7       # <1.0 防削波 (spike peak 0.689 验证)
+const BRICK_BREAK_DECAY_TAU: float = 0.02   # τ = duration/4 快速指数衰减
+const BRICK_BREAK_SEED: int = 450           # 固定种子 → 合成确定性 (CI 可复现)
+
