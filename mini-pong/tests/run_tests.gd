@@ -30,6 +30,7 @@ func _run_tests() -> void:
 	_run("res://tests/test_audio_engine.gd", "AudioEngine")
 	_run("res://tests/test_constants.gd", "Constants")
 	_run("res://tests/test_visual_contrast.gd", "Visual Contrast")
+	await _run_async("res://tests/test_e2e_capture_require.gd", "E2E Capture Require")
 	_run("res://tests/test_upgrade_pool.gd", "Upgrade Pool")
 	_run("res://tests/test_main_scene.gd", "Main Scene Assembly")
 	_run("res://tests/test_rain.gd", "Rain Curtain")

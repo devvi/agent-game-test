@@ -275,7 +275,22 @@ func _assert_text_ok(d: Dictionary) -> bool:
 func _require_ok(d: Dictionary) -> bool:
 	if not d.has("require"):
 		return true
-	var req: Dictionary = d["require"]
+	var req = d["require"]
+	# Array form: multiple conditions AND (#466 — require 数组化)
+	if req is Array:
+		for cond in req:
+			if not _require_one(cond):
+				return false
+		return true
+	return _require_one(req)
+
+
+func _require_one(req: Dictionary) -> bool:
+	if req.has("children_in_group"):
+		# #466 方案 a — 组内节点计数门 (砖块存在性, 防波次间隙误报)
+		var group: String = str(req["children_in_group"].get("group", ""))
+		var min_count: int = int(req["children_in_group"].get("min", 1))
+		return root.get_tree().get_nodes_in_group(group).size() >= min_count
 	var node = root.get_node_or_null(str(req.get("node", "")))
 	if node == null:
 		return false

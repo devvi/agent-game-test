@@ -231,6 +231,22 @@ PY
         if [ -n "$prev" ]; then
           args+=(--diff-with "$prev" --min-delta 5.0 --diff-ratio 0.005)
         fi
+        # #466: shot-level visual config passthrough (region assertions).
+        # Extract the shot's `visual` field from the resolved plan; absent →
+        # no --visual-config flag → behavior unchanged (backward compatible).
+        shot_name="$(basename "$png" .png)"
+        if python3 - "$OUT/plan.json" "$shot_name" "$OUT/visual-$shot_name.json" <<'PY' >/dev/null 2>&1
+import json, sys
+plan = json.load(open(sys.argv[1]))
+for s in plan.get("shots", []):
+    if s.get("name") == sys.argv[2] and "visual" in s:
+        json.dump(s["visual"], open(sys.argv[3], "w"), indent=2)
+        sys.exit(0)
+sys.exit(1)
+PY
+        then
+          args+=(--visual-config "$OUT/visual-$shot_name.json")
+        fi
         if python3 "$SCRIPT_DIR/e2e/analyze_bmp.py" "$png" "${args[@]}" >> "$OUT/P5-assert.log" 2>&1; then
           log "  ✅ $(basename "$png") assertions pass"
         else

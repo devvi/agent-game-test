@@ -353,6 +353,7 @@ AC4 自然路径不足 3 个不同机械升级 →
 - Test 1（L1 注册）：`run_tests.gd` 含 `e2e_playthrough.gd` 条目；`godot --path mini-pong/ --headless --script tests/run_tests.gd` 全绿（基线 2137 + 新套件断言数），exit code 0
 - Test 2（L2 激活）：`tests/playthrough_test.tscn` 存在；`godot --path mini-pong/ --headless tests/playthrough_test.tscn` 跑完一局 quit(0)（L2 从 unavailable → 实际执行）
 - Test 3（L0/L3 回归）：check_compile.gd 零错误；L3 视觉帧（01_title/02_midgame/03_gameover）不回归（新文件不触碰 game 代码，预期零影响）
+- Test 3b（L3 区域断言，#466）：02_midgame 区域断言（玩家板可见 / 三色分离 / 雨幕分布）由 analyze_bmp.py `--visual-config` 驱动，作为 L3 视觉层的叠加层（DESIGN 466 §3.1）
 - Test 4（总退出码）：`scripts/run-e2e-review.sh`（按 review agent 惯例）OVERALL=0
 
 ### Scenario F: 边界与失败路径（PRD §5.2/§5.3 全量映射）

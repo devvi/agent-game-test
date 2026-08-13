@@ -15,12 +15,14 @@ types 0/2/3/4/6.
 Usage:
   python3 scripts/e2e/analyze_bmp.py shot.png [--min-colors N] [--max-black-ratio R]
       [--theme 4a90d9] [--diff-with prev.png] [--min-delta D]
-      [--diff-ratio R] [--pixel-delta D] [--name LABEL] [--json]
+      [--diff-ratio R] [--pixel-delta D] [--name LABEL]
+      [--visual-config vcfg.json] [--json]
 Exit: 0 = all enabled assertions pass, 1 = any fail.
 """
 from __future__ import annotations  # py3.9/3.11 dual compat (lazy annotations)
 
 import json
+import math
 import struct
 import sys
 import zlib
@@ -218,6 +220,190 @@ def _theme_present(path: str, hex_color: str, tol: int = 32) -> bool:
     return False
 
 
+
+# ── Region assertions (visual regression, #466) ────────────────────────────
+# Shot-level `visual` config from e2e_shots.json drives these (Approach A,
+# DESIGN 466 §3.1). Pure stdlib, same PNG decode as the 4-fold assertions.
+
+
+def region_stats(rows, x0, y0, x1, y1, step=1):
+    """Sample region pixels → (n_total, n_nonblack, color_bucket_counter).
+
+    Color buckets use the same 16-level granularity as global analyze()
+    (r>>4, g>>4, b>>4). Near-black matches the global rule: r<8 and g<8 and
+    b<8 — so the post-#464 BG_COLOR (10,10,18) counts as FOREGROUND.
+    """
+    h = len(rows)
+    w = len(rows[0]) // 4 if rows else 0
+    x0, y0 = max(0, x0), max(0, y0)
+    x1, y1 = min(w, x1), min(h, y1)
+    n_total = 0
+    n_nonblack = 0
+    buckets = {}
+    for y in range(y0, y1, step):
+        row = rows[y]
+        for x in range(x0, x1, step):
+            i = x * 4
+            r, g, b = row[i], row[i + 1], row[i + 2]
+            n_total += 1
+            if not (r < 8 and g < 8 and b < 8):
+                n_nonblack += 1
+            key = (r >> 4, g >> 4, b >> 4)
+            buckets[key] = buckets.get(key, 0) + 1
+    return n_total, n_nonblack, buckets
+
+
+def dominant_color(rows, x0, y0, x1, y1):
+    """Region dominant color = mode of 16-level color buckets, excluding the
+    near-black bucket (0,0,0) (r<8,g<8,b<8 pixels). Returns the bucket's
+    representative (r,g,b) (lower bound of the bucket) or None when the region
+    is entirely near-black.
+    """
+    _n, _nn, buckets = region_stats(rows, x0, y0, x1, y1)
+    best_key = None
+    best_count = 0
+    for key, count in buckets.items():
+        if key == (0, 0, 0):
+            continue  # near-black bucket — background, not an element color
+        if count > best_count:
+            best_count = count
+            best_key = key
+    if best_key is None:
+        return None
+    return (best_key[0] << 4, best_key[1] << 4, best_key[2] << 4)
+
+
+def rgb_distance(c1, c2) -> float:
+    """Euclidean RGB distance: sqrt((r1-r2)^2 + (g1-g2)^2 + (b1-b2)^2)."""
+    return math.sqrt((c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2
+                     + (c1[2] - c2[2]) ** 2)
+
+
+def rain_signature(r, g, b) -> bool:
+    """Rain-drop signature: blue-dominant AND dim (PRD §4.4).
+    b - max(r,g) >= 8 and luma < 100. Rain blend ≈ (49,56,71) luma≈56 ✓;
+    BgPulse bright phase luma≈149 ✗; dark bg r≈g≈b not blue-dominant ✗.
+    """
+    return (b - max(r, g)) >= 8 and _luma(r, g, b) < 100
+
+
+def rain_grid_coverage(rows, w, h, grid=12, step=2) -> float:
+    """Fraction of grid×grid cells containing ≥1 rain-signature pixel.
+    Sampling step matches the other full-frame passes (step=2)."""
+    if grid <= 0:
+        return 0.0
+    cell_w = w / grid
+    cell_h = h / grid
+    covered = set()
+    for y in range(0, h, step):
+        row = rows[y]
+        for x in range(0, w, step):
+            i = x * 4
+            if rain_signature(row[i], row[i + 1], row[i + 2]):
+                cx = min(int(x / cell_w), grid - 1)
+                cy = min(int(y / cell_h), grid - 1)
+                covered.add((cx, cy))
+    return len(covered) / (grid * grid)
+
+
+def check_visual(path, vcfg: dict) -> list[str]:
+    """Run all region assertions (#466). Returns fail messages ([] = all pass).
+
+    vcfg schema (shot-level `visual` field, DESIGN §3.2):
+      canvas: "WxH" — screenshot must match exactly (防区域错位)
+      regions: [{name, x0, y0, x1, y1, min_nonbg_ratio?}]
+      compare_pairs: [[nameA, nameB], ...]  +  rgb_min_dist
+      rain: {grid, min_coverage}
+    """
+    fails: list[str] = []
+    w, h, rows = _read_png(path)
+
+    # 1. canvas check — mismatch fails immediately (regions would be misaligned)
+    canvas = vcfg.get("canvas")
+    if canvas:
+        try:
+            cw, ch = (int(p) for p in str(canvas).lower().split("x"))
+        except ValueError:
+            fails.append(f"canvas '{canvas}' malformed (expected WxH)")
+            return fails
+        if (w, h) != (cw, ch):
+            fails.append(f"canvas {w}x{h} != declared {canvas}")
+            return fails
+
+    # 2. per-region: dominant color + non-bg ratio
+    dominants: dict[str, tuple] = {}
+    for reg in vcfg.get("regions", []):
+        name = str(reg.get("name", "?"))
+        x0, y0, x1, y1 = reg["x0"], reg["y0"], reg["x1"], reg["y1"]
+        n, nn, _b = region_stats(rows, x0, y0, x1, y1)
+        dom = dominant_color(rows, x0, y0, x1, y1)
+        dominants[name] = dom
+        min_ratio = reg.get("min_nonbg_ratio")
+        if min_ratio is not None:
+            ratio = nn / n if n else 0.0
+            if ratio < float(min_ratio):
+                fails.append(f"region '{name}': non-bg {ratio*100:.1f}% < "
+                             f"{float(min_ratio)*100:.0f}%")
+
+    # 3. compare_pairs: dominant RGB distance
+    min_dist = float(vcfg.get("rgb_min_dist", 60))
+    for a, b in vcfg.get("compare_pairs", []):
+        ca, cb = dominants.get(a), dominants.get(b)
+        if ca is None or cb is None:
+            fails.append(f"compare {a} vs {b}: a region is entirely near-black "
+                         "(no dominant color)")
+            continue
+        d = rgb_distance(ca, cb)
+        if d < min_dist:
+            fails.append(f"compare {a} vs {b}: RGB dist {d:.1f} < {min_dist}")
+
+    # 4. rain grid coverage
+    rain = vcfg.get("rain")
+    if rain:
+        cov = rain_grid_coverage(rows, w, h, grid=int(rain.get("grid", 12)))
+        min_cov = float(rain.get("min_coverage", 0.6))
+        if cov < min_cov:
+            fails.append(f"rain coverage {cov*100:.1f}% < {min_cov*100:.0f}%")
+
+    return fails
+
+
+def visual_detail(path, vcfg: dict) -> dict:
+    """Structured visual evidence for --json (region dominants/ratios,
+    pair distances, rain coverage) — review-agent evidence (DESIGN §3.1)."""
+    w, h, rows = _read_png(path)
+    detail = {"canvas": f"{w}x{h}"}
+    regions = {}
+    for reg in vcfg.get("regions", []):
+        name = str(reg.get("name", "?"))
+        x0, y0, x1, y1 = reg["x0"], reg["y0"], reg["x1"], reg["y1"]
+        n, nn, _b = region_stats(rows, x0, y0, x1, y1)
+        regions[name] = {
+            "dominant": list(dominant_color(rows, x0, y0, x1, y1))
+                        if dominant_color(rows, x0, y0, x1, y1) else None,
+            "nonbg_ratio": round(nn / n, 4) if n else 0.0,
+            "min_nonbg_ratio": reg.get("min_nonbg_ratio"),
+        }
+    detail["regions"] = regions
+    pairs = {}
+    for a, b in vcfg.get("compare_pairs", []):
+        ca = regions.get(a, {}).get("dominant")
+        cb = regions.get(b, {}).get("dominant")
+        pairs[f"{a}|{b}"] = {
+            "dist": round(rgb_distance(tuple(ca), tuple(cb)), 1)
+                    if ca and cb else None,
+            "rgb_min_dist": vcfg.get("rgb_min_dist", 60),
+        }
+    detail["pairs"] = pairs
+    if "rain" in vcfg:
+        detail["rain"] = {
+            "coverage": round(rain_grid_coverage(rows, w, h,
+                                                 grid=int(vcfg["rain"].get("grid", 12))), 4),
+            "min_coverage": vcfg["rain"].get("min_coverage", 0.6),
+        }
+    return detail
+
+
 # ── CLI ────────────────────────────────────────────────────────────────────
 
 
@@ -231,6 +417,7 @@ def main() -> int:
         "--min-colors": None, "--max-black-ratio": None, "--theme": None,
         "--diff-with": None, "--min-delta": None, "--name": None,
         "--diff-ratio": None, "--pixel-delta": None,
+        "--visual-config": None,
         "--json": False,
     }
 
@@ -321,17 +508,52 @@ def main() -> int:
                          + (f" 且 变化像素占比 {ratio*100:.3f}% < {diff_ratio_arg*100:.3f}%"
                             if diff_ratio_arg is not None else "") + " — frozen?")
 
+    # 5. visual region assertions (#466) — flag-gated, backward compatible
+    visual_cfg_path = _s("--visual-config")
+    visual_detail_data = None
+    if visual_cfg_path:
+        try:
+            with open(visual_cfg_path, "r", encoding="utf-8") as _f:
+                vcfg = json.load(_f)
+        except (OSError, ValueError) as e:
+            fails.append(f"visual config unreadable ({visual_cfg_path}): {e}")
+        else:
+            try:
+                vfails = check_visual(path, vcfg)
+                visual_detail_data = visual_detail(path, vcfg)
+            except (PNGError, KeyError, ValueError) as e:
+                fails.append(f"visual assertions error: {e}")
+            else:
+                for vf in vfails:
+                    fails.append(f"visual: {vf}")
+                if not vfails:
+                    passes.append("visual region assertions pass")
+
     line = (f"{path} [{name}]: {st['width']}x{st['height']} "
             f"avgRGB={st['avg_rgb']} colors={st['color_buckets']} "
             f"black={st['black_ratio']*100:.1f}% luma={st['mean_luma']}")
     if opts["--json"]:
-        print(json.dumps({**st, "name": name, "passes": passes, "fails": fails}))
+        payload = {**st, "name": name, "passes": passes, "fails": fails}
+        if visual_detail_data is not None:
+            payload["visual"] = visual_detail_data
+        print(json.dumps(payload))
     else:
         print(line)
         for p in passes:
             print(f"  ✅ {p}")
         for f in fails:
             print(f"  ❌ {f}")
+        if visual_detail_data is not None:
+            print("  visual detail:")
+            for rname, r in visual_detail_data.get("regions", {}).items():
+                dom = "#%02x%02x%02x" % tuple(r["dominant"]) if r["dominant"] else "none"
+                print(f"    {rname}: dominant={dom} nonbg={r['nonbg_ratio']*100:.1f}%")
+            for pname, p in visual_detail_data.get("pairs", {}).items():
+                d = f"{p['dist']:.1f}" if p["dist"] is not None else "none"
+                print(f"    pair {pname}: dist={d} (min {p['rgb_min_dist']})")
+            if "rain" in visual_detail_data:
+                r = visual_detail_data["rain"]
+                print(f"    rain: coverage={r['coverage']*100:.1f}% (min {r['min_coverage']*100:.0f}%)")
 
     return 1 if fails else 0
 
