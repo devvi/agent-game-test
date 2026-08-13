@@ -66,6 +66,10 @@ const FALLBACK_SCREEN_HEIGHT: float = 720.0  # Headless fallback
 > (`class_name GameConstants`). `ball.gd` references `CONSTS.BALL_INITIAL_SPEED` etc. instead
 > of local `const` declarations. Headless fallback values remain as inline fallbacks for test contexts.
 
+## HUD 消费（#448）
+
+`ball.speed` 是公开只读标量（不乘 `speed_scale`；缓时/冻结期间显示保持当前标量 = 已知行为，显示语义字面执行）。速度变化点（paddle 反弹 +5%、发球重置 300）全部位于 ball.gd，无 `speed_changed` 信号可订阅，故 GameHUD 以 10Hz Timer 轻量轮询读取并显示 `round(speed)`（单位 px/s，见 GDD 16-UI-SYSTEM）。
+
 ## 手感校准草稿（taste-draft #367）
 
 > 机制稳定、数值会变：本节记录手感校准的**机制**与当前草稿值；候补值、影响说明、情感断言以 `docs/TASTE.md` 为单一事实源（用户定稿后回写 TASTE.md §4，GDD 数值随定稿更新）。
