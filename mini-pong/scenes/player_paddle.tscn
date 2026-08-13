@@ -14,7 +14,7 @@ offset_left = -60.0
 offset_top = -10.0
 offset_right = 60.0
 offset_bottom = 10.0
-color = Color(0.29, 0.56, 0.85, 1)
+color = Color(0, 0.898, 1, 1)
 material = ExtResource("2_neon_mat")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
