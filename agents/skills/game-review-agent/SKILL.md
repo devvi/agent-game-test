@@ -904,6 +904,23 @@ gh issue view <N> --json labels --jq '.labels[].name'
 
 After merging and GDD update, sync the GitHub Project board to reflect the completed state:
 
+**⚠️ v4 语义判定（2026-08-13 实测教训 — #450 被 project automation 反复 close）:**
+Project #5 "mini pong" 启用了 **"Auto-close issue" automation workflow**:当 item 的
+**Status** 字段设为 **"Done"** 时,automation 自动关闭关联 issue（`state_reason: completed`,
+不产生 timeline 事件,难以排查）。
+
+**所以 Status 只对机械 Issue 设 "Done";taste-draft / human-review 的 Issue 设 "In review"**
+（保持 open 等用户定稿,避免被 automation 误关）。判定方法与 Taste-Draft 分流相同:
+父 Issue body 是否 `content_ownership: taste-draft`,或父 Issue 是否带 `status/human-review` label。
+
+```bash
+# 判定: 父 Issue 是否 taste-draft / human-review
+PARENT=$(gh pr view <N> --json body --jq '.body' | grep -oP '(?<=Parent )#\d+|(?<=parent )#\d+|(?<=Closes )#\d+' | grep -oP '\d+')
+IS_TASTE=$(gh issue view $PARENT --json body --jq '.body' | grep -cE 'content_ownership: taste-draft')
+IS_HUMAN=$(gh issue view $PARENT --json labels --jq '.labels[].name' | grep -c 'status/human-review')
+# IS_TASTE>0 或 IS_HUMAN>0 → Status="In review"; 否则 Status="Done"
+```
+
 ### 1. Check if the Issue Exists on the Board
 
 **⚠️ Pitfall: project number ≠ GraphQL node ID.** `gh project list` returns a project number (e.g., `5`), but GraphQL mutations require the project's opaque global node ID (e.g., `PVT_kwHOABFv7s4Bd7mL`). Resolve it with:
