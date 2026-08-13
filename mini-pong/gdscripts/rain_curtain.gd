@@ -16,10 +16,10 @@ const CONSTS = preload("res://gdscripts/constants.gd")
 @export var smooth_tau: float = CONSTS.RAIN_SMOOTH_TAU
 
 # ── Particle modulation base values (taste-draft candidates, linear default) ──
-const BASE_VELOCITY_MIN: float = 700.0
-const BASE_VELOCITY_MAX: float = 900.0
-const BASE_SCALE_MIN: float = 0.7
-const BASE_SCALE_MAX: float = 1.3
+const BASE_VELOCITY_MIN: float = 800.0
+const BASE_VELOCITY_MAX: float = 1200.0
+const BASE_SCALE_MIN: float = 0.5
+const BASE_SCALE_MAX: float = 1.2
 const RAIN_TINT: Color = Color(0.72, 0.84, 1.0, 1.0)
 # 事件脉冲指数衰减 τ（~1.5s = 3τ 衰减到近 0，单调递减）
 const PULSE_DECAY_TAU: float = 0.5
@@ -131,7 +131,7 @@ func _apply_to_particles() -> void:
 	_material.scale_min = BASE_SCALE_MIN * scale_mult
 	_material.scale_max = BASE_SCALE_MAX * scale_mult
 	var tint: Color = RAIN_TINT
-	tint.a = 0.25 + 0.55 * r
+	tint.a = 0.15 + 0.25 * r
 	_material.color = tint
 	if _particles != null:
 		_particles.emitting = r > EMITTING_THRESHOLD
