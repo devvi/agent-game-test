@@ -20,3 +20,4 @@
 | [23-UPGRADE-POOL](23-UPGRADE-POOL.md) | Upgrade pool — rogue-lite per-wave growth, 9 upgrades, 60/30/10 rarity draw, instance parameterization, upgrade_hooks contract |
 | [24-WAVE-CYCLE](24-WAVE-CYCLE.md) | Wave cycle — wave state machine, wall_cleared orchestration, dual-lever difficulty, 21-pt stop |
 | [25-UPGRADE-UI](25-UPGRADE-UI.md) | Upgrade Pick UI — 波间 3 选 1 升级选择层, wave_settled 挂点, 焦点环/确认, 稀有度 reveal, 暂停与推进接管 |
+| [26-BG-NEON-BREATH](26-BG-NEON-BREATH.md) | Background neon breath — L0 背景光晕正弦呼吸 (ColorRect + 纯函数公式 + BG_PULSE 常量区, FSM-independent) |
