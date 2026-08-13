@@ -382,9 +382,20 @@ SPAWN: review,issue=N,branch=impl/xxx,conclusion=success
 SPAWN: research,issue=N,label=workflow/research
 SPAWN: plan,issue=N,label=workflow/plan
 SPAWN: implement,issue=N,label=workflow/implement
-P1: check_run.completed,issue=N,branch=xxx,conclusion=xxx
+STALLED: merge-pr,pr=N,branch=research|plan/xxx       ← 非 impl PR CI 完成 (2026-08-13)
 P2: issues.labeled,issue=N,label=workflow/xxx
 [NO_ACTIONABLE_EVENTS: run stalled scan]
+
+**⚠️ 2026-08-13: `P1: check_run.completed` 已从脚本输出中移除（非 impl 分支）。**
+`check_run.completed` 事件现在只有两条路（`impl/` 前缀之外**永不**出现 P1 行）：
+- `impl/*` 分支 → 脚本直接输出 `SPAWN: review` / `SPAWN: self-correct`（见下）
+- `research/`、`plan/` 分支（CI 完成 = 前置阶段 PR 就绪）→ `conclusion=success`
+  输出 `STALLED: merge-pr,pr=N,branch=...`（确定性指令，LLM 一条 `gh pr merge`
+  执行完，禁止调查）；其余情况静默消费 + `audit(check_run.dropped)`，
+  stalled scan 兜底。根因 trace：cron 181544 收到 plan PR #462 的 P1 事件后花
+  4 分钟复查已完成的推进，阻塞后续 tick 5 分钟（implement SPAWN 延迟）。
+  配套：`HERMES_CRON_TIMEOUT=90`（~/.hermes/.env，cron inactivity 上限，见
+  `workflow-cron-handler` skill）。
 
 ### SPAWN instructions (all types)
 
@@ -408,6 +419,8 @@ event but implement PR #197 already existed. Spawning a duplicate would have was
 an entire implement agent session.
 
 ### If P1: check_run.completed events:
+**2026-08-13: 此段只对 `impl/*` 分支生效**——脚本已保证非 impl 分支的
+check_run.completed 不会输出为 P1（见上方格式块）。历史 P1 处理逻辑保留如下：
 For each:
 1. Verify PR is OPEN and branch starts with `impl/`
 2. If PR merged or not impl/* → skip (stale).
@@ -415,6 +428,13 @@ For each:
 4. conclusion=failure → spawn self-correct agent via delegate_task.
    NEVER pre-judge the failure. Do NOT check main CI.
 After spawning: remove event from file. Continue.
+
+### If STALLED: merge-pr directives (2026-08-13):
+Non-impl (research/plan) PR CI done → execute immediately, do NOT investigate:
+```bash
+gh pr merge <N> --squash --delete-branch   # PR 状态脚本已核, merge 失败(如 conflict)则跳过, stalled scan 会重查
+```
+Merge 后 workflow-chain.yml 自动推进父 Issue label → 下一 tick 的 labeled 事件驱动下一阶段。**禁止**先跑 git log / 查 worktree / 验证推进状态——这正是 181544 的 4 分钟浪费。
 
 ### If P2: issues.labeled events:
 For each:

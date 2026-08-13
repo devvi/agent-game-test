@@ -22,7 +22,7 @@ GitHub Event → Gateway webhook (:8644)
   → ~/.hermes/workflow-pending.json (~0.3KB/event, 不含 payload)
   → cron tick (godot-workflow-poller, every 1m, script=event-processor.py)
       Phase 1: event-processor.py (确定性 Python, 无 LLM)
-        - 分组/去重/排序 → 输出 SPAWN 指令 (P1 check_run > P2 labeled)
+        - 分组/去重/排序 → 输出 SPAWN/STALLED 指令 (impl check_run > labeled; 非 impl check_run → merge-pr 指令, 2026-08-13)
         - 依赖解析、槽位上限、stalled scan 信号
       Phase 2: cron LLM (terminal + delegation toolsets)
         - 读取 SPAWN → delegate_task 生成 phase agent
@@ -107,11 +107,19 @@ SPAWN: review,issue=N,pr=N,branch=impl/xxx,conclusion=success
 SPAWN: research,issue=N,label=workflow/available|research
 SPAWN: plan,issue=N,label=workflow/plan
 SPAWN: implement,issue=N,label=workflow/implement
+STALLED: merge-pr,pr=N,branch=research|plan/xxx      ← 非 impl PR CI 完成
 BLOCKED: issue=N,depends-on=#M(full),...
 [NO_ACTIONABLE_EVENTS: run stalled scan]
 ```
 
 LLM 收到 SPAWN 必须执行（delegate_task），不得自行改写。stalled scan 覆盖：挂起 PR、未推进 label、未启动 phase、blocked PR 解锁（main 绿 → 移除 blocked → update-branch → 重新 CI）。
+
+**2026-08-13 修复（A+B，cron 181544 4 分钟 tick 阻塞后续 SPAWN 的根因）：**
+- **A. 非 impl 分支的 check_run.completed 不再输出 P1**。research/plan PR 的 CI 完成语义是"前置阶段 PR 就绪"，推进动作是 merge（workflow-chain 在 merge 后才推进 label）——不是让 cron LLM 调查。旧行为把事件输出成 `P1:` 让 LLM"决策"，cron 花了 4 分钟复查一个已完成/已推进的事件，期间 1-min tick 全被 `already running` 跳过，implement SPAWN 延迟 ~5 分钟。现在：
+  - `conclusion=success` + research/plan 前缀 → `STALLED: merge-pr,pr=N`（确定性指令，与 stalled scan 同格式，LLM 一条 gh 命令执行完）
+  - 其余情况（非 research/plan 前缀、非 success）→ 静默消费 + `audit(check_run.dropped)`，stalled scan 兜底
+  - impl/* 分支的 self-correct/review SPAWN 路径**不变**
+- **B. cron tick 90s 超时**：`HERMES_CRON_TIMEOUT=90`（~/.hermes/.env，scheduler 每 tick 重读，无需重启）。Hermes cron 的该值是 **inactivity 上限**（非墙钟）：tick 静默 >90s 即中断，下一个 1-min tick 可运行。terminal 长命令 / API 流 / delegate heartbeat 都会刷新 activity tracker，合法慢命令不被误杀。配合 A 后 tick 只剩 SPAWN/STALLED 直执行，天然短。
 
 **2026-08-10 修复（金丝雀 #358）:**
 - **SPAWN 一次性消费**: 输出 SPAWN 的事件立即从 pending 移除——否则每 tick 重发导致重复 delegate（曾 3 个并发 research agent / 2 个并发 plan agent）
