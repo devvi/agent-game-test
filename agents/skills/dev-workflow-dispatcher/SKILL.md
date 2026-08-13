@@ -203,6 +203,50 @@ Key design decisions extracted from docs/...
 
 ### Event Poller Cron Prompt Template
 
+> **⚠️ Duplicate-Spawn Root Cause (2026-08-13, #393 trace — READ FIRST if duplicates recur):**
+>
+> Audit evidence: 5 research + 3 plan + 6 implement `SPAWN:` lines for ONE
+> issue (#393) in 30 min (07:15-07:45). Three compounding bugs, all fixed in
+> commit `3b59ede`:
+>
+> 1. **`reconcile()` re-injected label events every tick.** It regenerated
+>    `issues.labeled#N:<label>` for EVERY open issue at EVERY active stage
+>    label on EVERY tick, defeating the one-shot SPAWN consumption that
+>    fixed canary #358. → Now injects only on label CHANGE, tracked in
+>    `~/.hermes/.reconcile-labels.json` (1h slow self-heal re-inject; >5min
+>    tick gap clears state for crash recovery).
+> 2. **The preprocess() label SPAWN path had NO spawn gate** (the picker
+>    path did, canary #358). Every reconcile-injected event became a SPAWN
+>    every tick. → Label path now consults the shared `_spawn_gate` with
+>    stage-aware TTL: research 90min / plan+implement 60min / self-correct
+>    30min.
+> 3. **`--search head:...` PR-exists checks intermittently returned `[]`**
+>    (Patch 59) — `_pr_exists_for_issue` and `_quick_stalled_scan` missed
+>    real PRs. The stalled scan therefore NEVER emitted `STALLED:` for PR
+>    #444 → the review gate never re-fired (PR sat 90 min CI-green with 0
+>    reviews). → Both now use deterministic client-side matching over
+>    `gh pr list --state all/open` (branch-prefix + `Parent/Closes #N` body
+>    + title), no `--search` qualifier.
+>
+> Also fixed in the same trace:
+> - **Stale-stage guard**: label events for a stage EARLIER than the issue's
+>   current stage are discarded (lingering `workflow/available` caused
+>   phantom `SPAWN: research` while the issue was at implement).
+> - **Label hygiene (workflow-chain.yml)**: on advance/close, ALL workflow
+>   stage labels are removed except the next one (previously only the PR's
+>   own stage label was removed → `workflow/available` lingered for the
+>   whole lifecycle).
+> - **Dependency hole**: a CLOSED dep WITHOUT `status/done` (or
+>   `status/human-review`) is now UNRESOLVED (was: closed = resolved).
+>   #384/#390 were closed early while their code only landed in unmerged
+>   #444 — dependents must not advance on un-landed work.
+>
+> **If you see repeated `SPAWN: <stage>,issue=N` lines in
+> `~/.hermes/workflow-audit.jsonl`, check:** (a) `~/.hermes/.reconcile-labels.json`
+> — is reconcile re-injecting? (b) `~/.hermes/.spawned-state.json` — is the
+> gate recording? (c) run `gh pr list --state all --json number,headRefName`
+> — does the PR exist while SPAWN still fires?
+
 The cron prompt lives in the `workflow-pending-poller` cron job (not in this skill as a template — the actual prompt is updated via `cronjob(action='update')`). This section documents the prompt structure for reference.
 
 **The script handles ALL deterministic preprocessing** (grouping, sorting, dedup, priority, stalled scan signal). The LLM prompt is <900 chars and only contains branching decisions plus the stalled scan protocol.
