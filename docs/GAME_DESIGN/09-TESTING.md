@@ -109,7 +109,10 @@ L2 stage, which was `unavailable` before #447.
 
 Local E2E run (2026-08-13): total **2215 passed / 0 failed** (incl. E2E Playthrough 78;
 per-suite assertion count varies with in-match upgrade draws), L2 playthrough
-`winner='player' 21:20` in ~14.5 s.
+`winner='player' 21:20` in ~14.5 s. Independent review re-run on merged main
+(3d0f870): **2237 passed / 0 failed** (E2E Playthrough 100), L2 playthrough
+`winner='player' 21:14` in ~14.8 s — suite totals vary only via the E2E suite's
+variable assertion count (78–100).
 
 ---
 
