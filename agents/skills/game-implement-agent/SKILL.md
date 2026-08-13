@@ -168,16 +168,18 @@ See `godot-headless-test-patterns` skill for the full reference. Key gotchas:
 | `var x := load().method()` compile fail | Use explicit type: `var x: Dict = ...` |
 | `@export var` not writable after `set_script()` | Assign private member vars directly |
 
-## Implementation: OpenCode Workflow
+## Implementation: OpenCode Workflow (MANDATORY)
 
-Use OpenCode Serve (`http://127.0.0.1:18765`) for GDScript code generation. Before using, verify it's reachable:
+**OpenCode Serve (`http://127.0.0.1:18765`) is the ONLY code-generation path for implement.** Manual `write_file` of game code is FORBIDDEN unless OpenCode is unreachable AND you report it. This is a hard workflow invariant (2026-08-13): manual writes burn the agent call budget and stall the pipeline.
+
+Before generating, verify OpenCode health — use `/global/health` (JSON), NOT `/health` (returns HTML 200 even when the LLM backend is broken):
 
 ```bash
-curl -s --max-time 5 -o /dev/null -w "%{http_code}" http://127.0.0.1:18765/health
-# HTTP 200 = reachable (body may be HTML — that's normal)
+curl -s --max-time 5 http://127.0.0.1:18765/global/health
+# {"healthy":true,"version":"1.18.3"} = OK
 ```
 
-### OpenCode Run (Recommended)
+### OpenCode Run (Mandatory)
 
 ```bash
 opencode run '<prompt>' --model deepseek/deepseek-v4-flash --thinking
@@ -189,9 +191,26 @@ The prompt should include:
 - Test files already written (OpenCode should make them pass)
 - Specific Godot 4.7 / GDScript 2.0 syntax requirements
 
-### Fallback: Direct File Writing
+### CRITICAL: OpenCode Down Protocol
 
-If OpenCode is unreachable or returns HTML instead of code, write files directly via `write_file`. The DESIGN doc contains enough implementation detail to proceed manually.
+If OpenCode is unreachable or returns an error (not code):
+
+1. **STOP immediately. Do NOT fall back to manual file writing.**
+2. Verify once more: `curl -s --max-time 5 http://127.0.0.1:18765/global/health`
+3. If still down, report a **CRITICAL failure** in your final response:
+   ```
+   [CRITICAL] OpenCode Serve DOWN — implement blocked. workflow auto-paused.
+   ```
+4. Do NOT create the PR, do NOT commit game code, do NOT continue with manual writes.
+   The workflow's per-tick health check auto-pauses when OpenCode is down; your
+   CRITICAL report is the second line of defense. A human must fix
+   `~/.config/opencode/opencode.jsonc` (provider/baseURL) and restart serve,
+   then resume the workflow.
+
+Rationale (2026-08-13 #466 incident): the agent fell back to 64 manual
+terminal writes when OpenCode auth failed; that burned the 50-call budget,
+truncated the run, and left dirty worktrees with no recovery. Manual fallback
+is what stalls the pipeline — never do it silently.
 
 ### Layer Order
 

@@ -864,5 +864,96 @@ class TestPickCandidates(unittest.TestCase):
         self.assertEqual(len(picked), 2)
 
 
+class TestOpenCodeHealthGate(unittest.TestCase):
+    """2026-08-13: OpenCode is a HARD dependency (implement's only path).
+
+    - opencode_healthy() must use /global/health JSON, not /health HTML
+    - health_check() auto-pauses workflow + emits [CRITICAL] when OpenCode down
+    - _pause_workflow() writes workflow-config.json enabled=false + marker file
+    """
+
+    def test_opencode_healthy_true_on_global_health_json(self):
+        with mock.patch("urllib.request.urlopen") as m_url:
+            m_ctx = mock.MagicMock()
+            m_ctx.read.return_value = b'{"healthy":true,"version":"1.18.3"}'
+            m_url.return_value.__enter__.return_value = m_ctx
+            self.assertTrue(ep.opencode_healthy())
+        # must hit /global/health, not /health
+        args = m_url.call_args.args[0]
+        self.assertIn("global/health", args)
+
+    def test_opencode_healthy_false_on_exception(self):
+        with mock.patch("urllib.request.urlopen", side_effect=OSError("conn refused")):
+            self.assertFalse(ep.opencode_healthy())
+
+    def test_opencode_healthy_false_on_unhealthy_json(self):
+        with mock.patch("urllib.request.urlopen") as m_url:
+            m_ctx = mock.MagicMock()
+            m_ctx.read.return_value = b'{"healthy":false}'
+            m_url.return_value.__enter__.return_value = m_ctx
+            self.assertFalse(ep.opencode_healthy())
+
+    def test_pause_workflow_writes_config_and_marker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg_path = os.path.join(tmp, "workflow-config.json")
+            marker = os.path.join(tmp, ".opencode-critical")
+            with mock.patch.object(ep, "WORKFLOW_CONFIG", cfg_path), \
+                 mock.patch.object(ep, "OPENCODE_CRITICAL_FILE", marker):
+                ok = ep._pause_workflow("opencode-down (test)")
+                self.assertTrue(ok)
+            with open(cfg_path) as f:
+                cfg = json.load(f)
+            self.assertFalse(cfg["enabled"])
+            self.assertIn("opencode-down", cfg["paused_reason"])
+            self.assertTrue(os.path.exists(marker))
+
+    def test_pause_workflow_preserves_existing_keys(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg_path = os.path.join(tmp, "workflow-config.json")
+            with open(cfg_path, "w") as f:
+                json.dump({"enabled": True, "preset": "always"}, f)
+            with mock.patch.object(ep, "WORKFLOW_CONFIG", cfg_path), \
+                 mock.patch.object(ep, "OPENCODE_CRITICAL_FILE", os.path.join(tmp, "m")):
+                ep._pause_workflow("test-reason")
+            with open(cfg_path) as f:
+                cfg = json.load(f)
+            self.assertEqual(cfg["preset"], "always")  # untouched
+            self.assertFalse(cfg["enabled"])
+
+    def test_health_check_critical_when_opencode_down(self):
+        """OpenCode down → health_check emits [CRITICAL] + auto-pauses."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg_path = os.path.join(tmp, "workflow-config.json")
+            with mock.patch.object(ep, "opencode_healthy", return_value=False), \
+                 mock.patch.object(ep, "check_webhook_connectivity", return_value=True), \
+                 mock.patch.object(ep, "WORKFLOW_CONFIG", cfg_path), \
+                 mock.patch.object(ep, "OPENCODE_CRITICAL_FILE", os.path.join(tmp, "m")), \
+                 mock.patch("urllib.request.urlopen", side_effect=OSError("down")):
+                line = ep.health_check()
+            self.assertIn("opencode=DOWN", line)
+            self.assertIn("[CRITICAL]", line)
+            # auto-pause actually wrote the config
+            self.assertTrue(os.path.exists(cfg_path))
+            with open(cfg_path) as f:
+                cfg = json.load(f)
+            self.assertFalse(cfg["enabled"])
+
+    def test_health_check_up_when_opencode_healthy(self):
+        """OpenCode up → no CRITICAL, no pause, no marker file."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg_path = os.path.join(tmp, "workflow-config.json")
+            marker = os.path.join(tmp, "m")
+            with mock.patch.object(ep, "opencode_healthy", return_value=True), \
+                 mock.patch.object(ep, "check_webhook_connectivity", return_value=True), \
+                 mock.patch.object(ep, "WORKFLOW_CONFIG", cfg_path), \
+                 mock.patch.object(ep, "OPENCODE_CRITICAL_FILE", marker), \
+                 mock.patch("urllib.request.urlopen", side_effect=OSError("down")):
+                line = ep.health_check()
+            self.assertIn("opencode=UP", line)
+            self.assertNotIn("[CRITICAL]", line)
+            self.assertFalse(os.path.exists(marker))
+            self.assertFalse(os.path.exists(cfg_path))  # never written
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

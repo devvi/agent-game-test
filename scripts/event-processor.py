@@ -1451,6 +1451,16 @@ def main():
         # preprocess() output, then applies sort → cap → audit → print.
         picker_lines: list = []
         in_window = _time_in_window(cfg)
+        # OpenCode is a HARD dependency for implement (mandatory path). Check
+        # every tick (not just window entry): if it drops mid-flight, auto-pause
+        # immediately instead of letting agents fall back to manual writes.
+        if in_window and not is_paused():
+            if not opencode_healthy():
+                _pause_workflow("opencode-down (auto-paused, per-tick check)")
+                hc = health_check()
+                print(hc, file=sys.stderr)
+                print("[CRITICAL] workflow auto-paused: OpenCode Serve DOWN — implement would fall back to manual writes. Fix and `/workflow resume`.", file=sys.stderr)
+                return
         if in_window and was_outside:
             # Just entered work hours → health check
             hc = health_check()
@@ -1644,8 +1654,59 @@ def check_webhook_connectivity() -> bool:
         return False
 
 
+OPENCODE_HEALTH_URL = "http://127.0.0.1:18765/global/health"
+OPENCODE_CRITICAL_FILE = os.path.expanduser("~/.hermes/.opencode-critical")
+
+
+def opencode_healthy() -> bool:
+    """True when OpenCode Serve is up AND its provider can be reached.
+
+    Uses /global/health (returns JSON {healthy:bool}) — /health returns HTML
+    (200 even when the LLM backend is broken), so it can't distinguish.
+    """
+    try:
+        with urllib.request.urlopen(OPENCODE_HEALTH_URL, timeout=3) as r:
+            d = json.loads(r.read().decode())
+            return bool(d.get("healthy"))
+    except Exception:
+        return False
+
+
+def _pause_workflow(reason: str) -> bool:
+    """Auto-pause workflow (writes workflow-config.json enabled=false).
+
+    Introduced 2026-08-13 (A+C revert follow-up): OpenCode is the MANDATORY
+    path for implement. If it goes down mid-flight, agents fall back to manual
+    writes, burn the call budget, and stall with dirty worktrees. Instead of
+    letting that happen, a critical infra failure pauses the whole workflow
+    until a human fixes the dependency.
+    """
+    try:
+        cfg_path = WORKFLOW_CONFIG
+        cfg = {}
+        if os.path.exists(cfg_path):
+            with open(cfg_path) as f:
+                cfg = json.load(f)
+        cfg["enabled"] = False
+        cfg["paused_reason"] = reason
+        cfg["paused_at"] = datetime.datetime.now().isoformat()
+        with open(cfg_path, "w") as f:
+            json.dump(cfg, f, indent=2)
+        # marker file for cross-tick visibility (watchdog reads it)
+        with open(OPENCODE_CRITICAL_FILE, "w") as f:
+            f.write(reason)
+        return True
+    except Exception:
+        return False
+
+
 def health_check() -> str:
-    """One-line health check. Returns e.g. [HEALTH] gateway=200 ngrok=UP webhook=OK"""
+    """One-line health check. Returns e.g. [HEALTH] gateway=200 ngrok=UP webhook=OK.
+
+    OpenCode is a HARD dependency (implement's only code path). If it is down:
+      - auto-pause the workflow (write workflow-config.json enabled=false)
+      - emit [CRITICAL] so the cron LLM surfaces it to the user immediately
+    """
     parts = []
     try:
         with urllib.request.urlopen("http://127.0.0.1:8644/", timeout=3) as r:
@@ -1656,12 +1717,16 @@ def health_check() -> str:
             d = json.loads(r.read().decode())
             parts.append("ngrok=UP" if d.get("tunnels") else "ngrok=NOPATH")
     except: parts.append("ngrok=DOWN")
-    try:
-        with urllib.request.urlopen("http://127.0.0.1:18765/health", timeout=3) as r:
-            parts.append(f"opencode={r.status}")
-    except: parts.append("opencode=DOWN")
+    if opencode_healthy():
+        parts.append("opencode=UP")
+    else:
+        parts.append("opencode=DOWN")
+        _pause_workflow("opencode-down (auto-paused by health_check)")
     parts.append("webhook=OK" if check_webhook_connectivity() else "webhook=FAIL")
-    return f"[HEALTH] {' '.join(parts)}"
+    line = f"[HEALTH] {' '.join(parts)}"
+    if "opencode=DOWN" in line:
+        return line + " [CRITICAL] OpenCode down — workflow auto-paused. Fix `~/.config/opencode/opencode.jsonc` / restart serve, then `/workflow resume`."
+    return line
 
 
 if __name__ == "__main__":
