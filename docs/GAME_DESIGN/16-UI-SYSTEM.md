@@ -68,6 +68,16 @@ Without this, GameManager signals never fire and the HUD never updates.
 - **样式**: 全部数字 Label 经 `NeonStyle.apply()`（`gdscripts/ui_neon_style.gd`）设置描边（`outline_size=6`）+ 微投影（`shadow_offset=2`，半透明黑），默认字体 + 主题覆盖，headless 安全（AC1）
 - **信号驱动（AC5，零轮询）**: `score_changed` / `brick_scored` / `pierce_scored` / `wave_started`（GameManager）+ `brick_destroyed` / `wall_cleared` / `wall_generated`（BreakoutGrid #384 契约，容错消费：未接线显示「—」占位 + push_warning 一次）
 - **单份定义**: Main.tscn 实例化 `ui_game_hud.tscn`（节点名 `GameHUD` 不变，layer=1），消除 #292 双份 HUD 定义
+- **球速实时显示（#448）**: 代码创建 `TopZone/SpeedLabel`（锚定 TopZone 右上独立放置，不挂 VBox——72px 放不下第三行）+ `SpeedPollTimer`（10Hz autostart，timeout 信号驱动）。10Hz 轻量轮询 `ball.speed` 公开属性（ball.gd 无速度变化信号，只读消费），显示 `round(speed)` + `px/s`；无 ball 时占位「球速 —」+ `_warned` 单次告警。零轮询契约保持：Timer 节点而非 `_process`（TF-1 静态断言），pause 时读数冻结 = 正确语义
+
+球速 HUD 常量（`constants.gd` 文件末尾新区，零触碰既有常量）：
+
+| 常量 | 值 | 语义 |
+|------|-----|------|
+| `HUD_SHOW_SPEED` | `true` | 总开关（#448 AC3；测试可注入 false） |
+| `HUD_SPEED_POLL_INTERVAL` | `0.1` | 轮询间隔 10Hz（Timer timeout 驱动） |
+| `HUD_SPEED_UNIT` | `"px/s"` | 显示单位 |
+| `HUD_SPEED_LABEL_PREFIX` | `"球速 "` | 显示前缀（taste 占位，#392 先例） |
 
 ### GameOverScreen（终局屏 win/fail 双分支 #391）
 
@@ -94,6 +104,8 @@ Without this, GameManager signals never fire and the HUD never updates.
 | 短句单一事实源 (#391) | `wave_failure_text.json` 只读 + schema 校验 + 逐级兜底 | 文案值归 #396 taste-draft，机械消费 (GDD 21 契约) |
 | Run 数据来源 (#391) | GameManager 查询 API（`get_wave_index`/`get_brick_count`/`get_pierce_count`） | 数据单一来源、无本地缓存，测试可注入 |
 | 新节点引用容错 (#391) | `get_node_or_null()` 引用 FailurePhraseLabel/RunStatsLabel | #385 容错模式延续，节点缺失静默跳过 |
+| 读速机制 (#448) | Timer 10Hz 轮询 `ball.speed`（timeout 信号，非 `_process`） | ball.gd 无速度变化信号可订阅；TF-1 零轮询契约保持；10Hz > 5Hz 实时感知阈值 |
+| SpeedLabel 布局 (#448) | TopZone 下代码创建、锚定右上独立放置（不挂 VBox） | TopZone VBox 高 72px 放不下第三行；右侧独立锚定零布局冲突 |
 
 ## Edge Cases
 
@@ -111,6 +123,7 @@ Without this, GameManager signals never fire and the HUD never updates.
 | 10 | wave_failure_text.json 缺失/损坏/schema 不符 (#391) | warn-once + `FAILURE_TEXT_DEFAULT_PHRASE` 兜底，不崩溃 |
 | 11 | FailurePhraseLabel/RunStatsLabel 节点缺失 (#391) | `get_node_or_null` 静默跳过，fail 分支仍正常显示 |
 | 12 | 首波未开始即败 wave_index==0 (#391) | `_pick_tier` 落入 fp4 兜底档（边界 1 定稿，优先于 §2.3 伪代码） |
+| 13 | 无 ball 节点（group "balls" 缺失）(#448) | 「球速 —」占位 + `_warned` 单次告警，不崩溃（`_refresh_remaining` 同款容错） |
 
 ## Testing Notes
 
@@ -122,7 +135,7 @@ Without this, GameManager signals never fire and the HUD never updates.
 | File | Role |
 |------|------|
 | `gdscripts/start_menu.gd` | StartMenu controller (107 lines) |
-| `gdscripts/game_hud.gd` | HUD 三区霓虹控制器（信号驱动，~190 lines, #392） |
+| `gdscripts/game_hud.gd` | HUD 三区霓虹控制器（信号驱动 + 球速 10Hz Timer 轮询，~250 lines, #392/#448） |
 | `gdscripts/ui_neon_style.gd` | 霓虹 Label 样式单一事实源（描边+微投影, #392） |
 | `gdscripts/game_over_screen.gd` | 终局屏 controller — win/fail 双分支 + 分档短句 + run 数据 (~190 lines, #391) |
 | `scenes/ui_start_menu.tscn` | StartMenu scene |
