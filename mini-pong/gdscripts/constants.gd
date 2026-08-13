@@ -100,6 +100,14 @@ const AI_POSITION_ERROR_FLOOR: float = 8.0
 const PLAYER_NEON_BLUE: Color = Color(0.29, 0.56, 0.85, 1.0)   # #4a90d9
 const AI_NEON_RED: Color = Color(1.0, 0.2, 0.33, 1.0)            # #ff3355
 
+# ── Visual Three-Color Layer (#464) ──
+# 视觉三色分层 (Issue #464 机械定稿; mechanical): 可控物=高亮冷色(电光青, WCAG 对比度≥4:1),
+# 目标物=暖色(琥珀橙, 与可控物 HSV 色相分离≥60°), 环境=低饱和中性冷暗(亮度最低)。
+# 双板共享 player_paddle.tscn → 玩家板/AI板同色, 位置区分 (经典 Pong 惯例)。
+# 值可配: taste 微调在 Issue 参考区间内改此两常量, 零代码改动。
+const PADDLE_NEON: Color = Color(0.0, 0.898, 1.0, 1.0)   # #00e5ff 电光青 (WCAG 12.8:1 vs BG_COLOR; 备选 #7fdfff 13.1:1)
+const BRICK_NEON: Color = Color(1.0, 0.616, 0.271, 1.0)  # #ff9d45 琥珀橙 (HSV hue 28.4° vs PADDLE 186.1° = 157.7° ≥ 60°)
+
 # ── Brick Wall (#384) ──
 # 砖墙系统 (DESIGN #414 §4.2; mechanical)。BRICK_MIN_DIM 防隧穿下限：
 # 球速上限 330×1.9≈627px/s → 单帧位移 ≈10.5px → 砖最小边长 ≥14px。
