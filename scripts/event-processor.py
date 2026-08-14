@@ -1173,6 +1173,28 @@ def preprocess():
     # Step 4: Validate check_run events
     valid_kept = [e for e in kept if validate_check_run(e)]
 
+    # Step 4.5: Drop events for CLOSED issues (2026-08-14 source fix)
+    # Webhook replays/lingering label events for closed issues (e.g. #401,
+    # closed research PR with workflow/research residue) were creating phantom
+    # stage tasks. The issue's lifecycle is over — no stage task, ever.
+    # gh call per candidate; only for events that would spawn (labeled/
+    # check_run), cheap and cached.
+    def _issue_is_live(e):
+        issue_num = e.get("issue")
+        if not issue_num or e.get("type") in ("pull_request.opened",
+                                              "pull_request.labeled",
+                                              "pull_request.synchronize",
+                                              "pull_request.unlabeled"):
+            return True  # PR events carry their own state; don't filter here
+        try:
+            return not _is_issue_closed(int(issue_num))
+        except Exception:
+            return True  # ambiguous → keep (the kanban guard re-checks)
+    live_kept = [e for e in valid_kept if _issue_is_live(e)]
+    for e in valid_kept:
+        if e not in live_kept:
+            discarded_keys.add(e.get("_key", ""))
+
     # Step 5: Filter out invalid check_run events (they go to discard pile)
     for e in kept:
         if not validate_check_run(e):
@@ -2241,12 +2263,25 @@ def kanban_create_task(stage: str, issue: int, pr: int = 0,
     # #401 (CLOSED research PR) kept getting re-spawned as implement tasks —
     # 39 duplicates in 21 min during the dedup bug, then more after archive.
     # A closed issue must NEVER get a new stage task (its lifecycle is over).
-    # Deterministic check; skip without creating.
+    # FAIL-CLOSED (2026-08-14 23:2x): an ambiguous check (gh timeout/auth
+    # failure) must SKIP creation, not allow it — the original fail-open let
+    # #401 through whenever gh hiccuped (env -i repro: _is_issue_closed→False
+    # without GH_TOKEN → guard passed → task created).
     try:
-        if _is_issue_closed(issue):
-            return ""
+        if not _is_issue_closed(issue):
+            # _is_issue_closed returns False both for "confirmed OPEN" and
+            # "could not verify". Only proceed when we positively confirm
+            # OPEN; anything ambiguous is treated as closed (conservative).
+            state = gh("issue", "view", str(issue), "--json", "state")
+            if not state:
+                return ""
+            try:
+                if json.loads(state).get("state", "") != "OPEN":
+                    return ""
+            except (json.JSONDecodeError, KeyError):
+                return ""
     except Exception:
-        pass  # guard is best-effort
+        return ""  # conservative: any guard failure → skip
     key = (issue, stage)
     if key in _KANBAN_SEEN:
         try:
