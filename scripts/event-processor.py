@@ -1257,9 +1257,9 @@ def preprocess():
                 if conclusion == "success" and (
                     branch.startswith("research/") or branch.startswith("plan/")
                 ):
-                    output_lines.append(
-                        f"STALLED: merge-pr,pr={issue},branch={branch}"
-                    )
+                    # P3 (2026-08-14): merge is SCRIPTED — deterministic gh
+                    # op, zero LLM (was STALLED: merge-pr for the cron LLM).
+                    output_lines.extend(_scripted_merge_pr(int(issue), branch))
                 else:
                     _audit(
                         event="check_run.dropped",
@@ -1444,6 +1444,94 @@ def _output_sort_key(line: str) -> tuple:
             1 if line.startswith("SPAWN:") else 2)
 
 
+# ── Scripted deterministic ops (P3, 2026-08-14) ─────────────────
+# These used to be emitted as STALLED directives for the cron LLM to execute
+# (5-12 min per tick, swallowable). They are pure gh operations — the script
+# layer executes them directly, zero LLM, idempotent, retryable. This is the
+# final step of removing the LLM middleman: SPAWN → kanban (done), STALLED →
+# scripted (here).
+
+def _scripted_merge_pr(pr_num: int, branch: str) -> list:
+    """Merge a research/plan PR (CI already verified green by reconcile).
+    Deterministic, idempotent (merge of an already-merged PR is a no-op)."""
+    out = []
+    try:
+        state = gh("pr", "view", str(pr_num), "--json", "state,mergedAt,mergeable",
+                   "--jq", "{state,mergedAt,mergeable}")
+        import json as _json
+        d = _json.loads(state) if state else {}
+        if d.get("state") == "MERGED":
+            return out  # already merged — idempotent
+        if d.get("mergeable") != "MERGEABLE":
+            out.append(f"SCRIPT: pr={pr_num} not mergeable — skip")
+            return out
+        r = subprocess.run(
+            ["gh", "pr", "merge", str(pr_num), "--squash", "--delete-branch"],
+            capture_output=True, text=True, timeout=60,
+        )
+        if r.returncode == 0:
+            out.append(f"SCRIPT: merged pr={pr_num}")
+        else:
+            out.append(f"SCRIPT: pr={pr_num} merge failed: {(r.stderr or '')[:100]}")
+    except Exception as e:
+        out.append(f"SCRIPT: pr={pr_num} merge error: {e}")
+    return out
+
+
+def _scripted_check_unblock(pr_num: int, branch: str) -> list:
+    """Check whether a blocked PR's fix issue has merged; if so, unblock.
+    Mechanical (see SKILL.md Unblock-Worker Mode): no judgment, no fix-issue
+    creation — just fix-issue state → label ops."""
+    out = []
+    try:
+        # find fix issue from PR comments
+        r = subprocess.run(
+            ["gh", "pr", "view", str(pr_num), "--json", "comments",
+             "--jq", ".comments[].body"],
+            capture_output=True, text=True, timeout=30,
+        )
+        fix_num = None
+        for line in (r.stdout or "").splitlines():
+            m = re.search(r"tracked by #(\d+)", line)
+            if m:
+                fix_num = int(m.group(1))
+                break
+        if not fix_num:
+            out.append(f"SCRIPT: pr={pr_num} no fix issue found — keep blocked")
+            return out
+        r2 = subprocess.run(
+            ["gh", "issue", "view", str(fix_num), "--json", "state,labels",
+             "--jq", "{state, labels: [.labels[].name]}"],
+            capture_output=True, text=True, timeout=30,
+        )
+        import json as _json
+        d = _json.loads(r2.stdout) if r2.stdout else {}
+        closed = (d.get("state") == "CLOSED" or
+                  "status/done" in d.get("labels", []))
+        if not closed:
+            out.append(f"SCRIPT: pr={pr_num} ⏳ waiting fix #{fix_num}")
+            return out
+        # fix merged → unblock: remove status/blocked from PR + parent
+        subprocess.run(
+            ["gh", "api", f"repos/devvi/agent-game-test/issues/{pr_num}/labels/status%2Fblocked",
+             "-X", "DELETE"],
+            capture_output=True, text=True, timeout=30,
+        )
+        parent = _extract_parent_issue(pr_num)
+        if parent:
+            subprocess.run(
+                ["gh", "api", f"repos/devvi/agent-game-test/issues/{parent}/labels/status%2Fblocked",
+                 "-X", "DELETE"],
+                capture_output=True, text=True, timeout=30,
+            )
+        subprocess.run(["gh", "pr", "update-branch", str(pr_num)],
+                       capture_output=True, text=True, timeout=60)
+        out.append(f"SCRIPT: pr={pr_num} unblocked (fix #{fix_num} merged)")
+    except Exception as e:
+        out.append(f"SCRIPT: pr={pr_num} unblock error: {e}")
+    return out
+
+
 def _quick_stalled_scan():
     """Deterministic stalled PR scan. Outputs explicit STALLED commands.
 
@@ -1473,12 +1561,9 @@ def _quick_stalled_scan():
         pr_num = pr["number"]
 
         if branch.startswith("research/") or branch.startswith("plan/"):
-            # Stalled research/plan PR — merge if mergeable
+            # Stalled research/plan PR — merge if mergeable (P3: scripted)
             if pr.get("mergeable") == "MERGEABLE":
-                cmds.append(
-                    f"STALLED: merge-pr,pr={pr_num},"
-                    f"branch={branch}"
-                )
+                cmds.extend(_scripted_merge_pr(pr_num, branch))
         elif branch.startswith("impl/"):
             # Stalled impl PR — check CI status, then review or self-correct.
             # All STALLED emissions go through _spawn_gate: the same PR must
@@ -1512,9 +1597,12 @@ def _quick_stalled_scan():
                 if parent:
                     p_labels = _current_issue_labels(parent)
                     parent_self_correct = "workflow/self-correct" in p_labels
+                # P3 (2026-08-14): unblock is now SCRIPTED (deterministic gh
+                # ops, zero LLM) — no STALLED text, no kanban task. The
+                # single-judge rule: it only checks fix-issue state + updates
+                # labels; it never creates fix issues or classifies failures.
                 if _spawn_gate(pr_num, "unblock"):
-                    cmds.append(f"STALLED: check-unblock,pr={pr_num},branch={branch}")
-                    kanban_create_task("unblock", pr_num, pr_num, branch)
+                    cmds.extend(_scripted_check_unblock(pr_num, branch))
                 if parent_self_correct and _spawn_gate(pr_num, "self-correct"):
                     cmds.append(f"STALLED: check-self-correct,pr={pr_num},branch={branch}")
                     kanban_create_task("self-correct", pr_num, pr_num, branch)

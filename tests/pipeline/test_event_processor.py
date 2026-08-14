@@ -337,8 +337,12 @@ class TestPreprocess(unittest.TestCase):
         ev = {"_key": "check_run.completed#156", "type": "check_run",
               "issue": 156, "branch": "plan/156-z", "conclusion": "success"}
         out = self._run_preprocess(self._events(ev))
-        self.assertTrue(any(l.startswith("STALLED: merge-pr,pr=156") for l in out),
-                        f"unexpected output: {out}")
+        # P3 (2026-08-14): merge is SCRIPTED — the check_run handler calls
+        # _scripted_merge_pr directly (gh op, no STALLED text for the LLM).
+        # The preprocess itself no longer emits text; _scripted_merge_pr is
+        # covered by its own tests. Here we pin: no P1, no STALLED text.
+        self.assertFalse(any(l.startswith("STALLED: merge-pr") for l in out),
+                         f"merge is scripted now: {out}")
         self.assertFalse(any(l.startswith("P1:") for l in out),
                          "P1 must never be emitted for non-impl check_run")
 
@@ -708,10 +712,13 @@ class TestPreprocess(unittest.TestCase):
                      "title": "research", "state": "OPEN"}
                 ])
             return ""
-        with mock.patch.object(ep, "gh", side_effect=fake_gh):
+        with mock.patch.object(ep, "gh", side_effect=fake_gh), \
+             mock.patch.object(ep, "_scripted_merge_pr",
+                               return_value=["SCRIPT: merged pr=450"]) as m_merge:
             cmds = ep._quick_stalled_scan()
-        self.assertTrue(any("STALLED: merge-pr,pr=450" in c for c in cmds),
-                        f"stalled scan must merge mergeable research PR: {cmds}")
+        self.assertTrue(m_merge.called,
+                        f"stalled scan must script-merge mergeable research PR: {cmds}")
+        self.assertEqual(m_merge.call_args.args[0], 450)
 
     # ── 2026-08-13 event-driven restore (方案4 v2) ──────────────────
     # Delete reconcile() synthetic event injection; the scheduler now emits
@@ -998,10 +1005,13 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "gh", side_effect=fake_gh), \
              mock.patch.object(ep, "_extract_parent_issue", return_value=466), \
              mock.patch.object(ep, "_current_issue_labels",
-                               return_value=["workflow/self-correct"]):
+                               return_value=["workflow/self-correct"]), \
+             mock.patch.object(ep, "_scripted_check_unblock",
+                               return_value=["SCRIPT: waiting"]) as m_unblock:
             cmds = ep._quick_stalled_scan()
-        self.assertTrue(any("STALLED: check-unblock,pr=475" in c for c in cmds),
-                        f"blocked PR must emit check-unblock: {cmds}")
+        self.assertTrue(any("STALLED: check-unblock,pr=475" in c for c in cmds)
+                        or m_unblock.called,
+                        f"blocked PR must run unblock: {cmds}")
         self.assertTrue(any("STALLED: check-self-correct,pr=475" in c for c in cmds),
                         f"self-correct parent must ALSO emit check-self-correct: {cmds}")
 
@@ -1022,10 +1032,14 @@ class TestPreprocess(unittest.TestCase):
                                os.path.join(td, "spawned.json")), \
              mock.patch.object(ep, "gh", side_effect=fake_gh), \
              mock.patch.object(ep, "_extract_parent_issue", return_value=466), \
-             mock.patch.object(ep, "_current_issue_labels", return_value=["workflow/implement"]):
+             mock.patch.object(ep, "_current_issue_labels",
+                               return_value=["workflow/implement"]), \
+             mock.patch.object(ep, "_scripted_check_unblock",
+                               return_value=["SCRIPT: waiting"]) as m_unblock2:
             cmds = ep._quick_stalled_scan()
-        self.assertTrue(any("STALLED: check-unblock,pr=475" in c for c in cmds),
-                        f"blocked PR must emit check-unblock: {cmds}")
+        self.assertTrue(any("STALLED: check-unblock,pr=475" in c for c in cmds)
+                        or m_unblock2.called,
+                        f"blocked PR must run unblock: {cmds}")
         self.assertFalse(any("STALLED: check-self-correct,pr=475" in c for c in cmds),
                          "no self-correct label → must NOT emit check-self-correct")
 
