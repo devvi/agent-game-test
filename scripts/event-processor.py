@@ -914,8 +914,11 @@ def pick_next_issue() -> list:
             # itself right after promoting backlog → available — no longer
             # relying on the webhook echo round-trip. The shared gate dedups
             # against the webhook/reconcile label path.
+            # P3 (2026-08-14): kanban is the spawn channel; the text line is
+            # kept as an audit log only (no cron LLM consumes it anymore).
             if _spawn_gate(n, "research") or _dead_spawn_recovery(n, "research"):
                 spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
+                kanban_create_task("research", n)
     
     # Also emit SPAWN for issues at plan/implement/available with no PR yet
     issues = _ensure_issues_cache()
@@ -1257,9 +1260,9 @@ def preprocess():
                 if conclusion == "success" and (
                     branch.startswith("research/") or branch.startswith("plan/")
                 ):
-                    output_lines.append(
-                        f"STALLED: merge-pr,pr={issue},branch={branch}"
-                    )
+                    # P3 (2026-08-14): merge is SCRIPTED — deterministic gh
+                    # op, zero LLM (was STALLED: merge-pr for the cron LLM).
+                    output_lines.extend(_scripted_merge_pr(int(issue), branch))
                 else:
                     _audit(
                         event="check_run.dropped",
@@ -1378,6 +1381,11 @@ def preprocess():
                 # outranks the label in the per-issue group and is handled above).
                 # Attach the impl PR context + source so the self-correct agent
                 # knows which PR to fix and the cycle is attributable.
+                # P3: kanban is the spawn channel; the text line is kept as an
+                # audit log only. Enrich with PR context if this is a
+                # self-correct label path (both audit text and task body).
+                _kb_pr = 0
+                _kb_branch = ""
                 if stage == "self-correct":
                     try:
                         pr_json = gh(
@@ -1394,26 +1402,14 @@ def preprocess():
                             if isinstance(pr_info, list):
                                 pr_info = pr_info[0] if pr_info else None
                             if isinstance(pr_info, dict):
+                                _kb_pr = int(pr_info.get('number', issue_int))
+                                _kb_branch = pr_info.get('headRefName', '')
                                 spawn_line += (
-                                    f",pr={pr_info.get('number', issue_int)}"
-                                    f",branch={pr_info.get('headRefName', '')}"
-                                    ",source=local-e2e"
+                                    f",pr={_kb_pr},branch={_kb_branch},source=local-e2e"
                                 )
                     except Exception:
                         pass  # best-effort enrichment — bare label spawn stays valid
-                output_lines.append(spawn_line)
-                # P3: kanban-only spawn — create the task alongside the
-                # (now-legacy) text line so the dispatcher spawns the worker.
-                # Enrich with PR context if this is a self-correct label path.
-                _kb_pr = 0
-                _kb_branch = ""
-                if stage == "self-correct" and "," in spawn_line:
-                    m_pr = re.search(r"pr=(\d+)", spawn_line)
-                    m_br = re.search(r"branch=([^,]+)", spawn_line)
-                    if m_pr:
-                        _kb_pr = int(m_pr.group(1))
-                    if m_br:
-                        _kb_branch = m_br.group(1)
+                output_lines.append(spawn_line)  # audit log only
                 kanban_create_task(stage, issue_int, _kb_pr, _kb_branch)
                 # One-shot consumption (see check_run SPAWN note above).
                 discarded_keys.add(event.get("_key", ""))
@@ -1442,6 +1438,95 @@ def _output_sort_key(line: str) -> tuple:
     return (0 if line.startswith("SPAWN:") else 1,
             0 if "review" in line or "self-correct" in line else
             1 if line.startswith("SPAWN:") else 2)
+
+
+# ── Scripted deterministic ops (P3, 2026-08-14) ─────────────────
+# These used to be emitted as STALLED directives for the cron LLM to execute
+# (5-12 min per tick, swallowable). They are pure gh operations — the script
+# layer executes them directly, zero LLM, idempotent, retryable. This is the
+# final step of removing the LLM middleman: SPAWN → kanban (done), STALLED →
+# scripted (here).
+
+def _scripted_merge_pr(pr_num: int, branch: str) -> list:
+    """Merge a research/plan PR (CI already verified green by reconcile).
+    Deterministic, idempotent (merge of an already-merged PR is a no-op)."""
+    out = []
+    try:
+        state = gh("pr", "view", str(pr_num), "--json", "state,mergedAt,mergeable",
+                   "--jq", "{state,mergedAt,mergeable}")
+        import json as _json
+        d = _json.loads(state) if state else {}
+        if d.get("state") == "MERGED":
+            return out  # already merged — idempotent
+        if d.get("mergeable") != "MERGEABLE":
+            out.append(f"SCRIPT: pr={pr_num} not mergeable — skip")
+            return out
+        r = subprocess.run(
+            ["gh", "pr", "merge", str(pr_num), "--squash", "--delete-branch"],
+            capture_output=True, text=True, timeout=60,
+        )
+        if r.returncode == 0:
+            out.append(f"SCRIPT: merged pr={pr_num}")
+        else:
+            out.append(f"SCRIPT: pr={pr_num} merge failed: {(r.stderr or '')[:100]}")
+    except Exception as e:
+        out.append(f"SCRIPT: pr={pr_num} merge error: {e}")
+    return out
+
+
+def _scripted_check_unblock(pr_num: int, branch: str) -> list:
+    """Check whether a blocked PR's fix issue has merged; if so, unblock.
+    Mechanical: no judgment, no fix-issue creation — just fix-issue state →
+    label ops. (2026-08-14: unblock is a scripted op, not a worker; the
+    review worker is the single judge and sole fix-issue creator.)"""
+    out = []
+    try:
+        # find fix issue from PR comments
+        r = subprocess.run(
+            ["gh", "pr", "view", str(pr_num), "--json", "comments",
+             "--jq", ".comments[].body"],
+            capture_output=True, text=True, timeout=30,
+        )
+        fix_num = None
+        for line in (r.stdout or "").splitlines():
+            m = re.search(r"tracked by #(\d+)", line)
+            if m:
+                fix_num = int(m.group(1))
+                break
+        if not fix_num:
+            out.append(f"SCRIPT: pr={pr_num} no fix issue found — keep blocked")
+            return out
+        r2 = subprocess.run(
+            ["gh", "issue", "view", str(fix_num), "--json", "state,labels",
+             "--jq", "{state, labels: [.labels[].name]}"],
+            capture_output=True, text=True, timeout=30,
+        )
+        import json as _json
+        d = _json.loads(r2.stdout) if r2.stdout else {}
+        closed = (d.get("state") == "CLOSED" or
+                  "status/done" in d.get("labels", []))
+        if not closed:
+            out.append(f"SCRIPT: pr={pr_num} ⏳ waiting fix #{fix_num}")
+            return out
+        # fix merged → unblock: remove status/blocked from PR + parent
+        subprocess.run(
+            ["gh", "api", f"repos/devvi/agent-game-test/issues/{pr_num}/labels/status%2Fblocked",
+             "-X", "DELETE"],
+            capture_output=True, text=True, timeout=30,
+        )
+        parent = _extract_parent_issue(pr_num)
+        if parent:
+            subprocess.run(
+                ["gh", "api", f"repos/devvi/agent-game-test/issues/{parent}/labels/status%2Fblocked",
+                 "-X", "DELETE"],
+                capture_output=True, text=True, timeout=30,
+            )
+        subprocess.run(["gh", "pr", "update-branch", str(pr_num)],
+                       capture_output=True, text=True, timeout=60)
+        out.append(f"SCRIPT: pr={pr_num} unblocked (fix #{fix_num} merged)")
+    except Exception as e:
+        out.append(f"SCRIPT: pr={pr_num} unblock error: {e}")
+    return out
 
 
 def _quick_stalled_scan():
@@ -1473,12 +1558,9 @@ def _quick_stalled_scan():
         pr_num = pr["number"]
 
         if branch.startswith("research/") or branch.startswith("plan/"):
-            # Stalled research/plan PR — merge if mergeable
+            # Stalled research/plan PR — merge if mergeable (P3: scripted)
             if pr.get("mergeable") == "MERGEABLE":
-                cmds.append(
-                    f"STALLED: merge-pr,pr={pr_num},"
-                    f"branch={branch}"
-                )
+                cmds.extend(_scripted_merge_pr(pr_num, branch))
         elif branch.startswith("impl/"):
             # Stalled impl PR — check CI status, then review or self-correct.
             # All STALLED emissions go through _spawn_gate: the same PR must
@@ -1512,11 +1594,14 @@ def _quick_stalled_scan():
                 if parent:
                     p_labels = _current_issue_labels(parent)
                     parent_self_correct = "workflow/self-correct" in p_labels
+                # P3 (2026-08-14): unblock is now SCRIPTED (deterministic gh
+                # ops, zero LLM) — no STALLED text, no kanban task. The
+                # single-judge rule: it only checks fix-issue state + updates
+                # labels; it never creates fix issues or classifies failures.
                 if _spawn_gate(pr_num, "unblock"):
-                    cmds.append(f"STALLED: check-unblock,pr={pr_num},branch={branch}")
-                    kanban_create_task("unblock", pr_num, pr_num, branch)
+                    cmds.extend(_scripted_check_unblock(pr_num, branch))
                 if parent_self_correct and _spawn_gate(pr_num, "self-correct"):
-                    cmds.append(f"STALLED: check-self-correct,pr={pr_num},branch={branch}")
+                    # P3: kanban-only self-correct spawn
                     kanban_create_task("self-correct", pr_num, pr_num, branch)
             else:
                 # Self-correct awareness: the parent issue was already flagged
@@ -1528,7 +1613,8 @@ def _quick_stalled_scan():
                     p_labels = _current_issue_labels(parent)
                     if "workflow/self-correct" in p_labels:
                         if _spawn_gate(pr_num, "self-correct"):
-                            cmds.append(f"STALLED: check-self-correct,pr={pr_num},branch={branch}")
+                            # P3: kanban-only self-correct spawn
+                            kanban_create_task("self-correct", pr_num, pr_num, branch)
                         continue
                 # ── E2E scripted front-load (2026-08-14, plan ②) ──
                 # Parent unresolved / no self-correct label → review, but the
@@ -1808,7 +1894,7 @@ E2E_STATE_DIR = os.path.expanduser("~/.hermes/e2e-state")
 # Phase 3: delete the text emit entirely.
 KANBAN_BRIDGE = os.environ.get("KANBAN_BRIDGE", "1") == "1"
 _KANBAN_BOARD = "default"
-_KANBAN_SEEN = set()  # (issue, stage) already created this process
+_KANBAN_SEEN = {}  # (issue, stage) → task_id created this process
 _KANBAN_STATE_FILE = os.path.expanduser("~/.hermes/kanban-bridge-state.json")
 
 
@@ -1988,12 +2074,13 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         # nothing re-emitted for 40 min). Rate-limited by a dedicated
         # "review-resend" gate (short TTL 300s) so we don't spam the cron
         # prompt every tick. failed stays silent (self-correct owns it).
+        # 2026-08-14 self-review: the review-resend rate gate is redundant —
+        # kanban_create_task's active-state dedup already prevents duplicate
+        # workers while a review is in flight and allows re-create once it
+        # finishes. Removing the 300s gate removes a delay on cycle re-entry.
         if status == "done" and not _read_review_conclusions_file(pr):
-            if _spawn_gate(pr, "review-resend"):
-                # P3: kanban-only review spawn (rate-limited re-emit is
-                # handled by the persistent dedup + dispatcher reclaim)
-                kanban_create_task("review", pr, pr, branch,
-                                   f"e2e_summary={state.get('summary', '')}")
+            kanban_create_task("review", pr, pr, branch,
+                               f"e2e_summary={state.get('summary', '')}")
         return lines
 
     # absent → launch background runner (--no-comment: evidence posted by
@@ -2062,7 +2149,6 @@ _KANBAN_STAGE_SKILL = {
     "implement": "game-implement-agent",
     "review": "game-review-agent",
     "self-correct": "game-implement-agent",
-    "unblock": "game-review-agent",
 }
 
 
@@ -2076,19 +2162,35 @@ def kanban_create_task(stage: str, issue: int, pr: int = 0,
 
     Dedup (2026-08-14 lessons): persistent (issue:stage)→task-id map with a
     cross-process flock (concurrent cron ticks raced and overwrote records,
-    re-creating duplicate tasks → 8 parallel workers on #475). The kanban
-    dispatcher owns reclaim/retry, so an existing task (any status) must not
-    be re-created.
+    re-creating duplicate tasks → 8 parallel workers on #475).
+
+    IMPORTANT (self-review 2026-08-14): dedup is ACTIVE-STATE aware. Stages
+    are cyclic — review runs again after self-correct pushes new commits,
+    implement can be re-queued after a force-push. A permanently-remembered
+    (issue:stage) would deadlock those cycles. So:
+      - task exists AND active (ready/running) → skip (dedup)
+      - task exists AND finished (done/blocked/archived) → re-create
+        (new cycle), updating the state map
     """
     if not KANBAN_BRIDGE:
         return ""
     key = (issue, stage)
     if key in _KANBAN_SEEN:
-        return ""
+        try:
+            if _kanban_task_active(_KANBAN_SEEN[key]):
+                return ""
+        except Exception:
+            pass  # fail-open
     seen = _kanban_seen_persist()
     seen_key = f"{issue}:{stage}"
-    if seen_key in seen:
-        return ""
+    existing_id = seen.get(seen_key)
+    if existing_id:
+        try:
+            active = _kanban_task_active(existing_id)
+        except Exception:
+            active = False  # fail-open: query error must not deadlock the cycle
+        if active:
+            return ""
     skill = _KANBAN_STAGE_SKILL.get(stage, "")
     if not skill:
         return ""
@@ -2118,12 +2220,40 @@ def kanban_create_task(stage: str, issue: int, pr: int = 0,
         import re as _re
         m = _re.search(r"(t_[A-Za-z0-9]+)", out)
         if m:
-            _KANBAN_SEEN.add(key)
+            _KANBAN_SEEN[key] = m.group(1)
             _kanban_seen_add(issue, stage, m.group(1))
             return m.group(1)
     except Exception:
         pass
     return ""
+
+
+def _kanban_task_active(task_id: str) -> bool:
+    """True if the task is still in flight (ready/running) — a fresh stage
+    cycle must not be created while the previous one is active. Finished
+    states (done/blocked/archived) mean the cycle is over → allow re-create.
+    Uses a short subprocess query (gh-free, hermes kanban show)."""
+    try:
+        r = subprocess.run(
+            ["hermes", "kanban", "show", task_id, "--json"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if r.returncode != 0:
+            # task gone (e.g. board wiped) → not active → allow re-create
+            return False
+        import json as _json
+        d = _json.loads(r.stdout or "{}")
+        # `kanban show --json` wraps the task under {"task": {...}} (verified
+        # 2026-08-14 21:02: top-level "status" was None → active() always
+        # False → dedup never fired → duplicate review/implement tasks). Some
+        # versions return the task flat — handle both.
+        if isinstance(d, dict) and "task" in d:
+            d = d["task"]
+        status = d.get("status", "")
+        return status in ("ready", "running", "claimed")
+    except Exception:
+        # query failed → assume NOT active so the cycle can still progress
+        return False
 
 
 # Same-issue stage ordering (lesson 3, 2026-08-14): which existing task a new
@@ -2143,7 +2273,7 @@ def _kanban_stage_parent(stage: str, issue: int) -> str:
                 if tid:
                     return tid
         # unblock/self-correct wait on the review task (they react to its verdict)
-        if stage in ("unblock", "self-correct"):
+        if stage == "self-correct":
             tid = seen.get(f"{issue}:review")
             if tid:
                 return tid

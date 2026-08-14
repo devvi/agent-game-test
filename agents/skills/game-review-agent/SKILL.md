@@ -35,11 +35,19 @@ hermes gateway restart
 
 ## How It's Triggered
 
-The review agent is NOT label-driven — it has no workflow label. It is triggered by:
+The review agent is NOT label-driven — it has no workflow label. It runs as a
+**kanban worker** (2026-08-14): the dispatcher spawns `hermes chat -q` with
+`--skills game-review-agent` when event-processor creates a `review` kanban
+task. Triggers:
 
-1. **`SPAWN: review`** — From `event-processor.py` script output, which processes `check_run.completed#N:success` events
-2. **Stalled PR detection** — When a stalled scan finds an `impl/*` PR with CI success but no review agent activity
-3. **`delegate_task`** — Spawned by the cron poller with full context
+1. **E2E done** — `e2e_orchestrator` harvests a passing summary → creates a
+   `review` task with `e2e_summary=<path>` (you read the summary, don't re-run)
+2. **Stalled PR detection** — stalled scan finds an `impl/*` PR with CI
+   success but no review activity → creates a `review` task
+3. **check_run.completed#N:success** — processed by event-processor → review task
+
+Your task body carries `Issue: #N / Stage: review / PR: #P / Branch: ...`.
+Finish with the conclusion file + `kanban_complete` (see Last-Action Rule).
 
 **⚠️ Operator race condition (2026-07-23):** The operator agent may merge implement PRs before the check_run webhook triggers this review agent. Two manifestations:
 
@@ -608,32 +616,6 @@ When the review agent blocks a PR due to pre-existing failures on main, **that b
 
 See `references/pre-existing-failure-block-bypass-trace.md` for the 2026-07-30 failure trace that motivated this rule (2 PRs merged with `status/blocked` still on, 5 pre-existing failures unfixed).
 
-### ⚠️ Unblock-Worker Mode: NO Judgment, NO Fix-Issue Creation (2026-08-14)
-
-When your kanban task body says `Stage: unblock`, you are running as an
-**unblock worker** — a mechanical check, NOT a review. Your scope is:
-
-```
-1. Find the fix issue(s) blocking this PR (PR comment "Blocked → tracked by #FIX",
-   or gh issue list --search "pre-existing in:title").
-2. gh issue view <FIX> --json state,labels:
-   - NOT closed/status/done → keep status/blocked, output "⏳ waiting fix #FIX", DONE.
-   - CLOSED (merged) → verify main is green (godot run_tests.gd, 0 FAILED) →
-     remove status/blocked from PR + parent → gh pr update-branch → DONE.
-3. kanban_complete with a one-line summary. THAT'S IT.
-```
-
-**You MUST NOT:**
-- classify failures (A/B/C/D) — that is the review worker's job
-- create fix issues — if you discover a NEW pre-existing failure during the
-  check, STOP and report it in kanban_complete ("found new pre-existing: …"),
-  do NOT create an issue. The next review round will batch-expose it.
-- post review comments, merge PRs, or re-run the full E2E.
-
-The 2026-08-14 #466/#475 chain showed unblock workers creating fix issues
-(#485) and racing the review worker — two judges, conflicting verdicts,
-block/unblock thrash. **One judge only: the review worker.**
-
 ### Block Follow-Through: Creating a Fix Issue
 
 After blocking a PR, the review agent must create a **fix issue** so the pre-existing failures have an owner and enter the normal pipeline. This prevents the block from becoming permanent deadlock — the fix issue goes through research → plan → implement → merge, main turns green, and blocked PRs auto-unblock.
@@ -720,6 +702,15 @@ FSET_HASH=$(echo -n "$FAILURES" | md5 | cut -c1-8)
 3. Do NOT merge. Do NOT re-evaluate.
 
 ### ⚠️ CRITICAL: Last-Action Rule — Write the Conclusion File
+
+**As a kanban worker, your LAST TWO actions in EVERY review are:**
+1. Write the structured conclusion file (below) — the script layer
+   (`review_followup()` in event-processor) performs the mechanical aftermath
+   (labels, fix issue, comment) from it.
+2. `kanban_complete <task_id> --summary "<verdict>: <one-line evidence>"` —
+   this tells the dispatcher the review finished. **Do both, in that order.**
+   If you can only do one, do the conclusion file first (the script layer
+   guarantees follow-through even if you never complete).
 
 **Your very LAST action in EVERY review (blocked, approved, request_changes,
 self_correct) MUST be writing a structured conclusion file.** Do this BEFORE

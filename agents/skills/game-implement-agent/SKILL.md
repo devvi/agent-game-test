@@ -6,6 +6,23 @@ tags: ["workflow", "implement", "tdd", "godot", "gdscript", "opencode"]
 
 # Game Implement Agent
 
+## 🤖 Kanban Worker Mode (2026-08-14 起 — 默认执行形态)
+
+**你现在是一个 kanban worker**:由 dispatcher 以 `hermes chat -q` 启动,
+`HERMES_KANBAN_TASK` 已设置。规则:
+
+1. **上下文**:任务内容在 task body(见下方 body 字段)——
+   `Issue: #N / Stage: implement / PR: #P / Branch: ...`。用 `kanban_show`
+   读取完整 body(含父任务输出)。
+2. **执行**:完全按本 skill 的 WORKTREE 流程干活(worktree 隔离/OpenCode/TDD/PR)。
+3. **收尾**:完成后用 `kanban_complete <task_id> --summary "<一行总结>"`。
+   总结要含:PR 号、测试结果、遗留问题。
+4. **不要** `send_message` / 发 Feishu / 写结论文件到
+   `~/.hermes/review-conclusions/`(那是 review 的)——你只 complete。
+5. **失败**:无法完成时 `kanban_complete --status failed --summary "原因"`,
+   让 dispatcher 决定重试/block(它管理重试,你不要自己重试)。
+6. 旧模式(`SPAWN: implement` 文本 + delegate_task)已废弃,仅作兼容参考。
+
 ## 🛠️ WORKTREE 工作流（强制, 2026-08-13 起 — 多 agent 隔离红线）
 
 > **必须在独立 worktree 中开发, 禁止在主工作区操作。** 根因: 多 agent 并发共用
@@ -36,7 +53,7 @@ git worktree remove "$WT" --force
 - ✅ merge 冲突: 脚本自动尝试合并, 失败则 abort + 报告, 不硬解
 - ⛔ **绝不 `gh pr merge`** (见下方 CRITICAL INVARIANT)
 
-> The **code generation phase** of the game dev pipeline. Triggered by `SPAWN: implement` from the cron poller. Reads DESIGN + PRD, generates test files FIRST, then implementation code, creates `impl/` PR. **This agent must NEVER merge its own PR.**
+> The **code generation phase** of the game dev pipeline. Runs as a **kanban worker** (2026-08-14): dispatcher spawns `hermes chat -q --skills game-implement-agent` when event-processor creates an `implement` task (OpenCode gate passed). Reads DESIGN + PRD, generates test files FIRST, then implementation code, creates `impl/` PR. **This agent must NEVER merge its own PR.**
 
 ## ⛔ CRITICAL INVARIANT: No Self-Merge
 

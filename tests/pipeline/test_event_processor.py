@@ -337,8 +337,12 @@ class TestPreprocess(unittest.TestCase):
         ev = {"_key": "check_run.completed#156", "type": "check_run",
               "issue": 156, "branch": "plan/156-z", "conclusion": "success"}
         out = self._run_preprocess(self._events(ev))
-        self.assertTrue(any(l.startswith("STALLED: merge-pr,pr=156") for l in out),
-                        f"unexpected output: {out}")
+        # P3 (2026-08-14): merge is SCRIPTED — the check_run handler calls
+        # _scripted_merge_pr directly (gh op, no STALLED text for the LLM).
+        # The preprocess itself no longer emits text; _scripted_merge_pr is
+        # covered by its own tests. Here we pin: no P1, no STALLED text.
+        self.assertFalse(any(l.startswith("STALLED: merge-pr") for l in out),
+                         f"merge is scripted now: {out}")
         self.assertFalse(any(l.startswith("P1:") for l in out),
                          "P1 must never be emitted for non-impl check_run")
 
@@ -708,10 +712,13 @@ class TestPreprocess(unittest.TestCase):
                      "title": "research", "state": "OPEN"}
                 ])
             return ""
-        with mock.patch.object(ep, "gh", side_effect=fake_gh):
+        with mock.patch.object(ep, "gh", side_effect=fake_gh), \
+             mock.patch.object(ep, "_scripted_merge_pr",
+                               return_value=["SCRIPT: merged pr=450"]) as m_merge:
             cmds = ep._quick_stalled_scan()
-        self.assertTrue(any("STALLED: merge-pr,pr=450" in c for c in cmds),
-                        f"stalled scan must merge mergeable research PR: {cmds}")
+        self.assertTrue(m_merge.called,
+                        f"stalled scan must script-merge mergeable research PR: {cmds}")
+        self.assertEqual(m_merge.call_args.args[0], 450)
 
     # ── 2026-08-13 event-driven restore (方案4 v2) ──────────────────
     # Delete reconcile() synthetic event injection; the scheduler now emits
@@ -968,10 +975,13 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "gh", side_effect=fake_gh), \
              mock.patch.object(ep, "_extract_parent_issue", return_value=393), \
              mock.patch.object(ep, "_current_issue_labels",
-                               return_value=["workflow/self-correct"]):
+                               return_value=["workflow/self-correct"]), \
+             mock.patch.object(ep, "kanban_create_task",
+                               return_value="t_y") as m_kb460:
             cmds = ep._quick_stalled_scan()
-        self.assertTrue(any("STALLED: check-self-correct,pr=460" in c for c in cmds),
-                        f"self-correct-aware scan must emit check-self-correct: {cmds}")
+        self.assertTrue(any("STALLED: check-self-correct,pr=460" in c for c in cmds)
+                        or m_kb460.called,
+                        f"self-correct-aware scan must spawn self-correct: {cmds}")
         self.assertFalse(any("STALLED: check-review,pr=460" in c for c in cmds),
                          "must NOT emit check-review when parent is self-correcting")
 
@@ -998,12 +1008,18 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "gh", side_effect=fake_gh), \
              mock.patch.object(ep, "_extract_parent_issue", return_value=466), \
              mock.patch.object(ep, "_current_issue_labels",
-                               return_value=["workflow/self-correct"]):
+                               return_value=["workflow/self-correct"]), \
+             mock.patch.object(ep, "_scripted_check_unblock",
+                               return_value=["SCRIPT: waiting"]) as m_unblock, \
+             mock.patch.object(ep, "kanban_create_task",
+                               return_value="t_z") as m_kb_475:
             cmds = ep._quick_stalled_scan()
-        self.assertTrue(any("STALLED: check-unblock,pr=475" in c for c in cmds),
-                        f"blocked PR must emit check-unblock: {cmds}")
-        self.assertTrue(any("STALLED: check-self-correct,pr=475" in c for c in cmds),
-                        f"self-correct parent must ALSO emit check-self-correct: {cmds}")
+        self.assertTrue(any("STALLED: check-unblock,pr=475" in c for c in cmds)
+                        or m_unblock.called,
+                        f"blocked PR must run unblock: {cmds}")
+        self.assertTrue(any("STALLED: check-self-correct,pr=475" in c for c in cmds)
+                        or m_kb_475.called,
+                        f"self-correct parent must ALSO spawn self-correct: {cmds}")
 
     def test_stalled_scan_blocked_without_self_correct_only_unblock(self):
         """Blocked PR whose parent has NO self-correct label → only
@@ -1022,10 +1038,14 @@ class TestPreprocess(unittest.TestCase):
                                os.path.join(td, "spawned.json")), \
              mock.patch.object(ep, "gh", side_effect=fake_gh), \
              mock.patch.object(ep, "_extract_parent_issue", return_value=466), \
-             mock.patch.object(ep, "_current_issue_labels", return_value=["workflow/implement"]):
+             mock.patch.object(ep, "_current_issue_labels",
+                               return_value=["workflow/implement"]), \
+             mock.patch.object(ep, "_scripted_check_unblock",
+                               return_value=["SCRIPT: waiting"]) as m_unblock2:
             cmds = ep._quick_stalled_scan()
-        self.assertTrue(any("STALLED: check-unblock,pr=475" in c for c in cmds),
-                        f"blocked PR must emit check-unblock: {cmds}")
+        self.assertTrue(any("STALLED: check-unblock,pr=475" in c for c in cmds)
+                        or m_unblock2.called,
+                        f"blocked PR must run unblock: {cmds}")
         self.assertFalse(any("STALLED: check-self-correct,pr=475" in c for c in cmds),
                          "no self-correct label → must NOT emit check-self-correct")
 
@@ -1456,25 +1476,110 @@ class TestE2EOrchestrator(unittest.TestCase):
                 ep._write_e2e_state(475, {"status": "done", "pid": None,
                                           "summary": "/tmp/e2e-475/summary.json",
                                           "finished_at": time.time()})
-                # no conclusion file → re-create task (first call passes gate)
+                # no conclusion file → re-create task (active-state dedup
+                # prevents duplicates; 2026-08-14 self-review removed the
+                # review-resend rate gate as redundant)
                 with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR",
                                        os.path.join(td, "concl")):
                     lines = ep.e2e_orchestrator(475, "impl/x")
                 self.assertEqual(m_kb.call_count, 1,
                                  f"done+no-conclusion must create review task")
-                # within review-resend TTL (300s) → suppressed
+                # second tick: still no conclusion → tries again (dedup inside
+                # kanban_create_task is the real guard; the orchestrator must
+                # keep emitting so a failed worker gets re-created)
                 with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR",
                                        os.path.join(td, "concl")):
                     lines1 = ep.e2e_orchestrator(475, "impl/x")
-                self.assertEqual(m_kb.call_count, 1, "rate-limited within 5 min")
-                # conclusion file present → silent
+                self.assertEqual(m_kb.call_count, 2,
+                                 "done+no-conclusion re-emits every tick (dedup guards)")
+                # conclusion file present → silent (no more re-emits)
                 os.makedirs(os.path.join(td, "concl"), exist_ok=True)
                 with open(os.path.join(td, "concl", "475.json"), "w") as f:
                     json.dump({"pr": 475, "verdict": "approved"}, f)
                 with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR",
                                        os.path.join(td, "concl")):
                     lines2 = ep.e2e_orchestrator(475, "impl/x")
-                self.assertEqual(m_kb.call_count, 1, "conclusion present → silent")
+                self.assertEqual(m_kb.call_count, 2, "conclusion present → silent")
+
+
+class TestKanbanActiveStateDedup(unittest.TestCase):
+    """2026-08-14 self-review: (issue:stage) dedup must be ACTIVE-STATE aware.
+
+    Stages are cyclic — review re-runs after self-correct, implement re-queues
+    after force-push. A permanently-remembered (issue:stage) deadlocks those
+    cycles. Verified: active task → skip; finished task → re-create."""
+
+    def setUp(self):
+        self.td = tempfile.TemporaryDirectory()
+        self.state_file = os.path.join(self.td.name, "kb-state.json")
+        self.kb_state_patch = mock.patch.object(
+            ep, "_KANBAN_STATE_FILE", self.state_file)
+
+    def tearDown(self):
+        self.td.cleanup()
+
+    def test_active_task_blocks_recreate(self):
+        with self.kb_state_patch:
+            # existing ACTIVE task in state map
+            json.dump({"475:review": "t_active1"},
+                      open(self.state_file, "w"))
+            with mock.patch.object(ep, "_kanban_task_active",
+                                   return_value=True), \
+                 mock.patch.object(ep, "KANBAN_BRIDGE", True), \
+                 mock.patch.object(ep, "_KANBAN_SEEN", {}):
+                task_id = ep.kanban_create_task("review", 475)
+            self.assertEqual(task_id, "", "active task must block re-create")
+
+    def test_finished_task_allows_recreate(self):
+        with self.kb_state_patch:
+            # existing FINISHED task in state map → re-create allowed
+            json.dump({"475:review": "t_done1"},
+                      open(self.state_file, "w"))
+            with mock.patch.object(ep, "_kanban_task_active",
+                                   return_value=False), \
+                 mock.patch.object(ep, "KANBAN_BRIDGE", True), \
+                 mock.patch.object(ep, "_KANBAN_SEEN", {}), \
+                 mock.patch("subprocess.run", return_value=mock.Mock(
+                     stdout="t_new1", returncode=0)):
+                task_id = ep.kanban_create_task("review", 475)
+            self.assertTrue(task_id.startswith("t_"),
+                            "finished task must allow re-create")
+
+    def test_active_query_failure_allows_recreate(self):
+        """Query failure must not deadlock the cycle (fail-open)."""
+        with self.kb_state_patch:
+            json.dump({"475:review": "t_x"},
+                      open(self.state_file, "w"))
+            with mock.patch.object(ep, "_kanban_task_active",
+                                   side_effect=Exception("boom")), \
+                 mock.patch.object(ep, "KANBAN_BRIDGE", True), \
+                 mock.patch.object(ep, "_KANBAN_SEEN", {}), \
+                 mock.patch("subprocess.run", return_value=mock.Mock(
+                     stdout="t_new2", returncode=0)):
+                task_id = ep.kanban_create_task("review", 475)
+            self.assertTrue(task_id.startswith("t_"),
+                            "query failure must fail open")
+
+    def test_active_parses_nested_json(self):
+        """2026-08-14 21:02 regression: `kanban show --json` wraps the task
+        under {\"task\": {...}}; active() must unwrap or dedup never fires
+        (duplicate review/implement tasks were created)."""
+        nested = json.dumps({"task": {"id": "t_a159005a",
+                                      "status": "running"}})
+        with mock.patch("subprocess.run", return_value=mock.Mock(
+                stdout=nested, returncode=0)):
+            self.assertTrue(ep._kanban_task_active("t_a159005a"),
+                            "nested {task:{status}} must parse as active")
+        flat = json.dumps({"id": "t_x", "status": "ready"})
+        with mock.patch("subprocess.run", return_value=mock.Mock(
+                stdout=flat, returncode=0)):
+            self.assertTrue(ep._kanban_task_active("t_x"),
+                            "flat {status} must parse as active")
+        done = json.dumps({"task": {"status": "done"}})
+        with mock.patch("subprocess.run", return_value=mock.Mock(
+                stdout=done, returncode=0)):
+            self.assertFalse(ep._kanban_task_active("t_done"),
+                             "done must NOT be active")
 
 
 if __name__ == "__main__":

@@ -14,29 +14,38 @@
 4. **Review** — 代码审查、合并决策（CI 成功后 pre-merge 触发，**不在 label 链中**）
 5. **Self-correct** — CI 失败诊断修复（`workflow/self-correct` label）
 
-## 运行时架构（五层）
+## 运行时架构（2026-08-14 修订: kanban 调度层替代 cron LLM 中转）
 
 ```
 GitHub Event → Gateway webhook (:8644)
   → workflow-dispatcher.py (thin route script — 只写 pending 文件, 不做 gh/git)
   → ~/.hermes/workflow-pending.json (~0.3KB/event, 不含 payload)
   → cron tick (godot-workflow-poller, every 1m, script=event-processor.py)
-      Phase 1: event-processor.py (确定性 Python, 无 LLM)
-        - 分组/去重/排序 → 输出 SPAWN/STALLED 指令 (impl check_run > labeled; 非 impl check_run → merge-pr 指令, 2026-08-13)
+      event-processor.py (确定性 Python, 无 LLM):
+        - 分组/去重/排序 → 判定 (kanban task / 脚本操作)
+        - SPAWN 类 (research/plan/implement/review/self-correct):
+            → kanban create task (dispatcher 确定性 spawn worker)
+        - 确定性操作 (merge-pr / check-unblock):
+            → 脚本直执行 (gh op, 0 LLM, 幂等)
         - 依赖解析、槽位上限、stalled scan 信号
-      Phase 2: cron LLM (terminal + delegation toolsets)
-        - 读取 SPAWN → delegate_task 生成 phase agent
-        - 空闲 → [SILENT]（零 token 消耗）
+  → kanban dispatcher (gateway 内置, 确定性):
+        Popen `hermes chat -q <prompt> --skills <stage-skill>` worker
+        worker 读 task body → 执行 → kanban_complete
+        reclaim/retry/超时回收 全自动
 ```
 
-**关键原则：确定性逻辑在 Python，决策逻辑在 LLM。** 脚本做数据加工（0% 幻觉率），LLM 做 GitHub 状态验证和分支决策。
+**关键原则（2026-08-14 重构后）：调度层无 LLM 中转。**
+- 确定性操作（spawn/merge/unblock/label）→ 脚本 + kanban dispatcher（0% 幻觉率）
+- LLM 只在 worker 内部做判定型工作（写 PRD/DESIGN/代码/review 结论）
+- 2026-08-14 前的缺陷（SPAWN 被 cron LLM 吞、串行 tick、delegation 完成通知丢失、
+  50-call 截断漏收尾）全部由这一层消除
 
 ## 组件清单
 
 | 组件 | 位置 | 职责 |
 |------|------|------|
 | `workflow-dispatcher.py` | `scripts/` + `~/.hermes/scripts/` | webhook 接收, 写 pending 文件 (thin) |
-| `event-processor.py` | 同上 | 调度核心：分组/去重/排序/SPAWN/依赖/槽位/check-run 对账(P3b) |
+| `event-processor.py` | 同上 | 调度核心：分组/去重/排序/kanban task 创建/脚本化 merge+unblock/依赖/槽位/check-run 对账(P3b) |
 | `event_processor_lib.py` | 同上 | 纯逻辑核心（2026-07-31 拆分）：优先级、时间窗口、依赖解析、配置合并、成本治理(P4b) |
 | `stage-gate.py` | 同上 | PR 创建后验证 label/branch/body, 自动修复 |
 | `workflow-watchdog.py` | 同上 | 沉默 SPAWN 检测（no-agent cron every 5m, P2）|
@@ -50,8 +59,12 @@ GitHub Event → Gateway webhook (:8644)
 | `sync-to-hermes.sh` | `scripts/` | 同步脚本到 `~/.hermes/scripts/`（改脚本后必跑）|
 | `workflow-config.json` | `~/.hermes/` | 启停 + 工作时段 + preset |
 | `game-env/manifest.yaml` | 项目根 | 项目配置单一来源：repo/engine/branch/槽位（P3）|
-| cron `godot-workflow-poller` | Hermes cron | every 1m, deliver=local, 脚本 + LLM 两阶段 |
+| cron `godot-workflow-poller` | Hermes cron | every 1m, deliver=local, 脚本阶段（LLM 阶段已废）|
 | cron `workflow-silent-spawn-watchdog` | Hermes cron | every 5m, no-agent, 沉默 SPAWN → Feishu |
+| **kanban dispatcher** | gateway 内置 | 确定性 spawn worker（Popen hermes chat -q）+ reclaim/retry/超时 |
+| `~/.hermes/kanban-bridge-state.json` | 状态 | (issue:stage)→task-id 持久化去重（flock 保护）|
+| `~/.hermes/review-conclusions/` | 状态 | review 结论文件（脚本收尾层读取）|
+| `~/.hermes/e2e-state/` | 状态 | E2E orchestrator 状态机（running/done/failed）|
 
 ## 并发模型（2026-07-29 修订）
 
