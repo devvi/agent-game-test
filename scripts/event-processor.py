@@ -849,6 +849,41 @@ def _spawn_gate(issue: int, stage: str) -> bool:
         return True
 
 
+def _dead_spawn_recovery(issue: int, stage: str) -> bool:
+    """Dead-agent recovery: re-emit SPAWN when the gate recorded a spawn
+    but no PR ever appeared AND half the gate TTL has elapsed.
+
+    Context (2026-08-14): cron LLM received `SPAWN: plan,issue=476` at
+    11:07 but hit `TimeoutError: idle 92s > 90s` while delegating → the
+    SPAWN was consumed (gate marked) but no agent was ever created, and
+    the gate TTL (1h) plus the occupied slot count blocked re-emission
+    for a full hour. Recovery: if the gate marker is stale (older than
+    TTL/2) and the issue still has no PR, allow one re-spawn regardless
+    of gate. The PR-exists check is the real dedup here — a live agent
+    will have a PR (or branch) within TTL/2; an agent that died or was
+    never created won't.
+
+    Only called for plan/implement (stages whose agent creates a PR).
+    Returns True to allow re-emission (and refresh the gate marker).
+    """
+    try:
+        state = _read_spawn_state()
+        prev = state.get(str(issue), {})
+        now = time.time()
+        if prev.get("stage") != stage:
+            return False  # gate never recorded this stage — normal path handles it
+        ttl = _SPAWN_TTL_BY_STAGE.get(stage, _SPAWN_TTL_SECONDS)
+        if now - prev.get("ts", 0) < ttl / 2:
+            return False  # too soon — real agent may still be starting up
+        # Stale gate marker + no PR → dead spawn. Refresh marker so the
+        # next re-emission also needs to wait TTL/2 (no per-tick spam).
+        state[str(issue)] = {"stage": stage, "ts": now}
+        _write_spawn_state(state)
+        return True
+    except Exception:
+        return False
+
+
 def pick_next_issue() -> list:
     """Entry point: called after slot freed or at window entry.
     Fills up to MAX_CONCURRENT issues.
@@ -891,7 +926,7 @@ def pick_next_issue() -> list:
                           "--json", "number,state",
                           "--jq", "length")
             if existing is None or int(existing) == 0:
-                if _spawn_gate(n, "plan"):
+                if _spawn_gate(n, "plan") or _dead_spawn_recovery(n, "plan"):
                     spawn_lines.append(f"SPAWN: plan,issue={n},label=workflow/plan")
         elif "workflow/implement" in labels:
             existing = gh("pr", "list", "--state", "all",
@@ -899,7 +934,7 @@ def pick_next_issue() -> list:
                           "--json", "number,state",
                           "--jq", "length")
             if existing is None or int(existing) == 0:
-                if _spawn_gate(n, "implement"):
+                if _spawn_gate(n, "implement") or _dead_spawn_recovery(n, "implement"):
                     # ── Key-path OpenCode gate (2026-08-13) ──
                     # OpenCode is implement's ONLY code path. Check at the
                     # moment of spawn (not every tick): if it's down, don't

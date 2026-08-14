@@ -830,6 +830,53 @@ class TestPreprocess(unittest.TestCase):
         self.assertTrue(any("SPAWN: implement,issue=466" in l for l in lines),
                         f"opencode up → picker must spawn implement: {lines}")
 
+    def test_dead_spawn_recovery_after_half_ttl(self):
+        """2026-08-14: SPAWN consumed by cron timeout but no agent/PR ever
+        appeared → after TTL/2 the picker re-emits despite the gate marker.
+        Simulates #476: gate recorded plan at t0, TTL=3600 → at t0+1801 the
+        picker must emit SPAWN: plan again (PR still absent)."""
+        issue = {"number": 476, "labels": [{"name": "workflow/plan"}]}
+
+        def fake_run(cmd, *a, **kw):
+            joined = " ".join(str(c) for c in cmd)
+            if "pr" in joined and "list" in joined:
+                return mock.Mock(stdout="0", returncode=0)
+            return mock.Mock(stdout="", returncode=1)
+
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "is_paused", return_value=False), \
+             mock.patch.object(ep, "current_workflow_count", return_value=0), \
+             mock.patch.object(ep, "_pick_candidates", return_value=[]), \
+             mock.patch.object(ep, "_ensure_issues_cache",
+                               return_value=[issue]), \
+             mock.patch("subprocess.run", fake_run):
+            # first call: gate records plan, emits SPAWN
+            first = ep.pick_next_issue()
+            self.assertTrue(any("SPAWN: plan,issue=476" in l for l in first))
+            # second call within TTL/2: suppressed by gate
+            second = ep.pick_next_issue()
+            self.assertFalse(any("SPAWN: plan,issue=476" in l for l in second),
+                            f"gate must suppress within TTL/2: {second}")
+            # advance time past TTL/2 (plan TTL=3600 → 1801s)
+            old_time = ep.time.time
+            ep.time.time = lambda: old_time() + 1801
+            try:
+                third = ep.pick_next_issue()
+            finally:
+                ep.time.time = old_time
+            self.assertTrue(any("SPAWN: plan,issue=476" in l for l in third),
+                            f"dead-spawn recovery must re-emit after TTL/2: {third}")
+
+    def test_dead_spawn_recovery_requires_stale_gate(self):
+        """No gate record → _dead_spawn_recovery returns False (normal
+        gate path handles first-time spawns)."""
+        with tempfile.TemporaryDirectory() as td:
+            sf = os.path.join(td, "spawned.json")
+            with mock.patch.object(ep, "_SPAWN_STATE_FILE", sf):
+                self.assertFalse(ep._dead_spawn_recovery(476, "plan"))
+
     def test_stalled_scan_gated(self):
         """The same impl PR scanned twice emits STALLED: check-review once —
         the gate closes the 3b59ede hole (ungated per-tick review re-spawn)."""
