@@ -64,6 +64,9 @@ if "--display-driver" in sys.argv:
         for i, s in enumerate(plan.get("shots", [])):
             with open(os.path.join(out_dir, s["name"] + ".png"), "wb") as f:
                 f.write(make_png(320, 180, lambda x, y, b=i * 40: pixel(x, y, b)))
+        if "results_json" in cfg:
+            with open(os.path.join(out_dir, "results.json"), "w") as f:
+                json.dump(cfg["results_json"], f)
     sys.exit(0)
 
 exit_code = 0
@@ -253,6 +256,62 @@ class TestRunnerFlow(RunnerTestBase):
         self.assertEqual(r.returncode, 0)
         self.assertFalse(self._wt_exists())
         self.assertEqual(self._godot_calls(), [])
+
+    def test_capture_src_prefers_worktree_template(self):
+        self._git("checkout", "impl/1-test")
+        with open(os.path.join(self.repo, "framework", "templates", "e2e_capture.gd"), "w") as f:
+            f.write("# PR capture v2\n")
+        self._git("add", "-A")
+        self._git("commit", "-m", "impl template")
+        self._git("checkout", "main")
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        with open(os.path.join(self.worktree_root, "e2e-1", "capture.gd")) as f:
+            self.assertEqual(f.read().strip(), "# PR capture v2",
+                             "PR worktree template must win over REPO_ROOT")
+        self.assertIn("wt-impl-1/framework/templates/e2e_capture.gd", r.stdout,
+                      "capture source log must show the worktree path")
+
+    def test_capture_src_falls_back_to_repo_root(self):
+        self._git("checkout", "impl/1-test")
+        self._git("rm", "framework/templates/e2e_capture.gd")
+        self._git("commit", "-m", "impl rm template")
+        self._git("checkout", "main")
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        with open(os.path.join(self.worktree_root, "e2e-1", "capture.gd")) as f:
+            self.assertEqual(f.read().strip(), "# fake capture",
+                             "must fall back to REPO_ROOT template")
+        self.assertIn(os.path.join(self.repo, "framework", "templates", "e2e_capture.gd"),
+                      r.stdout, "capture source log must show the repo path")
+
+    def test_results_json_missed_fails_l3(self):
+        self._write_config({"results_json": {"shots": [], "missed": ["03_gameover"]}})
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertEqual(self._summary()["layers"]["L3_visual"], "fail")
+        self.assertIn("shot(s) missed", r.stdout)
+
+    def test_results_json_zero_missed_passes(self):
+        self._write_config({"results_json": {"shots": [{"name": "01_title"}], "missed": []}})
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self._summary()["layers"]["L3_visual"], "pass")
+        self.assertIn("0 missed", r.stdout)
+
+    def test_analyze_src_prefers_worktree_script(self):
+        self._git("checkout", "impl/1-test")
+        os.makedirs(os.path.join(self.repo, "scripts", "e2e"), exist_ok=True)
+        with open(os.path.join(self.repo, "scripts", "e2e", "analyze_bmp.py"), "w") as f:
+            f.write('#!/usr/bin/env python3\nprint("PR-ANALYZE-MARKER")\n')
+        self._git("add", "-A")
+        self._git("commit", "-m", "impl analyze")
+        self._git("checkout", "main")
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        with open(os.path.join(self.worktree_root, "e2e-1", "P5-assert.log")) as f:
+            self.assertIn("PR-ANALYZE-MARKER", f.read(),
+                          "analyze must use the PR worktree script")
 
 
 if __name__ == "__main__":

@@ -164,6 +164,7 @@ run-e2e-review.sh <PR_NUM>  →  P0 防休眠 → P1 worktree → P2 L0 → P3 L
 - **截图通道**: Godot 进程内 `get_image().save_png()`（显示睡眠时系统截图 100% 纯黑, 实测 2026-07-31）；必须非 `--headless`；`caffeinate` 双保险
 - **shot plan**: 游戏自持 `mini-pong/e2e_shots.json`（"框架管机器, 游戏管剧本"）；diff 驱动原型（loop/journey/walkthrough/visual/system）；`assert_text` 证明文本交付物真实渲染
 - **4 重防伪断言**: 非黑 / 色数≥K / 主题色存在 / 帧间 Δluma 超阈值（防冻屏）
+- **L3 门控契约（#500）**: capture 驱动写 `results.json`（含 `missed` 数组，any missed → exit 1）；runner 消费该数组，`missed` 非空 → `L3_visual: fail`（杜绝漏截假绿）；`CAPTURE_SRC`/`ANALYZE_SRC` worktree 优先（PR 版），缺失回退 REPO_ROOT
 - **失败协议**: A 基建(降级需 harness 证据, 视觉 issue 必须人工) / B pre-existing / C 审美(人工拍板) / D 代码缺陷(本地收敛循环, 2 轮上限)
 - **安全注意**: runner 以完整文件系统权限执行 PR 分支 GDScript——只对可信贡献者运行
 

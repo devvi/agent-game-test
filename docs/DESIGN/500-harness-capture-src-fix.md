@@ -267,14 +267,14 @@ capture 异常崩溃（未写完 results.json, 无 PNG）
 
 | 集成 | 本组件 | 目标 | 如何 | 状态 |
 |------|:---:|:---:|------|:---:|
-| runner ↔ capture driver | `run-e2e-review.sh` P5 | `e2e_capture.gd` `results.json`（missed 数组） | 读 `$OUT/shots/results.json`，非空 → VISUAL_FAIL（driver 零改动） | ⬜ |
-| runner ↔ PR worktree | P5 重解析 | `$WT/framework/templates/e2e_capture.gd` + `$WT/scripts/e2e/analyze_bmp.py` | `[ -f ] ||` 回退 REPO_ROOT/SCRIPT_DIR | ⬜ |
-| runner ↔ pipeline 测试 | FAKE_GODOT_SRC | `tests/pipeline/test_e2e_runner.py` | `cfg["results_json"]` 注入 → 门控断言（TC3-4） | ⬜ |
-| runner ↔ 模板来源可观测 | `log "  capture source: ..."` | P5 日志 / 测试断言 | 输出 `$OUT/capture.gd` 来源（TC1-2 断言点） | ⬜ |
-| 本 issue ↔ PR #494（impl/491） | missed A 块 | main（merge 顺序） | 与 103a37c 逐字一致 → 双向无冲突（§5-9/10） | ⬜ |
-| 本 issue ↔ PR #498（impl/495） | 回归验证对象 | AC4 | 修复后跑 `run-e2e-review.sh 498` → 用 PR 模板 3/3 pass（§9 Scenario B） | ⬜ |
-| 本 issue ↔ #499（duplicate） | PR 描述 | close #499 | PR 描述引用 #499 为 duplicate，实现合并后 close | ⬜ |
-| 文档契约 | ARCHITECTURE.md L3 节 | review agent 工作流 | 补 results.json 门控契约说明 | ⬜ |
+| runner ↔ capture driver | `run-e2e-review.sh` P5 | `e2e_capture.gd` `results.json`（missed 数组） | 读 `$OUT/shots/results.json`，非空 → VISUAL_FAIL（driver 零改动） | ✅ |
+| runner ↔ PR worktree | P5 重解析 | `$WT/framework/templates/e2e_capture.gd` + `$WT/scripts/e2e/analyze_bmp.py` | `[ -f ] ||` 回退 REPO_ROOT/SCRIPT_DIR | ✅ |
+| runner ↔ pipeline 测试 | FAKE_GODOT_SRC | `tests/pipeline/test_e2e_runner.py` | `cfg["results_json"]` 注入 → 门控断言（TC3-4） | ✅ |
+| runner ↔ 模板来源可观测 | `log "  capture source: ..."` | P5 日志 / 测试断言 | 输出 `$OUT/capture.gd` 来源（TC1-2 断言点） | ✅ |
+| 本 issue ↔ PR #494（impl/491） | missed A 块 | main（merge 顺序） | 与 103a37c 结构逐字一致 → 双向无冲突（§5-9/10） | ✅ |
+| 本 issue ↔ PR #498（impl/495） | 回归验证对象 | AC4 | 修复后跑 `run-e2e-review.sh 498` → 用 PR 模板 3/3 pass（§9 Scenario B） | ⬜ 归 review/orchestrator 真实 runner |
+| 本 issue ↔ #499（duplicate） | PR 描述 | close #499 | PR 描述引用 #499 为 duplicate，实现合并后 close | ⬜ 合并后 close |
+| 文档契约 | ARCHITECTURE.md L3 节 | review agent 工作流 | 补 results.json 门控契约说明 | ✅ |
 
 ---
 

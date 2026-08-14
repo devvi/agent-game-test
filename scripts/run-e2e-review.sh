@@ -210,6 +210,14 @@ PY
   fi
 
   if [ "$VISUAL" != "fail" ] && [ "$DRY_RUN" = "0" ]; then
+    # #500: 用 PR worktree 的 capture 模板 + analyze 脚本（"用 PR 版本跑 PR"）。
+    # worktree 内缺失（常规 PR 未改基建文件）→ 回退 REPO_ROOT，行为与现状一致。
+    CAPTURE_SRC="$WT/framework/templates/e2e_capture.gd"
+    [ -f "$CAPTURE_SRC" ] || CAPTURE_SRC="$REPO_ROOT/framework/templates/e2e_capture.gd"
+    ANALYZE_SRC="$WT/scripts/e2e/analyze_bmp.py"
+    [ -f "$ANALYZE_SRC" ] || ANALYZE_SRC="$SCRIPT_DIR/e2e/analyze_bmp.py"
+    log "  capture source: $CAPTURE_SRC"
+    log "  analyze source: $ANALYZE_SRC"
     maybe cp "$CAPTURE_SRC" "$OUT/capture.gd"
     log "  running capture (real rendering, display-sleep immune)"
     ( cd "$WT" && "$GODOT" --path "$SUBPROJECT/" --display-driver macos --rendering-driver opengl3 \
@@ -219,6 +227,19 @@ PY
 
     # 4-fold anti-fake assertions on every shot
     VISUAL_FAIL=0
+    # ── #500: missed-shot → L3 fail（results.json 权威；capture exit 兜底）──
+    if [ -f "$OUT/shots/results.json" ]; then
+      MISSED=$(python3 -c 'import json,sys;print(len(json.load(open(sys.argv[1])).get("missed",[])))' "$OUT/shots/results.json" 2>/dev/null || echo 1)
+      if [ "$MISSED" != "0" ]; then
+        log "❌ $MISSED shot(s) missed — VISUAL_FAIL (results.json)"
+        VISUAL_FAIL=1
+      else
+        log "✅ results.json: 0 missed"
+      fi
+    elif [ "$local_capture" != "0" ]; then
+      log "❌ capture exit=$local_capture with no results.json — VISUAL_FAIL (exit fallback)"
+      VISUAL_FAIL=1
+    fi
     if [ -z "$(ls "$OUT/shots/"*.png 2>/dev/null)" ]; then
       log "❌ zero screenshots produced — capture failed"
       VISUAL_FAIL=1
@@ -231,7 +252,7 @@ PY
         if [ -n "$prev" ]; then
           args+=(--diff-with "$prev" --min-delta 5.0 --diff-ratio 0.005)
         fi
-        if python3 "$SCRIPT_DIR/e2e/analyze_bmp.py" "$png" "${args[@]}" >> "$OUT/P5-assert.log" 2>&1; then
+        if python3 "$ANALYZE_SRC" "$png" "${args[@]}" >> "$OUT/P5-assert.log" 2>&1; then
           log "  ✅ $(basename "$png") assertions pass"
         else
           log "  ❌ $(basename "$png") failed assertions"

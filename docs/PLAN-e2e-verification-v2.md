@@ -68,6 +68,11 @@ P5 L3 视觉       archetype 驱动 (真实渲染, 非 headless, ≤120s/组):
                    walkthrough 跳转触发 + fidelity 断言
                    visual    特效定帧
                  每帧过 4 重断言: 非黑 / 色数 / 主题色 / 帧间差异
+                 P5 资源来源 (#500): CAPTURE_SRC/ANALYZE_SRC 优先 PR worktree
+                 （$WT/framework/templates/e2e_capture.gd + $WT/scripts/e2e/analyze_bmp.py），
+                 缺失回退 REPO_ROOT —— "用 PR 版本跑 PR" 覆盖 capture 模板与 analyze 断言脚本
+                 L3 门控 (#500): P5 断言后读 results.json 的 missed 列表，非空 → L3 fail
+                 （capture exit code 兜底 results.json 缺失场景）—— 杜绝漏截假绿
 P6 证据上贴      user-attachments 上传 (实测无 REST 端点, 用 web 上传链路)
                  → gh pr comment: 截图 + 转写 + 测试摘要; gist raw 为 fallback
 P7 汇总          summary.json {layers, shots, classification} + 退出码
