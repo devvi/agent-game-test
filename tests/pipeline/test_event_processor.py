@@ -1526,7 +1526,9 @@ class TestKanbanActiveStateDedup(unittest.TestCase):
             with mock.patch.object(ep, "_kanban_task_active",
                                    return_value=True), \
                  mock.patch.object(ep, "KANBAN_BRIDGE", True), \
-                 mock.patch.object(ep, "_KANBAN_SEEN", {}):
+                 mock.patch.object(ep, "_KANBAN_SEEN", {}), \
+                 mock.patch.object(ep, "gh",
+                                   return_value='{"state": "OPEN"}'):
                 task_id = ep.kanban_create_task("review", 475)
             self.assertEqual(task_id, "", "active task must block re-create")
 
@@ -1539,6 +1541,8 @@ class TestKanbanActiveStateDedup(unittest.TestCase):
                                    return_value=False), \
                  mock.patch.object(ep, "KANBAN_BRIDGE", True), \
                  mock.patch.object(ep, "_KANBAN_SEEN", {}), \
+                 mock.patch.object(ep, "gh",
+                                   return_value='{"state": "OPEN"}'), \
                  mock.patch("subprocess.run", return_value=mock.Mock(
                      stdout="t_new1", returncode=0)):
                 task_id = ep.kanban_create_task("review", 475)
@@ -1554,6 +1558,8 @@ class TestKanbanActiveStateDedup(unittest.TestCase):
                                    side_effect=Exception("boom")), \
                  mock.patch.object(ep, "KANBAN_BRIDGE", True), \
                  mock.patch.object(ep, "_KANBAN_SEEN", {}), \
+                 mock.patch.object(ep, "gh",
+                                   return_value='{"state": "OPEN"}'), \
                  mock.patch("subprocess.run", return_value=mock.Mock(
                      stdout="t_new2", returncode=0)):
                 task_id = ep.kanban_create_task("review", 475)
@@ -1589,6 +1595,8 @@ class TestKanbanActiveStateDedup(unittest.TestCase):
         calls = []
         def fake_gh(*args):
             calls.append(args)
+            if args[0] == "issue" and "view" in args:
+                return '{"state": "OPEN"}'
             return ""
         with mock.patch.object(ep, "_kanban_task_active", return_value=False), \
              mock.patch.object(ep, "KANBAN_BRIDGE", True), \
