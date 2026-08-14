@@ -2151,6 +2151,47 @@ _KANBAN_STAGE_SKILL = {
     "self-correct": "game-implement-agent",
 }
 
+# ── Stage → issue label (2026-08-14 regression fix) ──────────────
+# Pre-kanban, SPAWN carried `label=workflow/research` and the cron LLM applied
+# it, so the issue's lifecycle label advanced with the stage (available →
+# research → plan → implement). The kanban bridge dropped that: kanban_create_task
+# only created the task, the issue stayed at workflow/available while the
+# research agent ran — the user cannot manage issue lifecycle from labels.
+# Labels are deterministic ops → the script layer must apply them (kanban
+# bridge, 2026-08-14 user correction).
+_STAGE_LABEL = {
+    "research": "workflow/research",
+    "plan": "workflow/plan",
+    "implement": "workflow/implement",
+    "self-correct": "workflow/self-correct",
+    "review": None,  # review is not in the label chain
+}
+# Label to remove when advancing to a stage (previous stage label).
+_STAGE_LABEL_PREV = {
+    "research": "workflow/available",   # available → research
+    "plan": "workflow/research",        # research → plan
+    "implement": "workflow/plan",       # plan → implement
+    "self-correct": None,
+    "review": None,
+}
+
+
+def _advance_issue_label(stage: str, issue: int) -> None:
+    """Advance the issue's workflow label for the given stage (deterministic).
+    Mirrors the pre-kanban SPAWN `label=` semantics so issue lifecycle stays
+    correct: available → research → plan → implement."""
+    add = _STAGE_LABEL.get(stage)
+    if not add:
+        return
+    try:
+        gh("issue", "edit", str(issue), "--add-label", add)
+        prev = _STAGE_LABEL_PREV.get(stage)
+        if prev:
+            gh("issue", "edit", str(issue), "--remove-label", prev)
+        _invalidate_issues_cache_for(issue)
+    except Exception:
+        pass  # label advance is best-effort; task creation still proceeds
+
 
 def kanban_create_task(stage: str, issue: int, pr: int = 0,
                        branch: str = "", extra: str = "") -> str:
@@ -2222,6 +2263,11 @@ def kanban_create_task(stage: str, issue: int, pr: int = 0,
         if m:
             _KANBAN_SEEN[key] = m.group(1)
             _kanban_seen_add(issue, stage, m.group(1))
+            # Advance the issue lifecycle label (available → research →
+            # plan → implement). Regression fix 2026-08-14: pre-kanban the
+            # SPAWN label= field did this; the bridge dropped it, leaving the
+            # issue stuck at workflow/available while the agent ran.
+            _advance_issue_label(stage, issue)
             return m.group(1)
     except Exception:
         pass

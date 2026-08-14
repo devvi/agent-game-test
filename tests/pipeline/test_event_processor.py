@@ -1581,6 +1581,31 @@ class TestKanbanActiveStateDedup(unittest.TestCase):
             self.assertFalse(ep._kanban_task_active("t_done"),
                              "done must NOT be active")
 
+    def test_task_create_advances_issue_label(self):
+        """2026-08-14 user correction: kanban task creation must advance the
+        issue lifecycle label (available → research → plan → implement), as
+        the pre-kanban SPAWN label= field did. Without it the issue stays at
+        workflow/available while the agent runs."""
+        calls = []
+        def fake_gh(*args):
+            calls.append(args)
+            return ""
+        with mock.patch.object(ep, "_kanban_task_active", return_value=False), \
+             mock.patch.object(ep, "KANBAN_BRIDGE", True), \
+             mock.patch.object(ep, "_KANBAN_SEEN", {}), \
+             mock.patch.object(ep, "_KANBAN_STATE_FILE",
+                               os.path.join(tempfile.mkdtemp(), "s.json")), \
+             mock.patch("subprocess.run", return_value=mock.Mock(
+                 stdout="t_lbl1", returncode=0)), \
+             mock.patch.object(ep, "gh", side_effect=fake_gh):
+            ep.kanban_create_task("research", 491)
+        self.assertTrue(any(a[0] == "issue" and "workflow/research" in a
+                            for a in calls),
+                        f"research spawn must add workflow/research: {calls}")
+        self.assertTrue(any(a[0] == "issue" and "workflow/available" in a
+                            for a in calls),
+                        f"research spawn must remove workflow/available: {calls}")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
