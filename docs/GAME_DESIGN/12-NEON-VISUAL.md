@@ -27,6 +27,21 @@ const CENTER_LINE      = Color(0.4, 0.6, 0.9, 0.5)    # semi-transparent blue
 const BG_COLOR_LINEAR  = Color(0.039, 0.039, 0.071, 1) # #0a0a12
 ```
 
+## Background Clear Color — project.godot 配置（#476, 2026-08-14）
+
+背景底色 `#0a0a12`（`BG_COLOR_LINEAR = Color(0.039, 0.039, 0.071, 1)`）是设计常量，生效通道为
+`mini-pong/project.godot` 的 `[rendering]` 段：
+
+| 键 | 值 | 说明 |
+|----|----|------|
+| `environment/defaults/default_clear_color` | `Color(0.039, 0.039, 0.071, 1)` | 全屏清屏色 = 设计暗底 (10,10,18) |
+
+**红线：键名不得带 `rendering/` 前缀。** 2026-08-14 修复的既有回归（#476）正是
+`rendering/environment/defaults/default_clear_color` 双前缀 → 全路径
+`rendering/rendering/...` → Godot 静默忽略 → 引擎默认灰 (76,76,76) 取代设计暗底，
+三区视觉断言假失败。`test_neon.gd` TC4 反向断言（键名无前缀）防此回归；L3 E2E 截图
+bg avg ≈ (10,10,18)（暗底 + 霓虹元素调制）为验收证据。
+
 ## Neon Label Style — NeonStyle（#392, 2026-08-13）
 
 霓虹 HUD 的描边 + 微投影样式由 `gdscripts/ui_neon_style.gd`（`class_name NeonStyle`，静态工具）统一提供，

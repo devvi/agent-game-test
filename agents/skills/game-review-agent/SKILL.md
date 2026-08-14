@@ -644,13 +644,17 @@ FSET_HASH=$(echo -n "$FAILURES" | md5 | cut -c1-8)
    If no match → create new fix issue
 ```
 
-**Full block checklist (in order):**
+**Full block checklist (in order, ALL mandatory — step d is NOT optional):**
 1. Run full review (tests, code quality, design docs)
 2. If pre-existing failures confirmed on main:
    a. Set `status/blocked` on PR AND parent issue via REST API
    b. Leave blocking PR comment with failure table
    c. Compute fset_hash + search for existing fix issue
-   d. If no existing fix issue covers these failures → create fix issue
+   d. **CREATE the fix issue (mandatory, no exceptions)** — see format above.
+      ⚠️ 2026-08-14 audit: PR #475 was blocked without a fix issue → deadlock
+      until a human noticed. A block WITHOUT a fix issue is an incomplete
+      block. If you are about to finish a blocked review without having
+      created one, STOP and create it.
    e. Link this PR's comment: "Blocked → tracked by #<fix-issue>"
    f. Post Feishu: `❌ #N → blocked: <N> pre-existing failures (fix: #<FIX>)`
    g. Remove event from pending file
