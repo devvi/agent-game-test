@@ -213,28 +213,37 @@ class TestFrameDiffRatio(unittest.TestCase):
                         "--min-delta", "1.0")
             self.assertEqual(r.returncode, 1, r.stdout)
             self.assertIn("frozen", r.stdout)
+# ── #466/#476: visual region assertions (check_visual) — bg-relative ───────
+# DESIGN 476 §3.3-3.5 / §9 — synthetic PNGs, pure stdlib, no network/Godot.
+# Post-#464 real background is (10,10,18) → 16-level bucket (0,0,1), which is
+# NOT near-black (r=10 >= 8). Assertions are therefore RELATIVE to the bg
+# color driven by the shot's visual config (#476 fix):
+#   * dominant_color excludes the bg bucket (near-black + bg) so element
+#     colors (cyan paddle / orange brick) win the mode.
+#   * nonbg = RGB distance from bg >= bg_min_dist (bg itself is NOT foreground).
+#   * rain_signature must differ from bg by >= rain_bg_min_dist (otherwise
+#     the dark blue-tinted bg matches the rain signature itself → false 100%).
+#   * paddle region = full-width bottom strip (captures any x position).
 
-
-
-# ── #466: visual region assertions (check_visual) ──────────────────────────
-# DESIGN 466 §3.5 / §9 — synthetic PNGs, pure stdlib, no network/Godot.
-# Near-black rule: r<8 AND g<8 AND b<8 (same as global analyze). Background
-# (4,4,4) is near-black → counts as background; (10,10,18) is FOREGROUND.
-# Paddle region x240-480/y1220-1260 (240x40=9600px); board 120x20=2400px →
-# expected nonbg = 25% (PRD §5.1), threshold min 5% leaves 5x margin.
-
-BG_DARK = (4, 4, 4)            # near-black synthetic bg (r<8)
-BG_REAL = (10, 10, 18)         # post-#464 BG_COLOR — NOT near-black (foreground)
+BG_DARK = (4, 4, 4)            # near-black synthetic bg (backward-compat tests)
+BG_REAL = (10, 10, 18)         # post-#464 BG_COLOR #0a0a12 — NOT near-black
 PADDLE_CYAN = (0, 229, 255)    # PADDLE_NEON #00e5ff
 BRICK_ORANGE = (255, 157, 69)  # BRICK_NEON #ff9d45
 RAIN_BLUE = (50, 56, 70)       # rain-drop blend ≈ (49,56,71) — signature ✓
+BG_MIN_DIST = 24               # nonbg distance threshold (DESIGN 476 §3.3.2)
+RAIN_BG_MIN_DIST = 24          # rain-vs-bg distance threshold (§3.3.3)
+# Paddle strip: y1220-1260 full width — PlayerPaddle center y=1240, height 20
+# (spans 1230-1250), moves only in x (Main.tscn position (360,1240)). Old
+# fixed region x240-480 had 0/1944 px overlap with the review-measured paddle
+# at x15-122 → full-width strip required (§3.3.4).
+PADDLE_STRIP = (0, 1220, 720, 1260)
 
 
-def make_png_fast(w, h, bg=BG_DARK, rects=(), points=()):
+def make_png_fast(w, h, bg=BG_REAL, rects=(), points=()):
     """Fast synthetic RGB-8 PNG via bytearray rows (O(n), no per-pixel lambda).
     rects: (x0,y0,x1,y1,rgb) painted via slice fill; points: (x,y,rgb) set
     directly. A 720x1280 build takes ~0.3s (the per-pixel make_png would take
-    minutes — #466 helper requirement)."""
+    minutes — #466 helper requirement). Default bg = real BG_COLOR (#476)."""
     def chunk(typ, data):
         return (struct.pack(">I", len(data)) + typ + data
                 + struct.pack(">I", zlib.crc32(typ + data) & 0xFFFFFFFF))
@@ -258,11 +267,15 @@ def make_png_fast(w, h, bg=BG_DARK, rects=(), points=()):
 
 
 def _visual_config(**over):
-    """Shot-level visual config (DESIGN §3.2 shape)."""
+    """Shot-level visual config (DESIGN 476 §3.4 shape — bg-relative)."""
     cfg = {
         "canvas": "720x1280",
+        "bg_color": "0a0a12",          # real BG_COLOR #0a0a12 (10,10,18)
+        "bg_min_dist": BG_MIN_DIST,    # nonbg = RGB dist from bg >= threshold
+        "rain_bg_min_dist": RAIN_BG_MIN_DIST,
         "regions": [
-            {"name": "paddle", "x0": 240, "y0": 1220, "x1": 480, "y1": 1260,
+            {"name": "paddle", "x0": PADDLE_STRIP[0], "y0": PADDLE_STRIP[1],
+             "x1": PADDLE_STRIP[2], "y1": PADDLE_STRIP[3],
              "min_nonbg_ratio": 0.05},
             {"name": "brick", "x0": 0, "y0": 560, "x1": 720, "y1": 720},
             {"name": "bg", "x0": 0, "y0": 0, "x1": 60, "y1": 60},
@@ -287,39 +300,62 @@ def _run_visual(td, png_bytes, cfg, *extra):
 
 
 class TestVisualRegionAssertions(unittest.TestCase):
-    """#466: region assertions — player paddle visibility (AC2), three-color
-    separation (AC3), rain distribution (AC4), AC5 reverse cases."""
+    """#466 + #476: region assertions — player paddle visibility (AC2/AC7),
+    three-color separation (AC4), rain distribution (AC5), bg-relative
+    semantics (bg bucket excluded, nonbg vs bg, rain vs bg)."""
 
-    # ── Scenario A: player paddle visibility (AC2) ──
+    # ── Scenario A: player paddle visibility (AC2/AC7) ──
 
     def test_visual_paddle_present(self):
+        # AC7: paddle at review-measured x15-122 (old fixed region x240-480
+        # had 0/1944 px overlap). Full-width strip captures any x. nonbg =
+        # dist-from-bg >= 24 → paddle 107*20=2140px / 720*40=28800px strip
+        # ≈ 7.4% > 5% → pass.
         with tempfile.TemporaryDirectory() as td:
-            png = make_png_fast(720, 1280, bg=BG_DARK,
-                                rects=[(300, 1230, 420, 1250, PADDLE_CYAN)])
-            cfg = {"canvas": "720x1280", "regions": [
-                {"name": "paddle", "x0": 240, "y0": 1220, "x1": 480, "y1": 1260,
-                 "min_nonbg_ratio": 0.05}]}
+            png = make_png_fast(720, 1280, bg=BG_REAL,
+                                rects=[(15, 1230, 122, 1250, PADDLE_CYAN)])
+            cfg = _visual_config(regions=[
+                {"name": "paddle", "x0": 0, "y0": 1220, "x1": 720, "y1": 1260,
+                 "min_nonbg_ratio": 0.05}], compare_pairs=[])
             r = _run_visual(td, png, cfg)
             self.assertEqual(r.returncode, 0, r.stdout)
             self.assertIn("paddle", r.stdout)
-            self.assertIn("25.0%", r.stdout)  # board 2400/9600 ≈ 25%
+            self.assertIn("7.4%", r.stdout)  # 2140/28800 ≈ 7.4%
 
     def test_visual_paddle_missing_fails(self):
-        # AC5 reverse: board removed → nonbg 0% < 5% → rc=1, "paddle" fail
+        # AC5/AC7 reverse: board removed on REAL bg → nonbg (dist>=24) 0% < 5%
+        # → rc=1, "paddle" fail. Pre-#476: bg (10,10,18) counted as foreground
+        # → ratio was 100% → false PASS (the reported L3 false-green).
         with tempfile.TemporaryDirectory() as td:
-            png = make_png_fast(720, 1280, bg=BG_DARK)
-            cfg = {"canvas": "720x1280", "regions": [
-                {"name": "paddle", "x0": 240, "y0": 1220, "x1": 480, "y1": 1260,
-                 "min_nonbg_ratio": 0.05}]}
+            png = make_png_fast(720, 1280, bg=BG_REAL)
+            cfg = _visual_config(regions=[
+                {"name": "paddle", "x0": 0, "y0": 1220, "x1": 720, "y1": 1260,
+                 "min_nonbg_ratio": 0.05}], compare_pairs=[])
             r = _run_visual(td, png, cfg)
             self.assertEqual(r.returncode, 1, r.stdout)
             self.assertIn("paddle", r.stdout)
 
-    # ── Scenario B: three-color separation (AC3) ──
-
-    def test_visual_three_color_separation(self):
+    def test_visual_paddle_nearblack_bg_backward_compat(self):
+        # bg_color=None path: near-black bg (4,4,4) + cyan paddle → old
+        # near-black rule still works (backward compat, DESIGN 476 §3.5).
         with tempfile.TemporaryDirectory() as td:
             png = make_png_fast(720, 1280, bg=BG_DARK,
+                                rects=[(300, 1230, 420, 1250, PADDLE_CYAN)])
+            cfg = {"canvas": "720x1280", "regions": [
+                {"name": "paddle", "x0": 0, "y0": 1220, "x1": 720, "y1": 1260,
+                 "min_nonbg_ratio": 0.05}]}
+            r = _run_visual(td, png, cfg)
+            self.assertEqual(r.returncode, 0, r.stdout)
+            self.assertIn("8.3%", r.stdout)  # 2400/28800 ≈ 8.3%
+
+    # ── Scenario B: three-color separation (AC4) ──
+
+    def test_visual_three_color_separation(self):
+        # Real bg everywhere; paddle cyan / brick orange / bg region = bg.
+        # bg bucket excluded → paddle=cyan bucket, brick=orange bucket, bg
+        # region falls back to bg bucket → all pairs dist >= 60 → pass.
+        with tempfile.TemporaryDirectory() as td:
+            png = make_png_fast(720, 1280, bg=BG_REAL,
                                 rects=[(300, 1230, 420, 1250, PADDLE_CYAN),
                                        (0, 600, 720, 680, BRICK_ORANGE),
                                        (0, 0, 60, 60, BG_REAL)])
@@ -329,7 +365,8 @@ class TestVisualRegionAssertions(unittest.TestCase):
             self.assertIn("brick", r.stdout)
 
     def test_visual_same_color_fails(self):
-        # AC5 reverse: board/brick reverted to bg color → dist 0 < 60 → rc=1
+        # AC5 reverse: board/brick reverted to bg color on REAL bg → bg bucket
+        # excluded everywhere, fallback yields bg bucket → dist 0 < 60 → rc=1.
         with tempfile.TemporaryDirectory() as td:
             png = make_png_fast(720, 1280, bg=BG_REAL,
                                 rects=[(300, 1230, 420, 1250, BG_REAL),
@@ -339,7 +376,7 @@ class TestVisualRegionAssertions(unittest.TestCase):
             self.assertEqual(r.returncode, 1, r.stdout)
             self.assertIn("RGB dist", r.stdout)
 
-    # ── Scenario C: rain distribution (AC4) ──
+    # ── Scenario C: rain distribution (AC5) ──
 
     @staticmethod
     def _rain_points(everywhere):
@@ -353,8 +390,11 @@ class TestVisualRegionAssertions(unittest.TestCase):
         return pts
 
     def test_visual_rain_coverage_pass(self):
+        # REAL bg + rain blend pixels everywhere → rain signature hits the
+        # droplets (dist from bg ≈ 80 >= 24) and excludes the bg itself →
+        # coverage 100% >= 60% → pass.
         with tempfile.TemporaryDirectory() as td:
-            png = make_png_fast(720, 1280, bg=BG_DARK,
+            png = make_png_fast(720, 1280, bg=BG_REAL,
                                 points=self._rain_points(everywhere=True))
             cfg = _visual_config(regions=[], compare_pairs=[],
                                  rain={"grid": 12, "min_coverage": 0.60})
@@ -365,15 +405,28 @@ class TestVisualRegionAssertions(unittest.TestCase):
     def test_visual_rain_coverage_fail(self):
         # Only top-left corner has rain → coverage 36/144=25% < 60% → rc=1
         with tempfile.TemporaryDirectory() as td:
-            png = make_png_fast(720, 1280, bg=BG_DARK,
+            png = make_png_fast(720, 1280, bg=BG_REAL,
                                 points=self._rain_points(everywhere=False))
             cfg = _visual_config(regions=[], compare_pairs=[],
                                  rain={"grid": 12, "min_coverage": 0.60})
             r = _run_visual(td, png, cfg)
             self.assertEqual(r.returncode, 1, r.stdout)
 
+    def test_visual_rain_pure_bg_no_rain_fails(self):
+        # KEY anti-false-positive regression (#476): on the real dark bg
+        # (10,10,18) the OLD signature (b-max(r,g)>=8 AND luma<100) matched the
+        # bg itself → coverage ≈100% → false PASS (L3-rain-coverage-15pct).
+        # With rain_bg_min_dist the bg is excluded → 0% < 60% → honest FAIL.
+        with tempfile.TemporaryDirectory() as td:
+            png = make_png_fast(720, 1280, bg=BG_REAL)  # no rain at all
+            cfg = _visual_config(regions=[], compare_pairs=[],
+                                 rain={"grid": 12, "min_coverage": 0.60})
+            r = _run_visual(td, png, cfg)
+            self.assertEqual(r.returncode, 1, r.stdout)
+            self.assertIn("rain", r.stdout)
+
     def test_rain_signature_excludes_bright(self):
-        # Bright blue (luma 117 ≥ 100) fails the dim condition → no coverage
+        # Bright blue (luma 117 >= 100) fails the dim condition → no coverage
         with tempfile.TemporaryDirectory() as td:
             png = make_png_fast(720, 1280, bg=(0, 150, 255))
             cfg = _visual_config(regions=[], compare_pairs=[],
@@ -409,9 +462,10 @@ class TestVisualRegionAssertions(unittest.TestCase):
             self.assertNotIn("visual", r.stdout)
 
     def test_visual_json_has_detail(self):
-        # Test 13: --json output embeds region/pair/rain detail for review
+        # --json output embeds region/pair/rain detail for review (incl. the
+        # bg-relative nonbg ratio and bg params)
         with tempfile.TemporaryDirectory() as td:
-            png = make_png_fast(720, 1280, bg=BG_DARK,
+            png = make_png_fast(720, 1280, bg=BG_REAL,
                                 rects=[(300, 1230, 420, 1250, PADDLE_CYAN),
                                        (0, 600, 720, 680, BRICK_ORANGE),
                                        (0, 0, 60, 60, BG_REAL)])
@@ -420,20 +474,34 @@ class TestVisualRegionAssertions(unittest.TestCase):
             payload = json.loads(r.stdout.strip().splitlines()[-1])
             self.assertIn("visual", payload)
             v = payload["visual"]
-            self.assertAlmostEqual(v["regions"]["paddle"]["nonbg_ratio"], 0.25, places=2)
+            self.assertEqual(v["bg_color"], "0a0a12")
+            self.assertAlmostEqual(v["regions"]["paddle"]["nonbg_ratio"], 0.08, places=2)
             self.assertIsNotNone(v["regions"]["paddle"]["dominant"])
             self.assertGreaterEqual(v["pairs"]["paddle|brick"]["dist"], 60)
 
-    # ── Pure-function units (DESIGN §3.1: 均可独立单测) ──
+    # ── Pure-function units (DESIGN 476 §3.3: 均可独立单测) ──
 
     def test_region_stats_counts(self):
         rows = [bytearray(bytes((4, 4, 4, 255)) * 4)] * 2  # 4x2 all near-black
         n, nn, buckets = an.region_stats(rows, 0, 0, 4, 2)
         self.assertEqual(n, 8)
         self.assertEqual(nn, 0)
-        rows2 = [bytearray(bytes((10, 10, 18, 255)) * 4)]  # foreground (r=10)
+        rows2 = [bytearray(bytes((10, 10, 18, 255)) * 4)]  # bg_color=None → old rule
         n, nn, _ = an.region_stats(rows2, 0, 0, 4, 1)
-        self.assertEqual(nn, 4)  # (10,10,18) counts as foreground
+        self.assertEqual(nn, 4)  # (10,10,18) counts as foreground w/o bg config
+
+    def test_region_stats_bg_relative(self):
+        # bg_color set → nonbg = RGB dist from bg >= bg_min_dist. The bg itself
+        # is NOT foreground (pre-#476: (10,10,18) counted → ratio恒100%).
+        rows = [bytearray(bytes((10, 10, 18, 255)) * 4)] * 2       # 4x2 all bg
+        n, nn, _ = an.region_stats(rows, 0, 0, 4, 2,
+                                   bg_color=BG_REAL, bg_min_dist=BG_MIN_DIST)
+        self.assertEqual(nn, 0)
+        rows2 = [bytearray(bytes((10, 10, 18, 255)) * 4
+                           + bytes((0, 229, 255, 255)) * 4)] * 2   # + cyan
+        n, nn, _ = an.region_stats(rows2, 0, 0, 8, 2,
+                                   bg_color=BG_REAL, bg_min_dist=BG_MIN_DIST)
+        self.assertEqual(nn, 8)  # cyan paddle pixels are foreground
 
     def test_dominant_color_none_when_all_near_black(self):
         rows = [bytearray(bytes((4, 4, 4, 255)) * 4)] * 2
@@ -444,6 +512,25 @@ class TestVisualRegionAssertions(unittest.TestCase):
                           + bytes((0, 229, 255, 255)) * 4)] * 2
         dom = an.dominant_color(rows, 0, 0, 8, 2)
         self.assertEqual(dom, (0, 224, 240))  # bucket rep of (0,229,255)
+
+    def test_dominant_color_excludes_bg_bucket(self):
+        # Real bg (10,10,18) → bucket (0,0,1) — must be excluded alongside the
+        # near-black bucket or it wins the mode in every region (L3-region-0).
+        rows = [bytearray(bytes((10, 10, 18, 255)) * 4
+                          + bytes((0, 229, 255, 255)) * 4)] * 2
+        dom = an.dominant_color(rows, 0, 0, 8, 2,
+                                exclude_buckets={(0, 0, 0), (0, 0, 1)})
+        self.assertEqual(dom, (0, 224, 240))  # cyan wins over excluded bg
+
+    def test_dominant_color_fallback_to_most_common(self):
+        # All-background region: every bucket excluded → fall back to the most
+        # common excluded bucket (bg) so color-separation fails with dist 0
+        # (honest failure) instead of a misleading "no dominant" error.
+        rows = [bytearray(bytes((10, 10, 18, 255)) * 4)] * 2
+        dom = an.dominant_color(rows, 0, 0, 4, 2,
+                                exclude_buckets={(0, 0, 0), (0, 0, 1)},
+                                fallback_to_most_common=True)
+        self.assertEqual(dom, (0, 0, 16))  # (0,0,1)<<4
 
     def test_rgb_distance(self):
         self.assertAlmostEqual(an.rgb_distance((0, 0, 0), (3, 4, 0)), 5.0)
@@ -456,9 +543,24 @@ class TestVisualRegionAssertions(unittest.TestCase):
         self.assertFalse(an.rain_signature(70, 70, 70))   # not blue-dominant
         self.assertFalse(an.rain_signature(4, 4, 4))      # near-black bg
 
+    def test_rain_signature_excludes_bg(self):
+        # #476: the OLD signature matched the real bg itself (b-max=8, luma≈13)
+        # → false 100% coverage. With bg_color set the bg is not rain.
+        self.assertFalse(an.rain_signature(10, 10, 18,
+                                           bg_color=BG_REAL,
+                                           rain_bg_min_dist=RAIN_BG_MIN_DIST))
+        # Rain blend (dist from bg ≈ 80) still matches → real droplets pass.
+        self.assertTrue(an.rain_signature(50, 56, 70,
+                                          bg_color=BG_REAL,
+                                          rain_bg_min_dist=RAIN_BG_MIN_DIST))
+
     def test_rain_grid_coverage_small(self):
         rows = [bytearray(bytes((50, 56, 70, 255)) * 4)] * 2  # 4x2 all rain
         cov = an.rain_grid_coverage(rows, 4, 2, grid=2, step=1)
         self.assertEqual(cov, 1.0)
         rows2 = [bytearray(bytes((4, 4, 4, 255)) * 4)] * 2
         self.assertEqual(an.rain_grid_coverage(rows2, 4, 2, grid=2, step=1), 0.0)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -226,12 +226,28 @@ def _theme_present(path: str, hex_color: str, tol: int = 32) -> bool:
 # DESIGN 466 §3.1). Pure stdlib, same PNG decode as the 4-fold assertions.
 
 
-def region_stats(rows, x0, y0, x1, y1, step=1):
+def _parse_hex_color(s) -> tuple | None:
+    """Parse 'RRGGBB' (optional leading '#') → (r, g, b) tuple.
+    Returns None when missing or unparseable."""
+    if not s:
+        return None
+    t = str(s).strip().lstrip("#")
+    if len(t) != 6:
+        return None
+    try:
+        return (int(t[0:2], 16), int(t[2:4], 16), int(t[4:6], 16))
+    except ValueError:
+        return None
+
+
+def region_stats(rows, x0, y0, x1, y1, step=1, bg_color=None, bg_min_dist=24):
     """Sample region pixels → (n_total, n_nonblack, color_bucket_counter).
 
     Color buckets use the same 16-level granularity as global analyze()
-    (r>>4, g>>4, b>>4). Near-black matches the global rule: r<8 and g<8 and
-    b<8 — so the post-#464 BG_COLOR (10,10,18) counts as FOREGROUND.
+    (r>>4, g>>4, b>>4). bg_color=None keeps the old near-black rule (r<8 and
+    g<8 and b<8). bg_color set → a pixel is non-background iff its RGB distance
+    from bg_color is >= bg_min_dist, so the bg itself is NOT foreground
+    (#476: post-#464 BG_COLOR (10,10,18) counted under the old rule → ratio 100%).
     """
     h = len(rows)
     w = len(rows[0]) // 4 if rows else 0
@@ -246,28 +262,38 @@ def region_stats(rows, x0, y0, x1, y1, step=1):
             i = x * 4
             r, g, b = row[i], row[i + 1], row[i + 2]
             n_total += 1
-            if not (r < 8 and g < 8 and b < 8):
+            if bg_color is not None:
+                if rgb_distance((r, g, b), bg_color) >= bg_min_dist:
+                    n_nonblack += 1
+            elif not (r < 8 and g < 8 and b < 8):
                 n_nonblack += 1
             key = (r >> 4, g >> 4, b >> 4)
             buckets[key] = buckets.get(key, 0) + 1
     return n_total, n_nonblack, buckets
 
 
-def dominant_color(rows, x0, y0, x1, y1):
-    """Region dominant color = mode of 16-level color buckets, excluding the
-    near-black bucket (0,0,0) (r<8,g<8,b<8 pixels). Returns the bucket's
-    representative (r,g,b) (lower bound of the bucket) or None when the region
-    is entirely near-black.
+def dominant_color(rows, x0, y0, x1, y1, exclude_buckets=None,
+                   fallback_to_most_common=False):
+    """Region dominant color = mode of 16-level color buckets, excluding keys
+    in exclude_buckets (default {(0,0,0)} — the near-black bucket; bg-relative
+    callers also exclude the bg bucket, e.g. (0,0,1) for #0a0a12). Returns the
+    bucket's representative (r,g,b) (lower bound of the bucket) or None when
+    every bucket is excluded. With fallback_to_most_common, an all-excluded
+    region falls back to the most common excluded bucket (the bg) so color
+    separation fails honestly (dist 0) instead of a misleading "no dominant".
     """
     _n, _nn, buckets = region_stats(rows, x0, y0, x1, y1)
+    exclude_buckets = exclude_buckets or {(0, 0, 0)}
     best_key = None
     best_count = 0
     for key, count in buckets.items():
-        if key == (0, 0, 0):
-            continue  # near-black bucket — background, not an element color
+        if key in exclude_buckets:
+            continue
         if count > best_count:
             best_count = count
             best_key = key
+    if best_key is None and fallback_to_most_common and buckets:
+        best_key = max(buckets, key=buckets.get)
     if best_key is None:
         return None
     return (best_key[0] << 4, best_key[1] << 4, best_key[2] << 4)
@@ -279,17 +305,24 @@ def rgb_distance(c1, c2) -> float:
                      + (c1[2] - c2[2]) ** 2)
 
 
-def rain_signature(r, g, b) -> bool:
+def rain_signature(r, g, b, bg_color=None, rain_bg_min_dist=24) -> bool:
     """Rain-drop signature: blue-dominant AND dim (PRD §4.4).
     b - max(r,g) >= 8 and luma < 100. Rain blend ≈ (49,56,71) luma≈56 ✓;
     BgPulse bright phase luma≈149 ✗; dark bg r≈g≈b not blue-dominant ✗.
+    With bg_color set, pixels closer than rain_bg_min_dist to the bg are NOT
+    rain (#476: the dark bg (10,10,18) matches the old signature — b-max=8,
+    luma≈13 — giving a false ~100% coverage on a pure-bg frame).
     """
+    if bg_color is not None and rgb_distance((r, g, b), bg_color) < rain_bg_min_dist:
+        return False
     return (b - max(r, g)) >= 8 and _luma(r, g, b) < 100
 
 
-def rain_grid_coverage(rows, w, h, grid=12, step=2) -> float:
+def rain_grid_coverage(rows, w, h, grid=12, step=2, bg_color=None,
+                       rain_bg_min_dist=24) -> float:
     """Fraction of grid×grid cells containing ≥1 rain-signature pixel.
-    Sampling step matches the other full-frame passes (step=2)."""
+    Sampling step matches the other full-frame passes (step=2). bg params
+    thread through to rain_signature (#476)."""
     if grid <= 0:
         return 0.0
     cell_w = w / grid
@@ -299,7 +332,9 @@ def rain_grid_coverage(rows, w, h, grid=12, step=2) -> float:
         row = rows[y]
         for x in range(0, w, step):
             i = x * 4
-            if rain_signature(row[i], row[i + 1], row[i + 2]):
+            if rain_signature(row[i], row[i + 1], row[i + 2],
+                              bg_color=bg_color,
+                              rain_bg_min_dist=rain_bg_min_dist):
                 cx = min(int(x / cell_w), grid - 1)
                 cy = min(int(y / cell_h), grid - 1)
                 covered.add((cx, cy))
@@ -311,12 +346,25 @@ def check_visual(path, vcfg: dict) -> list[str]:
 
     vcfg schema (shot-level `visual` field, DESIGN §3.2):
       canvas: "WxH" — screenshot must match exactly (防区域错位)
+      bg_color/bg_min_dist/rain_bg_min_dist — bg-relative semantics (#476):
+        nonbg = RGB distance from bg >= bg_min_dist; rain excludes bg; the
+        bg bucket is excluded from dominant-color mode (real bg (10,10,18)
+        #0a0a12 is NOT near-black, so it would otherwise win every region).
       regions: [{name, x0, y0, x1, y1, min_nonbg_ratio?}]
       compare_pairs: [[nameA, nameB], ...]  +  rgb_min_dist
       rain: {grid, min_coverage}
     """
     fails: list[str] = []
     w, h, rows = _read_png(path)
+
+    # bg-relative params (#476) — real BG_COLOR is (10,10,18), not near-black
+    bg_color = _parse_hex_color(vcfg.get("bg_color"))
+    bg_min_dist = float(vcfg.get("bg_min_dist", 24))
+    rain_bg_min_dist = float(vcfg.get("rain_bg_min_dist", 24))
+    exclude_buckets = {(0, 0, 0)}  # near-black bucket (backward compat)
+    if bg_color is not None:
+        exclude_buckets.add((bg_color[0] >> 4, bg_color[1] >> 4,
+                             bg_color[2] >> 4))
 
     # 1. canvas check — mismatch fails immediately (regions would be misaligned)
     canvas = vcfg.get("canvas")
@@ -335,8 +383,11 @@ def check_visual(path, vcfg: dict) -> list[str]:
     for reg in vcfg.get("regions", []):
         name = str(reg.get("name", "?"))
         x0, y0, x1, y1 = reg["x0"], reg["y0"], reg["x1"], reg["y1"]
-        n, nn, _b = region_stats(rows, x0, y0, x1, y1)
-        dom = dominant_color(rows, x0, y0, x1, y1)
+        n, nn, _b = region_stats(rows, x0, y0, x1, y1,
+                                 bg_color=bg_color, bg_min_dist=bg_min_dist)
+        dom = dominant_color(rows, x0, y0, x1, y1,
+                             exclude_buckets=exclude_buckets,
+                             fallback_to_most_common=True)
         dominants[name] = dom
         min_ratio = reg.get("min_nonbg_ratio")
         if min_ratio is not None:
@@ -360,7 +411,9 @@ def check_visual(path, vcfg: dict) -> list[str]:
     # 4. rain grid coverage
     rain = vcfg.get("rain")
     if rain:
-        cov = rain_grid_coverage(rows, w, h, grid=int(rain.get("grid", 12)))
+        cov = rain_grid_coverage(rows, w, h, grid=int(rain.get("grid", 12)),
+                                 bg_color=bg_color,
+                                 rain_bg_min_dist=rain_bg_min_dist)
         min_cov = float(rain.get("min_coverage", 0.6))
         if cov < min_cov:
             fails.append(f"rain coverage {cov*100:.1f}% < {min_cov*100:.0f}%")
@@ -372,15 +425,31 @@ def visual_detail(path, vcfg: dict) -> dict:
     """Structured visual evidence for --json (region dominants/ratios,
     pair distances, rain coverage) — review-agent evidence (DESIGN §3.1)."""
     w, h, rows = _read_png(path)
-    detail = {"canvas": f"{w}x{h}"}
+    bg_color = _parse_hex_color(vcfg.get("bg_color"))
+    bg_min_dist = float(vcfg.get("bg_min_dist", 24))
+    rain_bg_min_dist = float(vcfg.get("rain_bg_min_dist", 24))
+    exclude_buckets = {(0, 0, 0)}  # near-black bucket (backward compat)
+    if bg_color is not None:
+        exclude_buckets.add((bg_color[0] >> 4, bg_color[1] >> 4,
+                             bg_color[2] >> 4))
+    detail = {
+        "canvas": f"{w}x{h}",
+        "bg_color": vcfg.get("bg_color"),
+        "bg_min_dist": vcfg.get("bg_min_dist", 24),
+        "rain_bg_min_dist": vcfg.get("rain_bg_min_dist", 24),
+        "exclude_buckets": sorted([list(b) for b in exclude_buckets]),
+    }
     regions = {}
     for reg in vcfg.get("regions", []):
         name = str(reg.get("name", "?"))
         x0, y0, x1, y1 = reg["x0"], reg["y0"], reg["x1"], reg["y1"]
-        n, nn, _b = region_stats(rows, x0, y0, x1, y1)
+        n, nn, _b = region_stats(rows, x0, y0, x1, y1,
+                                 bg_color=bg_color, bg_min_dist=bg_min_dist)
+        dom = dominant_color(rows, x0, y0, x1, y1,
+                             exclude_buckets=exclude_buckets,
+                             fallback_to_most_common=True)
         regions[name] = {
-            "dominant": list(dominant_color(rows, x0, y0, x1, y1))
-                        if dominant_color(rows, x0, y0, x1, y1) else None,
+            "dominant": list(dom) if dom else None,
             "nonbg_ratio": round(nn / n, 4) if n else 0.0,
             "min_nonbg_ratio": reg.get("min_nonbg_ratio"),
         }
@@ -397,8 +466,9 @@ def visual_detail(path, vcfg: dict) -> dict:
     detail["pairs"] = pairs
     if "rain" in vcfg:
         detail["rain"] = {
-            "coverage": round(rain_grid_coverage(rows, w, h,
-                                                 grid=int(vcfg["rain"].get("grid", 12))), 4),
+            "coverage": round(rain_grid_coverage(
+                rows, w, h, grid=int(vcfg["rain"].get("grid", 12)),
+                bg_color=bg_color, rain_bg_min_dist=rain_bg_min_dist), 4),
             "min_coverage": vcfg["rain"].get("min_coverage", 0.6),
         }
     return detail
