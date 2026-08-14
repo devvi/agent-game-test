@@ -784,6 +784,8 @@ _SPAWN_TTL_BY_STAGE = {
     "plan": 3600,          # 60 min
     "implement": 3600,     # 60 min
     "self-correct": 1800,  # 30 min
+    "review-resend": 300,  # 5 min — E2E-done SPAWN re-emit rate limit
+    "research-resend": 300,  # 5 min — swallowed research SPAWN re-emit
 }
 _SPAWN_TTL_SECONDS = _SPAWN_TTL_BY_STAGE["plan"]  # legacy uniform value (tests)
 
@@ -953,10 +955,13 @@ def pick_next_issue() -> list:
             # died, label event lost) is re-spawned after the gate TTL.
             # 2026-08-14: also try _dead_spawn_recovery — a SPAWN consumed by
             # cron timeout (#480: 45 min stall) must re-emit after TTL/2.
-            if not _pr_exists_for_issue("research", n) and (
-                _spawn_gate(n, "research") or _dead_spawn_recovery(n, "research")
-            ):
-                spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
+            # Plus a research-resend gate (5 min TTL) so a swallowed SPAWN
+            # (busy cron) re-emits promptly instead of waiting the full TTL.
+            if not _pr_exists_for_issue("research", n):
+                if (_spawn_gate(n, "research")
+                        or _dead_spawn_recovery(n, "research")
+                        or _spawn_gate(n, "research-resend")):
+                    spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
 
     return spawn_lines
 
@@ -1510,11 +1515,16 @@ def _quick_stalled_scan():
                 # Parent unresolved / no self-correct label → review, but the
                 # E2E runner runs FIRST as a background script (zero agent
                 # calls). The orchestrator emits either progress lines
-                # (running) or SPAWN: review once the summary is harvested.
-                if _spawn_gate(pr_num, "review"):
-                    e2e_lines = e2e_orchestrator(pr_num, branch)
-                    if e2e_lines:
-                        cmds.extend(e2e_lines)
+                # (running), SPAWN: review (done, until a conclusion file
+                # appears), or nothing (failed).
+                # NOTE: the orchestrator is called UNCONDITIONALLY here — its
+                # done-branch re-emits SPAWN every tick until the review
+                # conclusion file exists (2026-08-14 16:10 trace: SPAWN
+                # swallowed by busy cron, gate TTL suppressed re-emission for
+                # 40 min). Gating would skip the done-branch re-emit.
+                e2e_lines = e2e_orchestrator(pr_num, branch)
+                if e2e_lines:
+                    cmds.extend(e2e_lines)
 
     return cmds
 
@@ -1772,7 +1782,20 @@ OPENCODE_CRITICAL_FILE = os.path.expanduser("~/.hermes/.opencode-critical")
 # label / fix issue / comment (happened 2×: #466 then #475).
 REVIEW_CONCLUSIONS_DIR = os.path.expanduser("~/.hermes/review-conclusions")
 E2E_STATE_DIR = os.path.expanduser("~/.hermes/e2e-state")
-E2E_RUNNER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "run-e2e-review.sh")
+# Runner lives in the project scripts/ dir. When event-processor runs from the
+# cron copy (~/.hermes/scripts/), __file__ points there — the runner may not
+# be synced (2026-08-14: `bash: .../run-e2e-review.sh: No such file or
+# directory`). Fall back to the project repo path.
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+E2E_RUNNER = os.path.join(_SCRIPT_DIR, "run-e2e-review.sh")
+if not os.path.exists(E2E_RUNNER):
+    for _cand in (
+        "/Users/devvi/workspace/agent-game-test/scripts/run-e2e-review.sh",
+        os.path.expanduser("~/workspace/agent-game-test/scripts/run-e2e-review.sh"),
+    ):
+        if os.path.exists(_cand):
+            E2E_RUNNER = _cand
+            break
 
 
 def _e2e_state_path(pr: int) -> str:
@@ -1835,16 +1858,30 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
             mins = int((time.time() - state.get("started_at", time.time())) / 60)
             lines.append(f"E2E: pr={pr} still running ({mins}m) — {branch}")
             return lines
-        # runner died — harvest result
+        # runner died — harvest result. CRITICAL (2026-08-14): the summary
+        # path may hold a STALE file from a previous review round (same
+        # /tmp/e2e-<pr>/ dir). Only accept a summary written AFTER this
+        # runner started; otherwise treat as failed with no evidence.
         summary = state.get("summary") or f"/tmp/e2e-{pr}/summary.json"
-        verdict = "done"
+        started = state.get("started_at", 0)
+        verdict = "failed"
         if os.path.exists(summary):
             try:
-                with open(summary) as f:
-                    sd = json.load(f)
-                layers = sd.get("layers", {})
-                if any(v != "pass" for v in layers.values()):
-                    verdict = "failed"
+                mtime = os.path.getmtime(summary)
+                if mtime >= started:
+                    with open(summary) as f:
+                        sd = json.load(f)
+                    layers = sd.get("layers", {})
+                    # Layer values: L0-L2 are exit codes (0=pass, 1=fail,
+                    # 2=unavailable), L3_visual is "pass"/"fail"/"skip".
+                    # Accept "0" (exit 0) and "pass" as green.
+                    def _green(v):
+                        s = str(v).strip().lower()
+                        return s in ("0", "pass", "true", "yes")
+                    if all(_green(v) for v in layers.values()):
+                        verdict = "done"
+                else:
+                    lines.append(f"E2E: pr={pr} summary stale (mtime {mtime:.0f} < start {started:.0f})")
             except (json.JSONDecodeError, OSError):
                 verdict = "failed"
         state["status"] = verdict
@@ -1856,7 +1893,15 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         return lines
 
     if status in ("done", "failed"):
-        # already harvested — let stalled scan / event path emit review
+        # Already harvested. Re-emit SPAWN: review until a review conclusion
+        # file appears — the SPAWN may be swallowed by a busy cron
+        # (2026-08-14 16:10 trace: SPAWN emitted, cron never executed it,
+        # nothing re-emitted for 40 min). Rate-limited by a dedicated
+        # "review-resend" gate (short TTL 300s) so we don't spam the cron
+        # prompt every tick. failed stays silent (self-correct owns it).
+        if status == "done" and not _read_review_conclusions_file(pr):
+            if _spawn_gate(pr, "review-resend"):
+                lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={state.get('summary', '')}")
         return lines
 
     # absent → launch background runner (--no-comment: evidence posted by
@@ -1865,12 +1910,23 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         os.makedirs(E2E_STATE_DIR, exist_ok=True)
         log_path = f"/tmp/e2e-{pr}-orchestrator.log"
         runner = E2E_RUNNER
-        # nohup-style background launch via subprocess.Popen (detached)
+        # nohup-style background launch via subprocess.Popen (detached).
+        # CRITICAL (2026-08-14): when the runner lives in the cron copy
+        # (~/.hermes/scripts/), its REPO_ROOT derivation (BASH_SOURCE/..) is
+        # WRONG (~/.hermes/), breaking git remote → GH_REPO → gh pr view →
+        # branch fallback (impl/475). Pass E2E_REPO_ROOT explicitly and run
+        # with cwd=project so git/gh resolve correctly.
         import subprocess as _sp
+        _repo = "/Users/devvi/workspace/agent-game-test"
+        if os.path.exists(os.path.join(_repo, ".git")):
+            _env = dict(os.environ)
+            _env["E2E_REPO_ROOT"] = _repo
+        else:
+            _env = os.environ
         proc = _sp.Popen(
             ["bash", runner, str(pr), "--no-comment"],
             stdout=open(log_path, "w"), stderr=_sp.STDOUT,
-            start_new_session=True,
+            start_new_session=True, cwd=_repo, env=_env,
         )
         _write_e2e_state(pr, {
             "status": "running",
@@ -1886,6 +1942,15 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         # fall back to agent-driven review so we never stall
         lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch}")
     return lines
+
+
+def _read_review_conclusions_file(pr: int) -> bool:
+    """True if a pending review-conclusion file exists for this PR."""
+    try:
+        os.makedirs(REVIEW_CONCLUSIONS_DIR, exist_ok=True)
+        return os.path.exists(os.path.join(REVIEW_CONCLUSIONS_DIR, f"{pr}.json"))
+    except OSError:
+        return False
 
 
 def _read_review_conclusions() -> list:
@@ -1945,12 +2010,14 @@ def review_followup() -> list:
                     if not _has_blocked_label("issue", int(parent)):
                         gh("issue", "edit", str(parent), "--add-label", "status/blocked")
                         lines.append(f"FOLLOWUP: issue={parent} +status/blocked")
+                fix_num = None
                 if fix and fix.get("title"):
                     failures = fix.get("failures") or []
                     fset_str = "|".join(sorted(failures)) if failures else f"pr{pr}"
                     import hashlib
                     fset_hash = hashlib.md5(fset_str.encode()).hexdigest()[:8]
                     existing = _find_fix_issue(fset_hash)
+                    fix_num = existing
                     if existing is None:
                         body = (f"**Blocked PR:** #{pr}\n\n"
                                 f"**Pre-existing failures:**\n"
@@ -1962,13 +2029,22 @@ def review_followup() -> list:
                                      "--label", "bug", "--label", "workflow/available",
                                      "--label", "priority/high", "--body", body)
                         if created:
-                            lines.append(f"FOLLOWUP: pr={pr} fix issue created")
+                            # gh issue create returns the URL — extract number
+                            m = re.search(r"/(\d+)/?$", str(created).strip())
+                            if m:
+                                fix_num = int(m.group(1))
+                            lines.append(f"FOLLOWUP: pr={pr} fix issue created #{fix_num}")
                     else:
                         lines.append(f"FOLLOWUP: pr={pr} fix issue exists #{existing} (dedup)")
                 comment = (f"## Review Follow-Through (automated)\n\n"
                            f"**结论:** blocked (class {data.get('class', '?')})\n\n{evidence}\n")
-                if fix and fix.get("title"):
-                    comment += "\nBlocked → tracked by fix issue (pre-existing)\n"
+                if fix and fix.get("title") and fix_num:
+                    # CRITICAL (2026-08-14): the comment MUST carry the real
+                    # fix-issue number — check-unblock relies on reading
+                    # "Blocked → tracked by #FIX" from the PR comments to find
+                    # the actual blocker. Without it, unblock resolved the
+                    # WRONG (stale) fix issue (#476 instead of #480).
+                    comment += f"\nBlocked → tracked by #{fix_num} (pre-existing)\n"
                 gh("pr", "comment", str(pr), "--body", comment)
                 lines.append(f"FOLLOWUP: pr={pr} comment posted")
             else:
