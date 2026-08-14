@@ -721,6 +721,15 @@ FSET_HASH=$(echo -n "$FAILURES" | md5 | cut -c1-8)
 
 ### ⚠️ CRITICAL: Last-Action Rule — Write the Conclusion File
 
+**As a kanban worker, your LAST TWO actions in EVERY review are:**
+1. Write the structured conclusion file (below) — the script layer
+   (`review_followup()` in event-processor) performs the mechanical aftermath
+   (labels, fix issue, comment) from it.
+2. `kanban_complete <task_id> --summary "<verdict>: <one-line evidence>"` —
+   this tells the dispatcher the review finished. **Do both, in that order.**
+   If you can only do one, do the conclusion file first (the script layer
+   guarantees follow-through even if you never complete).
+
 **Your very LAST action in EVERY review (blocked, approved, request_changes,
 self_correct) MUST be writing a structured conclusion file.** Do this BEFORE
 anything else can be interrupted — the script layer (`review_followup()` in
