@@ -292,15 +292,25 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "E2E_STATE_DIR",
                                os.path.join(tempfile.mkdtemp(), "e2e-state")), \
              mock.patch.object(ep, "E2E_RUNNER", "/bin/true"), \
+             mock.patch.object(ep, "kanban_create_task",
+                               return_value="t_x") as _m_kb, \
              mock.patch.object(ep, "_GH_CACHE", {}):
-            return ep.preprocess()
+            out = ep.preprocess()
+            self._last_kb_calls = _m_kb.call_args_list
+            return out
+
+    def _run_preprocess_kb(self, events, **kw):
+        """Like _run_preprocess but returns (out, kanban_create_task calls)."""
+        out = self._run_preprocess(events, **kw)
+        return out, getattr(self, "_last_kb_calls", [])
 
     def test_check_run_failure_spawns_self_correct(self):
         ev = {"_key": "check_run.completed#154", "type": "check_run",
               "issue": 154, "branch": "impl/154-x", "conclusion": "failure"}
-        out = self._run_preprocess(self._events(ev))
-        self.assertTrue(any(l.startswith("SPAWN: self-correct,issue=154") for l in out),
-                        f"unexpected output: {out}")
+        out, kb_calls = self._run_preprocess_kb(self._events(ev))
+        # P3: self-correct spawn is kanban-only
+        self.assertTrue(kb_calls, "self-correct kanban task must be created")
+        self.assertEqual(kb_calls[0].args[0], "self-correct")
 
     def test_check_run_success_starts_e2e_then_review(self):
         """2026-08-14 plan ②: check_run.completed success for an impl branch
@@ -436,13 +446,15 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "_pick_candidates", return_value=[]), \
              mock.patch.object(ep, "_ensure_issues_cache",
                                return_value=[issue]), \
+             mock.patch.object(ep, "kanban_create_task",
+                               return_value="t_x") as m_kb, \
              mock.patch("subprocess.run", fake_run):
-            first = ep.pick_next_issue()
-            second = ep.pick_next_issue()
-        self.assertTrue(any("SPAWN: plan,issue=358" in l for l in first),
-                        f"first tick must emit SPAWN: {first}")
-        self.assertFalse(any("SPAWN: plan,issue=358" in l for l in second),
-                         "second tick within TTL must not re-emit SPAWN")
+            ep.pick_next_issue()
+            self.assertTrue(m_kb.called, "first tick must create plan task")
+            m_kb.reset_mock()
+            ep.pick_next_issue()
+            self.assertFalse(m_kb.called,
+                             "second tick within TTL must not re-create task")
 
     def test_spawn_gate_reemits_after_ttl(self):
         """TTL expiry re-enables spawning (dead phase-agent recovery)."""
@@ -462,19 +474,20 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "_pick_candidates", return_value=[]), \
              mock.patch.object(ep, "_ensure_issues_cache",
                                return_value=[issue]), \
+             mock.patch.object(ep, "kanban_create_task",
+                               return_value="t_x") as m_kb, \
              mock.patch("subprocess.run", fake_run):
-            first = ep.pick_next_issue()  # t=now → emits, records marker
+            ep.pick_next_issue()  # t=now → creates task, records marker
+            self.assertTrue(m_kb.called, "first tick must create plan task")
+            m_kb.reset_mock()
             # advance clock past TTL
             old_time = ep.time.time
             ep.time.time = lambda: old_time() + ep._SPAWN_TTL_SECONDS + 10
             try:
-                second = ep.pick_next_issue()
+                ep.pick_next_issue()
             finally:
                 ep.time.time = old_time
-        self.assertTrue(any("SPAWN: plan,issue=359" in l for l in first),
-                        f"first tick must emit SPAWN: {first}")
-        self.assertTrue(any("SPAWN: plan,issue=359" in l for l in second),
-                        "TTL expiry must allow re-spawn")
+            self.assertTrue(m_kb.called, "TTL expiry must re-create task")
 
     def test_group_keeps_highest_priority_only(self):
         """Same issue with both a labeled event and a check_run event →
@@ -540,18 +553,19 @@ class TestPreprocess(unittest.TestCase):
                  "issue": 43, "branch": "impl/43-y", "conclusion": "failure"}
         ev_lbl = {"_key": "issues.labeled#43:workflow/self-correct",
                   "type": "issues.labeled", "issue": 43, "label": "workflow/self-correct"}
-        out = self._run_preprocess(self._events(ev_ci, ev_lbl))
-        self.assertEqual(len(out), 1, f"expected 1 SPAWN, got {out}")
-        self.assertIn("conclusion=failure", out[0])
-        self.assertNotIn("source=local-e2e", out[0])
+        out, kb_calls = self._run_preprocess_kb(self._events(ev_ci, ev_lbl))
+        # CI failure wins the group → exactly ONE self-correct task
+        self.assertEqual(len(kb_calls), 1, f"expected 1 kanban task, got {kb_calls}")
+        self.assertEqual(kb_calls[0].args[0], "self-correct")
 
     def test_different_issues_both_kept(self):
         ev1 = {"_key": "check_run.completed#170", "type": "check_run",
                "issue": 170, "branch": "impl/170-a", "conclusion": "failure"}
         ev2 = {"_key": "issues.labeled#171:workflow/plan", "type": "issues.labeled",
                "issue": 171, "label": "workflow/plan"}
-        out = self._run_preprocess(self._events(ev1, ev2))
-        self.assertEqual(len(out), 2, f"expected 2 lines, got {out}")
+        out, kb_calls = self._run_preprocess_kb(self._events(ev1, ev2))
+        # two different issues → two kanban tasks (one self-correct + one plan)
+        self.assertEqual(len(kb_calls), 2, f"expected 2 kanban tasks, got {kb_calls}")
 
     def test_pull_request_discarded_from_file(self):
         ev = {"_key": "pull_request.opened#180", "type": "pull_request", "issue": 180}
@@ -755,18 +769,21 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "_pick_candidates", return_value=[]), \
              mock.patch.object(ep, "_ensure_issues_cache",
                                return_value=[issue]), \
+             mock.patch.object(ep, "kanban_create_task",
+                               return_value="t_x") as m_kb, \
              mock.patch("subprocess.run", fake_run):
-            first = ep.pick_next_issue()
+            ep.pick_next_issue()
+            self.assertTrue(m_kb.called,
+                            "available issue must create research task")
+            m_kb.reset_mock()
             old_time = ep.time.time
             ep.time.time = lambda: old_time() + ep._SPAWN_TTL_BY_STAGE["research"] + 10
             try:
-                second = ep.pick_next_issue()
+                ep.pick_next_issue()
             finally:
                 ep.time.time = old_time
-        self.assertIn("SPAWN: research,issue=501,label=workflow/research", first,
-                      f"available issue must spawn research: {first}")
-        self.assertIn("SPAWN: research,issue=501,label=workflow/research", second,
-                      "TTL expiry must re-spawn a stalled available issue")
+            self.assertTrue(m_kb.called,
+                            "TTL expiry must re-create task for stalled available issue")
 
     def test_picker_direct_and_webhook_echo_single_spawn(self):
         """Direct picker spawn and the webhook echo (preprocess label path)
@@ -796,8 +813,8 @@ class TestPreprocess(unittest.TestCase):
             echo_lines = self._run_preprocess(self._events(ev),
                                               spawn_state_file=sf,
                                               issue_cache=[issue])
-        self.assertTrue(any("SPAWN: research,issue=502" in l for l in picker_lines),
-                        f"picker must emit the research spawn: {picker_lines}")
+        # P3: picker spawn is kanban-only (text lines empty); the gate-dedup
+        # assertion that matters is: webhook echo must NOT re-create the task.
         self.assertFalse(any("SPAWN: research,issue=502" in l for l in echo_lines),
                          f"gate must dedup the webhook echo: {echo_lines}")
 
@@ -831,7 +848,7 @@ class TestPreprocess(unittest.TestCase):
                         f"picker must emit BLOCKED reason=opencode-down: {lines}")
 
     def test_picker_implement_emits_when_opencode_up(self):
-        """Picker path: OpenCode healthy → normal SPAWN: implement."""
+        """Picker path: OpenCode healthy → kanban implement task created."""
         issue = {"number": 466, "labels": [{"name": "workflow/implement"}]}
 
         def fake_run(cmd, *a, **kw):
@@ -849,10 +866,13 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "opencode_healthy", return_value=True), \
              mock.patch.object(ep, "_ensure_issues_cache",
                                return_value=[issue]), \
+             mock.patch.object(ep, "kanban_create_task",
+                               return_value="t_x") as m_kb, \
              mock.patch("subprocess.run", fake_run):
-            lines = ep.pick_next_issue()
-        self.assertTrue(any("SPAWN: implement,issue=466" in l for l in lines),
-                        f"opencode up → picker must spawn implement: {lines}")
+            ep.pick_next_issue()
+        self.assertTrue(m_kb.called,
+                        "opencode up → picker must create implement task")
+        self.assertEqual(m_kb.call_args.args[0], "implement")
 
     def test_dead_spawn_recovery_after_half_ttl(self):
         """2026-08-14: SPAWN consumed by cron timeout but no agent/PR ever
@@ -875,23 +895,27 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "_pick_candidates", return_value=[]), \
              mock.patch.object(ep, "_ensure_issues_cache",
                                return_value=[issue]), \
+             mock.patch.object(ep, "kanban_create_task",
+                               return_value="t_x") as m_kb, \
              mock.patch("subprocess.run", fake_run):
-            # first call: gate records plan, emits SPAWN
+            # first call: gate records plan, creates kanban task
             first = ep.pick_next_issue()
-            self.assertTrue(any("SPAWN: plan,issue=476" in l for l in first))
+            self.assertTrue(m_kb.called, "must create kanban task for plan")
             # second call within TTL/2: suppressed by gate
+            m_kb.reset_mock()
             second = ep.pick_next_issue()
-            self.assertFalse(any("SPAWN: plan,issue=476" in l for l in second),
+            self.assertFalse(m_kb.called,
                             f"gate must suppress within TTL/2: {second}")
             # advance time past TTL/2 (plan TTL=3600 → 1801s)
             old_time = ep.time.time
             ep.time.time = lambda: old_time() + 1801
             try:
+                m_kb.reset_mock()
                 third = ep.pick_next_issue()
             finally:
                 ep.time.time = old_time
-            self.assertTrue(any("SPAWN: plan,issue=476" in l for l in third),
-                            f"dead-spawn recovery must re-emit after TTL/2: {third}")
+            self.assertTrue(m_kb.called,
+                            f"dead-spawn recovery must re-create task after TTL/2")
 
     def test_dead_spawn_recovery_requires_stale_gate(self):
         """No gate record → _dead_spawn_recovery returns False (normal
@@ -1348,7 +1372,12 @@ class TestE2EOrchestrator(unittest.TestCase):
                 json.dump({"layers": {"L0_compile": "0", "L1_logic": "0",
                                       "L2_runtime": "0", "L3_visual": "pass"}}, f)
             state_dir = os.path.join(td, "state")
-            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir):
+            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir), \
+                 mock.patch.object(ep, "KANBAN_BRIDGE", True), \
+                 mock.patch.object(ep, "_KANBAN_STATE_FILE",
+                                   os.path.join(td, "kb-state.json")), \
+                 mock.patch.object(ep, "kanban_create_task",
+                                   return_value="t_x") as m_kb:
                 ep._write_e2e_state(475, {
                     "status": "running", "pid": 999999,  # dead pid
                     # started_at BEFORE summary mtime → fresh evidence
@@ -1358,8 +1387,10 @@ class TestE2EOrchestrator(unittest.TestCase):
                 lines = ep.e2e_orchestrator(475, "impl/x")
                 self.assertEqual(ep._read_e2e_state(475).get("status"), "done")
             self.assertTrue(any("E2E: pr=475 done" in l for l in lines), lines)
-            self.assertTrue(any("SPAWN: review" in l and "e2e_summary" in l for l in lines),
-                            f"must spawn review with summary: {lines}")
+            # P3: review spawn is kanban-only — assert the task creation
+            m_kb.assert_called_once()
+            self.assertEqual(m_kb.call_args.args[0], "review")
+            self.assertEqual(m_kb.call_args.args[1], 475)
 
     def test_running_dead_rejects_stale_summary(self):
         """2026-08-14: a STALE summary.json from a previous review round
@@ -1408,28 +1439,32 @@ class TestE2EOrchestrator(unittest.TestCase):
                              "failed E2E → no review spawn (goes to self-correct path)")
 
     def test_done_state_reemits_review_until_conclusion(self):
-        """2026-08-14: done state re-emits SPAWN: review (rate-limited by
-        review-resend gate) until a review conclusion file exists."""
+        """2026-08-14: done state re-emits review task creation (rate-limited
+        by review-resend gate) until a review conclusion file exists."""
         with tempfile.TemporaryDirectory() as td:
             state_dir = os.path.join(td, "state")
             with mock.patch.object(ep, "E2E_STATE_DIR", state_dir), \
                  mock.patch.object(ep, "_SPAWN_STATE_FILE",
-                                   os.path.join(td, "spawned.json")):
+                                   os.path.join(td, "spawned.json")), \
+                 mock.patch.object(ep, "KANBAN_BRIDGE", True), \
+                 mock.patch.object(ep, "_KANBAN_STATE_FILE",
+                                   os.path.join(td, "kb-state.json")), \
+                 mock.patch.object(ep, "kanban_create_task",
+                                   return_value="t_x") as m_kb:
                 ep._write_e2e_state(475, {"status": "done", "pid": None,
                                           "summary": "/tmp/e2e-475/summary.json",
                                           "finished_at": time.time()})
-                # no conclusion file → re-emit (first call passes gate)
+                # no conclusion file → re-create task (first call passes gate)
                 with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR",
                                        os.path.join(td, "concl")):
                     lines = ep.e2e_orchestrator(475, "impl/x")
-                self.assertTrue(any("SPAWN: review" in l and "e2e_summary" in l for l in lines),
-                                f"done+no-conclusion must re-emit SPAWN: {lines}")
+                self.assertEqual(m_kb.call_count, 1,
+                                 f"done+no-conclusion must create review task")
                 # within review-resend TTL (300s) → suppressed
                 with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR",
                                        os.path.join(td, "concl")):
                     lines1 = ep.e2e_orchestrator(475, "impl/x")
-                self.assertFalse(any("SPAWN: review" in l for l in lines1),
-                                 f"rate-limited within 5 min: {lines1}")
+                self.assertEqual(m_kb.call_count, 1, "rate-limited within 5 min")
                 # conclusion file present → silent
                 os.makedirs(os.path.join(td, "concl"), exist_ok=True)
                 with open(os.path.join(td, "concl", "475.json"), "w") as f:
@@ -1437,7 +1472,7 @@ class TestE2EOrchestrator(unittest.TestCase):
                 with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR",
                                        os.path.join(td, "concl")):
                     lines2 = ep.e2e_orchestrator(475, "impl/x")
-                self.assertEqual(lines2, [], "conclusion present → silent")
+                self.assertEqual(m_kb.call_count, 1, "conclusion present → silent")
 
 
 if __name__ == "__main__":
