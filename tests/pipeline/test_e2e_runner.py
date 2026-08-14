@@ -257,6 +257,18 @@ class TestRunnerFlow(RunnerTestBase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertEqual(self._summary()["layers"]["L3_visual"], "pass")
 
+    def test_stale_png_cleaned_before_capture(self):
+        # #491: 陈旧 PNG 必须被清理 — 防上次运行的残留帧被误判为本次捕获（假绿）
+        # 用非 shot 名（fake godot 不会重写它）验证清理确实删除残留文件
+        stale = os.path.join(self.worktree_root, "e2e-1", "shots", "zz_stale.png")
+        os.makedirs(os.path.dirname(stale), exist_ok=True)
+        with open(stale, "wb") as f:
+            f.write(b"stale png")
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertFalse(os.path.exists(stale),
+                         "stale PNG from a previous run must be cleaned before capture")
+
     def test_skip_visual(self):
         r = self._run("--no-comment", "--skip-visual")
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)

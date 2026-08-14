@@ -57,6 +57,11 @@ GODOT="${RUNNER_GODOT:-$(command -v godot 2>/dev/null || echo /Applications/Godo
 CAPTURE_SRC="$REPO_ROOT/framework/templates/e2e_capture.gd"
 
 mkdir -p "$OUT/shots"
+# #491: 清残留截图 — 防上次运行的陈旧帧被误判为本次捕获（#494 Spike 2 run3 实测:
+# 03_gameover 命中 deadline 漏截, 但 run2 残留 PNG 仍在 → analyze 误判 pass 假绿）
+if [ "$DRY_RUN" = "0" ]; then
+  rm -f "$OUT/shots/"*.png 2>/dev/null || true
+fi
 SUMMARY="$OUT/summary.json"
 LOG_LINES=()
 
