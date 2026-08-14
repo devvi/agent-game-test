@@ -912,7 +912,7 @@ def pick_next_issue() -> list:
             # itself right after promoting backlog → available — no longer
             # relying on the webhook echo round-trip. The shared gate dedups
             # against the webhook/reconcile label path.
-            if _spawn_gate(n, "research"):
+            if _spawn_gate(n, "research") or _dead_spawn_recovery(n, "research"):
                 spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
     
     # Also emit SPAWN for issues at plan/implement/available with no PR yet
@@ -951,7 +951,11 @@ def pick_next_issue() -> list:
             # Available rescan (2026-08-13): deterministic dead-agent recovery.
             # An issue stuck at workflow/available with no research PR (agent
             # died, label event lost) is re-spawned after the gate TTL.
-            if not _pr_exists_for_issue("research", n) and _spawn_gate(n, "research"):
+            # 2026-08-14: also try _dead_spawn_recovery — a SPAWN consumed by
+            # cron timeout (#480: 45 min stall) must re-emit after TTL/2.
+            if not _pr_exists_for_issue("research", n) and (
+                _spawn_gate(n, "research") or _dead_spawn_recovery(n, "research")
+            ):
                 spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
 
     return spawn_lines

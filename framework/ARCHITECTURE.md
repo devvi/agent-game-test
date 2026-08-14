@@ -154,7 +154,56 @@ run-e2e-review.sh <PR_NUM>  →  P0 防休眠 → P1 worktree → P2 L0 → P3 L
 - **失败协议**: A 基建(降级需 harness 证据, 视觉 issue 必须人工) / B pre-existing / C 审美(人工拍板) / D 代码缺陷(本地收敛循环, 2 轮上限)
 - **安全注意**: runner 以完整文件系统权限执行 PR 分支 GDScript——只对可信贡献者运行
 
-**流水线自身测试（D3）:** `tests/pipeline/`（104 用例）覆盖 event-processor 纯函数 + e2e 断言/runner/resolve/manifest。CI job `pipeline-tests.yml` 在 `scripts/` 或 `.github/workflows/` 变更时强制运行。**改流水线代码必须先过这个套件。**
+### E2E 编排（2026-08-14 方案②: 脚本化前置 + 状态可知）
+
+review agent 的 50-call 预算**不**花在跑 harness 上——event-processor 把 E2E runner 编排为后台脚本（0 LLM calls）, agent 只解读结果:
+
+```
+CI 绿(impl PR) → e2e_orchestrator():
+  state 机(存 ~/.hermes/e2e-state/<pr>.json):
+    absent        → 后台启动 run-e2e-review.sh --no-comment, 写 running
+    running+alive → 每 tick 输出 "E2E: pr=N still running (Xm)"  ← 状态可知
+    running+dead  → 读 summary.json → done / failed
+    done          → SPAWN: review,e2e_summary=<path>  (agent 只解读)
+    failed        → 走 self-correct 路径
+```
+
+- **状态可知**: 大项目 E2E 跑很久时, 每 tick 输出进度, 不会像卡死（watchdog 不误报）
+- **review agent 预算**从 ~50 降到 ~10 calls（判断 + 结论 + 写结论文件）
+- 触发点: `check_run.completed`(impl 分支) + stalled scan 两条路径
+- review skill: 收到 `e2e_summary` 时不重跑 runner, 直接 `cat summary.json` + 截图
+
+### Review 结论脚本收尾（2026-08-14 方案①: 结论文件 + 脚本层）
+
+review agent 可能超额度漏掉 label/评论/fix-issue（#466/#475 各发生一次）。**结论不靠 agent 记得, 靠脚本层兜底**:
+
+```
+review agent 最后一个动作: 写 ~/.hermes/review-conclusions/<pr>.json
+  {"pr", "verdict": blocked|approved|..., "class": A|B|C|D,
+   "parent_issue", "fix_issue": {title, failures}, "evidence"}
+
+event-processor 每 tick: review_followup()
+  verdict=blocked → status/blocked 加到 PR + parent(幂等)
+  fix_issue       → 自动创建(fset hash dedup, 查重不重复建)
+  评论            → 贴结论评论(含证据)
+  处理后删文件(幂等, 失败可重试)
+```
+
+即使 agent 只写出文件就超额度, 收尾也必然执行。手动补 label 从此不需要。
+
+### Dead-Spawn Recovery（2026-08-14）
+
+SPAWN 指令发出后若 cron LLM 执行时超时（`TimeoutError: idle >90s`, #476 实测）, gate 会锁死 1 小时。`_dead_spawn_recovery()`: gate 记录超过 TTL/2 且 issue 仍无 PR → 允许绕过 gate 重发（PR-exists 是真去重）。plan/implement 两阶段接入。
+
+### Blocked + Self-Correct 共存（2026-08-14）
+
+同一 PR 可同时 blocked（B 类 pre-existing）和 self-correct（D 类 code defect）——stalled scan 对 blocked PR 检查 parent 的 `workflow/self-correct` label, 两个指令都 emit（旧逻辑 blocked 优先压死 self-correct）。
+
+### Unblock 条件修正（2026-08-14）
+
+check-unblock 不再用 godot 逻辑测试判断（视觉 block 时逻辑测试全绿会误解锁）——改为: 找 fix issue（`gh issue list "pre-existing"`）→ 未合并则 ⏳ 等待; 已合并 → 删 PR+parent 的 blocked → update-branch。
+
+**流水线自身测试（D3）:** `tests/pipeline/`（157 用例）覆盖 event-processor 纯函数 + e2e 断言/runner/resolve/manifest。CI job `pipeline-tests.yml` 在 `scripts/` 或 `.github/workflows/` 变更时强制运行。**改流水线代码必须先过这个套件。**
 
 ## Git 约定
 
