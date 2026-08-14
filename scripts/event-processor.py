@@ -2243,7 +2243,14 @@ def _kanban_task_active(task_id: str) -> bool:
             return False
         import json as _json
         d = _json.loads(r.stdout or "{}")
-        return d.get("status") in ("ready", "running", "claimed")
+        # `kanban show --json` wraps the task under {"task": {...}} (verified
+        # 2026-08-14 21:02: top-level "status" was None → active() always
+        # False → dedup never fired → duplicate review/implement tasks). Some
+        # versions return the task flat — handle both.
+        if isinstance(d, dict) and "task" in d:
+            d = d["task"]
+        status = d.get("status", "")
+        return status in ("ready", "running", "claimed")
     except Exception:
         # query failed → assume NOT active so the cycle can still progress
         return False

@@ -1560,6 +1560,27 @@ class TestKanbanActiveStateDedup(unittest.TestCase):
             self.assertTrue(task_id.startswith("t_"),
                             "query failure must fail open")
 
+    def test_active_parses_nested_json(self):
+        """2026-08-14 21:02 regression: `kanban show --json` wraps the task
+        under {\"task\": {...}}; active() must unwrap or dedup never fires
+        (duplicate review/implement tasks were created)."""
+        nested = json.dumps({"task": {"id": "t_a159005a",
+                                      "status": "running"}})
+        with mock.patch("subprocess.run", return_value=mock.Mock(
+                stdout=nested, returncode=0)):
+            self.assertTrue(ep._kanban_task_active("t_a159005a"),
+                            "nested {task:{status}} must parse as active")
+        flat = json.dumps({"id": "t_x", "status": "ready"})
+        with mock.patch("subprocess.run", return_value=mock.Mock(
+                stdout=flat, returncode=0)):
+            self.assertTrue(ep._kanban_task_active("t_x"),
+                            "flat {status} must parse as active")
+        done = json.dumps({"task": {"status": "done"}})
+        with mock.patch("subprocess.run", return_value=mock.Mock(
+                stdout=done, returncode=0)):
+            self.assertFalse(ep._kanban_task_active("t_done"),
+                             "done must NOT be active")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
