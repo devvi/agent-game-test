@@ -56,6 +56,10 @@ OUT="$WORKTREE_ROOT/e2e-$PR_NUM"
 GODOT="${RUNNER_GODOT:-$(command -v godot 2>/dev/null || echo /Applications/Godot.app/Contents/MacOS/Godot)}"
 CAPTURE_SRC="$REPO_ROOT/framework/templates/e2e_capture.gd"
 
+LOCK="$WORKTREE_ROOT/.e2e-$PR_NUM.lock"
+LOCK_OWNED=0
+WT_OWNED=0
+
 mkdir -p "$OUT/shots"
 SUMMARY="$OUT/summary.json"
 LOG_LINES=()
@@ -72,13 +76,44 @@ maybe() {
   "$@"
 }
 
+# ── Per-PR concurrency lock ────────────────────────────────────────────────
+# mkdir is atomic (no check-then-create race, no flock portability issues).
+# The pid file records the holder; a dead pid ⇒ stale lock ⇒ reclaim.
+acquire_lock() {
+  [ "$DRY_RUN" = "1" ] && return 0
+  if mkdir "$LOCK" 2>/dev/null; then
+    echo "$$" > "$LOCK/pid" 2>/dev/null || { rm -rf "$LOCK"; die "lock pid write failed" 2; }
+    LOCK_OWNED=1
+    log "lock acquired: $LOCK (pid $$)"
+    return 0
+  fi
+  local old_pid
+  old_pid="$(cat "$LOCK/pid" 2>/dev/null || echo "")"
+  if [ -z "$old_pid" ] || ! kill -0 "$old_pid" 2>/dev/null; then
+    log "stale lock (pid ${old_pid:-unknown} dead) — reclaiming"
+    rm -rf "$LOCK" 2>/dev/null
+    if mkdir "$LOCK" 2>/dev/null; then
+      echo "$$" > "$LOCK/pid" 2>/dev/null || { rm -rf "$LOCK"; die "lock pid write failed" 2; }
+      LOCK_OWNED=1
+      return 0
+    fi
+    die "lock creation failed: $LOCK (permission/disk)" 2
+  fi
+  die "another instance running for PR #$PR_NUM (lock: $LOCK, pid $old_pid)" 2
+}
+
+release_lock() {
+  [ "$LOCK_OWNED" = "1" ] && rm -rf "$LOCK" 2>/dev/null && LOCK_OWNED=0
+}
+
 # ── Cleanup trap: worktree MUST be gone before merge --delete-branch ───────
 CAFF_PID=""
 cleanup() {
   [ -n "$CAFF_PID" ] && kill "$CAFF_PID" 2>/dev/null
-  if [ "$KEEP" != "1" ] && [ -d "$WT" ]; then
+  if [ "$KEEP" != "1" ] && [ "$WT_OWNED" = "1" ] && [ -d "$WT" ]; then
     git -C "$REPO_ROOT" worktree remove "$WT" --force 2>/dev/null && log "worktree removed: $WT"
   fi
+  release_lock
 }
 trap cleanup EXIT
 
@@ -130,6 +165,8 @@ if [ "$(uname)" = "Darwin" ] && [ "$DRY_RUN" = "0" ]; then
   fi
 fi
 
+acquire_lock
+
 if [ -d "$WT" ]; then
   die "worktree already exists: $WT (clean up or pick another PR)" 2
 fi
@@ -146,6 +183,7 @@ log "P0 ok"
 # ═══════════════════════════ P1 WORKTREE ══════════════════════════════════
 log "P1 worktree add $WT"
 maybe git -C "$REPO_ROOT" worktree add "$WT" "$BRANCH" || die "worktree add failed" 2
+WT_OWNED=1
 log "P1 ok — main working tree untouched"
 
 # ═══════════════════════════ P2-P4 LOGIC LAYERS ═══════════════════════════
@@ -210,6 +248,14 @@ PY
   fi
 
   if [ "$VISUAL" != "fail" ] && [ "$DRY_RUN" = "0" ]; then
+    # #466/#480: prefer the PR worktree's capture template + analyzer —
+    # reviewing a template/analyzer-changing PR must exercise the PR's
+    # versions, not main's (main's typed `var req: Dictionary` crashes on
+    # the Array require form; main's analyze_bmp.py rejects --visual-config).
+    CAPTURE_SRC="$WT/framework/templates/e2e_capture.gd"
+    [ -f "$CAPTURE_SRC" ] || CAPTURE_SRC="$REPO_ROOT/framework/templates/e2e_capture.gd"
+    ANALYZE_SRC="$WT/scripts/e2e/analyze_bmp.py"
+    [ -f "$ANALYZE_SRC" ] || ANALYZE_SRC="$SCRIPT_DIR/e2e/analyze_bmp.py"
     maybe cp "$CAPTURE_SRC" "$OUT/capture.gd"
     log "  running capture (real rendering, display-sleep immune)"
     ( cd "$WT" && "$GODOT" --path "$SUBPROJECT/" --display-driver macos --rendering-driver opengl3 \
@@ -231,13 +277,38 @@ PY
         if [ -n "$prev" ]; then
           args+=(--diff-with "$prev" --min-delta 5.0 --diff-ratio 0.005)
         fi
-        if python3 "$SCRIPT_DIR/e2e/analyze_bmp.py" "$png" "${args[@]}" >> "$OUT/P5-assert.log" 2>&1; then
+        # #466: shot-level visual config passthrough (region assertions).
+        # Extract the shot's `visual` field from the resolved plan; absent →
+        # no --visual-config flag → behavior unchanged (backward compatible).
+        shot_name="$(basename "$png" .png)"
+        if python3 - "$OUT/plan.json" "$shot_name" "$OUT/visual-$shot_name.json" <<'PY' >/dev/null 2>&1
+import json, sys
+plan = json.load(open(sys.argv[1]))
+for s in plan.get("shots", []):
+    if s.get("name") == sys.argv[2] and "visual" in s:
+        json.dump(s["visual"], open(sys.argv[3], "w"), indent=2)
+        sys.exit(0)
+sys.exit(1)
+PY
+        then
+          args+=(--visual-config "$OUT/visual-$shot_name.json")
+        fi
+        if python3 "$ANALYZE_SRC" "$png" "${args[@]}" >> "$OUT/P5-assert.log" 2>&1; then
           log "  ✅ $(basename "$png") assertions pass"
         else
           log "  ❌ $(basename "$png") failed assertions"
           VISUAL_FAIL=1
         fi
         prev="$png"
+      done
+      # Missed-shot check (#466, DESIGN 466 §1.3 "missed 显式标注，不静默通过"):
+      # every planned shot must have a PNG — otherwise L3 fails instead of
+      # silently passing on a subset of shots.
+      for sname in $(python3 -c 'import json,sys;print(" ".join(s["name"] for s in json.load(open(sys.argv[1])).get("shots",[])))' "$OUT/plan.json" 2>/dev/null); do
+        if [ ! -f "$OUT/shots/$sname.png" ]; then
+          log "  ❌ planned shot missing: $sname.png"
+          VISUAL_FAIL=1
+        fi
       done
     fi
     VISUAL="pass"

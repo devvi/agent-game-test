@@ -5,7 +5,8 @@ The runner is tested end-to-end against a temporary git repository with a
 FAKE godot binary (RUNNER_GODOT injection). No network, no gh, no real Godot.
 
 Covers: worktree create/cleanup, layer sequencing, exit codes, visual layer
-assertions, baseline mode, dry-run, and the worktree-conflict pre-flight.
+assertions, baseline mode, dry-run, per-PR concurrency lock (ownership +
+stale reclaim), and the worktree-conflict pre-flight.
 
 Run locally:  python3 -m unittest discover -s tests/pipeline -v
 """
@@ -21,6 +22,14 @@ import zlib
 
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 _RUNNER = os.path.join(_REPO_ROOT, "scripts", "run-e2e-review.sh")
+
+
+def _write_file_ensure_dir(path, content):
+    """Write content to path, creating parent dirs (closes the file)."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        f.write(content)
+    return path
 
 FAKE_GODOT_SRC = r'''#!/usr/bin/env python3
 """Fake godot for runner tests: logs argv, writes gradient PNGs on visual
@@ -62,6 +71,8 @@ if "--display-driver" in sys.argv:
                 return (int(theme[0:2], 16), int(theme[2:4], 16), int(theme[4:6], 16))
             return ((x * 3 + b) % 256, (y * 2 + b) % 256, 60)
         for i, s in enumerate(plan.get("shots", [])):
+            if s["name"] in cfg.get("drop_shots", []):
+                continue
             with open(os.path.join(out_dir, s["name"] + ".png"), "wb") as f:
                 f.write(make_png(320, 180, lambda x, y, b=i * 40: pixel(x, y, b)))
     sys.exit(0)
@@ -188,6 +199,9 @@ class RunnerTestBase(unittest.TestCase):
     def _wt_exists(self):
         return os.path.isdir(os.path.join(self.worktree_root, "wt-impl-1"))
 
+    def _lock_exists(self):
+        return os.path.isdir(os.path.join(self.worktree_root, ".e2e-1.lock"))
+
     def _shots(self):
         d = os.path.join(self.worktree_root, "e2e-1", "shots")
         return sorted(os.listdir(d)) if os.path.isdir(d) else []
@@ -218,6 +232,8 @@ class TestRunnerFlow(RunnerTestBase):
         r = self._run("--no-comment")
         self.assertEqual(r.returncode, 1)
         self.assertFalse(self._wt_exists(), "cleanup must run on failure")
+        self.assertFalse(self._lock_exists(),
+                         "own-failure cleanup must release the lock")
         self.assertEqual(self._summary()["layers"]["L1_logic"], "1")
 
     def test_worktree_conflict_exits_2(self):
@@ -226,6 +242,8 @@ class TestRunnerFlow(RunnerTestBase):
         self.assertEqual(r.returncode, 2)
         self.assertEqual(self._godot_calls(), [],
                          "no godot calls on pre-flight failure")
+        self.assertTrue(self._wt_exists(),
+                        "worktree owned by another instance must NOT be removed")
 
     def test_visual_fail_when_no_pngs(self):
         self._write_config({"no_pngs": True})
@@ -252,6 +270,8 @@ class TestRunnerFlow(RunnerTestBase):
         r = self._run("--dry-run")
         self.assertEqual(r.returncode, 0)
         self.assertFalse(self._wt_exists())
+        self.assertFalse(self._lock_exists(),
+                         "dry-run must not create the lock")
         self.assertEqual(self._godot_calls(), [])
 
 
@@ -303,3 +323,170 @@ class TestRunnerP6Comment(RunnerTestBase):
         self.assertNotIn("name_: unbound variable", text)
         self.assertNotIn("command not found", text)
         self.assertNotIn("_upload failed", text)
+
+
+class TestRunnerConcurrency(RunnerTestBase):
+    """#480 TC1-TC3: per-PR concurrency lock (mkdir-atomic + PID liveness)."""
+
+    def test_live_lock_rejects_second_instance(self):
+        lock = os.path.join(self.worktree_root, ".e2e-1.lock")
+        os.makedirs(lock)
+        with open(os.path.join(lock, "pid"), "w") as f:
+            f.write(str(os.getpid()))
+        os.makedirs(os.path.join(self.worktree_root, "wt-impl-1"))
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("another instance running", r.stdout)
+        self.assertTrue(self._wt_exists(),
+                        "live-lock rejection must NOT remove the worktree")
+        self.assertEqual(self._godot_calls(), [],
+                         "no godot calls on lock rejection")
+        self.assertTrue(os.path.isdir(lock),
+                        "live lock must be left untouched")
+        with open(os.path.join(lock, "pid")) as f:
+            self.assertEqual(f.read(), str(os.getpid()),
+                             "lock pid file must be untouched")
+
+    def test_stale_lock_reclaimed(self):
+        lock = os.path.join(self.worktree_root, ".e2e-1.lock")
+        os.makedirs(lock)
+        with open(os.path.join(lock, "pid"), "w") as f:
+            f.write("999999999")
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertFalse(self._lock_exists(),
+                         "stale lock must be reclaimed then released")
+        self.assertFalse(self._wt_exists(),
+                         "normal cleanup must run after stale reclaim")
+
+    def test_lock_creation_failure_exits_2(self):
+        os.chmod(self.worktree_root, 0o555)
+        try:
+            r = self._run("--no-comment")
+        finally:
+            os.chmod(self.worktree_root, 0o755)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("lock creation failed", r.stdout)
+        self.assertEqual(self._godot_calls(), [],
+                         "no godot calls when the lock cannot be created")
+
+
+class TestRunnerOwnership(RunnerTestBase):
+    """#480 TC6: --keep preserves the worktree but still releases the lock."""
+
+    def test_keep_preserves_worktree_releases_lock(self):
+        r = self._run("--no-comment", "--keep")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertTrue(self._wt_exists(),
+                        "worktree must be kept with --keep")
+        self.assertFalse(self._lock_exists(),
+                         "lock is a runtime resource — released even with --keep")
+
+
+class TestRunnerP5WorktreeFirst(RunnerTestBase):
+    """#480 TC7-TC11: P5 must exercise the PR worktree's template + plan."""
+
+    def _commit_edit(self, rel_path, write_fn):
+        self._git("checkout", "impl/1-test")
+        write_fn(os.path.join(self.repo, rel_path))
+        self._git("add", rel_path)
+        self._git("commit", "-m", "branch edit: %s" % rel_path)
+        self._git("checkout", "main")
+
+    def _write_json(self, path, data):
+        with open(path, "w") as f:
+            json.dump(data, f, indent=2)
+
+    def test_capture_template_from_worktree(self):
+        def write_marker(p):
+            with open(p, "w") as f:
+                f.write("# branch-marker\n")
+        self._commit_edit("framework/templates/e2e_capture.gd", write_marker)
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        cap = os.path.join(self.worktree_root, "e2e-1", "capture.gd")
+        self.assertTrue(os.path.exists(cap), "capture.gd must be copied out")
+        with open(cap) as f:
+            self.assertIn("branch-marker", f.read(),
+                          "worktree template must be preferred over REPO_ROOT")
+
+    def test_capture_template_fallback_repo_root(self):
+        self._commit_edit(
+            "framework/templates/e2e_capture.gd",
+            lambda p: os.remove(p))
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        cap = os.path.join(self.worktree_root, "e2e-1", "capture.gd")
+        self.assertTrue(os.path.exists(cap), "capture.gd must be copied out")
+        with open(cap) as f:
+            self.assertEqual(f.read(), "# fake capture\n",
+                             "missing worktree template must fall back to REPO_ROOT")
+
+    def test_plan_src_worktree_first(self):
+        plan = json.loads(json.dumps(GAME_PLAN))
+        plan["theme_color"] = "112233"
+        self._commit_edit(
+            "mini-pong/e2e_shots.json",
+            lambda p: self._write_json(p, plan))
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("wt-impl-1/mini-pong/e2e_shots.json", r.stdout,
+                      "plan source must be the worktree PR plan")
+        with open(os.path.join(self.worktree_root, "e2e-1", "plan.json")) as f:
+            self.assertEqual(json.load(f)["theme_color"], "112233",
+                             "resolved plan must come from the PR branch")
+
+    def test_visual_config_passthrough(self):
+        # A fake analyzer on the branch that ACCEPTS --visual-config (like
+        # #475's real one) — without it the flag would hit main's analyzer
+        # which rejects it ("unknown arg") → L3 false fail. This is the exact
+        # merge-order hazard #480 exists to fix: the runner must use the PR
+        # worktree's analyzer, not main's.
+        analyze_log = os.path.join(self.tmp, "fake_analyze.log")
+        self.env["FAKE_ANALYZE_LOG"] = analyze_log
+        self._commit_edit(
+            "scripts/e2e/analyze_bmp.py",
+            lambda p: _write_file_ensure_dir(p,
+                           "#!/usr/bin/env python3\n"
+                           "import os, sys\n"
+                           "with open(os.environ['FAKE_ANALYZE_LOG'], 'a') as f:\n"
+                           "    f.write(' '.join(sys.argv[1:]) + '\\n')\n"
+                           "print('FAKE_ANALYZE ' + ' '.join(sys.argv[1:]))\n"
+                           "sys.exit(0)\n"))
+        plan = json.loads(json.dumps(GAME_PLAN))
+        for s in plan["groups"]["loop"]["shots"]:
+            if s["name"] == "02_midgame":
+                s["visual"] = {
+                    "regions": [{"name": "mid", "x0": 0, "y0": 0,
+                                 "x1": 320, "y1": 180,
+                                 "min_nonbg_ratio": 0.01}],
+                }
+        self._commit_edit(
+            "mini-pong/e2e_shots.json",
+            lambda p: self._write_json(p, plan))
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        vjson = os.path.join(self.worktree_root, "e2e-1",
+                             "visual-02_midgame.json")
+        self.assertTrue(os.path.exists(vjson),
+                        "visual config must be extracted per-shot")
+        with open(vjson) as f:
+            self.assertEqual(json.load(f)["regions"][0]["name"], "mid")
+        self.assertTrue(os.path.exists(analyze_log),
+                        "fake analyzer must have run")
+        with open(analyze_log) as f:
+            lines = f.read().splitlines()
+        vc_lines = [ln for ln in lines if "--visual-config" in ln]
+        self.assertEqual(len(vc_lines), 1,
+                         "only the shot WITH visual gets --visual-config")
+        self.assertIn("02_midgame.png", vc_lines[0])
+        non_vc = [ln for ln in lines if "--visual-config" not in ln]
+        self.assertEqual(len(non_vc), 2,
+                         "the other 2 shots must NOT get --visual-config")
+
+    def test_missed_shot_fails_l3(self):
+        self._write_config({"drop_shots": ["01_title"]})
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("planned shot missing: 01_title.png", r.stdout)
+        self.assertEqual(self._summary()["layers"]["L3_visual"], "fail")

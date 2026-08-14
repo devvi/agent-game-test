@@ -57,6 +57,7 @@
 
 ```
 P0 pre-flight    caffeinate 电源守卫 / godot 存在 / worktree 无冲突 / 分支 fetch
+                 并发单例锁 .e2e-<N>.lock (mkdir 原子 + PID 存活校验, stale 回收)
 P1 worktree      git worktree add /tmp/wt-impl-<N> <impl-branch>   (主工作区零接触)
 P2 L0 编译       --headless --script tests/check_compile.gd
 P3 L1 逻辑       --headless --script tests/run_tests.gd
@@ -72,7 +73,8 @@ P6 证据上贴      user-attachments 上传 (实测无 REST 端点, 用 web 上
                  → gh pr comment: 截图 + 转写 + 测试摘要; gist raw 为 fallback
 P7 汇总          summary.json {layers, shots, classification} + 退出码
                  + workflow-audit.jsonl + 飞书通知 (🔴/✅)
-P8 cleanup       trap EXIT 强删 worktree (merge --delete-branch 不被阻塞)
+P8 cleanup       trap EXIT 归属校验清理 (只删本实例创建的 worktree)
+                 --keep 保留 WT 但仍释放锁 (merge --delete-branch 不被阻塞)
 
 退出码: 0=全过  1=某层失败  2=pre-flight 失败  3=L3 降级 (逻辑层仍门禁)
 ```
