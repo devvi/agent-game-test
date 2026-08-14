@@ -1338,8 +1338,9 @@ class TestE2EOrchestrator(unittest.TestCase):
             out = os.path.join(td, "e2e-475")
             os.makedirs(out, exist_ok=True)
             with open(os.path.join(out, "summary.json"), "w") as f:
-                json.dump({"layers": {"L0_compile": "pass", "L1_logic": "pass",
-                                      "L2_runtime": "pass", "L3_visual": "pass"}}, f)
+                # real runner format: L0-L2 are exit codes (0), L3 is "pass"
+                json.dump({"layers": {"L0_compile": "0", "L1_logic": "0",
+                                      "L2_runtime": "0", "L3_visual": "pass"}}, f)
             state_dir = os.path.join(td, "state")
             with mock.patch.object(ep, "E2E_STATE_DIR", state_dir):
                 ep._write_e2e_state(475, {
@@ -1363,8 +1364,8 @@ class TestE2EOrchestrator(unittest.TestCase):
             os.makedirs(out, exist_ok=True)
             summary = os.path.join(out, "summary.json")
             with open(summary, "w") as f:
-                json.dump({"layers": {"L0_compile": "pass", "L1_logic": "pass",
-                                      "L2_runtime": "pass", "L3_visual": "pass"}}, f)
+                json.dump({"layers": {"L0_compile": "0", "L1_logic": "0",
+                                      "L2_runtime": "0", "L3_visual": "pass"}}, f)
             # backdate the summary: mtime 60s ago, runner started 10s ago
             old = time.time() - 60
             os.utime(summary, (old, old))

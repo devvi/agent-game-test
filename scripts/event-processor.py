@@ -1862,7 +1862,13 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
                     with open(summary) as f:
                         sd = json.load(f)
                     layers = sd.get("layers", {})
-                    if all(v == "pass" for v in layers.values()):
+                    # Layer values: L0-L2 are exit codes (0=pass, 1=fail,
+                    # 2=unavailable), L3_visual is "pass"/"fail"/"skip".
+                    # Accept "0" (exit 0) and "pass" as green.
+                    def _green(v):
+                        s = str(v).strip().lower()
+                        return s in ("0", "pass", "true", "yes")
+                    if all(_green(v) for v in layers.values()):
                         verdict = "done"
                 else:
                     lines.append(f"E2E: pr={pr} summary stale (mtime {mtime:.0f} < start {started:.0f})")
