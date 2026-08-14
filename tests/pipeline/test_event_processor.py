@@ -1606,6 +1606,25 @@ class TestKanbanActiveStateDedup(unittest.TestCase):
                             for a in calls),
                         f"research spawn must remove workflow/available: {calls}")
 
+    def test_pr_matches_issue_stage_scoped(self):
+        """2026-08-14: _pr_exists_for_issue('implement', N) must NOT match a
+        plan/research PR whose body references the parent issue (#491 stalled
+        at workflow/implement because the plan PR body 'parent #491' blocked
+        the implement exists-check)."""
+        plan_pr = {"headRefName": "plan/491-rain-score-levels",
+                   "body": "parent #491", "title": "docs(plan)"}
+        impl_pr = {"headRefName": "impl/491-rain-score-levels",
+                   "body": "parent #491", "title": "feat(491)"}
+        self.assertFalse(ep._pr_matches_issue(plan_pr, 491, "implement"),
+                         "plan PR must NOT satisfy implement exists-check")
+        self.assertTrue(ep._pr_matches_issue(impl_pr, 491, "implement"),
+                        "impl PR must satisfy implement exists-check")
+        self.assertTrue(ep._pr_matches_issue(plan_pr, 491, "plan"),
+                        "plan PR must satisfy plan exists-check")
+        # generic (no stage) still matches body references
+        self.assertTrue(ep._pr_matches_issue(plan_pr, 491),
+                        "generic match keeps body-reference behavior")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -538,14 +538,33 @@ def _extract_parent_issue(pr_num: int) -> Optional[int]:
     return None
 
 
-def _pr_matches_issue(pr: dict, issue: int) -> bool:
+def _pr_matches_issue(pr: dict, issue: int, stage: str = "") -> bool:
     """Client-side PR↔issue match: branch-prefix convention OR body/title
     reference. GitHub's `--search head:...` qualifier is unreliable
     (Patch 59, 2026-07-29: returns [] even for existing PRs), so all
-    PR-exists checks must use this deterministic matcher instead."""
+    PR-exists checks must use this deterministic matcher instead.
+
+    2026-08-14 fix: `stage` restricts the match to the stage's branch prefix.
+    Without it, `_pr_exists_for_issue("implement", N)` matched the plan PR
+    (body "parent #N") → implement spawn was skipped forever (#491 stalled
+    at workflow/implement with no implement task)."""
     head = pr.get("headRefName", "") or ""
     body = pr.get("body", "") or ""
     title = pr.get("title", "") or ""
+    prefix = STAGE_BRANCH_PREFIX.get(stage, "")
+    # Stage-scoped branch match: branch must carry the stage prefix AND the
+    # issue number (plan/491-x matches stage=plan; impl/491-x matches
+    # stage=implement; a plan/491 branch must NOT satisfy stage=implement).
+    if prefix:
+        if (head.startswith(prefix)
+                and (f"/{issue}-" in head or f"/{issue}/" in head
+                     or head.endswith(f"/{issue}"))):
+            return True
+        # Body/title references are NOT sufficient when stage is given — a
+        # research/plan PR body mentions the parent issue but must not block
+        # the implement stage's PR-exists check.
+        return False
+    # No stage scope (generic caller): fall back to any-reference matching.
     if f"/{issue}-" in head or f"/{issue}/" in head or head.endswith(f"/{issue}"):
         return True
     if re.search(rf"(?:Parent|Closes|parent)\s*#{issue}\b", body):
@@ -574,7 +593,10 @@ def _pr_exists_for_issue(stage: str, issue: int) -> bool:
         prs = json.loads(raw)
     except json.JSONDecodeError:
         return False
-    return any(_pr_matches_issue(p, issue) for p in prs)
+    # 2026-08-14: pass stage so body-references from OTHER stages' PRs don't
+    # falsely satisfy this stage's exists-check (e.g. plan PR body "parent #N"
+    # must not block implement spawn).
+    return any(_pr_matches_issue(p, issue, stage) for p in prs)
 
 
 WORKDIR = os.path.expanduser("~/workspace/agent-game-test")
