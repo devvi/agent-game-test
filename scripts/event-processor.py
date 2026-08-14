@@ -1772,7 +1772,20 @@ OPENCODE_CRITICAL_FILE = os.path.expanduser("~/.hermes/.opencode-critical")
 # label / fix issue / comment (happened 2×: #466 then #475).
 REVIEW_CONCLUSIONS_DIR = os.path.expanduser("~/.hermes/review-conclusions")
 E2E_STATE_DIR = os.path.expanduser("~/.hermes/e2e-state")
-E2E_RUNNER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "run-e2e-review.sh")
+# Runner lives in the project scripts/ dir. When event-processor runs from the
+# cron copy (~/.hermes/scripts/), __file__ points there — the runner may not
+# be synced (2026-08-14: `bash: .../run-e2e-review.sh: No such file or
+# directory`). Fall back to the project repo path.
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+E2E_RUNNER = os.path.join(_SCRIPT_DIR, "run-e2e-review.sh")
+if not os.path.exists(E2E_RUNNER):
+    for _cand in (
+        "/Users/devvi/workspace/agent-game-test/scripts/run-e2e-review.sh",
+        os.path.expanduser("~/workspace/agent-game-test/scripts/run-e2e-review.sh"),
+    ):
+        if os.path.exists(_cand):
+            E2E_RUNNER = _cand
+            break
 
 
 def _e2e_state_path(pr: int) -> str:
