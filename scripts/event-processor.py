@@ -1795,6 +1795,38 @@ E2E_STATE_DIR = os.path.expanduser("~/.hermes/e2e-state")
 KANBAN_BRIDGE = os.environ.get("KANBAN_BRIDGE", "1") == "1"
 _KANBAN_BOARD = "default"
 _KANBAN_SEEN = set()  # (issue, stage) already created this process
+_KANBAN_STATE_FILE = os.path.expanduser("~/.hermes/kanban-bridge-state.json")
+
+
+def _kanban_seen_persist() -> set:
+    """Persistent (issue, stage) → task-id dedup across cron ticks.
+
+    2026-08-14: the in-process _KANBAN_SEEN resets every cron tick (each tick
+    is a fresh python process), so the bridge re-created duplicate kanban
+    tasks for the same (issue, stage) — 5 parallel workers on #475/#480,
+    redundant work + potential conflicts. The kanban dispatcher already
+    reclaims/retries tasks, so once a task exists we must NOT create another.
+    """
+    try:
+        with open(_KANBAN_STATE_FILE) as f:
+            return {(k, v) for k, v in json.load(f).items()}
+    except (OSError, json.JSONDecodeError, ValueError):
+        return set()
+
+
+def _kanban_seen_add(issue: int, stage: str, task_id: str) -> None:
+    try:
+        d = {}
+        try:
+            with open(_KANBAN_STATE_FILE) as f:
+                d = json.load(f)
+        except (OSError, json.JSONDecodeError, ValueError):
+            d = {}
+        d[f"{issue}:{stage}"] = task_id
+        with open(_KANBAN_STATE_FILE, "w") as f:
+            json.dump(d, f)
+    except OSError:
+        pass
 # Runner lives in the project scripts/ dir. When event-processor runs from the
 # cron copy (~/.hermes/scripts/), __file__ points there — the runner may not
 # be synced (2026-08-14: `bash: .../run-e2e-review.sh: No such file or
@@ -1998,6 +2030,15 @@ def kanban_create_task(stage: str, issue: int, pr: int = 0,
     key = (issue, stage)
     if key in _KANBAN_SEEN:
         return ""
+    # Persistent dedup across cron ticks (2026-08-14): the dispatcher already
+    # owns reclaim/retry, so a task that exists (any status) must not be
+    # re-created. Only the terminal states (done/archived) allow re-create —
+    # a done task means the stage completed and the next cycle may need it
+    # again (e.g. review after self-correct pushes new commits).
+    seen = _kanban_seen_persist()
+    seen_key = f"{issue}:{stage}"
+    if seen_key in seen:
+        return ""
     skill = _KANBAN_STAGE_SKILL.get(stage, "")
     if not skill:
         return ""
@@ -2022,6 +2063,7 @@ def kanban_create_task(stage: str, issue: int, pr: int = 0,
         m = _re.search(r"(t_[A-Za-z0-9]+)", out)
         if m:
             _KANBAN_SEEN.add(key)
+            _kanban_seen_add(issue, stage, m.group(1))
             return m.group(1)
     except Exception:
         pass
