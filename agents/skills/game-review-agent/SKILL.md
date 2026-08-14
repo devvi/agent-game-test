@@ -660,6 +660,46 @@ FSET_HASH=$(echo -n "$FAILURES" | md5 | cut -c1-8)
    g. Remove event from pending file
 3. Do NOT merge. Do NOT re-evaluate.
 
+### ⚠️ CRITICAL: Last-Action Rule — Write the Conclusion File
+
+**Your very LAST action in EVERY review (blocked, approved, request_changes,
+self_correct) MUST be writing a structured conclusion file.** Do this BEFORE
+anything else can be interrupted — the script layer (`review_followup()` in
+event-processor) performs the mechanical aftermath (labels, fix issue,
+comment) from this file, so even if you exhaust the 50-call budget right
+after, the block is never left dangling (this is what happened 2×: #466 then
+#475 — agent ran out of calls before labeling/commenting).
+
+```bash
+mkdir -p ~/.hermes/review-conclusions
+cat > ~/.hermes/review-conclusions/<PR_NUM>.json <<'JSONEOF'
+{
+  "pr": <PR_NUM>,
+  "verdict": "blocked",                    # blocked | approved | request_changes | self_correct
+  "class": "A",                            # A | B | C | D (failure class)
+  "parent_issue": <PARENT_NUM>,
+  "fix_issue": {                           # null if none
+    "title": "Fix ... pre-existing failures on main",
+    "failures": ["TC6.1", "TC8.1", "..."]
+  },
+  "evidence": "L3 visual fail: paddle/brick/bg dist 0.0 < 60 ..."
+}
+JSONEOF
+```
+
+Rules:
+- **Write this file FIRST among the block-checklist steps** (right after you
+  know the verdict), then do the manual label/comment/fix-issue steps. If you
+  run out of budget, the file guarantees the script layer still completes the
+  follow-through.
+- The script layer deletes the file after processing — if you see it still
+  there on a re-review, do not re-write blindly; check whether the follow-up
+  already happened (labels present) and skip duplicates.
+- `failures` is the list of failure identifiers for fset hashing. Keep them
+  stable strings (test names / defect names), sorted order irrelevant.
+- For `approved` verdicts the file is optional (nothing mechanical to do),
+  but writing it is still harmless and gives the dashboard a record.
+
 ### ⚠️ Pitfall: Self-approval Constraint
 
 See the pitfall under **Step 5: Submit PR Review Comment** above for the `--comment` workaround when `GH_TOKEN` matches the PR author.

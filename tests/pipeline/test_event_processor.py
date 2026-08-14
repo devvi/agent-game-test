@@ -1149,5 +1149,114 @@ class TestOpenCodeHealthGate(unittest.TestCase):
             self.assertFalse(os.path.exists(cfg_path))  # never written
 
 
+class TestReviewFollowup(unittest.TestCase):
+    """2026-08-14: deterministic script layer for review conclusions.
+
+    Review agent writes ~/.hermes/review-conclusions/<pr>.json as its LAST
+    action; review_followup() performs the mechanical aftermath (blocked
+    label on PR+parent, fix issue with fset dedup, conclusion comment) so a
+    call-budget-exhausted agent never leaves a blocked PR dangling.
+    """
+
+    def _write_conclusion(self, td, pr, verdict="blocked", fix=None,
+                          parent=466, cls="B"):
+        d = os.path.join(td, "concl")
+        os.makedirs(d, exist_ok=True)
+        data = {"pr": pr, "verdict": verdict, "class": cls,
+                "parent_issue": parent, "fix_issue": fix,
+                "evidence": "test evidence"}
+        path = os.path.join(d, f"{pr}.json")
+        with open(path, "w") as f:
+            json.dump(data, f)
+        return d
+
+    def test_blocked_adds_labels_and_comment(self):
+        with tempfile.TemporaryDirectory() as td:
+            d = self._write_conclusion(td, 475, fix=None)
+            calls = []
+
+            def fake_gh(*args):
+                joined = " ".join(str(a) for a in args)
+                calls.append(args)
+                if "labels" in joined and "view" in joined:
+                    return '[]'  # no status/blocked yet
+                if "pr" in joined and "comment" in joined:
+                    return "https://github.com/...#comment"
+                return ""
+
+            with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR", d), \
+                 mock.patch.object(ep, "gh", side_effect=fake_gh):
+                lines = ep.review_followup()
+            self.assertTrue(any("+status/blocked" in l for l in lines), lines)
+            self.assertTrue(any("comment posted" in l for l in lines), lines)
+            self.assertTrue(any("pr=475" in l for l in lines), lines)
+            # file consumed
+            self.assertEqual(os.listdir(d), [])
+
+    def test_blocked_creates_fix_issue_with_dedup(self):
+        with tempfile.TemporaryDirectory() as td:
+            d = self._write_conclusion(td, 475, fix={
+                "title": "Fix runner bug",
+                "failures": ["runner-worktree", "runner-p5"],
+            })
+            created_issues = []
+
+            def fake_gh(*args):
+                joined = " ".join(str(a) for a in args)
+                if "labels" in joined and "view" in joined:
+                    return '[]'
+                if "issue" in joined and "create" in joined:
+                    created_issues.append(args)
+                    return "https://github.com/...#476"
+                if "issue" in joined and "list" in joined:
+                    return ""  # no existing fix issue
+                if "comment" in joined:
+                    return "https://...#c"
+                return ""
+
+            with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR", d), \
+                 mock.patch.object(ep, "gh", side_effect=fake_gh):
+                lines = ep.review_followup()
+            self.assertTrue(any("fix issue created" in l for l in lines), lines)
+            self.assertEqual(len(created_issues), 1)
+            self.assertIn("--label", created_issues[0])
+
+    def test_blocked_dedups_existing_fix_issue(self):
+        with tempfile.TemporaryDirectory() as td:
+            d = self._write_conclusion(td, 475, fix={
+                "title": "Fix runner bug",
+                "failures": ["runner-worktree", "runner-p5"],
+            })
+            created = []
+
+            def fake_gh(*args):
+                joined = " ".join(str(a) for a in args)
+                if "labels" in joined and "view" in joined:
+                    return '[]'
+                if "issue" in joined and "list" in joined:
+                    return "480"  # existing fix issue found
+                if "issue" in joined and "create" in joined:
+                    created.append(args)
+                    return "https://...#x"
+                if "comment" in joined:
+                    return "https://...#c"
+                return ""
+
+            with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR", d), \
+                 mock.patch.object(ep, "gh", side_effect=fake_gh):
+                lines = ep.review_followup()
+            self.assertTrue(any("dedup" in l for l in lines), lines)
+            self.assertEqual(created, [], "must NOT create duplicate fix issue")
+
+    def test_non_blocked_verdict_recorded(self):
+        with tempfile.TemporaryDirectory() as td:
+            d = self._write_conclusion(td, 475, verdict="approved", fix=None)
+            with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR", d), \
+                 mock.patch.object(ep, "gh", return_value=""):
+                lines = ep.review_followup()
+            self.assertTrue(any("verdict=approved" in l for l in lines), lines)
+            self.assertEqual(os.listdir(d), [], "file consumed")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

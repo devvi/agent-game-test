@@ -1696,6 +1696,22 @@ def main():
                     print("[SILENT]")
             else:
                 print("[SILENT]")
+
+        # ── Review follow-through (2026-08-14): deterministic script layer ──
+        # The review agent's conclusion is a STRUCTURED JSON file written to
+        # REVIEW_CONCLUSIONS_DIR/<pr>.json (see game-review-agent SKILL.md).
+        # This is deliberately NOT left to the agent's call budget: the agent
+        # may run out of iterations mid-E2E and never get to label/comment/
+        # fix-issue (happened 2× on #466/#475). Here the script layer performs
+        # the mechanical follow-up — idempotent, retryable, zero LLM calls:
+        #   verdict=blocked  → status/blocked on PR + parent issue
+        #   fix_issue        → create fix issue (fset dedup) if missing
+        #   comment          → post conclusion comment with evidence
+        # After processing, the file is removed (idempotent).
+        if in_window and not is_paused():
+            followup_lines = review_followup()
+            if followup_lines:
+                print("\n".join(followup_lines))
     except Exception as e:
         _audit(tick="end", in_window=False, error=str(e)[:200], output="[ERROR]")
         print(f"[event-processor error: {e}]", file=sys.stderr)
@@ -1731,6 +1747,108 @@ def check_webhook_connectivity() -> bool:
 
 OPENCODE_HEALTH_URL = "http://127.0.0.1:18765/global/health"
 OPENCODE_CRITICAL_FILE = os.path.expanduser("~/.hermes/.opencode-critical")
+
+# ── Review follow-through (2026-08-14) ───────────────────────────
+# Deterministic script layer for review conclusions. The review agent writes
+# ~/.hermes/review-conclusions/<pr>.json as its LAST action (see SKILL.md);
+# the script layer here performs the mechanical aftermath (labels, fix issue,
+# comment) so a call-budget-exhausted agent never leaves a blocked PR with no
+# label / fix issue / comment (happened 2×: #466 then #475).
+REVIEW_CONCLUSIONS_DIR = os.path.expanduser("~/.hermes/review-conclusions")
+
+
+def _read_review_conclusions() -> list:
+    """Read all pending review-conclusion JSON files."""
+    out = []
+    try:
+        os.makedirs(REVIEW_CONCLUSIONS_DIR, exist_ok=True)
+        for fn in sorted(os.listdir(REVIEW_CONCLUSIONS_DIR)):
+            if not fn.endswith(".json"):
+                continue
+            path = os.path.join(REVIEW_CONCLUSIONS_DIR, fn)
+            try:
+                with open(path) as f:
+                    data = json.load(f)
+                out.append((fn, data))
+            except (json.JSONDecodeError, OSError):
+                continue
+    except OSError:
+        pass
+    return out
+
+
+def _has_blocked_label(target: str, num: int) -> bool:
+    """Check if PR/issue already has status/blocked."""
+    raw = gh(target, "view", str(num), "--json", "labels", "--jq", ".labels[].name")
+    return bool(raw) and "status/blocked" in raw
+
+
+def _find_fix_issue(fset_hash: str):
+    """Search for an existing open fix issue with this fset hash."""
+    raw = gh("issue", "list", "--search", f"[fset:{fset_hash}] in:title",
+             "--state", "open", "--json", "number", "--jq", ".[0].number")
+    try:
+        return int(raw) if raw and raw.strip() else None
+    except (ValueError, TypeError):
+        return None
+
+
+def review_followup() -> list:
+    """Deterministic review follow-through. Returns output lines."""
+    lines = []
+    for fn, data in _read_review_conclusions():
+        try:
+            pr = int(data.get("pr", 0))
+            verdict = data.get("verdict", "")
+            parent = data.get("parent_issue")
+            fix = data.get("fix_issue") or {}
+            evidence = data.get("evidence", "")
+            if pr <= 0:
+                continue
+
+            if verdict == "blocked":
+                if not _has_blocked_label("pr", pr):
+                    gh("pr", "edit", str(pr), "--add-label", "status/blocked")
+                    lines.append(f"FOLLOWUP: pr={pr} +status/blocked")
+                if parent:
+                    if not _has_blocked_label("issue", int(parent)):
+                        gh("issue", "edit", str(parent), "--add-label", "status/blocked")
+                        lines.append(f"FOLLOWUP: issue={parent} +status/blocked")
+                if fix and fix.get("title"):
+                    failures = fix.get("failures") or []
+                    fset_str = "|".join(sorted(failures)) if failures else f"pr{pr}"
+                    import hashlib
+                    fset_hash = hashlib.md5(fset_str.encode()).hexdigest()[:8]
+                    existing = _find_fix_issue(fset_hash)
+                    if existing is None:
+                        body = (f"**Blocked PR:** #{pr}\n\n"
+                                f"**Pre-existing failures:**\n"
+                                + "\n".join(f"- {f}" for f in failures)
+                                + f"\n\n**Source:** review conclusion {fn}")
+                        title = fix.get("title",
+                                        f"Fix pre-existing failures on main [fset:{fset_hash}]")
+                        created = gh("issue", "create", "--title", title,
+                                     "--label", "bug", "--label", "workflow/available",
+                                     "--label", "priority/high", "--body", body)
+                        if created:
+                            lines.append(f"FOLLOWUP: pr={pr} fix issue created")
+                    else:
+                        lines.append(f"FOLLOWUP: pr={pr} fix issue exists #{existing} (dedup)")
+                comment = (f"## Review Follow-Through (automated)\n\n"
+                           f"**结论:** blocked (class {data.get('class', '?')})\n\n{evidence}\n")
+                if fix and fix.get("title"):
+                    comment += "\nBlocked → tracked by fix issue (pre-existing)\n"
+                gh("pr", "comment", str(pr), "--body", comment)
+                lines.append(f"FOLLOWUP: pr={pr} comment posted")
+            else:
+                lines.append(f"FOLLOWUP: pr={pr} verdict={verdict} recorded")
+            try:
+                os.remove(os.path.join(REVIEW_CONCLUSIONS_DIR, fn))
+            except OSError:
+                pass
+        except Exception as e:
+            lines.append(f"FOLLOWUP: ERROR processing {fn}: {e}")
+    return lines
 
 
 def opencode_healthy() -> bool:
