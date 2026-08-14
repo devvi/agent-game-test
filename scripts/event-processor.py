@@ -1812,8 +1812,8 @@ _KANBAN_SEEN = set()  # (issue, stage) already created this process
 _KANBAN_STATE_FILE = os.path.expanduser("~/.hermes/kanban-bridge-state.json")
 
 
-def _kanban_seen_persist() -> set:
-    """Persistent (issue, stage) → task-id dedup across cron ticks.
+def _kanban_seen_persist() -> dict:
+    """Persistent (issue:stage) → task-id dedup across cron ticks.
 
     2026-08-14: the in-process _KANBAN_SEEN resets every cron tick (each tick
     is a fresh python process), so the bridge re-created duplicate kanban
@@ -1824,9 +1824,9 @@ def _kanban_seen_persist() -> set:
     with _kanban_state_lock():
         try:
             with open(_KANBAN_STATE_FILE) as f:
-                return {(k, v) for k, v in json.load(f).items()}
+                return json.load(f)
         except (OSError, json.JSONDecodeError, ValueError):
-            return set()
+            return {}
 
 
 def _kanban_state_lock():
@@ -2068,25 +2068,23 @@ _KANBAN_STAGE_SKILL = {
 
 def kanban_create_task(stage: str, issue: int, pr: int = 0,
                        branch: str = "", extra: str = "") -> str:
-    """Create a kanban task for the given workflow stage (P2 bridge).
+    """Create a kanban task for the given workflow stage (P2/P3 bridge).
 
     The kanban dispatcher picks it up and spawns a deterministic worker
     (hermes chat -q with the stage's skill). Returns the task id, or "" if
-    the bridge is off / the task already exists this process (dedup).
+    the bridge is off / the task already exists (persistent dedup).
 
-    Dedup: (issue, stage) per process via _KANBAN_SEEN — the dispatcher's
-    own reclaim/retry handles failures, so we must NOT spam creates.
+    Dedup (2026-08-14 lessons): persistent (issue:stage)→task-id map with a
+    cross-process flock (concurrent cron ticks raced and overwrote records,
+    re-creating duplicate tasks → 8 parallel workers on #475). The kanban
+    dispatcher owns reclaim/retry, so an existing task (any status) must not
+    be re-created.
     """
     if not KANBAN_BRIDGE:
         return ""
     key = (issue, stage)
     if key in _KANBAN_SEEN:
         return ""
-    # Persistent dedup across cron ticks (2026-08-14): the dispatcher already
-    # owns reclaim/retry, so a task that exists (any status) must not be
-    # re-created. Only the terminal states (done/archived) allow re-create —
-    # a done task means the stage completed and the next cycle may need it
-    # again (e.g. review after self-correct pushes new commits).
     seen = _kanban_seen_persist()
     seen_key = f"{issue}:{stage}"
     if seen_key in seen:
@@ -2104,12 +2102,18 @@ def kanban_create_task(stage: str, issue: int, pr: int = 0,
               f"NEVER merge PRs manually.")
     title = f"{stage}: issue #{issue}" + (f" (PR #{pr})" if pr else "")
     try:
-        r = subprocess.run(
-            ["hermes", "kanban", "create", title,
-             "--skill", skill, "--body", body,
-             "--assignee", "default", "--max-runtime", "3600"],
-            capture_output=True, text=True, timeout=30,
-        )
+        cmd = ["hermes", "kanban", "create", title,
+               "--skill", skill, "--body", body,
+               "--assignee", "default", "--max-runtime", "3600"]
+        # Lesson 3 (2026-08-14): serialize same-issue stages via --parent —
+        # the review/unblock/self-correct workers for one PR must not run
+        # concurrently (they raced on #475: 8 parallel workers, conflicting
+        # labels/fix-issues). Chain: research → plan → implement → review,
+        # with unblock/self-correct as children of review.
+        parent_id = _kanban_stage_parent(stage, issue)
+        if parent_id:
+            cmd += ["--parent", parent_id]
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         out = (r.stdout or "").strip()
         import re as _re
         m = _re.search(r"(t_[A-Za-z0-9]+)", out)
@@ -2117,6 +2121,32 @@ def kanban_create_task(stage: str, issue: int, pr: int = 0,
             _KANBAN_SEEN.add(key)
             _kanban_seen_add(issue, stage, m.group(1))
             return m.group(1)
+    except Exception:
+        pass
+    return ""
+
+
+# Same-issue stage ordering (lesson 3, 2026-08-14): which existing task a new
+# stage must wait on. The parent gate prevents same-PR worker concurrency.
+_KANBAN_STAGE_CHAIN = ["research", "plan", "implement", "review"]
+
+
+def _kanban_stage_parent(stage: str, issue: int) -> str:
+    """Return the previous same-issue task id that `stage` must wait on."""
+    try:
+        seen = _kanban_seen_persist()
+        chain = _KANBAN_STAGE_CHAIN
+        if stage in chain:
+            idx = chain.index(stage)
+            for prev in reversed(chain[:idx]):
+                tid = seen.get(f"{issue}:{prev}")
+                if tid:
+                    return tid
+        # unblock/self-correct wait on the review task (they react to its verdict)
+        if stage in ("unblock", "self-correct"):
+            tid = seen.get(f"{issue}:review")
+            if tid:
+                return tid
     except Exception:
         pass
     return ""
