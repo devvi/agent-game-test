@@ -1634,5 +1634,76 @@ class TestKanbanActiveStateDedup(unittest.TestCase):
                         "generic match keeps body-reference behavior")
 
 
+class TestE2EStateMachineDesign(unittest.TestCase):
+    """2026-08-15 design: E2E state machine must be deadlock-free.
+    - failed (content) → review task (evidence for classification)
+    - infra-error (no summary) → backoff retry, NOT parked failed
+    - implement worker active → defer launch (worktree decoupling)"""
+
+    def _state(self, td, status, **kw):
+        d = {"status": status, "pid": None, "branch": "impl/491-x"}
+        d.update(kw)
+        ep._write_e2e_state(491, d)
+        return ep._e2e_state_path(491)
+
+    def _read(self, td):
+        return ep._read_e2e_state(491)
+
+    def test_content_failed_spawns_review(self):
+        """2026-08-15: a runner that died WITH a (non-green) summary is a
+        content failure — review must see the evidence, not stay silent."""
+        with tempfile.TemporaryDirectory() as td:
+            summary = os.path.join(td, "summary.json")
+            with open(summary, "w") as f:
+                json.dump({"layers": {"L0_compile": "0", "L1_logic": "0",
+                                      "L2_runtime": "0", "L3_visual": "fail"}}, f)
+            with mock.patch.object(ep, "E2E_STATE_DIR", os.path.join(td, "state")), \
+                 mock.patch.object(ep, "_pid_alive", return_value=False), \
+                 mock.patch.object(ep, "kanban_create_task",
+                                   return_value="t_rev") as m_kb:
+                os.makedirs(os.path.join(td, "state"), exist_ok=True)
+                self._state(td, "running", summary=summary,
+                            started_at=time.time() - 100)
+                lines = ep.e2e_orchestrator(491, "impl/491-x")
+            self.assertTrue(any("E2E: pr=491 failed" in l for l in lines), lines)
+            self.assertEqual(m_kb.call_args.args[0], "review",
+                             "content failure must spawn review")
+
+    def test_infra_error_no_summary_retries(self):
+        """2026-08-15: runner died with NO summary (worktree conflict etc.)
+        → infra-error → backoff retry, NOT parked failed."""
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch.object(ep, "E2E_STATE_DIR", os.path.join(td, "state")), \
+                 mock.patch.object(ep, "_pid_alive", return_value=False), \
+                 mock.patch.object(ep, "kanban_create_task",
+                                   return_value="t_x") as m_kb:
+                os.makedirs(os.path.join(td, "state"), exist_ok=True)
+                self._state(td, "running", started_at=time.time() - 100)
+                lines = ep.e2e_orchestrator(491, "impl/491-x")
+                self.assertTrue(any("infra-error" in l for l in lines), lines)
+                m_kb.assert_not_called()  # no review on infra error
+                # state reset to absent with retry_at → backoff line next tick
+                st = ep._read_e2e_state(491)
+                self.assertEqual(st.get("status"), "absent")
+                self.assertGreater(st.get("retry_at", 0), time.time())
+                lines2 = ep.e2e_orchestrator(491, "impl/491-x")
+                self.assertTrue(any("backoff" in l for l in lines2), lines2)
+
+    def test_defer_when_implement_worker_active(self):
+        """2026-08-15: E2E launch defers while the implement worker is active
+        (its worktree holds the branch → runner worktree add would fail)."""
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch.object(ep, "E2E_STATE_DIR", os.path.join(td, "state")), \
+                 mock.patch.object(ep, "_kanban_seen_persist",
+                                   return_value={"491:implement": "t_impl"}), \
+                 mock.patch.object(ep, "_kanban_task_active",
+                                   return_value=True), \
+                 mock.patch("subprocess.Popen") as m_popen:
+                os.makedirs(os.path.join(td, "state"), exist_ok=True)
+                lines = ep.e2e_orchestrator(491, "impl/491-x")
+            self.assertTrue(any("defer" in l for l in lines), lines)
+            m_popen.assert_not_called()  # runner NOT launched
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

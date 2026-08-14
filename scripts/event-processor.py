@@ -2098,37 +2098,77 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
                         return s in ("0", "pass", "true", "yes")
                     if all(_green(v) for v in layers.values()):
                         verdict = "done"
+                    else:
+                        verdict = "failed"  # content failure — real evidence
                 else:
                     lines.append(f"E2E: pr={pr} summary stale (mtime {mtime:.0f} < start {started:.0f})")
+                    verdict = "failed"
             except (json.JSONDecodeError, OSError):
                 verdict = "failed"
+        else:
+            # No summary at all — the runner died before producing evidence
+            # (e.g. worktree add failed because the implement worker still
+            # holds the branch). This is INFRA failure, not content failure.
+            # 2026-08-15 design: retry with backoff instead of parking in
+            # "failed" (which silently blocked review forever — #491 trace:
+            # orchestrator P1 worktree add failed → harvest saw no summary →
+            # status failed → review never spawned).
+            verdict = "infra-error"
         state["status"] = verdict
         state["finished_at"] = time.time()
         _write_e2e_state(pr, state)
+        if verdict == "infra-error":
+            # backoff retry: re-launch after a cooldown (5 min) so a transient
+            # worktree conflict (implement worker not yet done) resolves.
+            lines.append(f"E2E: pr={pr} infra-error (no summary) — retry in 5m")
+            state["status"] = "absent"  # next tick relaunches (see absent branch)
+            state["retry_at"] = time.time() + 300
+            _write_e2e_state(pr, state)
+            return lines
         lines.append(f"E2E: pr={pr} {verdict} (summary {summary})")
-        if verdict == "done":
-            # P3: kanban-only review spawn
+        if verdict in ("done", "failed"):
+            # done → review interprets green summary; failed → review sees the
+            # failure evidence and classifies (A infra / B pre-existing /
+            # C aesthetic / D code). 2026-08-15: failed NO LONGER stays silent
+            # waiting for self-correct — a green CI with a failed local E2E is
+            # exactly what the review agent must judge (#491 deadlock).
             kanban_create_task("review", pr, pr, branch, f"e2e_summary={summary}")
         return lines
 
     if status in ("done", "failed"):
-        # Already harvested. Re-emit SPAWN: review until a review conclusion
-        # file appears — the SPAWN may be swallowed by a busy cron
-        # (2026-08-14 16:10 trace: SPAWN emitted, cron never executed it,
-        # nothing re-emitted for 40 min). Rate-limited by a dedicated
-        # "review-resend" gate (short TTL 300s) so we don't spam the cron
-        # prompt every tick. failed stays silent (self-correct owns it).
-        # 2026-08-14 self-review: the review-resend rate gate is redundant —
-        # kanban_create_task's active-state dedup already prevents duplicate
-        # workers while a review is in flight and allows re-create once it
-        # finishes. Removing the 300s gate removes a delay on cycle re-entry.
-        if status == "done" and not _read_review_conclusions_file(pr):
+        # Already harvested. Re-emit review task until a review conclusion
+        # file appears — the spawn may be swallowed by a busy cron. The
+        # active-state dedup in kanban_create_task prevents duplicate workers
+        # while a review is in flight and allows re-create once it finishes.
+        if not _read_review_conclusions_file(pr):
             kanban_create_task("review", pr, pr, branch,
                                f"e2e_summary={state.get('summary', '')}")
         return lines
 
     # absent → launch background runner (--no-comment: evidence posted by
     # review agent after interpreting, avoids double-posting)
+    # 2026-08-15: infra-error backoff — if the previous run failed with no
+    # summary, wait out retry_at before relaunching (worktree conflict etc.).
+    retry_at = state.get("retry_at", 0)
+    if retry_at and time.time() < retry_at:
+        mins = int((retry_at - time.time()) / 60) + 1
+        lines.append(f"E2E: pr={pr} backoff — retry in ~{mins}m")
+        return lines
+    # 2026-08-15 (design): worktree decoupling. The runner does
+    # `git worktree add` on the impl branch — if the implement worker's own
+    # worktree still holds that branch, add fails and E2E misjudges as
+    # infra-error (the #491 trace). The implement worker only releases the
+    # branch when it completes + cleans its worktree. So: do NOT launch E2E
+    # while an implement task for this PR is still active. The stalled-scan /
+    # check_run paths re-enter this function every tick, so the launch simply
+    # defers until the implement task is done — no extra machinery needed.
+    try:
+        _active_impl = _kanban_seen_persist().get(f"{pr}:implement")
+        if _active_impl and _kanban_task_active(_active_impl):
+            lines.append(f"E2E: pr={pr} defer — implement worker active (worktree held)")
+            return lines
+    except Exception:
+        pass  # defer check is best-effort; proceed on failure
     try:
         os.makedirs(E2E_STATE_DIR, exist_ok=True)
         log_path = f"/tmp/e2e-{pr}-orchestrator.log"

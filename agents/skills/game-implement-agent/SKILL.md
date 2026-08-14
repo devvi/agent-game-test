@@ -327,6 +327,16 @@ gh pr checks <PR_NUMBER> --watch
 
 **If CI passes:** Your job is done. The `check_run.completed` event will trigger the review agent, which handles merge + GDD update.
 
+**⛔ DO NOT run the E2E harness yourself (2026-08-15 design).** The
+`e2e_orchestrator` in event-processor is the SOLE owner of E2E:
+- It runs `run-e2e-review.sh` as a background script (zero agent calls) after
+  CI is green, and hands the review agent a ready summary.
+- If you run it too, your worktree holds the branch → the orchestrator's
+  worktree add fails → it misjudges E2E as infra-failed → review never fires
+  (#491 trace, 2026-08-14). You also burn your 50-call budget waiting.
+- Your verification scope: `godot --headless` compile + your own unit tests.
+  Visual/L3 verification belongs to the orchestrator + review agent.
+
 ### 6. Notify
 
 ```bash
