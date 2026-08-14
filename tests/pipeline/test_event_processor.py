@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -282,6 +283,9 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "_ensure_issues_cache", return_value=issue_cache), \
              mock.patch.object(ep, "_SPAWN_STATE_FILE", spawn_state_file), \
              mock.patch.object(ep, "opencode_healthy", return_value=opencode_up), \
+             mock.patch.object(ep, "E2E_STATE_DIR",
+                               os.path.join(tempfile.mkdtemp(), "e2e-state")), \
+             mock.patch.object(ep, "E2E_RUNNER", "/bin/true"), \
              mock.patch.object(ep, "_GH_CACHE", {}):
             return ep.preprocess()
 
@@ -292,12 +296,21 @@ class TestPreprocess(unittest.TestCase):
         self.assertTrue(any(l.startswith("SPAWN: self-correct,issue=154") for l in out),
                         f"unexpected output: {out}")
 
-    def test_check_run_success_spawns_review(self):
+    def test_check_run_success_starts_e2e_then_review(self):
+        """2026-08-14 plan ②: check_run.completed success for an impl branch
+        triggers the E2E orchestrator (background script) instead of directly
+        spawning review. First tick: 'E2E: pr started'; review SPAWN appears
+        only after the runner finishes (orchestrator harvests summary)."""
         ev = {"_key": "check_run.completed#155", "type": "check_run",
               "issue": 155, "branch": "impl/155-y", "conclusion": "success"}
-        out = self._run_preprocess(self._events(ev))
-        self.assertTrue(any(l.startswith("SPAWN: review,issue=155") for l in out),
-                        f"unexpected output: {out}")
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch.object(ep, "E2E_STATE_DIR", os.path.join(td, "state")), \
+                 mock.patch.object(ep, "E2E_RUNNER", "/bin/true"):
+                out = self._run_preprocess(self._events(ev))
+        self.assertTrue(any(l.startswith("E2E: pr=155 started") for l in out),
+                        f"must kick off E2E runner: {out}")
+        # review spawns later, once summary is harvested (covered by
+        # TestE2EOrchestrator.test_running_dead_harvests_done)
 
     def test_non_impl_branch_success_emits_merge_pr(self):
         """Non-impl (research/plan) check_run.completed success must NOT be
@@ -466,7 +479,8 @@ class TestPreprocess(unittest.TestCase):
                   "issue": 160, "label": "workflow/implement"}
         out = self._run_preprocess(self._events(ev_high, ev_low))
         self.assertEqual(len(out), 1, f"expected 1 SPAWN, got {out}")
-        self.assertIn("SPAWN: review,issue=160", out[0])
+        self.assertTrue("E2E: pr=160 started" in out[0] or "SPAWN: review" in out[0],
+                        f"check_run must win → E2E/review chain: {out}")
 
     def test_success_beats_newer_failure(self):
         """CI success is the definitive state — an older success must beat a
@@ -479,7 +493,9 @@ class TestPreprocess(unittest.TestCase):
                       "ts": 2000}
         out = self._run_preprocess(self._events(ev_success, ev_failure))
         self.assertEqual(len(out), 1)
-        self.assertIn("SPAWN: review", out[0])
+        self.assertTrue(any("E2E: pr=161 started" in l for l in out) or
+                        any("SPAWN: review" in l for l in out),
+                        f"success must trigger E2E→review chain: {out}")
 
     def test_label_self_correct_enriched_with_impl_pr(self):
         """Review-agent local-e2e path: workflow/self-correct label with NO
@@ -655,10 +671,12 @@ class TestPreprocess(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td, \
              mock.patch.object(ep, "_SPAWN_STATE_FILE",
                                os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "E2E_STATE_DIR", os.path.join(td, "e2e-state")), \
+             mock.patch.object(ep, "E2E_RUNNER", "/bin/true"), \
              mock.patch.object(ep, "gh", side_effect=fake_gh):
             cmds = ep._quick_stalled_scan()
-        self.assertTrue(any("STALLED: check-review,pr=444" in c for c in cmds),
-                        f"stalled scan must see impl PR: {cmds}")
+        self.assertTrue(any("E2E: pr=444 started" in c for c in cmds),
+                        f"stalled scan must kick off E2E for impl PR: {cmds}")
 
     def test_stalled_scan_merges_stalled_research_pr(self):
         def fake_gh(*args):
@@ -878,7 +896,7 @@ class TestPreprocess(unittest.TestCase):
                 self.assertFalse(ep._dead_spawn_recovery(476, "plan"))
 
     def test_stalled_scan_gated(self):
-        """The same impl PR scanned twice emits STALLED: check-review once —
+        """The same impl PR scanned twice emits E2E/review once —
         the gate closes the 3b59ede hole (ungated per-tick review re-spawn)."""
         def fake_gh(*args):
             joined = " ".join(args)
@@ -892,12 +910,14 @@ class TestPreprocess(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td, \
              mock.patch.object(ep, "_SPAWN_STATE_FILE",
                                os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "E2E_STATE_DIR", os.path.join(td, "e2e-state")), \
+             mock.patch.object(ep, "E2E_RUNNER", "/bin/true"), \
              mock.patch.object(ep, "gh", side_effect=fake_gh):
             first = ep._quick_stalled_scan()
             second = ep._quick_stalled_scan()
-        self.assertTrue(any("STALLED: check-review,pr=444" in c for c in first),
-                        f"first scan must emit check-review: {first}")
-        self.assertFalse(any("STALLED: check-review,pr=444" in c for c in second),
+        self.assertTrue(any("E2E: pr=444 started" in c for c in first),
+                        f"first scan must kick off E2E: {first}")
+        self.assertFalse(any("E2E: pr=444 started" in c for c in second),
                          f"gate must suppress re-emission: {second}")
 
     def test_stalled_scan_self_correct_aware(self):
@@ -1256,6 +1276,93 @@ class TestReviewFollowup(unittest.TestCase):
                 lines = ep.review_followup()
             self.assertTrue(any("verdict=approved" in l for l in lines), lines)
             self.assertEqual(os.listdir(d), [], "file consumed")
+
+
+class TestE2EOrchestrator(unittest.TestCase):
+    """2026-08-14 plan ②: E2E scripted front-load.
+
+    The runner executes as a background SCRIPT (zero agent calls); the
+    orchestrator tracks state so a long E2E is VISIBLE (never looks like a
+    stall) and hands the review agent a ready summary instead of burning its
+    call budget on the harness.
+    """
+
+    def test_absent_launches_runner(self):
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch.object(ep, "E2E_STATE_DIR", os.path.join(td, "state")), \
+                 mock.patch.object(ep, "E2E_RUNNER", "/bin/true"):
+                lines = ep.e2e_orchestrator(475, "impl/466-x")
+            self.assertTrue(any("E2E: pr=475 started" in l for l in lines), lines)
+            state = ep._read_e2e_state(475)
+            self.assertEqual(state.get("status"), "running")
+            self.assertIn("pid", state)
+
+    def test_running_alive_reports_progress(self):
+        with tempfile.TemporaryDirectory() as td:
+            import subprocess as _sp
+            proc = _sp.Popen(["/bin/sleep", "30"], start_new_session=True)
+            state_dir = os.path.join(td, "state")
+            try:
+                with mock.patch.object(ep, "E2E_STATE_DIR", state_dir):
+                    ep._write_e2e_state(475, {
+                        "status": "running", "pid": proc.pid,
+                        "started_at": time.time() - 120, "branch": "impl/x",
+                        "summary": "/tmp/nonexistent.json",
+                    })
+                    lines = ep.e2e_orchestrator(475, "impl/x")
+            finally:
+                proc.kill()
+            self.assertTrue(any("still running" in l and "2m" in l for l in lines),
+                            f"progress must be visible: {lines}")
+            self.assertFalse(any("SPAWN: review" in l for l in lines),
+                             "must NOT spawn review while E2E running")
+
+    def test_running_dead_harvests_done(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = os.path.join(td, "e2e-475")
+            os.makedirs(out, exist_ok=True)
+            with open(os.path.join(out, "summary.json"), "w") as f:
+                json.dump({"layers": {"L0_compile": "pass", "L1_logic": "pass",
+                                      "L2_runtime": "pass", "L3_visual": "pass"}}, f)
+            state_dir = os.path.join(td, "state")
+            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir):
+                ep._write_e2e_state(475, {
+                    "status": "running", "pid": 999999,  # dead pid
+                    "started_at": time.time() - 60, "branch": "impl/x",
+                    "summary": os.path.join(out, "summary.json"),
+                })
+                lines = ep.e2e_orchestrator(475, "impl/x")
+                self.assertEqual(ep._read_e2e_state(475).get("status"), "done")
+            self.assertTrue(any("E2E: pr=475 done" in l for l in lines), lines)
+            self.assertTrue(any("SPAWN: review" in l and "e2e_summary" in l for l in lines),
+                            f"must spawn review with summary: {lines}")
+
+    def test_running_dead_harvests_failed(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = os.path.join(td, "e2e-475")
+            os.makedirs(out, exist_ok=True)
+            with open(os.path.join(out, "summary.json"), "w") as f:
+                json.dump({"layers": {"L0_compile": "pass", "L1_logic": "pass",
+                                      "L2_runtime": "pass", "L3_visual": "fail"}}, f)
+            state_dir = os.path.join(td, "state")
+            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir):
+                ep._write_e2e_state(475, {
+                    "status": "running", "pid": 999999,
+                    "started_at": time.time() - 60, "branch": "impl/x",
+                    "summary": os.path.join(out, "summary.json"),
+                })
+                lines = ep.e2e_orchestrator(475, "impl/x")
+            self.assertTrue(any("E2E: pr=475 failed" in l for l in lines), lines)
+            self.assertFalse(any("SPAWN: review" in l for l in lines),
+                             "failed E2E → no review spawn (goes to self-correct path)")
+
+    def test_done_state_no_dup_spawn(self):
+        with tempfile.TemporaryDirectory() as td:
+            state_dir = os.path.join(td, "state")
+            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir):
+                ep._write_e2e_state(475, {"status": "done", "pid": None})
+                lines = ep.e2e_orchestrator(475, "impl/x")
+            self.assertEqual(lines, [], "done state → orchestrator silent (stalled scan handles)")
 
 
 if __name__ == "__main__":

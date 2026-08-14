@@ -1218,10 +1218,16 @@ def preprocess():
                 if _is_pr_blocked(pr_num) or _parent_issue_blocked(pr_num):
                     discarded_keys.add(event.get("_key", ""))
                     continue
-                output_lines.append(
-                    f"SPAWN: review,issue={parent_issue},"
-                    f"pr={issue},branch={branch},conclusion={conclusion}"
-                )
+                # ── E2E scripted front-load (2026-08-14, plan ②) ──
+                # Don't spawn review directly: kick off the E2E runner as a
+                # background SCRIPT first (zero agent calls), so the review
+                # agent gets a ready summary instead of burning 30-40 calls
+                # running the harness itself. The orchestrator returns either
+                # progress lines (running) or a SPAWN: review line once the
+                # summary is harvested.
+                e2e_lines = e2e_orchestrator(pr_num, branch)
+                if e2e_lines:
+                    output_lines.extend(e2e_lines)
                 # One-shot consumption (see self-correct SPAWN note above).
                 discarded_keys.add(event.get("_key", ""))
             else:
@@ -1496,9 +1502,15 @@ def _quick_stalled_scan():
                         if _spawn_gate(pr_num, "self-correct"):
                             cmds.append(f"STALLED: check-self-correct,pr={pr_num},branch={branch}")
                         continue
-                # Parent unresolved / no self-correct label → conservative review
+                # ── E2E scripted front-load (2026-08-14, plan ②) ──
+                # Parent unresolved / no self-correct label → review, but the
+                # E2E runner runs FIRST as a background script (zero agent
+                # calls). The orchestrator emits either progress lines
+                # (running) or SPAWN: review once the summary is harvested.
                 if _spawn_gate(pr_num, "review"):
-                    cmds.append(f"STALLED: check-review,pr={pr_num},branch={branch}")
+                    e2e_lines = e2e_orchestrator(pr_num, branch)
+                    if e2e_lines:
+                        cmds.extend(e2e_lines)
 
     return cmds
 
@@ -1755,6 +1767,121 @@ OPENCODE_CRITICAL_FILE = os.path.expanduser("~/.hermes/.opencode-critical")
 # comment) so a call-budget-exhausted agent never leaves a blocked PR with no
 # label / fix issue / comment (happened 2×: #466 then #475).
 REVIEW_CONCLUSIONS_DIR = os.path.expanduser("~/.hermes/review-conclusions")
+E2E_STATE_DIR = os.path.expanduser("~/.hermes/e2e-state")
+E2E_RUNNER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "run-e2e-review.sh")
+
+
+def _e2e_state_path(pr: int) -> str:
+    return os.path.join(E2E_STATE_DIR, f"{pr}.json")
+
+
+def _read_e2e_state(pr: int) -> dict:
+    try:
+        with open(_e2e_state_path(pr)) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+
+
+def _write_e2e_state(pr: int, data: dict) -> None:
+    try:
+        os.makedirs(E2E_STATE_DIR, exist_ok=True)
+        with open(_e2e_state_path(pr), "w") as f:
+            json.dump(data, f, indent=1)
+    except OSError:
+        pass
+
+
+def _pid_alive(pid: int) -> bool:
+    if not pid:
+        return False
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except (OSError, ProcessLookupError, ValueError):
+        return False
+
+
+def e2e_orchestrator(pr: int, branch: str) -> list:
+    """E2E scripted front-load (2026-08-14, plan ②).
+
+    Instead of spawning the review agent and letting IT run the E2E runner
+    (burning 30-40 of its 50-call budget on mechanical verification — the
+    root cause of review agents exhausting budget before labeling/commenting,
+    seen 2× on #466/#475), the event-processor orchestrates the runner as a
+    background SCRIPT (zero LLM calls) and hands the agent a ready summary.
+
+    State machine (persisted in ~/.hermes/e2e-state/<pr>.json):
+      absent        → launch runner in background, write {status: running}
+      running+alive → report progress ("still running Xm") — status is
+                       VISIBLE, so a long E2E on a big project never looks
+                       like a stall
+      running+dead  → read summary.json, transition to done/failed
+      done/failed   → emit SPAWN: review with e2e_summary=... for the agent
+                       to interpret (it does NOT re-run the runner)
+
+    Returns output lines for the tick.
+    """
+    lines = []
+    state = _read_e2e_state(pr)
+    status = state.get("status")
+
+    if status == "running":
+        if _pid_alive(int(state.get("pid") or 0)):
+            mins = int((time.time() - state.get("started_at", time.time())) / 60)
+            lines.append(f"E2E: pr={pr} still running ({mins}m) — {branch}")
+            return lines
+        # runner died — harvest result
+        summary = state.get("summary") or f"/tmp/e2e-{pr}/summary.json"
+        verdict = "done"
+        if os.path.exists(summary):
+            try:
+                with open(summary) as f:
+                    sd = json.load(f)
+                layers = sd.get("layers", {})
+                if any(v != "pass" for v in layers.values()):
+                    verdict = "failed"
+            except (json.JSONDecodeError, OSError):
+                verdict = "failed"
+        state["status"] = verdict
+        state["finished_at"] = time.time()
+        _write_e2e_state(pr, state)
+        lines.append(f"E2E: pr={pr} {verdict} (summary {summary})")
+        if verdict == "done":
+            lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={summary}")
+        return lines
+
+    if status in ("done", "failed"):
+        # already harvested — let stalled scan / event path emit review
+        return lines
+
+    # absent → launch background runner (--no-comment: evidence posted by
+    # review agent after interpreting, avoids double-posting)
+    try:
+        os.makedirs(E2E_STATE_DIR, exist_ok=True)
+        log_path = f"/tmp/e2e-{pr}-orchestrator.log"
+        runner = E2E_RUNNER
+        # nohup-style background launch via subprocess.Popen (detached)
+        import subprocess as _sp
+        proc = _sp.Popen(
+            ["bash", runner, str(pr), "--no-comment"],
+            stdout=open(log_path, "w"), stderr=_sp.STDOUT,
+            start_new_session=True,
+        )
+        _write_e2e_state(pr, {
+            "status": "running",
+            "pid": proc.pid,
+            "started_at": time.time(),
+            "branch": branch,
+            "summary": f"/tmp/e2e-{pr}/summary.json",
+            "log": log_path,
+        })
+        lines.append(f"E2E: pr={pr} started (pid {proc.pid}) — {branch} (log {log_path})")
+    except Exception as e:
+        lines.append(f"E2E: pr={pr} launch failed: {e}")
+        # fall back to agent-driven review so we never stall
+        lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch}")
+    return lines
 
 
 def _read_review_conclusions() -> list:

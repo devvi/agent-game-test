@@ -229,6 +229,16 @@ passed but three runtime bugs existed.
 
 **Standard path (Phase 1 shipped 2026-07-31, branch impl/e2e-local-verification): run `scripts/run-e2e-review.sh <N>`** — one call does worktree isolation + L0-L3 + real-render screenshots + 4-fold anti-fake assertions + evidence comment + trap cleanup. Archetypes (loop/journey/walkthrough/visual/scaffold), depth ladder, failure taxonomy, upload endpoints, and py3.9/3.11 + worktree pitfalls: `references/local-e2e-verification-protocol.md`. The manual recipe below is the fallback when the runner is unavailable.
 
+**E2E scripted front-load (2026-08-14, plan ②): if your SPAWN context includes `e2e_summary=<path>`**, the runner was ALREADY executed by the event-processor as a background script (zero of your calls spent on it). **DO NOT re-run `run-e2e-review.sh`** — read the summary JSON instead:
+
+```bash
+cat /tmp/e2e-<PR>/summary.json   # layers: L0_compile/L1_logic/L2_runtime/L3_visual = pass|fail
+ls /tmp/e2e-<PR>/shots/          # real rendered screenshots (evidence)
+cat /tmp/e2e-<PR>/L1-logic.log 2>/dev/null | tail -5   # if present
+```
+
+Interpret the layers (pass/fail per layer), classify failures (A infra / B pre-existing / C spec / D code), and spend your call budget on **judgment + conclusion**, not on running the harness. If the summary is missing or stale (e.g. predates the head commit), re-run the runner yourself once.
+
 **`--headless` CANNOT produce screenshots** — dummy rendering driver = zero pixels (`get_texture().get_image()` hangs on `await process_frame`; `--write-movie` writes nothing; verified Godot 4.7.1/macOS M1). To capture real frames proving "the game actually looks right and actually plays", use the real display driver (brief window flash — acceptable for low-frequency review):
 
 ```bash
