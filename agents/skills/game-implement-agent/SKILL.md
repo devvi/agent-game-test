@@ -53,7 +53,7 @@ git worktree remove "$WT" --force
 - ✅ merge 冲突: 脚本自动尝试合并, 失败则 abort + 报告, 不硬解
 - ⛔ **绝不 `gh pr merge`** (见下方 CRITICAL INVARIANT)
 
-> The **code generation phase** of the game dev pipeline. Triggered by `SPAWN: implement` from the cron poller. Reads DESIGN + PRD, generates test files FIRST, then implementation code, creates `impl/` PR. **This agent must NEVER merge its own PR.**
+> The **code generation phase** of the game dev pipeline. Runs as a **kanban worker** (2026-08-14): dispatcher spawns `hermes chat -q --skills game-implement-agent` when event-processor creates an `implement` task (OpenCode gate passed). Reads DESIGN + PRD, generates test files FIRST, then implementation code, creates `impl/` PR. **This agent must NEVER merge its own PR.**
 
 ## ⛔ CRITICAL INVARIANT: No Self-Merge
 

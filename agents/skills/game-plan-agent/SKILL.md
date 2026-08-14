@@ -46,6 +46,15 @@ git worktree remove "$WT" --force
 
 **This skill provides the standard prompt template and context structure for spawning a plan agent via `delegate_task`.**
 
+> **⚠️ 2026-08-14: `delegate_task` 调度已废弃。** You now run as a **kanban worker**
+> (dispatcher spawns `hermes chat -q --skills game-plan-agent`). The "When to
+> Use" / "Pre-Spawn" / "Delegate Task Context Template" sections below are kept
+> as **reference for the pre-checks and context fields** (PRD path discovery,
+> depth semantics, branch verification) — the spawning mechanism they describe
+> no longer applies. Your task body carries `Issue: #N / Stage: plan`; do the
+> checks yourself, then produce the DESIGN doc and PR as usual, and finish with
+> `kanban_complete`.
+
 ## When to Use
 
 - The cron poller receives a `SPAWN: plan,issue=N` or `P2: issues.labeled,issue=N,label=workflow/plan` instruction

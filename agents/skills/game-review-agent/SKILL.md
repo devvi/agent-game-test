@@ -35,11 +35,19 @@ hermes gateway restart
 
 ## How It's Triggered
 
-The review agent is NOT label-driven — it has no workflow label. It is triggered by:
+The review agent is NOT label-driven — it has no workflow label. It runs as a
+**kanban worker** (2026-08-14): the dispatcher spawns `hermes chat -q` with
+`--skills game-review-agent` when event-processor creates a `review` kanban
+task. Triggers:
 
-1. **`SPAWN: review`** — From `event-processor.py` script output, which processes `check_run.completed#N:success` events
-2. **Stalled PR detection** — When a stalled scan finds an `impl/*` PR with CI success but no review agent activity
-3. **`delegate_task`** — Spawned by the cron poller with full context
+1. **E2E done** — `e2e_orchestrator` harvests a passing summary → creates a
+   `review` task with `e2e_summary=<path>` (you read the summary, don't re-run)
+2. **Stalled PR detection** — stalled scan finds an `impl/*` PR with CI
+   success but no review activity → creates a `review` task
+3. **check_run.completed#N:success** — processed by event-processor → review task
+
+Your task body carries `Issue: #N / Stage: review / PR: #P / Branch: ...`.
+Finish with the conclusion file + `kanban_complete` (see Last-Action Rule).
 
 **⚠️ Operator race condition (2026-07-23):** The operator agent may merge implement PRs before the check_run webhook triggers this review agent. Two manifestations:
 
