@@ -914,8 +914,11 @@ def pick_next_issue() -> list:
             # itself right after promoting backlog → available — no longer
             # relying on the webhook echo round-trip. The shared gate dedups
             # against the webhook/reconcile label path.
+            # P3 (2026-08-14): kanban is the spawn channel; the text line is
+            # kept as an audit log only (no cron LLM consumes it anymore).
             if _spawn_gate(n, "research") or _dead_spawn_recovery(n, "research"):
                 spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
+                kanban_create_task("research", n)
     
     # Also emit SPAWN for issues at plan/implement/available with no PR yet
     issues = _ensure_issues_cache()
@@ -1378,6 +1381,11 @@ def preprocess():
                 # outranks the label in the per-issue group and is handled above).
                 # Attach the impl PR context + source so the self-correct agent
                 # knows which PR to fix and the cycle is attributable.
+                # P3: kanban is the spawn channel; the text line is kept as an
+                # audit log only. Enrich with PR context if this is a
+                # self-correct label path (both audit text and task body).
+                _kb_pr = 0
+                _kb_branch = ""
                 if stage == "self-correct":
                     try:
                         pr_json = gh(
@@ -1394,26 +1402,14 @@ def preprocess():
                             if isinstance(pr_info, list):
                                 pr_info = pr_info[0] if pr_info else None
                             if isinstance(pr_info, dict):
+                                _kb_pr = int(pr_info.get('number', issue_int))
+                                _kb_branch = pr_info.get('headRefName', '')
                                 spawn_line += (
-                                    f",pr={pr_info.get('number', issue_int)}"
-                                    f",branch={pr_info.get('headRefName', '')}"
-                                    ",source=local-e2e"
+                                    f",pr={_kb_pr},branch={_kb_branch},source=local-e2e"
                                 )
                     except Exception:
                         pass  # best-effort enrichment — bare label spawn stays valid
-                output_lines.append(spawn_line)
-                # P3: kanban-only spawn — create the task alongside the
-                # (now-legacy) text line so the dispatcher spawns the worker.
-                # Enrich with PR context if this is a self-correct label path.
-                _kb_pr = 0
-                _kb_branch = ""
-                if stage == "self-correct" and "," in spawn_line:
-                    m_pr = re.search(r"pr=(\d+)", spawn_line)
-                    m_br = re.search(r"branch=([^,]+)", spawn_line)
-                    if m_pr:
-                        _kb_pr = int(m_pr.group(1))
-                    if m_br:
-                        _kb_branch = m_br.group(1)
+                output_lines.append(spawn_line)  # audit log only
                 kanban_create_task(stage, issue_int, _kb_pr, _kb_branch)
                 # One-shot consumption (see check_run SPAWN note above).
                 discarded_keys.add(event.get("_key", ""))
@@ -1604,7 +1600,7 @@ def _quick_stalled_scan():
                 if _spawn_gate(pr_num, "unblock"):
                     cmds.extend(_scripted_check_unblock(pr_num, branch))
                 if parent_self_correct and _spawn_gate(pr_num, "self-correct"):
-                    cmds.append(f"STALLED: check-self-correct,pr={pr_num},branch={branch}")
+                    # P3: kanban-only self-correct spawn
                     kanban_create_task("self-correct", pr_num, pr_num, branch)
             else:
                 # Self-correct awareness: the parent issue was already flagged
@@ -1616,7 +1612,8 @@ def _quick_stalled_scan():
                     p_labels = _current_issue_labels(parent)
                     if "workflow/self-correct" in p_labels:
                         if _spawn_gate(pr_num, "self-correct"):
-                            cmds.append(f"STALLED: check-self-correct,pr={pr_num},branch={branch}")
+                            # P3: kanban-only self-correct spawn
+                            kanban_create_task("self-correct", pr_num, pr_num, branch)
                         continue
                 # ── E2E scripted front-load (2026-08-14, plan ②) ──
                 # Parent unresolved / no self-correct label → review, but the

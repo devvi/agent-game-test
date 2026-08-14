@@ -975,10 +975,13 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "gh", side_effect=fake_gh), \
              mock.patch.object(ep, "_extract_parent_issue", return_value=393), \
              mock.patch.object(ep, "_current_issue_labels",
-                               return_value=["workflow/self-correct"]):
+                               return_value=["workflow/self-correct"]), \
+             mock.patch.object(ep, "kanban_create_task",
+                               return_value="t_y") as m_kb460:
             cmds = ep._quick_stalled_scan()
-        self.assertTrue(any("STALLED: check-self-correct,pr=460" in c for c in cmds),
-                        f"self-correct-aware scan must emit check-self-correct: {cmds}")
+        self.assertTrue(any("STALLED: check-self-correct,pr=460" in c for c in cmds)
+                        or m_kb460.called,
+                        f"self-correct-aware scan must spawn self-correct: {cmds}")
         self.assertFalse(any("STALLED: check-review,pr=460" in c for c in cmds),
                          "must NOT emit check-review when parent is self-correcting")
 
@@ -1007,13 +1010,16 @@ class TestPreprocess(unittest.TestCase):
              mock.patch.object(ep, "_current_issue_labels",
                                return_value=["workflow/self-correct"]), \
              mock.patch.object(ep, "_scripted_check_unblock",
-                               return_value=["SCRIPT: waiting"]) as m_unblock:
+                               return_value=["SCRIPT: waiting"]) as m_unblock, \
+             mock.patch.object(ep, "kanban_create_task",
+                               return_value="t_z") as m_kb_475:
             cmds = ep._quick_stalled_scan()
         self.assertTrue(any("STALLED: check-unblock,pr=475" in c for c in cmds)
                         or m_unblock.called,
                         f"blocked PR must run unblock: {cmds}")
-        self.assertTrue(any("STALLED: check-self-correct,pr=475" in c for c in cmds),
-                        f"self-correct parent must ALSO emit check-self-correct: {cmds}")
+        self.assertTrue(any("STALLED: check-self-correct,pr=475" in c for c in cmds)
+                        or m_kb_475.called,
+                        f"self-correct parent must ALSO spawn self-correct: {cmds}")
 
     def test_stalled_scan_blocked_without_self_correct_only_unblock(self):
         """Blocked PR whose parent has NO self-correct label → only
