@@ -1821,26 +1821,55 @@ def _kanban_seen_persist() -> set:
     redundant work + potential conflicts. The kanban dispatcher already
     reclaims/retries tasks, so once a task exists we must NOT create another.
     """
-    try:
-        with open(_KANBAN_STATE_FILE) as f:
-            return {(k, v) for k, v in json.load(f).items()}
-    except (OSError, json.JSONDecodeError, ValueError):
-        return set()
+    with _kanban_state_lock():
+        try:
+            with open(_KANBAN_STATE_FILE) as f:
+                return {(k, v) for k, v in json.load(f).items()}
+        except (OSError, json.JSONDecodeError, ValueError):
+            return set()
+
+
+def _kanban_state_lock():
+    """Cross-process lock for the bridge state file.
+
+    2026-08-14 18:4x: multiple cron ticks call _kanban_seen_add concurrently;
+    read-modify-write without a lock races → early (issue,stage) records get
+    overwritten → duplicate tasks re-created (8 parallel workers on #475).
+    flock is advisory but sufficient since all writers are ours.
+    """
+    import contextlib
+    import fcntl
+
+    @contextlib.contextmanager
+    def _lock():
+        lock_path = _KANBAN_STATE_FILE + ".lock"
+        fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+        finally:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+            except Exception:
+                pass
+            os.close(fd)
+    return _lock()
 
 
 def _kanban_seen_add(issue: int, stage: str, task_id: str) -> None:
-    try:
-        d = {}
+    with _kanban_state_lock():
         try:
-            with open(_KANBAN_STATE_FILE) as f:
-                d = json.load(f)
-        except (OSError, json.JSONDecodeError, ValueError):
             d = {}
-        d[f"{issue}:{stage}"] = task_id
-        with open(_KANBAN_STATE_FILE, "w") as f:
-            json.dump(d, f)
-    except OSError:
-        pass
+            try:
+                with open(_KANBAN_STATE_FILE) as f:
+                    d = json.load(f)
+            except (OSError, json.JSONDecodeError, ValueError):
+                d = {}
+            d[f"{issue}:{stage}"] = task_id
+            with open(_KANBAN_STATE_FILE, "w") as f:
+                json.dump(d, f)
+        except OSError:
+            pass
 # Runner lives in the project scripts/ dir. When event-processor runs from the
 # cron copy (~/.hermes/scripts/), __file__ points there — the runner may not
 # be synced (2026-08-14: `bash: .../run-e2e-review.sh: No such file or
