@@ -930,6 +930,7 @@ def pick_next_issue() -> list:
             if existing is None or int(existing) == 0:
                 if _spawn_gate(n, "plan") or _dead_spawn_recovery(n, "plan"):
                     spawn_lines.append(f"SPAWN: plan,issue={n},label=workflow/plan")
+                    kanban_create_task("plan", n)
         elif "workflow/implement" in labels:
             existing = gh("pr", "list", "--state", "all",
                           "--search", f"head:impl/{n}- in:headRefName",
@@ -949,6 +950,7 @@ def pick_next_issue() -> list:
                         spawn_lines.append(f"BLOCKED: implement,issue={n},reason=opencode-down — workflow auto-paused, fix OpenCode Serve and `/workflow resume`")
                     else:
                         spawn_lines.append(f"SPAWN: implement,issue={n},label=workflow/implement")
+                        kanban_create_task("implement", n)
         elif "workflow/available" in labels:
             # Available rescan (2026-08-13): deterministic dead-agent recovery.
             # An issue stuck at workflow/available with no research PR (agent
@@ -962,6 +964,7 @@ def pick_next_issue() -> list:
                         or _dead_spawn_recovery(n, "research")
                         or _spawn_gate(n, "research-resend")):
                     spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
+                    kanban_create_task("research", n)
 
     return spawn_lines
 
@@ -1497,8 +1500,10 @@ def _quick_stalled_scan():
                     parent_self_correct = "workflow/self-correct" in p_labels
                 if _spawn_gate(pr_num, "unblock"):
                     cmds.append(f"STALLED: check-unblock,pr={pr_num},branch={branch}")
+                    kanban_create_task("unblock", pr_num, pr_num, branch)
                 if parent_self_correct and _spawn_gate(pr_num, "self-correct"):
                     cmds.append(f"STALLED: check-self-correct,pr={pr_num},branch={branch}")
+                    kanban_create_task("self-correct", pr_num, pr_num, branch)
             else:
                 # Self-correct awareness: the parent issue was already flagged
                 # workflow/self-correct by the review agent (local e2e failure,
@@ -1782,6 +1787,14 @@ OPENCODE_CRITICAL_FILE = os.path.expanduser("~/.hermes/.opencode-critical")
 # label / fix issue / comment (happened 2×: #466 then #475).
 REVIEW_CONCLUSIONS_DIR = os.path.expanduser("~/.hermes/review-conclusions")
 E2E_STATE_DIR = os.path.expanduser("~/.hermes/e2e-state")
+# ── Kanban scheduling bridge (2026-08-14 migration) ──────────────
+# Phase 2 (dual-run): every SPAWN/STALLED emit ALSO creates a kanban task so
+# the deterministic dispatcher spawns the worker (Popen hermes chat -q)
+# instead of relying on the cron LLM to translate text → delegate_task.
+# Phase 3: delete the text emit entirely.
+KANBAN_BRIDGE = os.environ.get("KANBAN_BRIDGE", "1") == "1"
+_KANBAN_BOARD = "default"
+_KANBAN_SEEN = set()  # (issue, stage) already created this process
 # Runner lives in the project scripts/ dir. When event-processor runs from the
 # cron copy (~/.hermes/scripts/), __file__ points there — the runner may not
 # be synced (2026-08-14: `bash: .../run-e2e-review.sh: No such file or
@@ -1890,6 +1903,7 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         lines.append(f"E2E: pr={pr} {verdict} (summary {summary})")
         if verdict == "done":
             lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={summary}")
+            kanban_create_task("review", pr, pr, branch, f"e2e_summary={summary}")
         return lines
 
     if status in ("done", "failed"):
@@ -1902,6 +1916,8 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         if status == "done" and not _read_review_conclusions_file(pr):
             if _spawn_gate(pr, "review-resend"):
                 lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={state.get('summary', '')}")
+                kanban_create_task("review", pr, pr, branch,
+                                   f"e2e_summary={state.get('summary', '')}")
         return lines
 
     # absent → launch background runner (--no-comment: evidence posted by
@@ -1951,6 +1967,65 @@ def _read_review_conclusions_file(pr: int) -> bool:
         return os.path.exists(os.path.join(REVIEW_CONCLUSIONS_DIR, f"{pr}.json"))
     except OSError:
         return False
+
+
+# ── Kanban task creation (P2 bridge) ─────────────────────────────
+# Stage → (skill, assignee) mapping. Worker is spawned by the kanban
+# dispatcher (Popen hermes chat -q --skills <skill>), NOT by the cron LLM.
+_KANBAN_STAGE_SKILL = {
+    "research": "game-research-agent",
+    "plan": "game-plan-agent",
+    "implement": "game-implement-agent",
+    "review": "game-review-agent",
+    "self-correct": "game-implement-agent",
+    "unblock": "game-review-agent",
+}
+
+
+def kanban_create_task(stage: str, issue: int, pr: int = 0,
+                       branch: str = "", extra: str = "") -> str:
+    """Create a kanban task for the given workflow stage (P2 bridge).
+
+    The kanban dispatcher picks it up and spawns a deterministic worker
+    (hermes chat -q with the stage's skill). Returns the task id, or "" if
+    the bridge is off / the task already exists this process (dedup).
+
+    Dedup: (issue, stage) per process via _KANBAN_SEEN — the dispatcher's
+    own reclaim/retry handles failures, so we must NOT spam creates.
+    """
+    if not KANBAN_BRIDGE:
+        return ""
+    key = (issue, stage)
+    if key in _KANBAN_SEEN:
+        return ""
+    skill = _KANBAN_STAGE_SKILL.get(stage, "")
+    if not skill:
+        return ""
+    body = (f"Issue: #{issue}\n"
+            f"Stage: {stage}\n"
+            + (f"PR: #{pr}\n" if pr else "")
+            + (f"Branch: {branch}\n" if branch else "")
+            + (f"{extra}\n" if extra else "")
+            + f"Run as the {skill} (see skill for full protocol). "
+              f"Complete this task with kanban_complete when done. "
+              f"NEVER merge PRs manually.")
+    title = f"{stage}: issue #{issue}" + (f" (PR #{pr})" if pr else "")
+    try:
+        r = subprocess.run(
+            ["hermes", "kanban", "create", title,
+             "--skill", skill, "--body", body,
+             "--assignee", "default", "--max-runtime", "3600"],
+            capture_output=True, text=True, timeout=30,
+        )
+        out = (r.stdout or "").strip()
+        import re as _re
+        m = _re.search(r"(t_[A-Za-z0-9]+)", out)
+        if m:
+            _KANBAN_SEEN.add(key)
+            return m.group(1)
+    except Exception:
+        pass
+    return ""
 
 
 def _read_review_conclusions() -> list:
