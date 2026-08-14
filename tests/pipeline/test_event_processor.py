@@ -1402,21 +1402,28 @@ class TestE2EOrchestrator(unittest.TestCase):
                              "failed E2E → no review spawn (goes to self-correct path)")
 
     def test_done_state_reemits_review_until_conclusion(self):
-        """2026-08-14: done state re-emits SPAWN: review every tick until a
-        review conclusion file exists (SPAWN may be swallowed by a busy cron).
-        With a conclusion file present, it stays silent."""
+        """2026-08-14: done state re-emits SPAWN: review (rate-limited by
+        review-resend gate) until a review conclusion file exists."""
         with tempfile.TemporaryDirectory() as td:
             state_dir = os.path.join(td, "state")
-            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir):
+            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir), \
+                 mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                                   os.path.join(td, "spawned.json")):
                 ep._write_e2e_state(475, {"status": "done", "pid": None,
                                           "summary": "/tmp/e2e-475/summary.json",
                                           "finished_at": time.time()})
-                # no conclusion file → re-emit
+                # no conclusion file → re-emit (first call passes gate)
                 with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR",
                                        os.path.join(td, "concl")):
                     lines = ep.e2e_orchestrator(475, "impl/x")
                 self.assertTrue(any("SPAWN: review" in l and "e2e_summary" in l for l in lines),
                                 f"done+no-conclusion must re-emit SPAWN: {lines}")
+                # within review-resend TTL (300s) → suppressed
+                with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR",
+                                       os.path.join(td, "concl")):
+                    lines1 = ep.e2e_orchestrator(475, "impl/x")
+                self.assertFalse(any("SPAWN: review" in l for l in lines1),
+                                 f"rate-limited within 5 min: {lines1}")
                 # conclusion file present → silent
                 os.makedirs(os.path.join(td, "concl"), exist_ok=True)
                 with open(os.path.join(td, "concl", "475.json"), "w") as f:

@@ -784,6 +784,7 @@ _SPAWN_TTL_BY_STAGE = {
     "plan": 3600,          # 60 min
     "implement": 3600,     # 60 min
     "self-correct": 1800,  # 30 min
+    "review-resend": 300,  # 5 min — E2E-done SPAWN re-emit rate limit
 }
 _SPAWN_TTL_SECONDS = _SPAWN_TTL_BY_STAGE["plan"]  # legacy uniform value (tests)
 
@@ -1510,19 +1511,16 @@ def _quick_stalled_scan():
                 # Parent unresolved / no self-correct label → review, but the
                 # E2E runner runs FIRST as a background script (zero agent
                 # calls). The orchestrator emits either progress lines
-                # (running) or SPAWN: review once the summary is harvested.
-                # Recovery: if the gate recorded review but the SPAWN was
-                # swallowed (cron busy / manual run — 2026-08-14 16:10 trace:
-                # manual orchestrator emit set gate, cron never saw it), re-emit
-                # after TTL/2 — unless E2E is still running (state=running).
-                _e2e = _read_e2e_state(pr_num)
-                if _spawn_gate(pr_num, "review") or (
-                    _dead_spawn_recovery(pr_num, "review")
-                    and _e2e.get("status") not in ("running",)
-                ):
-                    e2e_lines = e2e_orchestrator(pr_num, branch)
-                    if e2e_lines:
-                        cmds.extend(e2e_lines)
+                # (running), SPAWN: review (done, until a conclusion file
+                # appears), or nothing (failed).
+                # NOTE: the orchestrator is called UNCONDITIONALLY here — its
+                # done-branch re-emits SPAWN every tick until the review
+                # conclusion file exists (2026-08-14 16:10 trace: SPAWN
+                # swallowed by busy cron, gate TTL suppressed re-emission for
+                # 40 min). Gating would skip the done-branch re-emit.
+                e2e_lines = e2e_orchestrator(pr_num, branch)
+                if e2e_lines:
+                    cmds.extend(e2e_lines)
 
     return cmds
 
@@ -1891,15 +1889,14 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         return lines
 
     if status in ("done", "failed"):
-        # Already harvested. Re-emit SPAWN: review on every tick until a
-        # review conclusion file appears — the SPAWN may be swallowed by a
-        # busy cron (2026-08-14 16:10 trace: manual orchestrator emit set the
-        # gate, cron never executed the SPAWN, nothing re-emitted for 40 min).
-        # Idempotent: once the review agent writes
-        # ~/.hermes/review-conclusions/<pr>.json, review_followup() consumes
-        # it and this stops. failed stays silent (self-correct owns it).
-        if status == "done":
-            if not _read_review_conclusions_file(pr):
+        # Already harvested. Re-emit SPAWN: review until a review conclusion
+        # file appears — the SPAWN may be swallowed by a busy cron
+        # (2026-08-14 16:10 trace: SPAWN emitted, cron never executed it,
+        # nothing re-emitted for 40 min). Rate-limited by a dedicated
+        # "review-resend" gate (short TTL 300s) so we don't spam the cron
+        # prompt every tick. failed stays silent (self-correct owns it).
+        if status == "done" and not _read_review_conclusions_file(pr):
+            if _spawn_gate(pr, "review-resend"):
                 lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={state.get('summary', '')}")
         return lines
 
