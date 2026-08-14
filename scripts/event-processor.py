@@ -2215,6 +2215,16 @@ def kanban_create_task(stage: str, issue: int, pr: int = 0,
     """
     if not KANBAN_BRIDGE:
         return ""
+    # ── Closed-issue guard (2026-08-14) ───────────────────────────
+    # #401 (CLOSED research PR) kept getting re-spawned as implement tasks —
+    # 39 duplicates in 21 min during the dedup bug, then more after archive.
+    # A closed issue must NEVER get a new stage task (its lifecycle is over).
+    # Deterministic check; skip without creating.
+    try:
+        if _is_issue_closed(issue):
+            return ""
+    except Exception:
+        pass  # guard is best-effort
     key = (issue, stage)
     if key in _KANBAN_SEEN:
         try:
