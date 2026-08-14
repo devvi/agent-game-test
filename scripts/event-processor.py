@@ -1419,8 +1419,36 @@ def _quick_stalled_scan():
             # per-tick review re-spawn hole). Gate is the ONLY dedup —
             # review/self-correct each fire once per TTL per PR.
             if "status/blocked" in labels:
+                # ── Blocked PR handling (2026-08-14 rework) ──
+                # A blocked PR has TWO independent recovery paths that must
+                # coexist, not be mutually exclusive:
+                #
+                # 1. check-unblock: the PR is blocked on PRE-EXISTING main
+                #    failures tracked by a fix issue. Recovery = fix issue
+                #    merges → main green → remove status/blocked → update-branch.
+                #    The old check-unblock ran `godot run_tests.gd` and
+                #    unblocked on 0 FAILED — WRONG for visual/L3 blocks (logic
+                #    tests pass while rendering is broken). Now it checks the
+                #    fix issue's merged state instead (see cron prompt).
+                #
+                # 2. check-self-correct: the PR ALSO has its own code defects
+                #    (class D) that the review agent flagged via
+                #    workflow/self-correct on the parent issue. Those must be
+                #    fixed in the worktree by the self-correct agent — they do
+                #    NOT wait on the fix issue.
+                #
+                # Both are emitted when applicable. The self-correct path is
+                # independent and can proceed immediately (doesn't depend on
+                # the fix issue merging).
+                parent = _extract_parent_issue(pr_num)
+                parent_self_correct = False
+                if parent:
+                    p_labels = _current_issue_labels(parent)
+                    parent_self_correct = "workflow/self-correct" in p_labels
                 if _spawn_gate(pr_num, "unblock"):
                     cmds.append(f"STALLED: check-unblock,pr={pr_num},branch={branch}")
+                if parent_self_correct and _spawn_gate(pr_num, "self-correct"):
+                    cmds.append(f"STALLED: check-self-correct,pr={pr_num},branch={branch}")
             else:
                 # Self-correct awareness: the parent issue was already flagged
                 # workflow/self-correct by the review agent (local e2e failure,

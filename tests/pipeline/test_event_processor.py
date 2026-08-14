@@ -878,6 +878,60 @@ class TestPreprocess(unittest.TestCase):
         self.assertFalse(any("STALLED: check-review,pr=460" in c for c in cmds),
                          "must NOT emit check-review when parent is self-correcting")
 
+    def test_stalled_scan_blocked_plus_self_correct_both_emitted(self):
+        """2026-08-14 rework: a blocked PR whose parent ALSO has
+        workflow/self-correct must emit BOTH check-unblock AND
+        check-self-correct — the old code emitted only check-unblock
+        (blocked branch), stalling the PR's own code-defect fix forever.
+
+        Scenario: PR #475 blocked (pre-existing clear_color) + parent #466
+        flagged self-correct (assertion code defects)."""
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "pr" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 475, "headRefName": "impl/466-e2e-visual-regression",
+                     "mergeable": "MERGEABLE", "labels": [{"name": "status/blocked"}],
+                     "body": "Closes #466", "title": "feat(466)", "state": "OPEN"}
+                ])
+            return ""
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "gh", side_effect=fake_gh), \
+             mock.patch.object(ep, "_extract_parent_issue", return_value=466), \
+             mock.patch.object(ep, "_current_issue_labels",
+                               return_value=["workflow/self-correct"]):
+            cmds = ep._quick_stalled_scan()
+        self.assertTrue(any("STALLED: check-unblock,pr=475" in c for c in cmds),
+                        f"blocked PR must emit check-unblock: {cmds}")
+        self.assertTrue(any("STALLED: check-self-correct,pr=475" in c for c in cmds),
+                        f"self-correct parent must ALSO emit check-self-correct: {cmds}")
+
+    def test_stalled_scan_blocked_without_self_correct_only_unblock(self):
+        """Blocked PR whose parent has NO self-correct label → only
+        check-unblock (no spurious self-correct)."""
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "pr" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 475, "headRefName": "impl/466-e2e-visual-regression",
+                     "mergeable": "MERGEABLE", "labels": [{"name": "status/blocked"}],
+                     "body": "Closes #466", "title": "feat(466)", "state": "OPEN"}
+                ])
+            return ""
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "gh", side_effect=fake_gh), \
+             mock.patch.object(ep, "_extract_parent_issue", return_value=466), \
+             mock.patch.object(ep, "_current_issue_labels", return_value=["workflow/implement"]):
+            cmds = ep._quick_stalled_scan()
+        self.assertTrue(any("STALLED: check-unblock,pr=475" in c for c in cmds),
+                        f"blocked PR must emit check-unblock: {cmds}")
+        self.assertFalse(any("STALLED: check-self-correct,pr=475" in c for c in cmds),
+                         "no self-correct label → must NOT emit check-self-correct")
+
     # ── 2026-08-13 dependency-hole regression tests (#384/#390 trace) ──
     # Closed ≠ resolved: #384/#390 were closed early WITHOUT status/done while
     # their code only landed in the unmerged #444 — old logic treated them as
