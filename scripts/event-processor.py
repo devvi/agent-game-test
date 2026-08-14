@@ -929,7 +929,7 @@ def pick_next_issue() -> list:
                           "--jq", "length")
             if existing is None or int(existing) == 0:
                 if _spawn_gate(n, "plan") or _dead_spawn_recovery(n, "plan"):
-                    spawn_lines.append(f"SPAWN: plan,issue={n},label=workflow/plan")
+                    # P3: kanban-only spawn (see research branch comment)
                     kanban_create_task("plan", n)
         elif "workflow/implement" in labels:
             existing = gh("pr", "list", "--state", "all",
@@ -949,7 +949,7 @@ def pick_next_issue() -> list:
                         _pause_workflow(f"opencode-down (implement spawn blocked, issue {n})")
                         spawn_lines.append(f"BLOCKED: implement,issue={n},reason=opencode-down — workflow auto-paused, fix OpenCode Serve and `/workflow resume`")
                     else:
-                        spawn_lines.append(f"SPAWN: implement,issue={n},label=workflow/implement")
+                        # P3: kanban-only spawn
                         kanban_create_task("implement", n)
         elif "workflow/available" in labels:
             # Available rescan (2026-08-13): deterministic dead-agent recovery.
@@ -963,7 +963,10 @@ def pick_next_issue() -> list:
                 if (_spawn_gate(n, "research")
                         or _dead_spawn_recovery(n, "research")
                         or _spawn_gate(n, "research-resend")):
-                    spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
+                    # P3 (2026-08-14): kanban is the ONLY spawn channel.
+                    # The text SPAWN line is gone — kanban_create_task creates
+                    # the task and the dispatcher spawns the worker. No cron
+                    # LLM translation, no swallowed-SPAWN stall.
                     kanban_create_task("research", n)
 
     return spawn_lines
@@ -1198,10 +1201,8 @@ def preprocess():
                         parent_issue = int(m.group(1))
                 except Exception:
                     pass
-                output_lines.append(
-                    f"SPAWN: self-correct,issue={parent_issue},"
-                    f"pr={issue},branch={branch},conclusion={conclusion}"
-                )
+                # P3: kanban-only self-correct spawn
+                kanban_create_task("self-correct", parent_issue, issue, branch)
                 # SPAWN is one-shot: consume the event immediately. Keeping it
                 # in pending re-emits the SPAWN every tick → the cron LLM
                 # re-delegates every tick (3 research agents spawned for one
@@ -1401,6 +1402,19 @@ def preprocess():
                     except Exception:
                         pass  # best-effort enrichment — bare label spawn stays valid
                 output_lines.append(spawn_line)
+                # P3: kanban-only spawn — create the task alongside the
+                # (now-legacy) text line so the dispatcher spawns the worker.
+                # Enrich with PR context if this is a self-correct label path.
+                _kb_pr = 0
+                _kb_branch = ""
+                if stage == "self-correct" and "," in spawn_line:
+                    m_pr = re.search(r"pr=(\d+)", spawn_line)
+                    m_br = re.search(r"branch=([^,]+)", spawn_line)
+                    if m_pr:
+                        _kb_pr = int(m_pr.group(1))
+                    if m_br:
+                        _kb_branch = m_br.group(1)
+                kanban_create_task(stage, issue_int, _kb_pr, _kb_branch)
                 # One-shot consumption (see check_run SPAWN note above).
                 discarded_keys.add(event.get("_key", ""))
             else:
@@ -1795,6 +1809,38 @@ E2E_STATE_DIR = os.path.expanduser("~/.hermes/e2e-state")
 KANBAN_BRIDGE = os.environ.get("KANBAN_BRIDGE", "1") == "1"
 _KANBAN_BOARD = "default"
 _KANBAN_SEEN = set()  # (issue, stage) already created this process
+_KANBAN_STATE_FILE = os.path.expanduser("~/.hermes/kanban-bridge-state.json")
+
+
+def _kanban_seen_persist() -> set:
+    """Persistent (issue, stage) → task-id dedup across cron ticks.
+
+    2026-08-14: the in-process _KANBAN_SEEN resets every cron tick (each tick
+    is a fresh python process), so the bridge re-created duplicate kanban
+    tasks for the same (issue, stage) — 5 parallel workers on #475/#480,
+    redundant work + potential conflicts. The kanban dispatcher already
+    reclaims/retries tasks, so once a task exists we must NOT create another.
+    """
+    try:
+        with open(_KANBAN_STATE_FILE) as f:
+            return {(k, v) for k, v in json.load(f).items()}
+    except (OSError, json.JSONDecodeError, ValueError):
+        return set()
+
+
+def _kanban_seen_add(issue: int, stage: str, task_id: str) -> None:
+    try:
+        d = {}
+        try:
+            with open(_KANBAN_STATE_FILE) as f:
+                d = json.load(f)
+        except (OSError, json.JSONDecodeError, ValueError):
+            d = {}
+        d[f"{issue}:{stage}"] = task_id
+        with open(_KANBAN_STATE_FILE, "w") as f:
+            json.dump(d, f)
+    except OSError:
+        pass
 # Runner lives in the project scripts/ dir. When event-processor runs from the
 # cron copy (~/.hermes/scripts/), __file__ points there — the runner may not
 # be synced (2026-08-14: `bash: .../run-e2e-review.sh: No such file or
@@ -1902,7 +1948,7 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         _write_e2e_state(pr, state)
         lines.append(f"E2E: pr={pr} {verdict} (summary {summary})")
         if verdict == "done":
-            lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={summary}")
+            # P3: kanban-only review spawn
             kanban_create_task("review", pr, pr, branch, f"e2e_summary={summary}")
         return lines
 
@@ -1915,7 +1961,8 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         # prompt every tick. failed stays silent (self-correct owns it).
         if status == "done" and not _read_review_conclusions_file(pr):
             if _spawn_gate(pr, "review-resend"):
-                lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={state.get('summary', '')}")
+                # P3: kanban-only review spawn (rate-limited re-emit is
+                # handled by the persistent dedup + dispatcher reclaim)
                 kanban_create_task("review", pr, pr, branch,
                                    f"e2e_summary={state.get('summary', '')}")
         return lines
@@ -1963,8 +2010,8 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         lines.append(f"E2E: pr={pr} started (pid {proc.pid}) — {branch} (log {log_path})")
     except Exception as e:
         lines.append(f"E2E: pr={pr} launch failed: {e}")
-        # fall back to agent-driven review so we never stall
-        lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch}")
+        # fall back to kanban review spawn so we never stall
+        kanban_create_task("review", pr, pr, branch)
     return lines
 
 
@@ -2006,6 +2053,15 @@ def kanban_create_task(stage: str, issue: int, pr: int = 0,
     key = (issue, stage)
     if key in _KANBAN_SEEN:
         return ""
+    # Persistent dedup across cron ticks (2026-08-14): the dispatcher already
+    # owns reclaim/retry, so a task that exists (any status) must not be
+    # re-created. Only the terminal states (done/archived) allow re-create —
+    # a done task means the stage completed and the next cycle may need it
+    # again (e.g. review after self-correct pushes new commits).
+    seen = _kanban_seen_persist()
+    seen_key = f"{issue}:{stage}"
+    if seen_key in seen:
+        return ""
     skill = _KANBAN_STAGE_SKILL.get(stage, "")
     if not skill:
         return ""
@@ -2030,6 +2086,7 @@ def kanban_create_task(stage: str, issue: int, pr: int = 0,
         m = _re.search(r"(t_[A-Za-z0-9]+)", out)
         if m:
             _KANBAN_SEEN.add(key)
+            _kanban_seen_add(issue, stage, m.group(1))
             return m.group(1)
     except Exception:
         pass
