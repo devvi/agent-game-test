@@ -145,3 +145,54 @@ class TestDeadlinePassthrough(unittest.TestCase):
         }
         resolved = rp.resolve(plan, ["mini-pong/gdscripts/ball.gd"])
         self.assertEqual(resolved["max_wall_seconds"], 120)
+
+
+class TestConfirmUpgradePassthrough(unittest.TestCase):
+    """#495: autoplay.confirm_upgrade must survive resolution untouched.
+
+    resolve_plan.py already passes the whole autoplay block through via
+    _PASSTHROUGH (line 24) — this test LOCKS that behavior so a future
+    refactor that strips unknown keys inside autoplay (or drops the block)
+    breaks loudly instead of silently breaking e2e_capture.gd's
+    _confirm_upgrade_if_visible(). Plans WITHOUT confirm_upgrade must not
+    gain the key either (template backward compat: absent config == current
+    behavior byte-for-byte).
+    """
+
+    def test_confirm_upgrade_passthrough(self):
+        plan = {
+            "game": "mini-pong",
+            "default_archetype": "loop",
+            "max_wall_seconds": 120,
+            "autoplay": {
+                "mode": "ai",
+                "confirm_upgrade": {
+                    "node": "/root/Game/UpgradePickUI",
+                    "action": "ui_accept",
+                },
+                "tweaks": [
+                    {"node": "/root/Game/PlayerPaddle", "prop": "mode", "value": 1},
+                ],
+            },
+            "groups": {"loop": {"match": [r"gdscripts/.*\.gd"],
+                                "shots": [{"name": "01_title", "state": "MENU"}]}},
+        }
+        resolved = rp.resolve(plan, ["mini-pong/gdscripts/ball.gd"])
+        self.assertEqual(
+            resolved["autoplay"]["confirm_upgrade"],
+            {"node": "/root/Game/UpgradePickUI", "action": "ui_accept"})
+        # the rest of the autoplay block is untouched too
+        self.assertEqual(resolved["autoplay"]["mode"], "ai")
+        self.assertEqual(len(resolved["autoplay"]["tweaks"]), 1)
+
+    def test_plan_without_confirm_upgrade_gains_no_key(self):
+        plan = {
+            "game": "mini-pong",
+            "default_archetype": "loop",
+            "autoplay": {"mode": "ai", "tweaks": []},
+            "groups": {"loop": {"match": [r"gdscripts/.*\.gd"],
+                                "shots": [{"name": "01_title", "state": "MENU"}]}},
+        }
+        resolved = rp.resolve(plan, ["mini-pong/gdscripts/ball.gd"])
+        self.assertNotIn("confirm_upgrade", resolved["autoplay"])
+        self.assertEqual(resolved["autoplay"]["mode"], "ai")

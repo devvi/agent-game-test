@@ -9,6 +9,7 @@
   "theme_color": "4a90d9",
   "autoplay": {
     "mode": "ai",
+    "confirm_upgrade": { "node": "/root/Game/UpgradePickUI", "action": "ui_accept" },
     "tweaks": [
       { "node": "/root/Game/PlayerPaddle", "prop": "mode", "value": 1 },
       { "node": "/root/Game/AIPaddle", "prop": "mode", "value": 1 },

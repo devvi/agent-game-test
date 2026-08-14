@@ -19,7 +19,11 @@ extends SceneTree
 ##   "state_node": "/root/Main/GameStateMachine",
 ##   "state_property": "current_state",
 ##   "states": {"MENU": 0, "SERVING": 1, "PLAYING": 2, "PAUSED": 3, "SCORED": 4, "GAME_OVER": 5},
-##   "autoplay": {"tweaks": [{"node": "/root/Main/AIPaddle", "prop": "ai_position_error", "value": 60}]},
+##   "autoplay": {"confirm_upgrade": {"node": "/root/Game/UpgradePickUI", "action": "ui_accept"},
+##                "tweaks": [{"node": "/root/Main/AIPaddle", "prop": "ai_position_error", "value": 60}]},
+##   confirm_upgrade (optional): node path + input action; every frame the capture
+##   loop injects one momentary action event while the node is visible (auto-confirms
+##   upgrade-pick windows that pause the tree — #495). Absent → no injection (backward compat).
 ##   "transcript": {"node": "/root/Main/GameHUD/DialogueLabel", "prop": "text"} | null,
 ##   "state_trajectory": true,
 ##   "shots": [
@@ -111,6 +115,7 @@ func _run() -> void:
 		_frame += 1
 		_track_state_trajectory()
 		_track_transcript()
+		_confirm_upgrade_if_visible()
 
 		var still_pending: Array = []
 		for shot in pending:
@@ -343,6 +348,33 @@ func _apply_tweaks() -> void:
 			continue
 		node.set(str(d.get("prop", "")), d.get("value"))
 		print("tweak: ", d.get("node"), ".", d.get("prop"), " = ", d.get("value"))
+
+
+func _emit_action_event(action_name: String) -> void:
+	## 注入一次 action 级 InputEvent（pressed=true，momentary）。
+	## #495 裁决 1：不能用 Input.action_press —— 只置状态不发事件，事件驱动
+	## 的 _unhandled_input 收不到（模板 :164-168 既有注释 + L2 _feed_accept 先例）。
+	var ev := InputEventAction.new()
+	ev.action = action_name
+	ev.pressed = true
+	Input.parse_input_event(ev)
+
+
+func _confirm_upgrade_if_visible() -> void:
+	## #495 Approach A：配置驱动的升级窗口自动确认。
+	## 每帧调用；plan.autoplay.confirm_upgrade = {"node": ..., "action": ...}。
+	## 缺省（未配置）→ 直接返回，行为与现状逐字节一致（模板兼容红线）。
+	## 节点不可达 → printerr 告警一次（fail-open，不崩）。
+	var cfg: Dictionary = _plan.get("autoplay", {}).get("confirm_upgrade", {})
+	if cfg.is_empty():
+		return
+	var node = root.get_node_or_null(str(cfg.get("node", "")))
+	if node == null:
+		printerr("⚠ confirm_upgrade node not found: ", cfg.get("node", ""))
+		return
+	var v = node.get("visible")
+	if v != null and bool(v):
+		_emit_action_event(str(cfg.get("action", "ui_accept")))
 
 
 # ── Journey traces (transcript + state trajectory) ─────────────────────────
