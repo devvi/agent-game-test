@@ -1511,7 +1511,15 @@ def _quick_stalled_scan():
                 # E2E runner runs FIRST as a background script (zero agent
                 # calls). The orchestrator emits either progress lines
                 # (running) or SPAWN: review once the summary is harvested.
-                if _spawn_gate(pr_num, "review"):
+                # Recovery: if the gate recorded review but the SPAWN was
+                # swallowed (cron busy / manual run — 2026-08-14 16:10 trace:
+                # manual orchestrator emit set gate, cron never saw it), re-emit
+                # after TTL/2 — unless E2E is still running (state=running).
+                _e2e = _read_e2e_state(pr_num)
+                if _spawn_gate(pr_num, "review") or (
+                    _dead_spawn_recovery(pr_num, "review")
+                    and _e2e.get("status") not in ("running",)
+                ):
                     e2e_lines = e2e_orchestrator(pr_num, branch)
                     if e2e_lines:
                         cmds.extend(e2e_lines)
@@ -1883,7 +1891,16 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         return lines
 
     if status in ("done", "failed"):
-        # already harvested — let stalled scan / event path emit review
+        # Already harvested. Re-emit SPAWN: review on every tick until a
+        # review conclusion file appears — the SPAWN may be swallowed by a
+        # busy cron (2026-08-14 16:10 trace: manual orchestrator emit set the
+        # gate, cron never executed the SPAWN, nothing re-emitted for 40 min).
+        # Idempotent: once the review agent writes
+        # ~/.hermes/review-conclusions/<pr>.json, review_followup() consumes
+        # it and this stops. failed stays silent (self-correct owns it).
+        if status == "done":
+            if not _read_review_conclusions_file(pr):
+                lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={state.get('summary', '')}")
         return lines
 
     # absent → launch background runner (--no-comment: evidence posted by
@@ -1924,6 +1941,15 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         # fall back to agent-driven review so we never stall
         lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch}")
     return lines
+
+
+def _read_review_conclusions_file(pr: int) -> bool:
+    """True if a pending review-conclusion file exists for this PR."""
+    try:
+        os.makedirs(REVIEW_CONCLUSIONS_DIR, exist_ok=True)
+        return os.path.exists(os.path.join(REVIEW_CONCLUSIONS_DIR, f"{pr}.json"))
+    except OSError:
+        return False
 
 
 def _read_review_conclusions() -> list:
