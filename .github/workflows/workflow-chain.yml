@@ -92,6 +92,29 @@ jobs:
               'status/human-review': null,
             };
 
+            // ── Blocked guard (2026-08-14, global review) ───────────────
+            // The review agent refuses to merge a blocked PR (SKILL.md: the
+            // fix-issue unblock is the ONLY path). But that is a soft guard —
+            // an LLM agent can misjudge or exhaust its budget. This Action is
+            // the deterministic backstop: if the parent issue carries
+            // status/blocked, a merged impl PR must NOT advance to done/close
+            // — the issue stays open, blocked, waiting for its fix issue.
+            // (Fix issues themselves are normal issues; their PRs advance
+            // normally. Only the BLOCKED parent is protected.)
+            const parentIsBlocked = parentLabels.includes('status/blocked');
+            if (parentIsBlocked && nextLabel === 'status/done') {
+              console.log(`PR #${pr.number} merged → Issue #${parentNumber} is status/blocked — NOT closing (waiting fix issue)`);
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parentNumber,
+                body: `⏸ PR #${pr.number} merged 但 Issue 仍 status/blocked — 不 close,等待 fix issue 合并后由 unblock 流程解除。`,
+              });
+              // keep workflow/implement on (blocked is orthogonal); the
+              // unblock script removes status/blocked when the fix merges
+              return;
+            }
+
             const nextLabel = nextStage[activeLabel];
 
             if (isParentHumanReview) {
