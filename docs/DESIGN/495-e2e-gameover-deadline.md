@@ -253,11 +253,11 @@ plan.autoplay 无 confirm_upgrade → cfg.is_empty() → _confirm_upgrade_if_vis
 
 | 集成 | 我方组件 | 目标 Issue/系统 | 方式 | 状态 |
 |------|:---:|:---:|------|:---:|
-| capture → UpgradePickUI | `_confirm_upgrade_if_visible` + `_emit_action_event` | #388 三态机 | 每帧 visible 检测 → InputEventAction(ui_accept) → `_unhandled_input` SELECTING 确认 | ⬜ 新增 |
+| capture → UpgradePickUI | `_confirm_upgrade_if_visible` + `_emit_action_event` | #388 三态机 | 每帧 visible 检测 → InputEventAction(ui_accept) → `_unhandled_input` SELECTING 确认 | ✅ 已接线（PR #498） |
 | e2e_shots.json → resolve_plan | `autoplay.confirm_upgrade` | resolve_plan.py `_PASSTHROUGH`（:24 已含 autoplay） | 整块透传，零改动（implement 验证） | ✅ 已有 |
-| resolve → capture plan.json | 透传的 confirm_upgrade | e2e_capture.gd `_plan` | capture 读取 `autoplay.confirm_upgrade` | ⬜ 新增 |
-| 冻结解除 → 03_gameover | 主循环每帧确认 | #372 per-shot deadline | GAME_OVER 可达（实测 93.7s < 300s）→ shot ready | ⬜ 新增 |
-| pipeline 测试 | test_e2e_resolve.py +1 用例 | resolve_plan.py 契约 | 透传锁定（§9 Scenario A） | ⬜ 新增 |
+| resolve → capture plan.json | 透传的 confirm_upgrade | e2e_capture.gd `_plan` | capture 读取 `autoplay.confirm_upgrade` | ✅ 已接线（PR #498） |
+| 冻结解除 → 03_gameover | 主循环每帧确认 | #372 per-shot deadline | GAME_OVER 可达（实测 27.9s/38s/56s 三次全捕获 < 300s）→ shot ready | ✅ 已接线（PR #498） |
+| pipeline 测试 | test_e2e_resolve.py +1 用例 | resolve_plan.py 契约 | 透传锁定（§9 Scenario A） | ✅ 已接线（PR #498） |
 | 文档回填 | docs/DESIGN/394 L3 一行 + docs/PROJECT.md known-issue | PRD §3.5 | 实现 PR merge 后 review agent 增量更新 | ⬜ 延后 |
 
 **并行安全（PR #494）：** #494 改 e2e_shots.json 的 shots 组（+02_rain_light/heavy）与 run-e2e-review.sh（missed 检查）；本设计改 autoplay 块 + 模板 + 测试文件。JSON 同文件不同键区，git 三路合并可自动处理；冲突时以 merge 后为准 rebase（PRD §6.3）。
