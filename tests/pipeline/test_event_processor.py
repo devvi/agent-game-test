@@ -19,6 +19,12 @@ import time
 import unittest
 from unittest import mock
 
+# Kanban bridge is OFF in tests — kanban_create_task() must not shell out to
+# `hermes kanban create` (would pollute the real board with phantom tasks and
+# trigger dispatcher spawns). Tests assert the text SPAWN lines; the bridge is
+# covered by its own unit tests with subprocess mocked.
+os.environ["KANBAN_BRIDGE"] = "0"
+
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 _SCRIPT_PATH = os.path.join(_REPO_ROOT, "scripts", "event-processor.py")
 
