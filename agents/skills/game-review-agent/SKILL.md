@@ -608,32 +608,6 @@ When the review agent blocks a PR due to pre-existing failures on main, **that b
 
 See `references/pre-existing-failure-block-bypass-trace.md` for the 2026-07-30 failure trace that motivated this rule (2 PRs merged with `status/blocked` still on, 5 pre-existing failures unfixed).
 
-### ⚠️ Unblock-Worker Mode: NO Judgment, NO Fix-Issue Creation (2026-08-14)
-
-When your kanban task body says `Stage: unblock`, you are running as an
-**unblock worker** — a mechanical check, NOT a review. Your scope is:
-
-```
-1. Find the fix issue(s) blocking this PR (PR comment "Blocked → tracked by #FIX",
-   or gh issue list --search "pre-existing in:title").
-2. gh issue view <FIX> --json state,labels:
-   - NOT closed/status/done → keep status/blocked, output "⏳ waiting fix #FIX", DONE.
-   - CLOSED (merged) → verify main is green (godot run_tests.gd, 0 FAILED) →
-     remove status/blocked from PR + parent → gh pr update-branch → DONE.
-3. kanban_complete with a one-line summary. THAT'S IT.
-```
-
-**You MUST NOT:**
-- classify failures (A/B/C/D) — that is the review worker's job
-- create fix issues — if you discover a NEW pre-existing failure during the
-  check, STOP and report it in kanban_complete ("found new pre-existing: …"),
-  do NOT create an issue. The next review round will batch-expose it.
-- post review comments, merge PRs, or re-run the full E2E.
-
-The 2026-08-14 #466/#475 chain showed unblock workers creating fix issues
-(#485) and racing the review worker — two judges, conflicting verdicts,
-block/unblock thrash. **One judge only: the review worker.**
-
 ### Block Follow-Through: Creating a Fix Issue
 
 After blocking a PR, the review agent must create a **fix issue** so the pre-existing failures have an owner and enter the normal pipeline. This prevents the block from becoming permanent deadlock — the fix issue goes through research → plan → implement → merge, main turns green, and blocked PRs auto-unblock.

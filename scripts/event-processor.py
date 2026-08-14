@@ -2150,7 +2150,6 @@ _KANBAN_STAGE_SKILL = {
     "implement": "game-implement-agent",
     "review": "game-review-agent",
     "self-correct": "game-implement-agent",
-    "unblock": "game-review-agent",
 }
 
 
@@ -2231,7 +2230,7 @@ def _kanban_stage_parent(stage: str, issue: int) -> str:
                 if tid:
                     return tid
         # unblock/self-correct wait on the review task (they react to its verdict)
-        if stage in ("unblock", "self-correct"):
+        if stage == "self-correct":
             tid = seen.get(f"{issue}:review")
             if tid:
                 return tid
