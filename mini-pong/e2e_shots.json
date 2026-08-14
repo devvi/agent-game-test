@@ -77,6 +77,7 @@
           "settle_frames": 5,
           "visual": {
             "canvas": "720x1280",
+            "bg_sample": true,
             "bg_color": "0a0a12",
             "bg_min_dist": 24,
             "rain_bg_min_dist": 24,
@@ -87,7 +88,7 @@
                 "y0": 1220,
                 "x1": 720,
                 "y1": 1260,
-                "min_nonbg_ratio": 0.05
+                "min_nonbg_ratio": 0.025
               },
               {
                 "name": "brick",

@@ -562,5 +562,220 @@ class TestVisualRegionAssertions(unittest.TestCase):
         self.assertEqual(an.rain_grid_coverage(rows2, 4, 2, grid=2, step=1), 0.0)
 
 
+class TestDynamicBgSampling(unittest.TestCase):
+    """#485: dynamic bg sampling (DESIGN 485 §1.2 Approach B) — BgPulse 相位
+    鲁棒。bg_sample=true 时从 R_bg 角落区实测背景色替代静态 bg_color →
+    exclude_buckets / region_stats / rain 全用实测 bg_ref: 三区 pair dist 任意
+    相位 >= 60 (AC3), 脉冲背景不再被判为 rain 100% 覆盖 (AC2), paddle 阈值按
+    实测回填 0.025 (PRD §4.4)。RED 状态: sample_bg_color / _resolve_bg 尚不
+    存在 (调用时 AttributeError 为期望红信号), 实现单独落地。
+    """
+
+    # BgPulse alpha ∈ {0.01,0.05,0.08,0.13,0.15} → 渲染 bg 五相位
+    # (DESIGN 485 §5.1 AC3 夹具; 数学核算 PRD §7 实验 1)
+    _PHASES = [
+        (11, 11, 20), (13, 17, 28), (15, 21, 34), (18, 27, 44), (20, 30, 48),
+    ]
+
+    # ── Scenario F: 5-phase three-region separation (AC3) ──
+
+    def _three_region_frame(self, bg):
+        """Scenario F 布局: 青色板 (300,1230)-(420,1250) + 橙色砖条
+        (0,600)-(720,680); 角落 R_bg (0,0)-(60,60) 由 make_png_fast 的 bg 参数
+        填充（无需显式 rect）→ 采样区纯净。"""
+        return make_png_fast(
+            720, 1280, bg=bg,
+            rects=[(300, 1230, 420, 1250, PADDLE_CYAN),
+                   (0, 600, 720, 680, BRICK_ORANGE)])
+
+    def test_f_high_phase_key_case(self):
+        # AC3 关键帧（复现帧 959 ≈ alpha 0.13 → bg=(18,27,44)）: 动态采样
+        # bg_ref=#121b2c 并出现在 --json detail; 三区 pair dist 全 >= 60 →
+        # rc=0（旧逻辑静态排除桶 (1,1,2) 泄漏 → dist 0 → 假 fail）。
+        with tempfile.TemporaryDirectory() as td:
+            png = self._three_region_frame((18, 27, 44))
+            r = _run_visual(td, png, _visual_config(bg_sample=True), "--json")
+            self.assertEqual(r.returncode, 0, r.stdout)
+            payload = json.loads(r.stdout.strip().splitlines()[-1])
+            v = payload["visual"]
+            self.assertEqual(v["bg_ref"], "#121b2c")  # (18,27,44) hex
+            self.assertIs(v["bg_sample"], True)
+            self.assertGreaterEqual(v["pairs"]["paddle|brick"]["dist"], 60)
+            self.assertGreaterEqual(v["pairs"]["paddle|bg"]["dist"], 60)
+            self.assertGreaterEqual(v["pairs"]["brick|bg"]["dist"], 60)
+
+    def test_f_five_phase_no_collapse(self):
+        # 核心 AC3 证据: 5 个 BgPulse 相位全部三区 pair dist >= 60 → 无相位
+        # 塌缩（旧逻辑高相位恒 dist 0）。
+        with tempfile.TemporaryDirectory() as td:
+            for bg in self._PHASES:
+                with self.subTest(bg=bg):
+                    png = self._three_region_frame(bg)
+                    r = _run_visual(td, png,
+                                    _visual_config(bg_sample=True), "--json")
+                    self.assertEqual(r.returncode, 0, r.stdout)
+                    payload = json.loads(r.stdout.strip().splitlines()[-1])
+                    v = payload["visual"]
+                    self.assertGreaterEqual(
+                        v["pairs"]["paddle|brick"]["dist"], 60)
+                    self.assertGreaterEqual(v["pairs"]["paddle|bg"]["dist"], 60)
+                    self.assertGreaterEqual(v["pairs"]["brick|bg"]["dist"], 60)
+
+    def test_f_same_as_bg_still_fails(self):
+        # AC5 反向: 板与砖都涂成背景色 → 动态 bg 下断言不得软化, 仍必须失败
+        # (pair dist 0 < 60 → "RGB dist" 消息)。
+        with tempfile.TemporaryDirectory() as td:
+            png = make_png_fast(
+                720, 1280, bg=(18, 27, 44),
+                rects=[(300, 1230, 420, 1250, (18, 27, 44)),
+                       (0, 600, 720, 680, (18, 27, 44))])
+            r = _run_visual(td, png, _visual_config(bg_sample=True))
+            self.assertEqual(r.returncode, 1, r.stdout)
+            self.assertIn("RGB dist", r.stdout)
+
+    # ── Scenario G: rain 非假阳性 (AC2) ──
+
+    def test_g_pulsed_bg_no_rain_fails_clean(self):
+        # AC2 核心负例: 高相位纯脉冲背景(无雨) → 旧逻辑覆盖率≈100% 假阳性;
+        # 动态 bg_ref 下脉冲背景 dist≈0 被排除 → coverage≈0 < 0.60 → 诚实失败。
+        with tempfile.TemporaryDirectory() as td:
+            png = make_png_fast(720, 1280, bg=(18, 27, 44))
+            cfg = _visual_config(bg_sample=True, regions=[], compare_pairs=[],
+                                 rain={"grid": 12, "min_coverage": 0.60})
+            r = _run_visual(td, png, cfg, "--json")
+            self.assertEqual(r.returncode, 1, r.stdout)
+            self.assertIn("rain", r.stdout)
+            payload = json.loads(r.stdout.strip().splitlines()[-1])
+            cov = payload["visual"]["rain"]["coverage"]
+            self.assertGreaterEqual(cov, 0.0)
+            self.assertLess(cov, 0.05)
+
+    def test_g_real_rain_curtain_passes(self):
+        # 真实雨幕: 高相位 bg + 全屏雨滴 → 雨滴 dist(bg_ref)≈50 >= 24 保留 →
+        # coverage 100% >= 60% → 通过。
+        with tempfile.TemporaryDirectory() as td:
+            png = make_png_fast(720, 1280, bg=(18, 27, 44),
+                                points=TestVisualRegionAssertions._rain_points(
+                                    everywhere=True))
+            cfg = _visual_config(bg_sample=True, regions=[], compare_pairs=[],
+                                 rain={"grid": 12, "min_coverage": 0.60})
+            r = _run_visual(td, png, cfg)
+            self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_g_low_phase_symmetry(self):
+        # 低相位对称: (11,11,20) + 雨 → 过; (11,11,20) 无雨 → fail (非假阳性)
+        with tempfile.TemporaryDirectory() as td:
+            with_rain = make_png_fast(
+                720, 1280, bg=(11, 11, 20),
+                points=TestVisualRegionAssertions._rain_points(everywhere=True))
+            r = _run_visual(td, with_rain,
+                            _visual_config(bg_sample=True, regions=[],
+                                           compare_pairs=[],
+                                           rain={"grid": 12,
+                                                 "min_coverage": 0.60}))
+            self.assertEqual(r.returncode, 0, r.stdout)
+            no_rain = make_png_fast(720, 1280, bg=(11, 11, 20))
+            r = _run_visual(td, no_rain,
+                            _visual_config(bg_sample=True, regions=[],
+                                           compare_pairs=[],
+                                           rain={"grid": 12,
+                                                 "min_coverage": 0.60}))
+            self.assertEqual(r.returncode, 1, r.stdout)
+            self.assertIn("rain", r.stdout)
+
+    # ── Scenario H: 采样退化 / 污染 / 兼容 / 配置错误 (纯函数级) ──
+
+    def test_h_sampling_degradation_fallback(self):
+        # 退化兜底 (DESIGN 485 §5.2-2): 角落全近黑 → sample_bg_color None →
+        # _resolve_bg 降级静态 bg_color (10,10,18) + exclude_buckets 含 (0,0,1)
+        with tempfile.TemporaryDirectory() as td:
+            p = write_png(td, "nb.png", make_png_fast(8, 8, bg=BG_DARK))
+            _w, _h, rows = an._read_png(p)
+            self.assertIsNone(an.sample_bg_color(rows, 0, 0, 8, 8))
+
+            p = write_png(td, "nb64.png", make_png_fast(64, 64, bg=BG_DARK))
+            _w, _h, rows = an._read_png(p)
+            vcfg = _visual_config(bg_sample=True)
+            bg_eff, exclude_buckets = an._resolve_bg(vcfg, rows)
+            self.assertEqual(bg_eff, BG_REAL)  # 静态 #0a0a12 兜底
+            self.assertIn((0, 0, 1), exclude_buckets)
+
+    def test_h_polluted_corner_fails_not_silent(self):
+        # 角落采样污染负例 (DESIGN 485 §5.2-1): R_bg 角落 >50% 青色 → bg_ref
+        # 失真 → 行为必须确定且 NOT 静默通过 (rc=1 + "RGB dist")。
+        with tempfile.TemporaryDirectory() as td:
+            png = make_png_fast(
+                720, 1280, bg=(18, 27, 44),
+                rects=[(0, 0, 60, 35, PADDLE_CYAN),   # 35/60 行 = 58% 青
+                       (300, 1230, 420, 1250, PADDLE_CYAN),
+                       (0, 600, 720, 680, BRICK_ORANGE)])
+            r = _run_visual(td, png, _visual_config(bg_sample=True))
+            self.assertEqual(r.returncode, 1, r.stdout)
+            self.assertIn("RGB dist", r.stdout)
+
+    def test_h_no_bg_sample_backward_compat(self):
+        # bg_sample 缺省 → 完全旧行为: 静态 bg 帧通过, 且 --json 不新增
+        # bg_ref / bg_sample 键 (向后兼容红线)。
+        with tempfile.TemporaryDirectory() as td:
+            png = make_png_fast(720, 1280, bg=BG_REAL,
+                                rects=[(300, 1230, 420, 1250, PADDLE_CYAN),
+                                       (0, 600, 720, 680, BRICK_ORANGE)])
+            r = _run_visual(td, png, _visual_config(), "--json")
+            self.assertEqual(r.returncode, 0, r.stdout)
+            payload = json.loads(r.stdout.strip().splitlines()[-1])
+            self.assertNotIn("bg_ref", payload["visual"])
+            self.assertNotIn("bg_sample", payload["visual"])
+
+    def test_h_config_error_missing_bg_region(self):
+        # bg_sample=true 但 regions 无 'bg' 区 → 配置错误显式失败
+        with tempfile.TemporaryDirectory() as td:
+            cfg = _visual_config(bg_sample=True, regions=[
+                {"name": "paddle", "x0": 0, "y0": 1220, "x1": 720,
+                 "y1": 1260, "min_nonbg_ratio": 0.05},
+                {"name": "brick", "x0": 0, "y0": 560, "x1": 720,
+                 "y1": 720}], compare_pairs=[])
+            r = _run_visual(td, make_png_fast(720, 1280), cfg)
+            self.assertEqual(r.returncode, 1, r.stdout)
+            self.assertIn("bg_sample requires a region named 'bg'", r.stdout)
+
+    # ── Scenario I: paddle 阈值校准 0.025 (PRD §4.4 实测回填) ──
+    # 全宽 720x40 区域 = 28800px; 校准阈值 0.025 (实测 3.5% 下方留安全边际):
+    # 8.5% → 过 / 0% → fail / 4.2% 边界 → 过。
+
+    def _paddle_config(self):
+        return _visual_config(bg_sample=True, regions=[
+            {"name": "paddle", "x0": 0, "y0": 1220, "x1": 720,
+             "y1": 1260, "min_nonbg_ratio": 0.025},
+            {"name": "brick", "x0": 0, "y0": 560, "x1": 720, "y1": 720},
+            {"name": "bg", "x0": 0, "y0": 0, "x1": 60, "y1": 60}])
+
+    def test_i_measured_paddle_position(self):
+        # 实测板位 (15,1230)-(137,1250): 122x20=2440px=8.5% >= 2.5% → 过
+        with tempfile.TemporaryDirectory() as td:
+            png = make_png_fast(720, 1280, bg=(18, 27, 44),
+                                rects=[(15, 1230, 137, 1250, PADDLE_CYAN),
+                                       (0, 600, 720, 680, BRICK_ORANGE)])
+            r = _run_visual(td, png, self._paddle_config())
+            self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_i_paddle_invisible_fails(self):
+        # 无板 → paddle 区 nonbg 0% < 2.5% → fail
+        with tempfile.TemporaryDirectory() as td:
+            png = make_png_fast(720, 1280, bg=(18, 27, 44),
+                                rects=[(0, 600, 720, 680, BRICK_ORANGE)])
+            r = _run_visual(td, png, self._paddle_config())
+            self.assertEqual(r.returncode, 1, r.stdout)
+            self.assertIn("paddle", r.stdout)
+
+    def test_i_half_visible_boundary(self):
+        # 半可见边界: 板 (0,1230)-(60,1250): 60x20=1200px=4.2% >= 2.5% → 过
+        with tempfile.TemporaryDirectory() as td:
+            png = make_png_fast(720, 1280, bg=(18, 27, 44),
+                                rects=[(0, 1230, 60, 1250, PADDLE_CYAN),
+                                       (0, 600, 720, 680, BRICK_ORANGE)])
+            r = _run_visual(td, png, self._paddle_config())
+            self.assertEqual(r.returncode, 0, r.stdout)
+
+
 if __name__ == "__main__":
     unittest.main()

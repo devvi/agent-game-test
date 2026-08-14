@@ -299,6 +299,83 @@ def dominant_color(rows, x0, y0, x1, y1, exclude_buckets=None,
     return (best_key[0] << 4, best_key[1] << 4, best_key[2] << 4)
 
 
+def sample_bg_color(rows, x0, y0, x1, y1, exclude_buckets=None):
+    """Sample the frame's ACTUAL background color from a bg region (#485).
+
+    BgPulse 呼吸 tint 使渲染背景随相位漂移（~#0b0b14..#141e30），静态
+    bg_color 排除桶在高峰相位漏掉真实 bg 桶 → 三区 pair dist 塌缩 + 雨假阳性。
+    动态采样取区域桶模式（排除 exclude_buckets，默认 {(0,0,0)}）中全部像素的
+    逐通道四舍五入均值——NOT 桶下界（均值偏差 <=5 vs 下界 22.2，保持雨
+    rain_bg_min_dist=24 余量）。所有桶被排除 → None（退化，调用方回退静态色）。
+    """
+    _n, _nn, buckets = region_stats(rows, x0, y0, x1, y1)
+    exclude_buckets = exclude_buckets or {(0, 0, 0)}
+    best_key = None
+    best_count = 0
+    for key, count in buckets.items():
+        if key in exclude_buckets:
+            continue
+        if count > best_count:
+            best_count = count
+            best_key = key
+    if best_key is None:
+        return None
+    h = len(rows)
+    w = len(rows[0]) // 4 if rows else 0
+    x0, y0 = max(0, x0), max(0, y0)
+    x1, y1 = min(w, x1), min(h, y1)
+    tr = tg = tb = cnt = 0
+    for y in range(y0, y1):
+        row = rows[y]
+        for x in range(x0, x1):
+            i = x * 4
+            r, g, b = row[i], row[i + 1], row[i + 2]
+            if (r >> 4, g >> 4, b >> 4) == best_key:
+                tr += r
+                tg += g
+                tb += b
+                cnt += 1
+    return (round(tr / cnt), round(tg / cnt), round(tb / cnt))
+
+
+# 无 regions 声明时 bg_sample 采样回退的默认角区（= DESIGN R_bg 一角
+# (0,0)-(60,60)，与 e2e_shots 02_midgame "bg" 区同坐标；rain-only 配置复用）。
+_DEFAULT_BG_REGION = (0, 0, 60, 60)
+
+
+def _resolve_bg(vcfg: dict, rows):
+    """Resolve effective bg color + exclude_buckets for a shot (#485).
+
+    bg_sample 缺省/假 → EXACTLY #476 行为: bg_eff = 静态 bg_color,
+    exclude_buckets = {(0,0,0)} ∪ bucket(bg_color)（向后兼容红线）。
+    bg_sample 真 → 从 "bg" 区帧内实测 bg_ref: 声明了 regions 但缺 'bg' 区 =
+    配置错误（ValueError 显式失败，绝不静默）；无 regions 声明（rain-only）→
+    采样默认角区。采样退化（全近黑）→ 回退静态 bg_color。
+    返回 (bg_eff, exclude_buckets)；bg_eff 可为 None（旧近黑规则）。
+    """
+    bg_color = _parse_hex_color(vcfg.get("bg_color"))
+    if not vcfg.get("bg_sample"):
+        exclude_buckets = {(0, 0, 0)}
+        if bg_color is not None:
+            exclude_buckets.add((bg_color[0] >> 4, bg_color[1] >> 4,
+                                 bg_color[2] >> 4))
+        return bg_color, exclude_buckets
+    regs = vcfg.get("regions", [])
+    bg_reg = next((r for r in regs if str(r.get("name")) == "bg"), None)
+    if bg_reg is None and regs:
+        raise ValueError("bg_sample requires a region named 'bg'")
+    if bg_reg is None:
+        x0, y0, x1, y1 = _DEFAULT_BG_REGION
+    else:
+        x0, y0, x1, y1 = bg_reg["x0"], bg_reg["y0"], bg_reg["x1"], bg_reg["y1"]
+    bg_ref = sample_bg_color(rows, x0, y0, x1, y1)
+    bg_eff = bg_ref if bg_ref is not None else bg_color
+    exclude_buckets = {(0, 0, 0)}
+    if bg_eff is not None:
+        exclude_buckets.add((bg_eff[0] >> 4, bg_eff[1] >> 4, bg_eff[2] >> 4))
+    return bg_eff, exclude_buckets
+
+
 def rgb_distance(c1, c2) -> float:
     """Euclidean RGB distance: sqrt((r1-r2)^2 + (g1-g2)^2 + (b1-b2)^2)."""
     return math.sqrt((c1[0] - c2[0]) ** 2 + (c1[1] - c2[1]) ** 2
@@ -353,18 +430,22 @@ def check_visual(path, vcfg: dict) -> list[str]:
       regions: [{name, x0, y0, x1, y1, min_nonbg_ratio?}]
       compare_pairs: [[nameA, nameB], ...]  +  rgb_min_dist
       rain: {grid, min_coverage}
+      bg_sample (#485): 动态 bg 采样开关 — true 时从 "bg" 区帧内实测 bg_ref，
+        替代静态 bg_color 排除桶（BgPulse 相位鲁棒）；region "bg" 的 dominant
+        直接取 bg_eff（pair 距离对实测背景度量）。
     """
     fails: list[str] = []
     w, h, rows = _read_png(path)
 
-    # bg-relative params (#476) — real BG_COLOR is (10,10,18), not near-black
-    bg_color = _parse_hex_color(vcfg.get("bg_color"))
+    # bg-relative params (#476) + dynamic bg sampling (#485)
+    try:
+        bg_eff, exclude_buckets = _resolve_bg(vcfg, rows)
+    except ValueError as e:
+        fails.append(str(e))
+        return fails
     bg_min_dist = float(vcfg.get("bg_min_dist", 24))
     rain_bg_min_dist = float(vcfg.get("rain_bg_min_dist", 24))
-    exclude_buckets = {(0, 0, 0)}  # near-black bucket (backward compat)
-    if bg_color is not None:
-        exclude_buckets.add((bg_color[0] >> 4, bg_color[1] >> 4,
-                             bg_color[2] >> 4))
+    bg_sampling = bool(vcfg.get("bg_sample"))
 
     # 1. canvas check — mismatch fails immediately (regions would be misaligned)
     canvas = vcfg.get("canvas")
@@ -384,10 +465,14 @@ def check_visual(path, vcfg: dict) -> list[str]:
         name = str(reg.get("name", "?"))
         x0, y0, x1, y1 = reg["x0"], reg["y0"], reg["x1"], reg["y1"]
         n, nn, _b = region_stats(rows, x0, y0, x1, y1,
-                                 bg_color=bg_color, bg_min_dist=bg_min_dist)
-        dom = dominant_color(rows, x0, y0, x1, y1,
-                             exclude_buckets=exclude_buckets,
-                             fallback_to_most_common=True)
+                                 bg_color=bg_eff, bg_min_dist=bg_min_dist)
+        # bg_sample: "bg" 区 dominant 直接取实测 bg_eff（pair 距离对实际背景度量）
+        if bg_sampling and name == "bg" and bg_eff is not None:
+            dom = bg_eff
+        else:
+            dom = dominant_color(rows, x0, y0, x1, y1,
+                                 exclude_buckets=exclude_buckets,
+                                 fallback_to_most_common=True)
         dominants[name] = dom
         min_ratio = reg.get("min_nonbg_ratio")
         if min_ratio is not None:
@@ -412,7 +497,7 @@ def check_visual(path, vcfg: dict) -> list[str]:
     rain = vcfg.get("rain")
     if rain:
         cov = rain_grid_coverage(rows, w, h, grid=int(rain.get("grid", 12)),
-                                 bg_color=bg_color,
+                                 bg_color=bg_eff,
                                  rain_bg_min_dist=rain_bg_min_dist)
         min_cov = float(rain.get("min_coverage", 0.6))
         if cov < min_cov:
@@ -423,15 +508,16 @@ def check_visual(path, vcfg: dict) -> list[str]:
 
 def visual_detail(path, vcfg: dict) -> dict:
     """Structured visual evidence for --json (region dominants/ratios,
-    pair distances, rain coverage) — review-agent evidence (DESIGN §3.1)."""
+    pair distances, rain coverage) — review-agent evidence (DESIGN §3.1).
+    bg_sample 开启时附加 bg_sample/bg_ref（实测背景）键，缺省不出现。"""
     w, h, rows = _read_png(path)
-    bg_color = _parse_hex_color(vcfg.get("bg_color"))
+    try:
+        bg_eff, exclude_buckets = _resolve_bg(vcfg, rows)
+    except ValueError as e:
+        return {"error": str(e)}
     bg_min_dist = float(vcfg.get("bg_min_dist", 24))
     rain_bg_min_dist = float(vcfg.get("rain_bg_min_dist", 24))
-    exclude_buckets = {(0, 0, 0)}  # near-black bucket (backward compat)
-    if bg_color is not None:
-        exclude_buckets.add((bg_color[0] >> 4, bg_color[1] >> 4,
-                             bg_color[2] >> 4))
+    bg_sampling = bool(vcfg.get("bg_sample"))
     detail = {
         "canvas": f"{w}x{h}",
         "bg_color": vcfg.get("bg_color"),
@@ -439,15 +525,22 @@ def visual_detail(path, vcfg: dict) -> dict:
         "rain_bg_min_dist": vcfg.get("rain_bg_min_dist", 24),
         "exclude_buckets": sorted([list(b) for b in exclude_buckets]),
     }
+    if bg_sampling:
+        detail["bg_sample"] = True
+        if bg_eff is not None:
+            detail["bg_ref"] = "#%02x%02x%02x" % tuple(bg_eff)
     regions = {}
     for reg in vcfg.get("regions", []):
         name = str(reg.get("name", "?"))
         x0, y0, x1, y1 = reg["x0"], reg["y0"], reg["x1"], reg["y1"]
         n, nn, _b = region_stats(rows, x0, y0, x1, y1,
-                                 bg_color=bg_color, bg_min_dist=bg_min_dist)
-        dom = dominant_color(rows, x0, y0, x1, y1,
-                             exclude_buckets=exclude_buckets,
-                             fallback_to_most_common=True)
+                                 bg_color=bg_eff, bg_min_dist=bg_min_dist)
+        if bg_sampling and name == "bg" and bg_eff is not None:
+            dom = bg_eff
+        else:
+            dom = dominant_color(rows, x0, y0, x1, y1,
+                                 exclude_buckets=exclude_buckets,
+                                 fallback_to_most_common=True)
         regions[name] = {
             "dominant": list(dom) if dom else None,
             "nonbg_ratio": round(nn / n, 4) if n else 0.0,
@@ -468,7 +561,7 @@ def visual_detail(path, vcfg: dict) -> dict:
         detail["rain"] = {
             "coverage": round(rain_grid_coverage(
                 rows, w, h, grid=int(vcfg["rain"].get("grid", 12)),
-                bg_color=bg_color, rain_bg_min_dist=rain_bg_min_dist), 4),
+                bg_color=bg_eff, rain_bg_min_dist=rain_bg_min_dist), 4),
             "min_coverage": vcfg["rain"].get("min_coverage", 0.6),
         }
     return detail
