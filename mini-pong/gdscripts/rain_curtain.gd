@@ -71,8 +71,17 @@ func compute_target_rain(speed: float, wave_index: int, pulse: float, breathing:
 	if abs(player_score - ai_score) <= CONSTS.RAIN_TENSION_THRESHOLD:
 		tension = CONSTS.RAIN_TENSION_BONUS
 	var breathing_drop: float = CONSTS.RAIN_BREATHING_DROP if breathing else 0.0
-	var raw: float = base_intensity + speed_factor + wave_factor + tension + pulse - breathing_drop
+	var score_band: int = score_band_for(player_score)
+	var raw: float = base_intensity + speed_factor + wave_factor + tension \
+		+ float(score_band) * CONSTS.RAIN_SCORE_BAND_STEP \
+		+ pulse - breathing_drop
 	return clamp(raw, CONSTS.RAIN_MIN, CONSTS.RAIN_MAX)
+
+
+func score_band_for(score: int) -> int:
+	# 0-9→0, 10-19→1, 20+→2；负分 → clampi 钳 0；常量单点定义边界
+	return clampi(score / CONSTS.RAIN_SCORE_BAND_1,
+		0, CONSTS.RAIN_SCORE_BAND_2 / CONSTS.RAIN_SCORE_BAND_1)
 
 
 func smooth_step(current: float, target: float, delta: float) -> float:

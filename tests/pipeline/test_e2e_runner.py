@@ -57,13 +57,22 @@ if "--display-driver" in sys.argv:
         out_dir = plan["out_dir"]
         os.makedirs(out_dir, exist_ok=True)
         theme = plan.get("theme_color", "")
+        missed = cfg.get("fake_missed_shots", [])
         def pixel(x, y, b):
             if theme and x < 8 and y < 8:
                 return (int(theme[0:2], 16), int(theme[2:4], 16), int(theme[4:6], 16))
             return ((x * 3 + b) % 256, (y * 2 + b) % 256, 60)
         for i, s in enumerate(plan.get("shots", [])):
+            if s["name"] in missed:
+                continue
             with open(os.path.join(out_dir, s["name"] + ".png"), "wb") as f:
                 f.write(make_png(320, 180, lambda x, y, b=i * 40: pixel(x, y, b)))
+        # #491: fake_missed_shots key present → write results.json (missed → L3 fail;
+        # empty → L3 pass). Absent key → no results.json (legacy tests unaffected).
+        if "fake_missed_shots" in cfg:
+            with open(os.path.join(out_dir, "results.json"), "w") as f:
+                json.dump({"shots": [{"name": m, "saved": False} for m in missed],
+                           "missed": missed}, f)
     sys.exit(0)
 
 exit_code = 0
@@ -232,6 +241,21 @@ class TestRunnerFlow(RunnerTestBase):
         r = self._run("--no-comment")
         self.assertEqual(r.returncode, 1)
         self.assertEqual(self._summary()["layers"]["L3_visual"], "fail")
+
+    def test_visual_fail_when_shot_missed(self):
+        # #491: results.json missed 非空 → VISUAL_FAIL（防大雨档 shot 静默漏截假绿）
+        self._write_config({"fake_missed_shots": ["02_midgame"]})
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 1, r.stdout + r.stderr)
+        self.assertEqual(self._summary()["layers"]["L3_visual"], "fail")
+        self.assertIn("shot(s) missed", r.stdout)
+
+    def test_visual_pass_when_no_missed(self):
+        # #491: results.json missed 为空 → L3 pass（回归既有 pass 语义）
+        self._write_config({"fake_missed_shots": []})
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self._summary()["layers"]["L3_visual"], "pass")
 
     def test_skip_visual(self):
         r = self._run("--no-comment", "--skip-visual")

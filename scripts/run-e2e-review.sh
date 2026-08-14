@@ -219,6 +219,16 @@ PY
 
     # 4-fold anti-fake assertions on every shot
     VISUAL_FAIL=0
+    # ── #491: missed-shot 判 fail（#480 AC4 最小实现；防大雨档 shot 静默漏截假绿）──
+    if [ -f "$OUT/shots/results.json" ]; then
+      MISSED=$(python3 -c 'import json,sys;print(len(json.load(open(sys.argv[1])).get("missed",[])))' "$OUT/shots/results.json" 2>/dev/null || echo 1)
+      if [ "$MISSED" != "0" ]; then
+        log "❌ $MISSED shot(s) missed — VISUAL_FAIL (results.json)"
+        VISUAL_FAIL=1
+      else
+        log "✅ results.json: 0 missed"
+      fi
+    fi
     if [ -z "$(ls "$OUT/shots/"*.png 2>/dev/null)" ]; then
       log "❌ zero screenshots produced — capture failed"
       VISUAL_FAIL=1

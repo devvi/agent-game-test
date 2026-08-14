@@ -144,6 +144,9 @@ const RAIN_TENSION_BONUS: float = 0.2
 const RAIN_WAVE_STEP: float = 0.1
 const RAIN_PULSE_PIERCE: float = 0.4
 const RAIN_BREATHING_DROP: float = 0.15
+const RAIN_SCORE_BAND_STEP: float = 0.15   # 分数档位步长（taste-draft 候补, human-review 定稿; 0.15 → alpha +0.0375, velocity +12%）
+const RAIN_SCORE_BAND_1: int = 10          # 档位边界 1: 0-9 → 档位 0
+const RAIN_SCORE_BAND_2: int = 20          # 档位边界 2: 10-19 → 档位 1, 20+ → 档位 2 (WIN_SCORE=21)
 const BG_COLOR: Color = Color(0.039, 0.039, 0.071, 1.0)          # #0a0a12
 
 # ── Neon HUD (#392) ──

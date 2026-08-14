@@ -22,6 +22,12 @@
       "shots": [
         { "name": "01_title", "state": "MENU", "settle_frames": 10, "assert_text": [ { "node": "/root/Game/StartMenu/VersionLabel", "prop": "text", "contains": "v1.0.0" } ] },
         { "name": "02_midgame", "state": "PLAYING", "press": { "key": "enter" }, "require": { "node": "/root/GameManager", "prop": "player_score", "min": 1 }, "settle_frames": 5 },
+        { "name": "02_rain_light", "state": "PLAYING",
+          "require": { "node": "/root/GameManager", "prop": "player_score", "min": 1 },
+          "settle_frames": 60 },
+        { "name": "02_rain_heavy", "state": "PLAYING",
+          "require": { "node": "/root/Game/AtmosphereLayer/RainCurtain", "prop": "current_rain", "min": 0.55 },
+          "settle_frames": 60, "deadline_s": 300 },
         { "name": "03_gameover", "state": "GAME_OVER", "settle_frames": 10, "deadline_s": 300 }
       ]
     }

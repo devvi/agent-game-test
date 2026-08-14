@@ -23,6 +23,7 @@ func run() -> void:
 	_test_resource_integrity()
 	_test_emission_config()
 	_test_base_values()
+	_test_score_bands()
 
 
 func _assert(condition: bool, name: String) -> void:
@@ -325,3 +326,71 @@ func _test_base_values() -> void:
 	_assert(gd_src.contains("0.15 + 0.25 * r"), "TC-B3e: gd 源码含 alpha 公式 0.15 + 0.25 * r")
 	# B4 amount 红线回归 (#389 契约: 运行时禁写 amount)
 	_assert(not gd_src.contains("amount =") and not gd_src.contains("amount="), "TC-B4: gd 无 amount 写入 (#389 契约红线)")
+
+
+# ── #491 分数档位因子 (DESIGN §9 Scenario A; 夹具统一 ai_score=player_score → 紧张因子恒定) ──
+
+func _test_score_bands() -> void:
+	var c = _make_curtain()
+	# Test 1: 档位边界穷举 (0-9→0, 10-19→1, 20+→2; 负分钳 0)
+	_assert(c.score_band_for(0) == 0, "TC-band-1a: score 0 → band 0")
+	_assert(c.score_band_for(9) == 0, "TC-band-1b: score 9 → band 0")
+	_assert(c.score_band_for(10) == 1, "TC-band-1c: score 10 → band 1")
+	_assert(c.score_band_for(19) == 1, "TC-band-1d: score 19 → band 1")
+	_assert(c.score_band_for(20) == 2, "TC-band-1e: score 20 → band 2")
+	_assert(c.score_band_for(21) == 2, "TC-band-1f: score 21 → band 2")
+	_assert(c.score_band_for(-5) == 0, "TC-band-1g: score -5 → band 0 (clamp)")
+	# Test 2: 档位 0 零回归 — raw 与 #389 公式逐位一致 (0.5 = base + 紧张)
+	_assert(abs(c.compute_target_rain(330.0, 0, 0.0, false, 0, 0) - (CONSTS.RAIN_BASE + CONSTS.RAIN_TENSION_BONUS)) < 0.0001,
+		"TC-band-2: band 0 → raw 无加成 (base+紧张 0.5)")
+	# Test 3: 步长 band 1 → +RAIN_SCORE_BAND_STEP
+	var t0: float = c.compute_target_rain(330.0, 0, 0.0, false, 0, 0)
+	var t10: float = c.compute_target_rain(330.0, 0, 0.0, false, 10, 10)
+	_assert(abs((t10 - t0) - CONSTS.RAIN_SCORE_BAND_STEP) < 0.0001,
+		"TC-band-3: band 1 → +RAIN_SCORE_BAND_STEP (+0.15)")
+	# Test 4: 步长 band 2 → +2×RAIN_SCORE_BAND_STEP
+	var t20: float = c.compute_target_rain(330.0, 0, 0.0, false, 20, 20)
+	_assert(abs((t20 - t0) - 2.0 * CONSTS.RAIN_SCORE_BAND_STEP) < 0.0001,
+		"TC-band-4: band 2 → +2×RAIN_SCORE_BAND_STEP (+0.30)")
+	# Test 5: 0→21 全扫单调不减 (ai=player → 紧张恒定; speed 上限 627)
+	var prev: float = -1.0
+	var monotonic: bool = true
+	for score in range(0, 22):
+		var r: float = c.compute_target_rain(627.0, 0, 0.0, false, score, score)
+		if r < prev - 0.0001:
+			monotonic = false
+		prev = r
+	_assert(monotonic, "TC-band-5: 0→21 全扫单调不减")
+	# Test 6: 档位阶跃 9→10 平滑无跳变 (单帧 ≤ 20% of step)
+	c._player_score = 9
+	c._ai_score = 9
+	c.current_rain = c._compute_target()
+	c._player_score = 10
+	c._ai_score = 10
+	var max_delta: float = 0.0
+	for i in range(30):
+		var before: float = c.current_rain
+		c._process(1.0 / 60.0)
+		var delta: float = abs(c.current_rain - before)
+		if delta > max_delta:
+			max_delta = delta
+	_assert(max_delta <= 0.2 * CONSTS.RAIN_SCORE_BAND_STEP,
+		"TC-band-6: 档位阶跃单帧 ≤ 20%% of step (max %.4f)" % max_delta)
+	# Test 7: 调制参数随档位单调 (band 0 r≈0.5 vs band 2 r≈0.8)
+	c._material = ParticleProcessMaterial.new()
+	c._particles = null
+	c.current_rain = c.compute_target_rain(330.0, 0, 0.0, false, 0, 0)
+	c._apply_to_particles()
+	var vmin0: float = c._material.initial_velocity_min
+	var alpha0: float = c._material.color.a
+	c.current_rain = c.compute_target_rain(330.0, 0, 0.0, false, 20, 20)
+	c._apply_to_particles()
+	_assert(c._material.initial_velocity_min > vmin0, "TC-band-7a: velocity_min 随档位上升")
+	_assert(c._material.color.a > alpha0, "TC-band-7b: alpha 随档位上升")
+	# Test 8: 常量钉值 (STEP = taste-draft 候补; 边界机械固定)
+	_assert(abs(CONSTS.RAIN_SCORE_BAND_STEP - 0.15) < 0.0001, "TC-band-8a: RAIN_SCORE_BAND_STEP == 0.15")
+	_assert(CONSTS.RAIN_SCORE_BAND_1 == 10, "TC-band-8b: RAIN_SCORE_BAND_1 == 10")
+	_assert(CONSTS.RAIN_SCORE_BAND_2 == 20, "TC-band-8c: RAIN_SCORE_BAND_2 == 20")
+	# Test 9: clamp 上限回归 — 档位2+球速上限+紧张+脉冲 → RAIN_MAX 唯一边界源
+	_assert(abs(c.compute_target_rain(627.0, 0, 2.0, false, 20, 20) - CONSTS.RAIN_MAX) < 0.0001,
+		"TC-band-9: 档位2+球速上限+紧张+脉冲 → clamp RAIN_MAX 1.0")
