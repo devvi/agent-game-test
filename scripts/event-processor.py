@@ -1945,12 +1945,14 @@ def review_followup() -> list:
                     if not _has_blocked_label("issue", int(parent)):
                         gh("issue", "edit", str(parent), "--add-label", "status/blocked")
                         lines.append(f"FOLLOWUP: issue={parent} +status/blocked")
+                fix_num = None
                 if fix and fix.get("title"):
                     failures = fix.get("failures") or []
                     fset_str = "|".join(sorted(failures)) if failures else f"pr{pr}"
                     import hashlib
                     fset_hash = hashlib.md5(fset_str.encode()).hexdigest()[:8]
                     existing = _find_fix_issue(fset_hash)
+                    fix_num = existing
                     if existing is None:
                         body = (f"**Blocked PR:** #{pr}\n\n"
                                 f"**Pre-existing failures:**\n"
@@ -1962,13 +1964,22 @@ def review_followup() -> list:
                                      "--label", "bug", "--label", "workflow/available",
                                      "--label", "priority/high", "--body", body)
                         if created:
-                            lines.append(f"FOLLOWUP: pr={pr} fix issue created")
+                            # gh issue create returns the URL — extract number
+                            m = re.search(r"/(\d+)/?$", str(created).strip())
+                            if m:
+                                fix_num = int(m.group(1))
+                            lines.append(f"FOLLOWUP: pr={pr} fix issue created #{fix_num}")
                     else:
                         lines.append(f"FOLLOWUP: pr={pr} fix issue exists #{existing} (dedup)")
                 comment = (f"## Review Follow-Through (automated)\n\n"
                            f"**结论:** blocked (class {data.get('class', '?')})\n\n{evidence}\n")
-                if fix and fix.get("title"):
-                    comment += "\nBlocked → tracked by fix issue (pre-existing)\n"
+                if fix and fix.get("title") and fix_num:
+                    # CRITICAL (2026-08-14): the comment MUST carry the real
+                    # fix-issue number — check-unblock relies on reading
+                    # "Blocked → tracked by #FIX" from the PR comments to find
+                    # the actual blocker. Without it, unblock resolved the
+                    # WRONG (stale) fix issue (#476 instead of #480).
+                    comment += f"\nBlocked → tracked by #{fix_num} (pre-existing)\n"
                 gh("pr", "comment", str(pr), "--body", comment)
                 lines.append(f"FOLLOWUP: pr={pr} comment posted")
             else:

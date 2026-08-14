@@ -1220,6 +1220,7 @@ class TestReviewFollowup(unittest.TestCase):
                 "failures": ["runner-worktree", "runner-p5"],
             })
             created_issues = []
+            comments = []
 
             def fake_gh(*args):
                 joined = " ".join(str(a) for a in args)
@@ -1227,10 +1228,11 @@ class TestReviewFollowup(unittest.TestCase):
                     return '[]'
                 if "issue" in joined and "create" in joined:
                     created_issues.append(args)
-                    return "https://github.com/...#476"
+                    return "https://github.com/devvi/agent-game-test/issues/476"
                 if "issue" in joined and "list" in joined:
                     return ""  # no existing fix issue
                 if "comment" in joined:
+                    comments.append(args)
                     return "https://...#c"
                 return ""
 
@@ -1240,6 +1242,10 @@ class TestReviewFollowup(unittest.TestCase):
             self.assertTrue(any("fix issue created" in l for l in lines), lines)
             self.assertEqual(len(created_issues), 1)
             self.assertIn("--label", created_issues[0])
+            # CRITICAL (2026-08-14): comment must carry the real fix-issue #
+            # so check-unblock can find the actual blocker, not a stale one.
+            self.assertTrue(any("tracked by #476" in str(c) for c in comments),
+                            f"comment must reference fix issue #: {comments}")
 
     def test_blocked_dedups_existing_fix_issue(self):
         with tempfile.TemporaryDirectory() as td:
@@ -1289,13 +1295,19 @@ class TestE2EOrchestrator(unittest.TestCase):
 
     def test_absent_launches_runner(self):
         with tempfile.TemporaryDirectory() as td:
-            with mock.patch.object(ep, "E2E_STATE_DIR", os.path.join(td, "state")), \
-                 mock.patch.object(ep, "E2E_RUNNER", "/bin/true"):
+            # mock subprocess.Popen so no real process is spawned; assert the
+            # state transitions to running with a pid recorded
+            fake_proc = mock.Mock()
+            fake_proc.pid = 4242
+            state_dir = os.path.join(td, "state")
+            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir), \
+                 mock.patch.object(ep, "E2E_RUNNER", "/fake/runner.sh"), \
+                 mock.patch("subprocess.Popen", return_value=fake_proc):
                 lines = ep.e2e_orchestrator(475, "impl/466-x")
+                state = ep._read_e2e_state(475)
             self.assertTrue(any("E2E: pr=475 started" in l for l in lines), lines)
-            state = ep._read_e2e_state(475)
             self.assertEqual(state.get("status"), "running")
-            self.assertIn("pid", state)
+            self.assertEqual(state.get("pid"), 4242)
 
     def test_running_alive_reports_progress(self):
         with tempfile.TemporaryDirectory() as td:
