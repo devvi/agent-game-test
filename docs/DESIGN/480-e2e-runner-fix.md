@@ -271,13 +271,34 @@ P0: mkdir $LOCK 失败 → cat $LOCK/pid → PID 已死 (kill -0 失败)
 
 | 集成 | 组件 | 目标 | 方式 | 状态 |
 |------|:---:|:---:|------|:---:|
-| 并发单例 | runner P0 | 同 PR 并发实例 | 锁文件 + PID 校验，exit 2 拒绝 | ⬜ pending |
-| 归属校验 | runner cleanup | 本实例 worktree | `WT_OWNED` 标志守卫 `worktree remove` | ⬜ pending |
-| 模板来源 | runner P5 | worktree 内 e2e_capture.gd | CAPTURE_SRC worktree 优先 + REPO_ROOT 回退 | ⬜ pending |
-| visual 透传 | runner P5 → analyze_bmp.py | shot visual 配置 | `--visual-config <json>` flag | ⬜ pending |
-| missed 检查 | runner P5 | 计划 shot 完整性 | `$OUT/shots/<name>.png` 存在性断言 | ⬜ pending |
-| pipeline 测试 | test_e2e_runner.py | runner 全部行为 | fake godot 注入 + 3 组新用例 | ⬜ pending |
-| 文档 | PLAN-e2e-verification-v2.md | P8 cleanup 描述 | 补充归属校验/锁说明 | ⬜ pending |
+| 并发单例 | runner P0 | 同 PR 并发实例 | 锁文件 + PID 校验，exit 2 拒绝 | ✅ implemented |
+| 归属校验 | runner cleanup | 本实例 worktree | `WT_OWNED` 标志守卫 `worktree remove` | ✅ implemented |
+| 模板来源 | runner P5 | worktree 内 e2e_capture.gd | CAPTURE_SRC worktree 优先 + REPO_ROOT 回退 | ✅ implemented |
+| 分析器来源 | runner P5 → analyze_bmp.py | worktree 内 analyze_bmp.py | ANALYZE_SRC worktree 优先 + SCRIPT_DIR 回退（**本 PR 扩展**，见 §3.1.4a） | ✅ implemented |
+| visual 透传 | runner P5 → analyze_bmp.py | shot visual 配置 | `--visual-config <json>` flag | ✅ implemented |
+| missed 检查 | runner P5 | 计划 shot 完整性 | `$OUT/shots/<name>.png` 存在性断言 | ✅ implemented |
+| pipeline 测试 | test_e2e_runner.py | runner 全部行为 | fake godot 注入 + 3 组新用例 | ✅ implemented |
+| 文档 | PLAN-e2e-verification-v2.md | P8 cleanup 描述 | 补充归属校验/锁说明 | ✅ implemented |
+
+### 3.1.4a 实现偏差记录（implement agent 2026-08-14，数据驱动）
+
+**偏差：** 在 §3.1.3 的 CAPTURE_SRC worktree 优先之外，**额外**将 `ANALYZE_SRC` 也改为 worktree 优先：
+
+```bash
+ANALYZE_SRC="$WT/scripts/e2e/analyze_bmp.py"
+[ -f "$ANALYZE_SRC" ] || ANALYZE_SRC="$SCRIPT_DIR/e2e/analyze_bmp.py"
+```
+
+**根因（实测证据）：** DESIGN §1.2 断言"两种顺序均安全"，但只验证了 CAPTURE 模板（Array require）的崩溃路径，**未覆盖 analyze 步骤**：
+
+1. #475 分支的 `mini-pong/e2e_shots.json` 中 `02_midgame` 带 `visual` 字段（已核实）
+2. 本 PR 按 §3.1.4 并入 visual 透传后，runner 会对带 visual 的 shot 追加 `--visual-config` flag
+3. **main 版 `scripts/e2e/analyze_bmp.py` 不认识 `--visual-config`**（实测：`python3 scripts/e2e/analyze_bmp.py x.png --visual-config v.json` → `unknown arg: --visual-config`，exit 2）
+4. runner 的 analyze 调用固定 `"$SCRIPT_DIR/e2e/analyze_bmp.py"`（= 主工作区 main 版）→ 若本 PR 先 merge，review #475 时 L3 必假失败 → **与 §1.2"本 PR 先 merge 时 review #475 不崩溃"承诺矛盾**
+
+**修复：** 与 CAPTURE_SRC 同一哲学（"用 PR 版本跑 PR"），analyze 脚本也 worktree 优先——review #475 时用 #475 分支自带的 analyze_bmp.py（含 `--visual-config` 支持），main 版仅作回退。对未改 analyze_bmp.py 的普通 PR 行为不变（worktree 版本 == main 版本）。
+
+**merge 顺序影响：** #475 merge 后 main 的 analyze_bmp.py 获得 `--visual-config` 支持，此偏差自动退化为无操作（worktree 版仍优先但内容与 main 一致）。与 #475 的 runner diff 无重叠行冲突（#475 不修改 analyze 调用行）。
 
 ---
 
