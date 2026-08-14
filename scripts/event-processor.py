@@ -1476,8 +1476,9 @@ def _scripted_merge_pr(pr_num: int, branch: str) -> list:
 
 def _scripted_check_unblock(pr_num: int, branch: str) -> list:
     """Check whether a blocked PR's fix issue has merged; if so, unblock.
-    Mechanical (see SKILL.md Unblock-Worker Mode): no judgment, no fix-issue
-    creation — just fix-issue state → label ops."""
+    Mechanical: no judgment, no fix-issue creation — just fix-issue state →
+    label ops. (2026-08-14: unblock is a scripted op, not a worker; the
+    review worker is the single judge and sole fix-issue creator.)"""
     out = []
     try:
         # find fix issue from PR comments
@@ -1893,7 +1894,7 @@ E2E_STATE_DIR = os.path.expanduser("~/.hermes/e2e-state")
 # Phase 3: delete the text emit entirely.
 KANBAN_BRIDGE = os.environ.get("KANBAN_BRIDGE", "1") == "1"
 _KANBAN_BOARD = "default"
-_KANBAN_SEEN = set()  # (issue, stage) already created this process
+_KANBAN_SEEN = {}  # (issue, stage) → task_id created this process
 _KANBAN_STATE_FILE = os.path.expanduser("~/.hermes/kanban-bridge-state.json")
 
 
@@ -2073,12 +2074,13 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         # nothing re-emitted for 40 min). Rate-limited by a dedicated
         # "review-resend" gate (short TTL 300s) so we don't spam the cron
         # prompt every tick. failed stays silent (self-correct owns it).
+        # 2026-08-14 self-review: the review-resend rate gate is redundant —
+        # kanban_create_task's active-state dedup already prevents duplicate
+        # workers while a review is in flight and allows re-create once it
+        # finishes. Removing the 300s gate removes a delay on cycle re-entry.
         if status == "done" and not _read_review_conclusions_file(pr):
-            if _spawn_gate(pr, "review-resend"):
-                # P3: kanban-only review spawn (rate-limited re-emit is
-                # handled by the persistent dedup + dispatcher reclaim)
-                kanban_create_task("review", pr, pr, branch,
-                                   f"e2e_summary={state.get('summary', '')}")
+            kanban_create_task("review", pr, pr, branch,
+                               f"e2e_summary={state.get('summary', '')}")
         return lines
 
     # absent → launch background runner (--no-comment: evidence posted by
@@ -2160,19 +2162,35 @@ def kanban_create_task(stage: str, issue: int, pr: int = 0,
 
     Dedup (2026-08-14 lessons): persistent (issue:stage)→task-id map with a
     cross-process flock (concurrent cron ticks raced and overwrote records,
-    re-creating duplicate tasks → 8 parallel workers on #475). The kanban
-    dispatcher owns reclaim/retry, so an existing task (any status) must not
-    be re-created.
+    re-creating duplicate tasks → 8 parallel workers on #475).
+
+    IMPORTANT (self-review 2026-08-14): dedup is ACTIVE-STATE aware. Stages
+    are cyclic — review runs again after self-correct pushes new commits,
+    implement can be re-queued after a force-push. A permanently-remembered
+    (issue:stage) would deadlock those cycles. So:
+      - task exists AND active (ready/running) → skip (dedup)
+      - task exists AND finished (done/blocked/archived) → re-create
+        (new cycle), updating the state map
     """
     if not KANBAN_BRIDGE:
         return ""
     key = (issue, stage)
     if key in _KANBAN_SEEN:
-        return ""
+        try:
+            if _kanban_task_active(_KANBAN_SEEN[key]):
+                return ""
+        except Exception:
+            pass  # fail-open
     seen = _kanban_seen_persist()
     seen_key = f"{issue}:{stage}"
-    if seen_key in seen:
-        return ""
+    existing_id = seen.get(seen_key)
+    if existing_id:
+        try:
+            active = _kanban_task_active(existing_id)
+        except Exception:
+            active = False  # fail-open: query error must not deadlock the cycle
+        if active:
+            return ""
     skill = _KANBAN_STAGE_SKILL.get(stage, "")
     if not skill:
         return ""
@@ -2202,12 +2220,33 @@ def kanban_create_task(stage: str, issue: int, pr: int = 0,
         import re as _re
         m = _re.search(r"(t_[A-Za-z0-9]+)", out)
         if m:
-            _KANBAN_SEEN.add(key)
+            _KANBAN_SEEN[key] = m.group(1)
             _kanban_seen_add(issue, stage, m.group(1))
             return m.group(1)
     except Exception:
         pass
     return ""
+
+
+def _kanban_task_active(task_id: str) -> bool:
+    """True if the task is still in flight (ready/running) — a fresh stage
+    cycle must not be created while the previous one is active. Finished
+    states (done/blocked/archived) mean the cycle is over → allow re-create.
+    Uses a short subprocess query (gh-free, hermes kanban show)."""
+    try:
+        r = subprocess.run(
+            ["hermes", "kanban", "show", task_id, "--json"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if r.returncode != 0:
+            # task gone (e.g. board wiped) → not active → allow re-create
+            return False
+        import json as _json
+        d = _json.loads(r.stdout or "{}")
+        return d.get("status") in ("ready", "running", "claimed")
+    except Exception:
+        # query failed → assume NOT active so the cycle can still progress
+        return False
 
 
 # Same-issue stage ordering (lesson 3, 2026-08-14): which existing task a new

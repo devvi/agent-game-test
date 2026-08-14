@@ -1476,25 +1476,89 @@ class TestE2EOrchestrator(unittest.TestCase):
                 ep._write_e2e_state(475, {"status": "done", "pid": None,
                                           "summary": "/tmp/e2e-475/summary.json",
                                           "finished_at": time.time()})
-                # no conclusion file → re-create task (first call passes gate)
+                # no conclusion file → re-create task (active-state dedup
+                # prevents duplicates; 2026-08-14 self-review removed the
+                # review-resend rate gate as redundant)
                 with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR",
                                        os.path.join(td, "concl")):
                     lines = ep.e2e_orchestrator(475, "impl/x")
                 self.assertEqual(m_kb.call_count, 1,
                                  f"done+no-conclusion must create review task")
-                # within review-resend TTL (300s) → suppressed
+                # second tick: still no conclusion → tries again (dedup inside
+                # kanban_create_task is the real guard; the orchestrator must
+                # keep emitting so a failed worker gets re-created)
                 with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR",
                                        os.path.join(td, "concl")):
                     lines1 = ep.e2e_orchestrator(475, "impl/x")
-                self.assertEqual(m_kb.call_count, 1, "rate-limited within 5 min")
-                # conclusion file present → silent
+                self.assertEqual(m_kb.call_count, 2,
+                                 "done+no-conclusion re-emits every tick (dedup guards)")
+                # conclusion file present → silent (no more re-emits)
                 os.makedirs(os.path.join(td, "concl"), exist_ok=True)
                 with open(os.path.join(td, "concl", "475.json"), "w") as f:
                     json.dump({"pr": 475, "verdict": "approved"}, f)
                 with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR",
                                        os.path.join(td, "concl")):
                     lines2 = ep.e2e_orchestrator(475, "impl/x")
-                self.assertEqual(m_kb.call_count, 1, "conclusion present → silent")
+                self.assertEqual(m_kb.call_count, 2, "conclusion present → silent")
+
+
+class TestKanbanActiveStateDedup(unittest.TestCase):
+    """2026-08-14 self-review: (issue:stage) dedup must be ACTIVE-STATE aware.
+
+    Stages are cyclic — review re-runs after self-correct, implement re-queues
+    after force-push. A permanently-remembered (issue:stage) deadlocks those
+    cycles. Verified: active task → skip; finished task → re-create."""
+
+    def setUp(self):
+        self.td = tempfile.TemporaryDirectory()
+        self.state_file = os.path.join(self.td.name, "kb-state.json")
+        self.kb_state_patch = mock.patch.object(
+            ep, "_KANBAN_STATE_FILE", self.state_file)
+
+    def tearDown(self):
+        self.td.cleanup()
+
+    def test_active_task_blocks_recreate(self):
+        with self.kb_state_patch:
+            # existing ACTIVE task in state map
+            json.dump({"475:review": "t_active1"},
+                      open(self.state_file, "w"))
+            with mock.patch.object(ep, "_kanban_task_active",
+                                   return_value=True), \
+                 mock.patch.object(ep, "KANBAN_BRIDGE", True), \
+                 mock.patch.object(ep, "_KANBAN_SEEN", {}):
+                task_id = ep.kanban_create_task("review", 475)
+            self.assertEqual(task_id, "", "active task must block re-create")
+
+    def test_finished_task_allows_recreate(self):
+        with self.kb_state_patch:
+            # existing FINISHED task in state map → re-create allowed
+            json.dump({"475:review": "t_done1"},
+                      open(self.state_file, "w"))
+            with mock.patch.object(ep, "_kanban_task_active",
+                                   return_value=False), \
+                 mock.patch.object(ep, "KANBAN_BRIDGE", True), \
+                 mock.patch.object(ep, "_KANBAN_SEEN", {}), \
+                 mock.patch("subprocess.run", return_value=mock.Mock(
+                     stdout="t_new1", returncode=0)):
+                task_id = ep.kanban_create_task("review", 475)
+            self.assertTrue(task_id.startswith("t_"),
+                            "finished task must allow re-create")
+
+    def test_active_query_failure_allows_recreate(self):
+        """Query failure must not deadlock the cycle (fail-open)."""
+        with self.kb_state_patch:
+            json.dump({"475:review": "t_x"},
+                      open(self.state_file, "w"))
+            with mock.patch.object(ep, "_kanban_task_active",
+                                   side_effect=Exception("boom")), \
+                 mock.patch.object(ep, "KANBAN_BRIDGE", True), \
+                 mock.patch.object(ep, "_KANBAN_SEEN", {}), \
+                 mock.patch("subprocess.run", return_value=mock.Mock(
+                     stdout="t_new2", returncode=0)):
+                task_id = ep.kanban_create_task("review", 475)
+            self.assertTrue(task_id.startswith("t_"),
+                            "query failure must fail open")
 
 
 if __name__ == "__main__":
