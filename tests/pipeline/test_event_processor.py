@@ -1340,7 +1340,8 @@ class TestE2EOrchestrator(unittest.TestCase):
             with mock.patch.object(ep, "E2E_STATE_DIR", state_dir):
                 ep._write_e2e_state(475, {
                     "status": "running", "pid": 999999,  # dead pid
-                    "started_at": time.time() - 60, "branch": "impl/x",
+                    # started_at BEFORE summary mtime → fresh evidence
+                    "started_at": time.time() - 5, "branch": "impl/x",
                     "summary": os.path.join(out, "summary.json"),
                 })
                 lines = ep.e2e_orchestrator(475, "impl/x")
@@ -1348,6 +1349,33 @@ class TestE2EOrchestrator(unittest.TestCase):
             self.assertTrue(any("E2E: pr=475 done" in l for l in lines), lines)
             self.assertTrue(any("SPAWN: review" in l and "e2e_summary" in l for l in lines),
                             f"must spawn review with summary: {lines}")
+
+    def test_running_dead_rejects_stale_summary(self):
+        """2026-08-14: a STALE summary.json from a previous review round
+        (mtime < runner start) must NOT be accepted as evidence — otherwise
+        a fresh runner that never wrote a summary gets a false 'done'."""
+        with tempfile.TemporaryDirectory() as td:
+            out = os.path.join(td, "e2e-475")
+            os.makedirs(out, exist_ok=True)
+            summary = os.path.join(out, "summary.json")
+            with open(summary, "w") as f:
+                json.dump({"layers": {"L0_compile": "pass", "L1_logic": "pass",
+                                      "L2_runtime": "pass", "L3_visual": "pass"}}, f)
+            # backdate the summary: mtime 60s ago, runner started 10s ago
+            old = time.time() - 60
+            os.utime(summary, (old, old))
+            state_dir = os.path.join(td, "state")
+            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir):
+                ep._write_e2e_state(475, {
+                    "status": "running", "pid": 999999,
+                    "started_at": time.time() - 10, "branch": "impl/x",
+                    "summary": summary,
+                })
+                lines = ep.e2e_orchestrator(475, "impl/x")
+                self.assertEqual(ep._read_e2e_state(475).get("status"), "failed")
+            self.assertTrue(any("stale" in l for l in lines), lines)
+            self.assertFalse(any("SPAWN: review" in l for l in lines),
+                             "stale summary must NOT spawn review")
 
     def test_running_dead_harvests_failed(self):
         with tempfile.TemporaryDirectory() as td:
@@ -1360,7 +1388,7 @@ class TestE2EOrchestrator(unittest.TestCase):
             with mock.patch.object(ep, "E2E_STATE_DIR", state_dir):
                 ep._write_e2e_state(475, {
                     "status": "running", "pid": 999999,
-                    "started_at": time.time() - 60, "branch": "impl/x",
+                    "started_at": time.time() - 5, "branch": "impl/x",
                     "summary": os.path.join(out, "summary.json"),
                 })
                 lines = ep.e2e_orchestrator(475, "impl/x")

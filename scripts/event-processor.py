@@ -1835,16 +1835,24 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
             mins = int((time.time() - state.get("started_at", time.time())) / 60)
             lines.append(f"E2E: pr={pr} still running ({mins}m) — {branch}")
             return lines
-        # runner died — harvest result
+        # runner died — harvest result. CRITICAL (2026-08-14): the summary
+        # path may hold a STALE file from a previous review round (same
+        # /tmp/e2e-<pr>/ dir). Only accept a summary written AFTER this
+        # runner started; otherwise treat as failed with no evidence.
         summary = state.get("summary") or f"/tmp/e2e-{pr}/summary.json"
-        verdict = "done"
+        started = state.get("started_at", 0)
+        verdict = "failed"
         if os.path.exists(summary):
             try:
-                with open(summary) as f:
-                    sd = json.load(f)
-                layers = sd.get("layers", {})
-                if any(v != "pass" for v in layers.values()):
-                    verdict = "failed"
+                mtime = os.path.getmtime(summary)
+                if mtime >= started:
+                    with open(summary) as f:
+                        sd = json.load(f)
+                    layers = sd.get("layers", {})
+                    if all(v == "pass" for v in layers.values()):
+                        verdict = "done"
+                else:
+                    lines.append(f"E2E: pr={pr} summary stale (mtime {mtime:.0f} < start {started:.0f})")
             except (json.JSONDecodeError, OSError):
                 verdict = "failed"
         state["status"] = verdict
