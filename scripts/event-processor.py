@@ -785,6 +785,7 @@ _SPAWN_TTL_BY_STAGE = {
     "implement": 3600,     # 60 min
     "self-correct": 1800,  # 30 min
     "review-resend": 300,  # 5 min — E2E-done SPAWN re-emit rate limit
+    "research-resend": 300,  # 5 min — swallowed research SPAWN re-emit
 }
 _SPAWN_TTL_SECONDS = _SPAWN_TTL_BY_STAGE["plan"]  # legacy uniform value (tests)
 
@@ -954,10 +955,13 @@ def pick_next_issue() -> list:
             # died, label event lost) is re-spawned after the gate TTL.
             # 2026-08-14: also try _dead_spawn_recovery — a SPAWN consumed by
             # cron timeout (#480: 45 min stall) must re-emit after TTL/2.
-            if not _pr_exists_for_issue("research", n) and (
-                _spawn_gate(n, "research") or _dead_spawn_recovery(n, "research")
-            ):
-                spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
+            # Plus a research-resend gate (5 min TTL) so a swallowed SPAWN
+            # (busy cron) re-emits promptly instead of waiting the full TTL.
+            if not _pr_exists_for_issue("research", n):
+                if (_spawn_gate(n, "research")
+                        or _dead_spawn_recovery(n, "research")
+                        or _spawn_gate(n, "research-resend")):
+                    spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
 
     return spawn_lines
 
