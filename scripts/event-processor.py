@@ -1886,12 +1886,23 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         os.makedirs(E2E_STATE_DIR, exist_ok=True)
         log_path = f"/tmp/e2e-{pr}-orchestrator.log"
         runner = E2E_RUNNER
-        # nohup-style background launch via subprocess.Popen (detached)
+        # nohup-style background launch via subprocess.Popen (detached).
+        # CRITICAL (2026-08-14): when the runner lives in the cron copy
+        # (~/.hermes/scripts/), its REPO_ROOT derivation (BASH_SOURCE/..) is
+        # WRONG (~/.hermes/), breaking git remote → GH_REPO → gh pr view →
+        # branch fallback (impl/475). Pass E2E_REPO_ROOT explicitly and run
+        # with cwd=project so git/gh resolve correctly.
         import subprocess as _sp
+        _repo = "/Users/devvi/workspace/agent-game-test"
+        if os.path.exists(os.path.join(_repo, ".git")):
+            _env = dict(os.environ)
+            _env["E2E_REPO_ROOT"] = _repo
+        else:
+            _env = os.environ
         proc = _sp.Popen(
             ["bash", runner, str(pr), "--no-comment"],
             stdout=open(log_path, "w"), stderr=_sp.STDOUT,
-            start_new_session=True,
+            start_new_session=True, cwd=_repo, env=_env,
         )
         _write_e2e_state(pr, {
             "status": "running",

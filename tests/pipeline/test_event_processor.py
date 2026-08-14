@@ -1302,12 +1302,16 @@ class TestE2EOrchestrator(unittest.TestCase):
             state_dir = os.path.join(td, "state")
             with mock.patch.object(ep, "E2E_STATE_DIR", state_dir), \
                  mock.patch.object(ep, "E2E_RUNNER", "/fake/runner.sh"), \
-                 mock.patch("subprocess.Popen", return_value=fake_proc):
+                 mock.patch("subprocess.Popen", return_value=fake_proc) as m_popen:
                 lines = ep.e2e_orchestrator(475, "impl/466-x")
                 state = ep._read_e2e_state(475)
             self.assertTrue(any("E2E: pr=475 started" in l for l in lines), lines)
             self.assertEqual(state.get("status"), "running")
             self.assertEqual(state.get("pid"), 4242)
+            # runner must run with cwd=project so git/gh resolve the repo
+            kwargs = m_popen.call_args.kwargs
+            self.assertEqual(kwargs.get("cwd"), "/Users/devvi/workspace/agent-game-test")
+            self.assertIn("E2E_REPO_ROOT", kwargs.get("env", {}))
 
     def test_running_alive_reports_progress(self):
         with tempfile.TemporaryDirectory() as td:
