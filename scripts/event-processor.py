@@ -912,7 +912,7 @@ def pick_next_issue() -> list:
             # itself right after promoting backlog → available — no longer
             # relying on the webhook echo round-trip. The shared gate dedups
             # against the webhook/reconcile label path.
-            if _spawn_gate(n, "research"):
+            if _spawn_gate(n, "research") or _dead_spawn_recovery(n, "research"):
                 spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
     
     # Also emit SPAWN for issues at plan/implement/available with no PR yet
