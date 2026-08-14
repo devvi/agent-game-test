@@ -30,4 +30,4 @@ window/size/resizable=false
 [rendering]
 
 environment/glow_enabled=true
-rendering/environment/defaults/default_clear_color=Color(0.039, 0.039, 0.071, 1)
+environment/defaults/default_clear_color=Color(0.039, 0.039, 0.071, 1)

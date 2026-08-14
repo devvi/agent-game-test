@@ -44,7 +44,8 @@ func _test_worldenv_bg_color() -> void:
 func _test_project_clear_color() -> void:
 	var content = FileAccess.get_file_as_string("res://project.godot")
 	_assert(content != "", "TC4: project.godot readable")
-	_assert(content.contains("rendering/environment/defaults/default_clear_color"), "TC4: default_clear_color in project.godot")
+	_assert(content.contains("environment/defaults/default_clear_color"), "TC4: default_clear_color in project.godot (no rendering/ prefix)")
+	_assert(not content.contains("rendering/environment/defaults/default_clear_color"), "TC4: no double-prefixed rendering/rendering clear_color key")
 
 
 # ── Scenario B: Resource File Integrity ──
