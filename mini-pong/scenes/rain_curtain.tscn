@@ -4,8 +4,11 @@
 [ext_resource type="Texture2D" path="res://assets/rain_drop.png" id="2_rain_drop"]
 
 [sub_resource type="ParticleProcessMaterial" id="PPM_rain"]
-emission_shape = 1
-emission_rect_extents = Vector2(360, 640)
+; #476-followup (self-correct #475): Godot 4.7 无 EMISSION_SHAPE_RECTANGLE —
+; emission_shape=1 是 SPHERE, emission_rect_extents 属性不存在(静默忽略) →
+; 点源漏水(仅屏幕中心柱有雨, E2E grid 覆盖 ~16%)。BOX + box_extents 半宽语义。
+emission_shape = 3
+emission_box_extents = Vector3(360, 640, 0)
 direction = Vector3(0, 1, 0)
 spread = 8.0
 gravity = Vector3(0, 350, 0)

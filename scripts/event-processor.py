@@ -1933,7 +1933,15 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         # branch fallback (impl/475). Pass E2E_REPO_ROOT explicitly and run
         # with cwd=project so git/gh resolve correctly.
         import subprocess as _sp
-        _repo = "/Users/devvi/workspace/agent-game-test"
+        # Repo root: derive from this script's location (<repo>/scripts/) so it
+        # works on CI (Linux runner) and the dev machine alike. Fall back to the
+        # dev-machine path when running from the cron copy (~/.hermes/scripts/)
+        # whose parent has no .git. (#475 self-correct: hardcoding the dev path
+        # broke pipeline-tests on GitHub Actions — cwd/E2E_REPO_ROOT pointed at
+        # a nonexistent /Users/devvi/... dir.)
+        _repo = os.path.abspath(os.path.join(_SCRIPT_DIR, ".."))
+        if not os.path.exists(os.path.join(_repo, ".git")):
+            _repo = "/Users/devvi/workspace/agent-game-test"
         if os.path.exists(os.path.join(_repo, ".git")):
             _env = dict(os.environ)
             _env["E2E_REPO_ROOT"] = _repo

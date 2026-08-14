@@ -275,7 +275,13 @@ func _test_emission_config() -> void:
 	# A1 节点居中 → 发射区/可视窗口与屏幕对齐
 	_assert(tscn.contains("position = Vector2(360, 640)"), "TC-A1: Particles 节点居中 position = Vector2(360, 640)")
 	# A2 全屏发射区 (半宽语义 → 720x1280)
-	_assert(tscn.contains("emission_rect_extents = Vector2(360, 640)"), "TC-A2: 全屏发射区 emission_rect_extents = Vector2(360, 640)")
+	# 自修正 (2026-08-14, #475 self-correct): Godot 4.7 移除 EMISSION_SHAPE_RECTANGLE;
+	# emission_shape=1 是 SPHERE, emission_rect_extents 属性不存在(静默忽略) →
+	# 点源漏水(仅中心柱有雨, E2E grid 覆盖 ~16%, 实测)。矩形发射用 BOX(3) +
+	# emission_box_extents=Vector3(w,h,0) 半宽语义。
+	_assert(tscn.contains("emission_shape = 3"), "TC-A2: BOX 发射 emission_shape = 3 (Godot 4.7 无 RECTANGLE=1)")
+	_assert(tscn.contains("emission_box_extents = Vector3(360, 640, 0)"), "TC-A2b: 全屏发射区 emission_box_extents = Vector3(360, 640, 0)")
+	_assert(not tscn.contains("emission_rect_extents = Vector2"), "TC-A2c: 不得赋值 emission_rect_extents = Vector2 (Godot 4.7 无此属性, 静默忽略 → 点源漏水)")
 	# A3 全屏可视窗口 (D1 修复核心: 缺省默认 Rect2(-100,-100,200,200) 会剔除发射区边缘粒子)
 	_assert(tscn.contains("visibility_rect = Rect2(-360, -640, 720, 1280)"), "TC-A3: 全屏可视窗口 visibility_rect = Rect2(-360, -640, 720, 1280)")
 	# A4 粒子数量 (规范带 400-800 中值)

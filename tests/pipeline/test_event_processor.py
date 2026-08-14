@@ -1316,7 +1316,9 @@ class TestE2EOrchestrator(unittest.TestCase):
             self.assertEqual(state.get("pid"), 4242)
             # runner must run with cwd=project so git/gh resolve the repo
             kwargs = m_popen.call_args.kwargs
-            self.assertEqual(kwargs.get("cwd"), "/Users/devvi/workspace/agent-game-test")
+            # Repo root derived from the checkout (works on CI + dev); NOT the
+            # hardcoded dev path (broke GitHub Actions, #475).
+            self.assertEqual(kwargs.get("cwd"), _REPO_ROOT)
             self.assertIn("E2E_REPO_ROOT", kwargs.get("env", {}))
 
     def test_running_alive_reports_progress(self):
