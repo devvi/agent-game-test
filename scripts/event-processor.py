@@ -1218,10 +1218,16 @@ def preprocess():
                 if _is_pr_blocked(pr_num) or _parent_issue_blocked(pr_num):
                     discarded_keys.add(event.get("_key", ""))
                     continue
-                output_lines.append(
-                    f"SPAWN: review,issue={parent_issue},"
-                    f"pr={issue},branch={branch},conclusion={conclusion}"
-                )
+                # ── E2E scripted front-load (2026-08-14, plan ②) ──
+                # Don't spawn review directly: kick off the E2E runner as a
+                # background SCRIPT first (zero agent calls), so the review
+                # agent gets a ready summary instead of burning 30-40 calls
+                # running the harness itself. The orchestrator returns either
+                # progress lines (running) or a SPAWN: review line once the
+                # summary is harvested.
+                e2e_lines = e2e_orchestrator(pr_num, branch)
+                if e2e_lines:
+                    output_lines.extend(e2e_lines)
                 # One-shot consumption (see self-correct SPAWN note above).
                 discarded_keys.add(event.get("_key", ""))
             else:
@@ -1496,9 +1502,15 @@ def _quick_stalled_scan():
                         if _spawn_gate(pr_num, "self-correct"):
                             cmds.append(f"STALLED: check-self-correct,pr={pr_num},branch={branch}")
                         continue
-                # Parent unresolved / no self-correct label → conservative review
+                # ── E2E scripted front-load (2026-08-14, plan ②) ──
+                # Parent unresolved / no self-correct label → review, but the
+                # E2E runner runs FIRST as a background script (zero agent
+                # calls). The orchestrator emits either progress lines
+                # (running) or SPAWN: review once the summary is harvested.
                 if _spawn_gate(pr_num, "review"):
-                    cmds.append(f"STALLED: check-review,pr={pr_num},branch={branch}")
+                    e2e_lines = e2e_orchestrator(pr_num, branch)
+                    if e2e_lines:
+                        cmds.extend(e2e_lines)
 
     return cmds
 
@@ -1696,6 +1708,22 @@ def main():
                     print("[SILENT]")
             else:
                 print("[SILENT]")
+
+        # ── Review follow-through (2026-08-14): deterministic script layer ──
+        # The review agent's conclusion is a STRUCTURED JSON file written to
+        # REVIEW_CONCLUSIONS_DIR/<pr>.json (see game-review-agent SKILL.md).
+        # This is deliberately NOT left to the agent's call budget: the agent
+        # may run out of iterations mid-E2E and never get to label/comment/
+        # fix-issue (happened 2× on #466/#475). Here the script layer performs
+        # the mechanical follow-up — idempotent, retryable, zero LLM calls:
+        #   verdict=blocked  → status/blocked on PR + parent issue
+        #   fix_issue        → create fix issue (fset dedup) if missing
+        #   comment          → post conclusion comment with evidence
+        # After processing, the file is removed (idempotent).
+        if in_window and not is_paused():
+            followup_lines = review_followup()
+            if followup_lines:
+                print("\n".join(followup_lines))
     except Exception as e:
         _audit(tick="end", in_window=False, error=str(e)[:200], output="[ERROR]")
         print(f"[event-processor error: {e}]", file=sys.stderr)
@@ -1731,6 +1759,223 @@ def check_webhook_connectivity() -> bool:
 
 OPENCODE_HEALTH_URL = "http://127.0.0.1:18765/global/health"
 OPENCODE_CRITICAL_FILE = os.path.expanduser("~/.hermes/.opencode-critical")
+
+# ── Review follow-through (2026-08-14) ───────────────────────────
+# Deterministic script layer for review conclusions. The review agent writes
+# ~/.hermes/review-conclusions/<pr>.json as its LAST action (see SKILL.md);
+# the script layer here performs the mechanical aftermath (labels, fix issue,
+# comment) so a call-budget-exhausted agent never leaves a blocked PR with no
+# label / fix issue / comment (happened 2×: #466 then #475).
+REVIEW_CONCLUSIONS_DIR = os.path.expanduser("~/.hermes/review-conclusions")
+E2E_STATE_DIR = os.path.expanduser("~/.hermes/e2e-state")
+E2E_RUNNER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "run-e2e-review.sh")
+
+
+def _e2e_state_path(pr: int) -> str:
+    return os.path.join(E2E_STATE_DIR, f"{pr}.json")
+
+
+def _read_e2e_state(pr: int) -> dict:
+    try:
+        with open(_e2e_state_path(pr)) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+
+
+def _write_e2e_state(pr: int, data: dict) -> None:
+    try:
+        os.makedirs(E2E_STATE_DIR, exist_ok=True)
+        with open(_e2e_state_path(pr), "w") as f:
+            json.dump(data, f, indent=1)
+    except OSError:
+        pass
+
+
+def _pid_alive(pid: int) -> bool:
+    if not pid:
+        return False
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except (OSError, ProcessLookupError, ValueError):
+        return False
+
+
+def e2e_orchestrator(pr: int, branch: str) -> list:
+    """E2E scripted front-load (2026-08-14, plan ②).
+
+    Instead of spawning the review agent and letting IT run the E2E runner
+    (burning 30-40 of its 50-call budget on mechanical verification — the
+    root cause of review agents exhausting budget before labeling/commenting,
+    seen 2× on #466/#475), the event-processor orchestrates the runner as a
+    background SCRIPT (zero LLM calls) and hands the agent a ready summary.
+
+    State machine (persisted in ~/.hermes/e2e-state/<pr>.json):
+      absent        → launch runner in background, write {status: running}
+      running+alive → report progress ("still running Xm") — status is
+                       VISIBLE, so a long E2E on a big project never looks
+                       like a stall
+      running+dead  → read summary.json, transition to done/failed
+      done/failed   → emit SPAWN: review with e2e_summary=... for the agent
+                       to interpret (it does NOT re-run the runner)
+
+    Returns output lines for the tick.
+    """
+    lines = []
+    state = _read_e2e_state(pr)
+    status = state.get("status")
+
+    if status == "running":
+        if _pid_alive(int(state.get("pid") or 0)):
+            mins = int((time.time() - state.get("started_at", time.time())) / 60)
+            lines.append(f"E2E: pr={pr} still running ({mins}m) — {branch}")
+            return lines
+        # runner died — harvest result
+        summary = state.get("summary") or f"/tmp/e2e-{pr}/summary.json"
+        verdict = "done"
+        if os.path.exists(summary):
+            try:
+                with open(summary) as f:
+                    sd = json.load(f)
+                layers = sd.get("layers", {})
+                if any(v != "pass" for v in layers.values()):
+                    verdict = "failed"
+            except (json.JSONDecodeError, OSError):
+                verdict = "failed"
+        state["status"] = verdict
+        state["finished_at"] = time.time()
+        _write_e2e_state(pr, state)
+        lines.append(f"E2E: pr={pr} {verdict} (summary {summary})")
+        if verdict == "done":
+            lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={summary}")
+        return lines
+
+    if status in ("done", "failed"):
+        # already harvested — let stalled scan / event path emit review
+        return lines
+
+    # absent → launch background runner (--no-comment: evidence posted by
+    # review agent after interpreting, avoids double-posting)
+    try:
+        os.makedirs(E2E_STATE_DIR, exist_ok=True)
+        log_path = f"/tmp/e2e-{pr}-orchestrator.log"
+        runner = E2E_RUNNER
+        # nohup-style background launch via subprocess.Popen (detached)
+        import subprocess as _sp
+        proc = _sp.Popen(
+            ["bash", runner, str(pr), "--no-comment"],
+            stdout=open(log_path, "w"), stderr=_sp.STDOUT,
+            start_new_session=True,
+        )
+        _write_e2e_state(pr, {
+            "status": "running",
+            "pid": proc.pid,
+            "started_at": time.time(),
+            "branch": branch,
+            "summary": f"/tmp/e2e-{pr}/summary.json",
+            "log": log_path,
+        })
+        lines.append(f"E2E: pr={pr} started (pid {proc.pid}) — {branch} (log {log_path})")
+    except Exception as e:
+        lines.append(f"E2E: pr={pr} launch failed: {e}")
+        # fall back to agent-driven review so we never stall
+        lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch}")
+    return lines
+
+
+def _read_review_conclusions() -> list:
+    """Read all pending review-conclusion JSON files."""
+    out = []
+    try:
+        os.makedirs(REVIEW_CONCLUSIONS_DIR, exist_ok=True)
+        for fn in sorted(os.listdir(REVIEW_CONCLUSIONS_DIR)):
+            if not fn.endswith(".json"):
+                continue
+            path = os.path.join(REVIEW_CONCLUSIONS_DIR, fn)
+            try:
+                with open(path) as f:
+                    data = json.load(f)
+                out.append((fn, data))
+            except (json.JSONDecodeError, OSError):
+                continue
+    except OSError:
+        pass
+    return out
+
+
+def _has_blocked_label(target: str, num: int) -> bool:
+    """Check if PR/issue already has status/blocked."""
+    raw = gh(target, "view", str(num), "--json", "labels", "--jq", ".labels[].name")
+    return bool(raw) and "status/blocked" in raw
+
+
+def _find_fix_issue(fset_hash: str):
+    """Search for an existing open fix issue with this fset hash."""
+    raw = gh("issue", "list", "--search", f"[fset:{fset_hash}] in:title",
+             "--state", "open", "--json", "number", "--jq", ".[0].number")
+    try:
+        return int(raw) if raw and raw.strip() else None
+    except (ValueError, TypeError):
+        return None
+
+
+def review_followup() -> list:
+    """Deterministic review follow-through. Returns output lines."""
+    lines = []
+    for fn, data in _read_review_conclusions():
+        try:
+            pr = int(data.get("pr", 0))
+            verdict = data.get("verdict", "")
+            parent = data.get("parent_issue")
+            fix = data.get("fix_issue") or {}
+            evidence = data.get("evidence", "")
+            if pr <= 0:
+                continue
+
+            if verdict == "blocked":
+                if not _has_blocked_label("pr", pr):
+                    gh("pr", "edit", str(pr), "--add-label", "status/blocked")
+                    lines.append(f"FOLLOWUP: pr={pr} +status/blocked")
+                if parent:
+                    if not _has_blocked_label("issue", int(parent)):
+                        gh("issue", "edit", str(parent), "--add-label", "status/blocked")
+                        lines.append(f"FOLLOWUP: issue={parent} +status/blocked")
+                if fix and fix.get("title"):
+                    failures = fix.get("failures") or []
+                    fset_str = "|".join(sorted(failures)) if failures else f"pr{pr}"
+                    import hashlib
+                    fset_hash = hashlib.md5(fset_str.encode()).hexdigest()[:8]
+                    existing = _find_fix_issue(fset_hash)
+                    if existing is None:
+                        body = (f"**Blocked PR:** #{pr}\n\n"
+                                f"**Pre-existing failures:**\n"
+                                + "\n".join(f"- {f}" for f in failures)
+                                + f"\n\n**Source:** review conclusion {fn}")
+                        title = fix.get("title",
+                                        f"Fix pre-existing failures on main [fset:{fset_hash}]")
+                        created = gh("issue", "create", "--title", title,
+                                     "--label", "bug", "--label", "workflow/available",
+                                     "--label", "priority/high", "--body", body)
+                        if created:
+                            lines.append(f"FOLLOWUP: pr={pr} fix issue created")
+                    else:
+                        lines.append(f"FOLLOWUP: pr={pr} fix issue exists #{existing} (dedup)")
+                comment = (f"## Review Follow-Through (automated)\n\n"
+                           f"**结论:** blocked (class {data.get('class', '?')})\n\n{evidence}\n")
+                if fix and fix.get("title"):
+                    comment += "\nBlocked → tracked by fix issue (pre-existing)\n"
+                gh("pr", "comment", str(pr), "--body", comment)
+                lines.append(f"FOLLOWUP: pr={pr} comment posted")
+            else:
+                lines.append(f"FOLLOWUP: pr={pr} verdict={verdict} recorded")
+            try:
+                os.remove(os.path.join(REVIEW_CONCLUSIONS_DIR, fn))
+            except OSError:
+                pass
+        except Exception as e:
+            lines.append(f"FOLLOWUP: ERROR processing {fn}: {e}")
+    return lines
 
 
 def opencode_healthy() -> bool:
