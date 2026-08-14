@@ -313,14 +313,14 @@ check_visual → fails.append("bg_sample requires a region named 'bg'") → retu
 
 | 集成 | 组件 | 目标 | 方式 | 状态 |
 |------|:---:|:---:|------|:---:|
-| 动态 bg 采样 | analyze_bmp.py `sample_bg_color` | check_visual/visual_detail | `_resolve_bg()` 共享辅助贯通 | ⬜ pending |
-| 配置接线 | e2e_shots.json | analyze_bmp.py | `bg_sample: true` + region "bg" | ⬜ pending |
-| 雨排除 | rain_signature/rain_grid_coverage | bg_ref | `bg_color=bg_eff` 参数贯通 | ⬜ pending |
-| 三区分离 | compare_pairs | bg_ref | "bg" region dominant := bg_eff | ⬜ pending |
-| 退化兜底 | sample_bg_color None → 静态 | #476 语义 | `bg_eff = bg_color` 降级 | ⬜ pending |
-| 证据输出 | visual_detail --json | review agent | `bg_ref` 十六进制键 | ⬜ pending |
-| 文档同步 | DESIGN 466 §5 风险行 | #485 决策记录 | 一行修改 | ⬜ pending |
-| 基线协调 | impl/485 分支 | origin/impl/466-e2e-visual-regression | 分支基线声明（§3.4）| ⬜ pending |
+| 动态 bg 采样 | analyze_bmp.py `sample_bg_color` | check_visual/visual_detail | `_resolve_bg()` 共享辅助贯通 | ✅ wired |
+| 配置接线 | e2e_shots.json | analyze_bmp.py | `bg_sample: true` + region "bg" | ✅ wired |
+| 雨排除 | rain_signature/rain_grid_coverage | bg_ref | `bg_color=bg_eff` 参数贯通 | ✅ wired |
+| 三区分离 | compare_pairs | bg_ref | "bg" region dominant := bg_eff | ✅ wired |
+| 退化兜底 | sample_bg_color None → 静态 | #476 语义 | `bg_eff = bg_color` 降级 | ✅ wired |
+| 证据输出 | visual_detail --json | review agent | `bg_ref` 十六进制键 | ✅ wired |
+| 文档同步 | DESIGN 466 §5 风险行 | #485 决策记录 | 一行修改 | ✅ wired |
+| 基线协调 | impl/485 分支 | origin/impl/466-e2e-visual-regression | 分支基线声明（§3.4）| ✅ wired |
 | 验收 AC4 | runner missed-shot 判 fail | #480 | 引用实现结果，不本 issue 实现 | ⬜ 外部依赖 |
 
 ---
