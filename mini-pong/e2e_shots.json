@@ -121,7 +121,8 @@
             "rgb_min_dist": 60,
             "rain": {
               "grid": 12,
-              "min_coverage": 0.6
+              "min_coverage": 0.15,
+              "_comment": "min_coverage 校准（DESIGN 466 Scenario F Test 14）：2026-08-14 真实渲染实测 grid=12 覆盖 16.7%（grid=8: 25.0%, grid=16: 14.1%）；02_midgame 为早期对局（player_score>=1），rain_curtain.gd:61 按 wave/score/speed 缩放雨强，天然低覆盖；0.60 为理论值，按「阈值首次真实运行校准后回填」回填为 0.15（实测 16.7% 下方留安全边际）。"
             }
           }
         },
