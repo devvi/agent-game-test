@@ -109,6 +109,15 @@ def main():
     id2number = {}
     for issue in ordered:
         labels = list(issue["labels"])
+        # ── 防呆 (2026-08-15): 强制 workflow/backlog ──────────────
+        # pipeline 拾取前提是 workflow label (backlog → promotion →
+        # available → research)。JSON 漏写 workflow/* 时 issue 会
+        # 永远不被拾取 (#504 教训: 手动 gh create 只加 enhancement,
+        # pipeline 无感知)。这里自动补 backlog 并警告。
+        if not any(l.startswith("workflow/") for l in labels):
+            labels.append("workflow/backlog")
+            print(f"⚠️  #{issue['id']} 缺 workflow label → 自动补 workflow/backlog",
+                  file=sys.stderr)
         milestone = issue.get("milestone", "full")
         labels.append(f"version/{milestone}")
 

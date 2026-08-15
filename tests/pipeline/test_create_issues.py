@@ -120,6 +120,38 @@ class TestCreateFlow(unittest.TestCase):
         nums = {i["title"]: i["github_number"] for i in saved["issues"]}
         self.assertEqual(nums["[Feature] A"], 40)
         self.assertEqual(nums["[Feature] C"], 42)
+
+    def test_missing_workflow_label_auto_backlog(self):
+        """2026-08-15 防呆: JSON issue 缺 workflow/* label 时自动补
+        workflow/backlog — 否则 pipeline 永不拾取 (#504 教训: 手动
+        gh create 只加 enhancement, 无 workflow label 卡死)。"""
+        created_labels = []
+
+        def fake_run(cmd, **kwargs):
+            if cmd[:2] == ["git", "remote"]:
+                return mock.Mock(returncode=0, stdout="")
+            if cmd[:3] == ["gh", "issue", "create"]:
+                # capture --label value
+                li = cmd.index("--label")
+                created_labels.append(cmd[li + 1].split(","))
+                return mock.Mock(returncode=0,
+                                 stdout="https://github.com/devvi/agent-game-test/issues/99\n")
+            return mock.Mock(returncode=0, stdout="")
+
+        with mock.patch("subprocess.run", side_effect=fake_run), \
+             mock.patch("sys.argv", ["create-issues.py", self.plan, "--repo", "devvi/test"]):
+            ci.main()
+
+        for labels in created_labels:
+            self.assertTrue(
+                any(l.startswith("workflow/") for l in labels),
+                f"每个 issue 必须有 workflow label, got {labels}")
+            self.assertIn("workflow/backlog", labels,
+                          f"JSON 缺 workflow label 时自动补 backlog, got {labels}")
+
+        # github_number written back (re-read plan)
+        with open(self.plan) as f:
+            saved = json.load(f)
         self.assertEqual(saved["meta"]["status"], "created")
 
     def test_cycle_exits_1(self):
