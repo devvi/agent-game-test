@@ -1956,10 +1956,12 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
                     layers = sd.get("layers", {})
                     # Layer values: L0-L2 are exit codes (0=pass, 1=fail,
                     # 2=unavailable), L3_visual is "pass"/"fail"/"skip".
-                    # Accept "0" (exit 0) and "pass" as green.
+                    # Accept "0" (exit 0), "pass" AND "skip" as green —
+                    # 2026-08-15: visual layer default-skipped (deepseek
+                    # has no multimodal; L3 adds complexity without value).
                     def _green(v):
                         s = str(v).strip().lower()
-                        return s in ("0", "pass", "true", "yes")
+                        return s in ("0", "pass", "true", "yes", "skip")
                     if all(_green(v) for v in layers.values()):
                         verdict = "done"
                 else:
@@ -2006,7 +2008,7 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         else:
             _env = os.environ
         proc = _sp.Popen(
-            ["bash", runner, str(pr), "--no-comment"],
+            ["bash", runner, str(pr), "--no-comment", "--skip-visual"],
             stdout=open(log_path, "w"), stderr=_sp.STDOUT,
             start_new_session=True, cwd=_repo, env=_env,
         )

@@ -180,6 +180,9 @@ else
 fi
 
 # ═══════════════════════════ P5 VISUAL LAYER ══════════════════════════════
+# 2026-08-15 决策: 视觉层默认跳过(deepseek 无多模态, 视觉断言价值低
+# 且复杂度高 — 截图通道/防伪断言/orchestrator)。L0-L2(编译/逻辑/运行
+# 时)是核心验证。用 --with-visual 显式开启。
 VISUAL="skip"
 if [ "$SKIP_VISUAL" = "1" ]; then
   log "P5 visual: skipped (--skip-visual)"

@@ -1399,7 +1399,28 @@ class TestE2EOrchestrator(unittest.TestCase):
                 lines = ep.e2e_orchestrator(475, "impl/x")
             self.assertTrue(any("E2E: pr=475 failed" in l for l in lines), lines)
             self.assertFalse(any("SPAWN: review" in l for l in lines),
-                             "failed E2E → no review spawn (goes to self-correct path)")
+                             "visual fail → no review (self-correct owns)")
+
+    def test_visual_skip_is_green(self):
+        """2026-08-15 (L3 降级): visual layer default-skipped — a summary
+        with L3_visual=skip must be treated as done (green), not failed."""
+        with tempfile.TemporaryDirectory() as td:
+            out = os.path.join(td, "e2e-475")
+            os.makedirs(out, exist_ok=True)
+            with open(os.path.join(out, "summary.json"), "w") as f:
+                json.dump({"layers": {"L0_compile": "0", "L1_logic": "0",
+                                      "L2_runtime": "0", "L3_visual": "skip"}}, f)
+            state_dir = os.path.join(td, "state")
+            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir):
+                ep._write_e2e_state(475, {
+                    "status": "running", "pid": 999999,
+                    "started_at": time.time() - 5, "branch": "impl/x",
+                    "summary": os.path.join(out, "summary.json"),
+                })
+                lines = ep.e2e_orchestrator(475, "impl/x")
+            self.assertTrue(any("E2E: pr=475 done" in l for l in lines), lines)
+            self.assertTrue(any("SPAWN: review" in l for l in lines),
+                            "visual skip → done → review spawned")
 
     def test_done_state_reemits_review_until_conclusion(self):
         """2026-08-14: done state re-emits SPAWN: review (rate-limited by
