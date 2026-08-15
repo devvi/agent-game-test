@@ -26,6 +26,16 @@ func run() -> void:
 	_test_recalc_bounds_f2()        # TC-F2
 	_test_player_speed_instance_f3() # TC-F3
 	_test_ai_speed_instance_f4()     # TC-F4
+	_test_combo_first_score_no_boost() # G1
+	_test_combo_score_within_window()   # G2
+	_test_combo_continuous_refresh()    # G3
+	_test_combo_window_expiry()         # G4
+	_test_combo_precise_boundary()      # G5
+	_test_combo_ai_mode_isolated()      # G6
+	_test_combo_ai_score_no_reset()     # G7
+	_test_combo_restart_reset()         # G8
+	_test_combo_frozen_no_decay()       # G9
+	_test_combo_no_autoload()           # G10
 	# TC-D1 (zero exit code) and TC-D2 (no script errors) are covered by CI.
 
 
@@ -249,3 +259,242 @@ func _test_ai_speed_instance_f4() -> void:
 	var d2 = paddle.position.x - x2
 	_assert(d1 > 0.0 and d2 > 0.0, "TC-F4: AI moves toward target (d1=%.2f d2=%.2f)" % [d1, d2])
 	_assert(abs(d2 - 2.0 * d1) < 0.5, "TC-F4: AI move scales with paddle_speed (2× speed → 2× move)")
+
+
+# ── Scenario G: Combo Speed Feedback (#504, RED — API not yet implemented) ──
+
+func _test_combo_first_score_no_boost() -> void:
+	# TC-G1: first score starts the 2.0s window but grants no boost yet
+	var paddle = _make_paddle()
+	if not paddle.has_method("_on_score_changed"):
+		_assert(false, "G1: combo API not implemented yet (RED)")
+		return
+	paddle._ready()
+	paddle._on_score_changed(1, 0)
+	_assert(paddle.get("_combo_active") == false, "G1: first score must not boost (combo_active=%s)" % [str(paddle.get("_combo_active"))])
+	_assert(abs(float(paddle.get("_combo_timer")) - 2.0) < 0.001, "G1: window starts at 2.0s (timer=%.3f)" % [float(paddle.get("_combo_timer"))])
+	# combo frame displacement == base frame displacement (no +20%)
+	var base_paddle = _make_paddle()
+	base_paddle._ready()
+	paddle.position.x = 100.0
+	base_paddle.position.x = 100.0
+	Input.action_press("paddle_left")
+	Input.action_release("paddle_right")
+	var x_base: float = base_paddle.position.x
+	base_paddle._process(0.016)
+	var d_base: float = base_paddle.position.x - x_base
+	var x_combo: float = paddle.position.x
+	paddle._process(0.016)
+	var d_combo: float = paddle.position.x - x_combo
+	Input.action_release("paddle_left")
+	_assert(d_combo < 0.0 and d_base < 0.0, "G1: both paddles move left (d_combo=%.3f d_base=%.3f)" % [d_combo, d_base])
+	_assert(abs(d_combo - d_base) < 0.5, "G1: first-score frame == base frame (d_combo=%.3f d_base=%.3f)" % [d_combo, d_base])
+
+
+func _test_combo_score_within_window() -> void:
+	# TC-G2: second score within 2s → combo active + 20% speed boost
+	var paddle = _make_paddle()
+	if not paddle.has_method("_on_score_changed"):
+		_assert(false, "G2: combo API not implemented yet (RED)")
+		return
+	paddle._ready()
+	paddle._on_score_changed(1, 0)
+	paddle._process(1.5)
+	paddle._on_score_changed(2, 0)
+	_assert(paddle.get("_combo_active") == true, "G2: combo active after 2nd score in window (combo_active=%s)" % [str(paddle.get("_combo_active"))])
+	_assert(abs(float(paddle.get("_combo_timer")) - 2.0) < 0.001, "G2: combo timer refreshed to 2.0 (timer=%.3f)" % [float(paddle.get("_combo_timer"))])
+	# combo frame displacement == 1.2× base frame displacement (+20%)
+	var base_paddle = _make_paddle()
+	base_paddle._ready()
+	paddle.position.x = 100.0
+	base_paddle.position.x = 100.0
+	Input.action_press("paddle_left")
+	Input.action_release("paddle_right")
+	var x_base: float = base_paddle.position.x
+	base_paddle._process(0.016)
+	var d_base: float = base_paddle.position.x - x_base
+	var x_combo: float = paddle.position.x
+	paddle._process(0.016)
+	var d_combo: float = paddle.position.x - x_combo
+	Input.action_release("paddle_left")
+	_assert(d_combo < 0.0 and d_base < 0.0, "G2: both paddles move left (d_combo=%.3f d_base=%.3f)" % [d_combo, d_base])
+	_assert(abs(d_combo - 1.2 * d_base) < 0.5, "G2: combo frame == 1.2× base frame (d_combo=%.3f 1.2×d_base=%.3f)" % [d_combo, 1.2 * d_base])
+
+
+func _test_combo_continuous_refresh() -> void:
+	# TC-G3: successive scores < 2s apart keep refreshing the window
+	var paddle = _make_paddle()
+	if not paddle.has_method("_on_score_changed"):
+		_assert(false, "G3: combo API not implemented yet (RED)")
+		return
+	paddle._ready()
+	paddle._on_score_changed(1, 0)
+	paddle._process(1.9)
+	paddle._on_score_changed(2, 0)
+	_assert(paddle.get("_combo_active") == true, "G3: combo active after 2nd score (combo_active=%s)" % [str(paddle.get("_combo_active"))])
+	_assert(abs(float(paddle.get("_combo_timer")) - 2.0) < 0.001, "G3: timer reset to 2.0 after 2nd score (timer=%.3f)" % [float(paddle.get("_combo_timer"))])
+	paddle._process(1.9)
+	paddle._on_score_changed(3, 0)
+	_assert(paddle.get("_combo_active") == true, "G3: combo active after 3rd score (combo_active=%s)" % [str(paddle.get("_combo_active"))])
+	_assert(abs(float(paddle.get("_combo_timer")) - 2.0) < 0.001, "G3: timer reset to 2.0 after 3rd score (timer=%.3f)" % [float(paddle.get("_combo_timer"))])
+
+
+func _test_combo_window_expiry() -> void:
+	# TC-G4: window lapses with no new score → combo off, base speed returns
+	var paddle = _make_paddle()
+	if not paddle.has_method("_on_score_changed"):
+		_assert(false, "G4: combo API not implemented yet (RED)")
+		return
+	paddle._ready()
+	paddle._on_score_changed(1, 0)
+	paddle._process(1.9)
+	paddle._on_score_changed(2, 0)
+	_assert(paddle.get("_combo_active") == true, "G4: combo active before expiry (combo_active=%s)" % [str(paddle.get("_combo_active"))])
+	paddle._process(2.1)
+	_assert(paddle.get("_combo_active") == false, "G4: combo expired after window (combo_active=%s)" % [str(paddle.get("_combo_active"))])
+	_assert(abs(float(paddle.get("_combo_timer")) - 0.0) < 0.001, "G4: timer clamped to 0.0 (timer=%.3f)" % [float(paddle.get("_combo_timer"))])
+	# next frame displacement == base frame displacement (no +20%)
+	var base_paddle = _make_paddle()
+	base_paddle._ready()
+	paddle.position.x = 100.0
+	base_paddle.position.x = 100.0
+	Input.action_press("paddle_left")
+	Input.action_release("paddle_right")
+	var x_base: float = base_paddle.position.x
+	base_paddle._process(0.016)
+	var d_base: float = base_paddle.position.x - x_base
+	var x_after: float = paddle.position.x
+	paddle._process(0.016)
+	var d_after: float = paddle.position.x - x_after
+	Input.action_release("paddle_left")
+	_assert(abs(d_after - d_base) < 0.5, "G4: expired frame == base frame (d_after=%.3f d_base=%.3f)" % [d_after, d_base])
+
+
+func _test_combo_precise_boundary() -> void:
+	# TC-G5: boundary at exactly 2.0s — 1.999s counts, 2.001s does not
+	var inside = _make_paddle()
+	if not inside.has_method("_on_score_changed"):
+		_assert(false, "G5: combo API not implemented yet (RED)")
+		return
+	inside._ready()
+	inside._on_score_changed(1, 0)
+	inside._process(1.999)
+	inside._on_score_changed(2, 0)
+	_assert(inside.get("_combo_active") == true, "G5: score at t=1.999s → combo active (combo_active=%s)" % [str(inside.get("_combo_active"))])
+	var outside = _make_paddle()
+	outside._ready()
+	outside._on_score_changed(1, 0)
+	outside._process(2.001)
+	outside._on_score_changed(2, 0)
+	_assert(outside.get("_combo_active") == false, "G5: score at t=2.001s → combo inactive (combo_active=%s)" % [str(outside.get("_combo_active"))])
+
+
+func _test_combo_ai_mode_isolated() -> void:
+	# TC-G6: AI-mode paddle never engages combo (early return)
+	var paddle = _make_paddle()
+	if not paddle.has_method("_on_score_changed"):
+		_assert(false, "G6: combo API not implemented yet (RED)")
+		return
+	paddle.mode = paddle.Mode.AI
+	paddle._ready()
+	paddle._on_score_changed(2, 1)
+	_assert(paddle.get("_combo_active") == false, "G6: AI mode never activates combo (combo_active=%s)" % [str(paddle.get("_combo_active"))])
+	_assert(abs(float(paddle.get("_combo_timer")) - 0.0) < 0.001, "G6: AI mode timer stays 0 (timer=%.3f)" % [float(paddle.get("_combo_timer"))])
+
+
+func _test_combo_ai_score_no_reset() -> void:
+	# TC-G7: an AI score (player score unchanged) must not interrupt the window
+	var paddle = _make_paddle()
+	if not paddle.has_method("_on_score_changed"):
+		_assert(false, "G7: combo API not implemented yet (RED)")
+		return
+	paddle._ready()
+	paddle._on_score_changed(1, 0)
+	paddle._process(1.0)
+	paddle._on_score_changed(1, 1)  # AI scored — player score unchanged
+	paddle._process(0.5)
+	paddle._on_score_changed(2, 1)  # player scores at t = 1.5s
+	_assert(paddle.get("_combo_active") == true, "G7: AI score did not interrupt combo (combo_active=%s)" % [str(paddle.get("_combo_active"))])
+
+
+func _test_combo_restart_reset() -> void:
+	# TC-G8: score drop (restart / new game) clears combo and starts a fresh window
+	var paddle = _make_paddle()
+	if not paddle.has_method("_on_score_changed"):
+		_assert(false, "G8: combo API not implemented yet (RED)")
+		return
+	paddle._ready()
+	for score in range(1, 6):
+		paddle._process(0.1)
+		paddle._on_score_changed(score, 0)
+	_assert(paddle.get("_last_player_score") == 5, "G8: player score driven to 5 (last=%s)" % [str(paddle.get("_last_player_score"))])
+	_assert(paddle.get("_combo_active") == true, "G8: combo active before restart (combo_active=%s)" % [str(paddle.get("_combo_active"))])
+	paddle._on_score_changed(1, 0)  # simulates reset → new game, first score
+	_assert(paddle.get("_combo_active") == false, "G8: restart clears combo (combo_active=%s)" % [str(paddle.get("_combo_active"))])
+	_assert(abs(float(paddle.get("_combo_timer")) - 2.0) < 0.001, "G8: fresh 2.0s window after restart (timer=%.3f)" % [float(paddle.get("_combo_timer"))])
+
+
+func _test_combo_frozen_no_decay() -> void:
+	# TC-G9: frozen paddle skips _process → combo timer must not decay
+	var paddle = _make_paddle()
+	if not paddle.has_method("_on_score_changed"):
+		_assert(false, "G9: combo API not implemented yet (RED)")
+		return
+	paddle._ready()
+	paddle._on_score_changed(1, 0)
+	paddle._process(1.9)
+	paddle._on_score_changed(2, 0)  # combo active, timer = 2.0
+	_assert(paddle.get("_combo_active") == true, "G9: combo active before freeze (combo_active=%s)" % [str(paddle.get("_combo_active"))])
+	paddle.set_frozen(true)
+	paddle._process(2.5)
+	paddle._process(2.5)
+	paddle._process(2.5)
+	_assert(abs(float(paddle.get("_combo_timer")) - 2.0) < 0.001, "G9: frozen frames must not decay combo timer (timer=%.3f)" % [float(paddle.get("_combo_timer"))])
+	paddle.set_frozen(false)
+	paddle._process(2.1)  # window lapses → combo off, base speed
+	_assert(paddle.get("_combo_active") == false, "G9: combo expired after unfreeze (combo_active=%s)" % [str(paddle.get("_combo_active"))])
+	# post-expiry frame displacement == base frame displacement
+	var base_paddle = _make_paddle()
+	base_paddle._ready()
+	paddle.position.x = 100.0
+	base_paddle.position.x = 100.0
+	Input.action_press("paddle_left")
+	Input.action_release("paddle_right")
+	var x_base: float = base_paddle.position.x
+	base_paddle._process(0.016)
+	var d_base: float = base_paddle.position.x - x_base
+	var x_after: float = paddle.position.x
+	paddle._process(0.016)
+	var d_after: float = paddle.position.x - x_after
+	Input.action_release("paddle_left")
+	_assert(abs(d_after - d_base) < 0.5, "G9: post-expiry frame == base frame (d_after=%.3f d_base=%.3f)" % [d_after, d_base])
+
+
+func _test_combo_no_autoload() -> void:
+	# TC-G10: _ready() must not crash without GameManager (null-guard skips the
+	# connection); manual score drive still works and _process runs at base speed
+	var paddle = _make_paddle()
+	if not paddle.has_method("_on_score_changed"):
+		_assert(false, "G10: combo API not implemented yet (RED)")
+		return
+	paddle._ready()
+	paddle._on_score_changed(1, 0)
+	_assert(paddle.get("_combo_active") == false, "G10: manual first score keeps combo off (combo_active=%s)" % [str(paddle.get("_combo_active"))])
+	# _process runs at base speed with combo off (no autoload crash)
+	var base_paddle = _make_paddle()
+	base_paddle._ready()
+	paddle.position.x = 100.0
+	base_paddle.position.x = 100.0
+	Input.action_press("paddle_left")
+	Input.action_release("paddle_right")
+	var x_base: float = base_paddle.position.x
+	base_paddle._process(0.016)
+	var d_base: float = base_paddle.position.x - x_base
+	var x_combo: float = paddle.position.x
+	paddle._process(0.016)
+	var d_combo: float = paddle.position.x - x_combo
+	Input.action_release("paddle_left")
+	_assert(abs(d_combo - d_base) < 0.5, "G10: no-autoload frame == base frame (d_combo=%.3f d_base=%.3f)" % [d_combo, d_base])
+	paddle._process(0.5)
+	paddle._on_score_changed(2, 0)
+	_assert(paddle.get("_combo_active") == true, "G10: score-driven combo works without autoload (combo_active=%s)" % [str(paddle.get("_combo_active"))])
