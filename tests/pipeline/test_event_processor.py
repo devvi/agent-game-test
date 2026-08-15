@@ -1433,6 +1433,52 @@ class TestE2EOrchestrator(unittest.TestCase):
                     lines2 = ep.e2e_orchestrator(475, "impl/x")
                 self.assertEqual(lines2, [], "conclusion present → silent")
 
+    def test_review_done_marker_blocks_respawn(self):
+        """2026-08-15 #494 loop fix: after review_followup processed a
+        conclusion (review-done marker written), the orchestrator must NOT
+        re-spawn review — the conclusion-vs-marker cycle caused 157
+        duplicate review tasks overnight."""
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch.object(ep, "E2E_STATE_DIR", os.path.join(td, "state")), \
+                 mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR",
+                                   os.path.join(td, "concl")), \
+                 mock.patch.object(ep, "REVIEW_DONE_DIR",
+                                   os.path.join(td, "done")), \
+                 mock.patch.object(ep, "_spawn_gate", return_value=True), \
+                 mock.patch.object(ep, "_devlog"):
+                os.makedirs(os.path.join(td, "state"), exist_ok=True)
+                os.makedirs(os.path.join(td, "done"), exist_ok=True)
+                ep._write_e2e_state(475, {"status": "done",
+                                          "summary": "/tmp/x.json"})
+                # review-done marker exists (review_followup already ran)
+                with open(os.path.join(td, "done", "475.json"), "w") as f:
+                    json.dump({"pr": 475, "verdict": "approved"}, f)
+                lines = ep.e2e_orchestrator(475, "impl/x")
+            self.assertEqual(lines, [],
+                             "review-done marker → no re-spawn (loop fixed)")
+
+    def test_review_followup_writes_marker(self):
+        """2026-08-15 #494 loop fix: review_followup must write a
+        review-done marker after consuming a conclusion, so the orchestrator
+        stops re-spawning."""
+        with tempfile.TemporaryDirectory() as td:
+            concl = os.path.join(td, "concl")
+            done = os.path.join(td, "done")
+            os.makedirs(concl, exist_ok=True)
+            with open(os.path.join(concl, "475.json"), "w") as f:
+                json.dump({"pr": 475, "verdict": "approved",
+                           "parent_issue": None, "fix_issue": {}}, f)
+            with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR", concl), \
+                 mock.patch.object(ep, "REVIEW_DONE_DIR", done), \
+                 mock.patch.object(ep, "_devlog"):
+                lines = ep.review_followup()
+            marker = os.path.join(done, "475.json")
+            self.assertTrue(os.path.exists(marker),
+                            "review_followup writes review-done marker")
+            self.assertFalse(os.path.exists(os.path.join(concl, "475.json")),
+                             "conclusion file consumed")
+            self.assertTrue(any("FOLLOWUP" in l for l in lines), lines)
+
 
 class TestDevlog(unittest.TestCase):
     """2026-08-15: develop-mode structured logging.

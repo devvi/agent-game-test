@@ -1863,6 +1863,10 @@ OPENCODE_CRITICAL_FILE = os.path.expanduser("~/.hermes/.opencode-critical")
 # comment) so a call-budget-exhausted agent never leaves a blocked PR with no
 # label / fix issue / comment (happened 2×: #466 then #475).
 REVIEW_CONCLUSIONS_DIR = os.path.expanduser("~/.hermes/review-conclusions")
+# 2026-08-15: "review done" markers — written by review_followup after a
+# conclusion is processed, checked by e2e_orchestrator to stop re-spawning
+# review for an already-judged PR (#494: 157-review loop).
+REVIEW_DONE_DIR = os.path.expanduser("~/.hermes/review-done")
 E2E_STATE_DIR = os.path.expanduser("~/.hermes/e2e-state")
 # Runner lives in the project scripts/ dir. When event-processor runs from the
 # cron copy (~/.hermes/scripts/), __file__ points there — the runner may not
@@ -1981,8 +1985,13 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         # nothing re-emitted for 40 min). Rate-limited by a dedicated
         # "review-resend" gate (short TTL 300s) so we don't spam the cron
         # prompt every tick. failed stays silent (self-correct owns it).
-        if status == "done" and not _read_review_conclusions_file(pr):
-            if _spawn_gate(pr, "review-resend"):
+        # 2026-08-15 (#494 loop fix): if review_followup already processed a
+        # conclusion for this PR (review-done marker), do NOT re-spawn —
+        # otherwise the marker-vs-conclusion cycle re-spawns review forever
+        # (157 duplicates overnight). The marker is cleared on the next
+        # orchestrator launch (new commit → new E2E → fresh review).
+        if not _review_done(pr) and not _read_review_conclusions_file(pr):
+            if status == "done" and _spawn_gate(pr, "review-resend"):
                 lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={state.get('summary', '')}")
         return lines
 
@@ -2005,6 +2014,16 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
             _env["E2E_REPO_ROOT"] = _repo
         else:
             _env = os.environ
+        # 2026-08-15 (#494 loop fix): a fresh E2E launch starts a NEW review
+        # cycle — clear any old review-done marker so review can re-spawn
+        # after this run (new commits → re-review is warranted).
+        try:
+            marker = os.path.join(REVIEW_DONE_DIR, f"{pr}.json")
+            if os.path.exists(marker):
+                os.remove(marker)
+                _devlog("review-marker-cleared", pr=pr)
+        except OSError:
+            pass
         proc = _sp.Popen(
             ["bash", runner, str(pr), "--no-comment"],
             stdout=open(log_path, "w"), stderr=_sp.STDOUT,
@@ -2031,6 +2050,17 @@ def _read_review_conclusions_file(pr: int) -> bool:
     try:
         os.makedirs(REVIEW_CONCLUSIONS_DIR, exist_ok=True)
         return os.path.exists(os.path.join(REVIEW_CONCLUSIONS_DIR, f"{pr}.json"))
+    except OSError:
+        return False
+
+
+def _review_done(pr: int) -> bool:
+    """True if a review-done marker exists (review_followup processed a
+    conclusion for this PR). 2026-08-15 (#494 loop): prevents re-spawning
+    review for an already-judged PR. Marker is cleared when a fresh E2E
+    launches (new commit → new review cycle)."""
+    try:
+        return os.path.exists(os.path.join(REVIEW_DONE_DIR, f"{pr}.json"))
     except OSError:
         return False
 
@@ -2133,6 +2163,23 @@ def review_followup() -> list:
                 lines.append(f"FOLLOWUP: pr={pr} verdict={verdict} recorded")
             try:
                 os.remove(os.path.join(REVIEW_CONCLUSIONS_DIR, fn))
+            except OSError:
+                pass
+            # ── Review-done marker (2026-08-15, #494 157-review loop fix) ──
+            # The e2e_orchestrator re-emits SPAWN: review until a conclusion
+            # file exists. review_followup deletes the file after processing
+            # → orchestrator sees "no conclusion" → re-spawns review forever
+            # (#494: 157 duplicate review tasks overnight). Write a persistent
+            # "review done" marker so the orchestrator knows this PR was
+            # already judged and stops re-spawning. The marker is removed when
+            # a NEW review is warranted (new commits → new E2E → marker
+            # cleared by e2e_orchestrator launch).
+            try:
+                os.makedirs(REVIEW_DONE_DIR, exist_ok=True)
+                with open(os.path.join(REVIEW_DONE_DIR, f"{pr}.json"), "w") as _f:
+                    json.dump({"pr": pr, "verdict": verdict,
+                               "ts": time.time()}, _f)
+                _devlog("review-done", pr=pr, verdict=verdict)
             except OSError:
                 pass
         except Exception as e:
