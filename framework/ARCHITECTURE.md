@@ -14,7 +14,7 @@
 4. **Review** — 代码审查、合并决策（CI 成功后 pre-merge 触发，**不在 label 链中**）
 5. **Self-correct** — CI 失败诊断修复（`workflow/self-correct` label）
 
-## 运行时架构（2026-08-14 修订: kanban 调度层替代 cron LLM 中转）
+## 运行时架构（2026-08-15 修订: 回滚 kanban, 恢复 SPAWN 文本 + cron LLM + devlog）
 
 ```
 GitHub Event → Gateway webhook (:8644)
@@ -22,30 +22,44 @@ GitHub Event → Gateway webhook (:8644)
   → ~/.hermes/workflow-pending.json (~0.3KB/event, 不含 payload)
   → cron tick (godot-workflow-poller, every 1m, script=event-processor.py)
       event-processor.py (确定性 Python, 无 LLM):
-        - 分组/去重/排序 → 判定 (kanban task / 脚本操作)
-        - SPAWN 类 (research/plan/implement/review/self-correct):
-            → kanban create task (dispatcher 确定性 spawn worker)
-        - 确定性操作 (merge-pr / check-unblock):
-            → 脚本直执行 (gh op, 0 LLM, 幂等)
+        - 分组/去重/排序 → 判定 (SPAWN/STALLED/BLOCKED/E2E/FOLLOWUP)
+        - 输出指令文本 (SPAWN: research/plan/implement/review/self-correct)
+        - 确定性操作 (merge-pr/check-unblock) → STALLED 指令 (cron LLM 执行)
         - 依赖解析、槽位上限、stalled scan 信号
-  → kanban dispatcher (gateway 内置, 确定性):
-        Popen `hermes chat -q <prompt> --skills <stage-skill>` worker
-        worker 读 task body → 执行 → kanban_complete
-        reclaim/retry/超时回收 全自动
+        - devlog: 每个 action 写 JSONL (spawn/skip/verdict/merge/error)
+  → cron LLM (godot-workflow-poller prompt):
+        - 读 SPAWN → delegate_task 生成 agent
+        - 读 STALLED → 执行 gh 命令 (merge/unblock)
+        - devlog 全程记录 (可观测, 不靠猜)
 ```
 
-**关键原则（2026-08-14 重构后）：调度层无 LLM 中转。**
-- 确定性操作（spawn/merge/unblock/label）→ 脚本 + kanban dispatcher（0% 幻觉率）
-- LLM 只在 worker 内部做判定型工作（写 PRD/DESIGN/代码/review 结论）
-- 2026-08-14 前的缺陷（SPAWN 被 cron LLM 吞、串行 tick、delegation 完成通知丢失、
-  50-call 截断漏收尾）全部由这一层消除
+**关键原则（2026-08-15 重构失败教训后）：**
+- **确定性操作脚本化**（merge/unblock/E2E orchestration/review 收尾 → event-processor 或脚本层）
+- **LLM 只做判定型工作**（research PRD/plan DESIGN/implement 代码/review 结论）
+- **可观测性优先**：devlog JSONL（~/.hermes/workflow-events.jsonl）记录每个 action，
+  诊断不再靠时间线重建/grep 推断
+- **2026-08-14 kanban 重构已回滚**（157 个 review 循环 task 失控）；
+  回滚保留：opencode 强制、dead-spawn recovery、E2E orchestrator、
+  review 结论文件、workflow-chain blocked 防呆
+
+## Worktree 生命周期（2026-08-15 设计变更）
+
+```
+implement agent:  建 worktree (wt-implement-<N>) → 干活 → PR → 【保留】
+E2E runner:       优先复用该分支已有 worktree (git worktree list 查找)
+                  → L0/L1/L2 验证 (视觉已砍) → 自建的才删 (WT_OWNED)
+review agent:     merge 前删 worktree (open worktree blocks branch delete)
+```
+
+**冲突根源消除**：implement 不再删 worktree,E2E 复用而非新建 — 不再有
+`fatal: already checked out` 冲突。infra-error 重试（5 分钟退避）保留为兜底。
 
 ## 组件清单
 
 | 组件 | 位置 | 职责 |
 |------|------|------|
 | `workflow-dispatcher.py` | `scripts/` + `~/.hermes/scripts/` | webhook 接收, 写 pending 文件 (thin) |
-| `event-processor.py` | 同上 | 调度核心：分组/去重/排序/kanban task 创建/脚本化 merge+unblock/依赖/槽位/check-run 对账(P3b) |
+| `event-processor.py` | 同上 | 调度核心：分组/去重/排序/SPAWN-STALLED 指令/脚本化 merge+unblock/依赖/槽位/check-run 对账(P3b)/E2E 编排/devlog |
 | `event_processor_lib.py` | 同上 | 纯逻辑核心（2026-07-31 拆分）：优先级、时间窗口、依赖解析、配置合并、成本治理(P4b) |
 | `stage-gate.py` | 同上 | PR 创建后验证 label/branch/body, 自动修复 |
 | `workflow-watchdog.py` | 同上 | 沉默 SPAWN 检测（no-agent cron every 5m, P2）|
@@ -59,10 +73,9 @@ GitHub Event → Gateway webhook (:8644)
 | `sync-to-hermes.sh` | `scripts/` | 同步脚本到 `~/.hermes/scripts/`（改脚本后必跑）|
 | `workflow-config.json` | `~/.hermes/` | 启停 + 工作时段 + preset |
 | `game-env/manifest.yaml` | 项目根 | 项目配置单一来源：repo/engine/branch/槽位（P3）|
-| cron `godot-workflow-poller` | Hermes cron | every 1m, deliver=local, 脚本阶段（LLM 阶段已废）|
+| cron `godot-workflow-poller` | Hermes cron | every 1m, deliver=local, 脚本阶段 + LLM 执行 SPAWN/STALLED 指令 |
 | cron `workflow-silent-spawn-watchdog` | Hermes cron | every 5m, no-agent, 沉默 SPAWN → Feishu |
-| **kanban dispatcher** | gateway 内置 | 确定性 spawn worker（Popen hermes chat -q）+ reclaim/retry/超时 |
-| `~/.hermes/kanban-bridge-state.json` | 状态 | (issue:stage)→task-id 持久化去重（flock 保护）|
+| `~/.hermes/workflow-events.jsonl` | 状态 | devlog: 每个 action 一行 JSON（spawn/skip/verdict/merge/error, 5MB rotation×3）|
 | `~/.hermes/review-conclusions/` | 状态 | review 结论文件（脚本收尾层读取）|
 | `~/.hermes/e2e-state/` | 状态 | E2E orchestrator 状态机（running/done/failed）|
 
@@ -151,21 +164,23 @@ LLM 收到 SPAWN 必须执行（delegate_task），不得自行改写。stalled 
 
 **2026-07-31 加固（D2）:** 每个测试 step 输出 `TEST_RAN=true`；Test gate 要求至少一个真实测试执行过 —— **SKIP 不再等于绿色**。任何 step 文件缺失（SKIP 分支）会导致 gate 失败。
 
-## 本地验证层 L3（2026-08-10 实弹, review agent 工具）
+## 本地验证层（2026-08-15 修订: 砍 L3 视觉, 保留 L0-L2）
 
-CI 三层之上, review agent 在**本地**跑第四层——真实渲染截图证据（CI 无法提供画面）:
+**2026-08-15 决策: L3 视觉层已砍。** deepseek 无多模态, 截图断言价值低
+且复杂度高（截图通道/防伪断言/orchestrator 反复出问题）。E2E 只剩
+**L0 编译 / L1 逻辑 / L2 运行时**（确定性、快、无截图复杂度）:
 
 ```
-run-e2e-review.sh <PR_NUM>  →  P0 防休眠 → P1 worktree → P2 L0 → P3 L1 → P4 L2
-                               → P5 L3 视觉（e2e_capture.gd 进程内截图 + analyze_bmp 4 重断言
-                                 + assert_text 文本断言）→ P6 证据 comment → P8 trap 清理
+run-e2e-review.sh <PR_NUM> --skip-visual  →  P0 防休眠 → P1 worktree(复用 implement 的)
+                                              → L0 编译 → L1 逻辑 → L2 运行时
+                                              → summary.json → trap 清理(只删自建 worktree)
 ```
 
-- **截图通道**: Godot 进程内 `get_image().save_png()`（显示睡眠时系统截图 100% 纯黑, 实测 2026-07-31）；必须非 `--headless`；`caffeinate` 双保险
-- **shot plan**: 游戏自持 `mini-pong/e2e_shots.json`（"框架管机器, 游戏管剧本"）；diff 驱动原型（loop/journey/walkthrough/visual/system）；`assert_text` 证明文本交付物真实渲染
-- **4 重防伪断言**: 非黑 / 色数≥K / 主题色存在 / 帧间 Δluma 超阈值（防冻屏）
-- **失败协议**: A 基建(降级需 harness 证据, 视觉 issue 必须人工) / B pre-existing / C 审美(人工拍板) / D 代码缺陷(本地收敛循环, 2 轮上限)
-- **安全注意**: runner 以完整文件系统权限执行 PR 分支 GDScript——只对可信贡献者运行
+- **worktree**: 优先复用 implement agent 保留的 worktree（git worktree list 查找）,
+  避免 `fatal: already checked out` 冲突; 自建的才删（WT_OWNED）
+- **L3 保留机制**: `--with-visual` 可显式开启（代码未删, 默认跳过）
+- **失败协议**: A 基建(infra-error 自动重试 5 分钟退避) / B pre-existing / C 审美(人工) / D 代码缺陷(本地收敛循环)
+- **E2E orchestrator**: event-processor 后台编排 runner, 状态可知（devlog 记录 done/failed/infra-error）
 
 ### E2E 编排（2026-08-14 方案②: 脚本化前置 + 状态可知）
 
@@ -246,7 +261,7 @@ agent-game-test/
 - OpenCode 生成 GDScript 质量取决于模型能力
 - 多仓库 pending 事件（Patch 54）尚未支持 —— 单仓库假设, P3 manifest 参数化解决
 - webhook 链路（ngrok→gateway→route script）5 个故障点 —— 调度器状态检测兜底：label 事件丢失 → picker 直发/available 重扫（research）+ stalled scan（self-correct 感知）；check_run 丢失 → reconcile_check_runs（pr+sha 身份化对账）。reconcile() 合成事件注入已删除（2026-08-13）
-- **L3 截图阈值需按游戏校准**: 色数/帧间差异阈值、shot plan 可达性（如 ai_position_error）靠 deadline 失败反馈迭代, 游戏作者负责剧本
+- **L3 视觉层已砍（2026-08-15）**: deepseek 无多模态, 截图断言价值低; `--with-visual` 保留机制可显式开启
 - **单机依赖**: 本地 e2e 依赖 Mac mini 在线 + UURemote 防系统睡眠（外部依赖, 不在仓库内）
 - **runner 安全边界**: worktree 隔离防主工作区污染, 但不防恶意 GDScript 读主机文件——只对可信贡献者运行
 
