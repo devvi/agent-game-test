@@ -538,33 +538,14 @@ def _extract_parent_issue(pr_num: int) -> Optional[int]:
     return None
 
 
-def _pr_matches_issue(pr: dict, issue: int, stage: str = "") -> bool:
+def _pr_matches_issue(pr: dict, issue: int) -> bool:
     """Client-side PR↔issue match: branch-prefix convention OR body/title
     reference. GitHub's `--search head:...` qualifier is unreliable
     (Patch 59, 2026-07-29: returns [] even for existing PRs), so all
-    PR-exists checks must use this deterministic matcher instead.
-
-    2026-08-14 fix: `stage` restricts the match to the stage's branch prefix.
-    Without it, `_pr_exists_for_issue("implement", N)` matched the plan PR
-    (body "parent #N") → implement spawn was skipped forever (#491 stalled
-    at workflow/implement with no implement task)."""
+    PR-exists checks must use this deterministic matcher instead."""
     head = pr.get("headRefName", "") or ""
     body = pr.get("body", "") or ""
     title = pr.get("title", "") or ""
-    prefix = STAGE_BRANCH_PREFIX.get(stage, "")
-    # Stage-scoped branch match: branch must carry the stage prefix AND the
-    # issue number (plan/491-x matches stage=plan; impl/491-x matches
-    # stage=implement; a plan/491 branch must NOT satisfy stage=implement).
-    if prefix:
-        if (head.startswith(prefix)
-                and (f"/{issue}-" in head or f"/{issue}/" in head
-                     or head.endswith(f"/{issue}"))):
-            return True
-        # Body/title references are NOT sufficient when stage is given — a
-        # research/plan PR body mentions the parent issue but must not block
-        # the implement stage's PR-exists check.
-        return False
-    # No stage scope (generic caller): fall back to any-reference matching.
     if f"/{issue}-" in head or f"/{issue}/" in head or head.endswith(f"/{issue}"):
         return True
     if re.search(rf"(?:Parent|Closes|parent)\s*#{issue}\b", body):
@@ -593,10 +574,7 @@ def _pr_exists_for_issue(stage: str, issue: int) -> bool:
         prs = json.loads(raw)
     except json.JSONDecodeError:
         return False
-    # 2026-08-14: pass stage so body-references from OTHER stages' PRs don't
-    # falsely satisfy this stage's exists-check (e.g. plan PR body "parent #N"
-    # must not block implement spawn).
-    return any(_pr_matches_issue(p, issue, stage) for p in prs)
+    return any(_pr_matches_issue(p, issue) for p in prs)
 
 
 WORKDIR = os.path.expanduser("~/workspace/agent-game-test")
@@ -936,11 +914,8 @@ def pick_next_issue() -> list:
             # itself right after promoting backlog → available — no longer
             # relying on the webhook echo round-trip. The shared gate dedups
             # against the webhook/reconcile label path.
-            # P3 (2026-08-14): kanban is the spawn channel; the text line is
-            # kept as an audit log only (no cron LLM consumes it anymore).
             if _spawn_gate(n, "research") or _dead_spawn_recovery(n, "research"):
                 spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
-                kanban_create_task("research", n)
     
     # Also emit SPAWN for issues at plan/implement/available with no PR yet
     issues = _ensure_issues_cache()
@@ -954,8 +929,7 @@ def pick_next_issue() -> list:
                           "--jq", "length")
             if existing is None or int(existing) == 0:
                 if _spawn_gate(n, "plan") or _dead_spawn_recovery(n, "plan"):
-                    # P3: kanban-only spawn (see research branch comment)
-                    kanban_create_task("plan", n)
+                    spawn_lines.append(f"SPAWN: plan,issue={n},label=workflow/plan")
         elif "workflow/implement" in labels:
             existing = gh("pr", "list", "--state", "all",
                           "--search", f"head:impl/{n}- in:headRefName",
@@ -974,8 +948,7 @@ def pick_next_issue() -> list:
                         _pause_workflow(f"opencode-down (implement spawn blocked, issue {n})")
                         spawn_lines.append(f"BLOCKED: implement,issue={n},reason=opencode-down — workflow auto-paused, fix OpenCode Serve and `/workflow resume`")
                     else:
-                        # P3: kanban-only spawn
-                        kanban_create_task("implement", n)
+                        spawn_lines.append(f"SPAWN: implement,issue={n},label=workflow/implement")
         elif "workflow/available" in labels:
             # Available rescan (2026-08-13): deterministic dead-agent recovery.
             # An issue stuck at workflow/available with no research PR (agent
@@ -988,11 +961,7 @@ def pick_next_issue() -> list:
                 if (_spawn_gate(n, "research")
                         or _dead_spawn_recovery(n, "research")
                         or _spawn_gate(n, "research-resend")):
-                    # P3 (2026-08-14): kanban is the ONLY spawn channel.
-                    # The text SPAWN line is gone — kanban_create_task creates
-                    # the task and the dispatcher spawns the worker. No cron
-                    # LLM translation, no swallowed-SPAWN stall.
-                    kanban_create_task("research", n)
+                    spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
 
     return spawn_lines
 
@@ -1173,28 +1142,6 @@ def preprocess():
     # Step 4: Validate check_run events
     valid_kept = [e for e in kept if validate_check_run(e)]
 
-    # Step 4.5: Drop events for CLOSED issues (2026-08-14 source fix)
-    # Webhook replays/lingering label events for closed issues (e.g. #401,
-    # closed research PR with workflow/research residue) were creating phantom
-    # stage tasks. The issue's lifecycle is over — no stage task, ever.
-    # gh call per candidate; only for events that would spawn (labeled/
-    # check_run), cheap and cached.
-    def _issue_is_live(e):
-        issue_num = e.get("issue")
-        if not issue_num or e.get("type") in ("pull_request.opened",
-                                              "pull_request.labeled",
-                                              "pull_request.synchronize",
-                                              "pull_request.unlabeled"):
-            return True  # PR events carry their own state; don't filter here
-        try:
-            return not _is_issue_closed(int(issue_num))
-        except Exception:
-            return True  # ambiguous → keep (the kanban guard re-checks)
-    live_kept = [e for e in valid_kept if _issue_is_live(e)]
-    for e in valid_kept:
-        if e not in live_kept:
-            discarded_keys.add(e.get("_key", ""))
-
     # Step 5: Filter out invalid check_run events (they go to discard pile)
     for e in kept:
         if not validate_check_run(e):
@@ -1248,8 +1195,10 @@ def preprocess():
                         parent_issue = int(m.group(1))
                 except Exception:
                     pass
-                # P3: kanban-only self-correct spawn
-                kanban_create_task("self-correct", parent_issue, issue, branch)
+                output_lines.append(
+                    f"SPAWN: self-correct,issue={parent_issue},"
+                    f"pr={issue},branch={branch},conclusion={conclusion}"
+                )
                 # SPAWN is one-shot: consume the event immediately. Keeping it
                 # in pending re-emits the SPAWN every tick → the cron LLM
                 # re-delegates every tick (3 research agents spawned for one
@@ -1304,9 +1253,9 @@ def preprocess():
                 if conclusion == "success" and (
                     branch.startswith("research/") or branch.startswith("plan/")
                 ):
-                    # P3 (2026-08-14): merge is SCRIPTED — deterministic gh
-                    # op, zero LLM (was STALLED: merge-pr for the cron LLM).
-                    output_lines.extend(_scripted_merge_pr(int(issue), branch))
+                    output_lines.append(
+                        f"STALLED: merge-pr,pr={issue},branch={branch}"
+                    )
                 else:
                     _audit(
                         event="check_run.dropped",
@@ -1425,11 +1374,6 @@ def preprocess():
                 # outranks the label in the per-issue group and is handled above).
                 # Attach the impl PR context + source so the self-correct agent
                 # knows which PR to fix and the cycle is attributable.
-                # P3: kanban is the spawn channel; the text line is kept as an
-                # audit log only. Enrich with PR context if this is a
-                # self-correct label path (both audit text and task body).
-                _kb_pr = 0
-                _kb_branch = ""
                 if stage == "self-correct":
                     try:
                         pr_json = gh(
@@ -1446,15 +1390,14 @@ def preprocess():
                             if isinstance(pr_info, list):
                                 pr_info = pr_info[0] if pr_info else None
                             if isinstance(pr_info, dict):
-                                _kb_pr = int(pr_info.get('number', issue_int))
-                                _kb_branch = pr_info.get('headRefName', '')
                                 spawn_line += (
-                                    f",pr={_kb_pr},branch={_kb_branch},source=local-e2e"
+                                    f",pr={pr_info.get('number', issue_int)}"
+                                    f",branch={pr_info.get('headRefName', '')}"
+                                    ",source=local-e2e"
                                 )
                     except Exception:
                         pass  # best-effort enrichment — bare label spawn stays valid
-                output_lines.append(spawn_line)  # audit log only
-                kanban_create_task(stage, issue_int, _kb_pr, _kb_branch)
+                output_lines.append(spawn_line)
                 # One-shot consumption (see check_run SPAWN note above).
                 discarded_keys.add(event.get("_key", ""))
             else:
@@ -1482,95 +1425,6 @@ def _output_sort_key(line: str) -> tuple:
     return (0 if line.startswith("SPAWN:") else 1,
             0 if "review" in line or "self-correct" in line else
             1 if line.startswith("SPAWN:") else 2)
-
-
-# ── Scripted deterministic ops (P3, 2026-08-14) ─────────────────
-# These used to be emitted as STALLED directives for the cron LLM to execute
-# (5-12 min per tick, swallowable). They are pure gh operations — the script
-# layer executes them directly, zero LLM, idempotent, retryable. This is the
-# final step of removing the LLM middleman: SPAWN → kanban (done), STALLED →
-# scripted (here).
-
-def _scripted_merge_pr(pr_num: int, branch: str) -> list:
-    """Merge a research/plan PR (CI already verified green by reconcile).
-    Deterministic, idempotent (merge of an already-merged PR is a no-op)."""
-    out = []
-    try:
-        state = gh("pr", "view", str(pr_num), "--json", "state,mergedAt,mergeable",
-                   "--jq", "{state,mergedAt,mergeable}")
-        import json as _json
-        d = _json.loads(state) if state else {}
-        if d.get("state") == "MERGED":
-            return out  # already merged — idempotent
-        if d.get("mergeable") != "MERGEABLE":
-            out.append(f"SCRIPT: pr={pr_num} not mergeable — skip")
-            return out
-        r = subprocess.run(
-            ["gh", "pr", "merge", str(pr_num), "--squash", "--delete-branch"],
-            capture_output=True, text=True, timeout=60,
-        )
-        if r.returncode == 0:
-            out.append(f"SCRIPT: merged pr={pr_num}")
-        else:
-            out.append(f"SCRIPT: pr={pr_num} merge failed: {(r.stderr or '')[:100]}")
-    except Exception as e:
-        out.append(f"SCRIPT: pr={pr_num} merge error: {e}")
-    return out
-
-
-def _scripted_check_unblock(pr_num: int, branch: str) -> list:
-    """Check whether a blocked PR's fix issue has merged; if so, unblock.
-    Mechanical: no judgment, no fix-issue creation — just fix-issue state →
-    label ops. (2026-08-14: unblock is a scripted op, not a worker; the
-    review worker is the single judge and sole fix-issue creator.)"""
-    out = []
-    try:
-        # find fix issue from PR comments
-        r = subprocess.run(
-            ["gh", "pr", "view", str(pr_num), "--json", "comments",
-             "--jq", ".comments[].body"],
-            capture_output=True, text=True, timeout=30,
-        )
-        fix_num = None
-        for line in (r.stdout or "").splitlines():
-            m = re.search(r"tracked by #(\d+)", line)
-            if m:
-                fix_num = int(m.group(1))
-                break
-        if not fix_num:
-            out.append(f"SCRIPT: pr={pr_num} no fix issue found — keep blocked")
-            return out
-        r2 = subprocess.run(
-            ["gh", "issue", "view", str(fix_num), "--json", "state,labels",
-             "--jq", "{state, labels: [.labels[].name]}"],
-            capture_output=True, text=True, timeout=30,
-        )
-        import json as _json
-        d = _json.loads(r2.stdout) if r2.stdout else {}
-        closed = (d.get("state") == "CLOSED" or
-                  "status/done" in d.get("labels", []))
-        if not closed:
-            out.append(f"SCRIPT: pr={pr_num} ⏳ waiting fix #{fix_num}")
-            return out
-        # fix merged → unblock: remove status/blocked from PR + parent
-        subprocess.run(
-            ["gh", "api", f"repos/devvi/agent-game-test/issues/{pr_num}/labels/status%2Fblocked",
-             "-X", "DELETE"],
-            capture_output=True, text=True, timeout=30,
-        )
-        parent = _extract_parent_issue(pr_num)
-        if parent:
-            subprocess.run(
-                ["gh", "api", f"repos/devvi/agent-game-test/issues/{parent}/labels/status%2Fblocked",
-                 "-X", "DELETE"],
-                capture_output=True, text=True, timeout=30,
-            )
-        subprocess.run(["gh", "pr", "update-branch", str(pr_num)],
-                       capture_output=True, text=True, timeout=60)
-        out.append(f"SCRIPT: pr={pr_num} unblocked (fix #{fix_num} merged)")
-    except Exception as e:
-        out.append(f"SCRIPT: pr={pr_num} unblock error: {e}")
-    return out
 
 
 def _quick_stalled_scan():
@@ -1602,9 +1456,12 @@ def _quick_stalled_scan():
         pr_num = pr["number"]
 
         if branch.startswith("research/") or branch.startswith("plan/"):
-            # Stalled research/plan PR — merge if mergeable (P3: scripted)
+            # Stalled research/plan PR — merge if mergeable
             if pr.get("mergeable") == "MERGEABLE":
-                cmds.extend(_scripted_merge_pr(pr_num, branch))
+                cmds.append(
+                    f"STALLED: merge-pr,pr={pr_num},"
+                    f"branch={branch}"
+                )
         elif branch.startswith("impl/"):
             # Stalled impl PR — check CI status, then review or self-correct.
             # All STALLED emissions go through _spawn_gate: the same PR must
@@ -1638,15 +1495,10 @@ def _quick_stalled_scan():
                 if parent:
                     p_labels = _current_issue_labels(parent)
                     parent_self_correct = "workflow/self-correct" in p_labels
-                # P3 (2026-08-14): unblock is now SCRIPTED (deterministic gh
-                # ops, zero LLM) — no STALLED text, no kanban task. The
-                # single-judge rule: it only checks fix-issue state + updates
-                # labels; it never creates fix issues or classifies failures.
                 if _spawn_gate(pr_num, "unblock"):
-                    cmds.extend(_scripted_check_unblock(pr_num, branch))
+                    cmds.append(f"STALLED: check-unblock,pr={pr_num},branch={branch}")
                 if parent_self_correct and _spawn_gate(pr_num, "self-correct"):
-                    # P3: kanban-only self-correct spawn
-                    kanban_create_task("self-correct", pr_num, pr_num, branch)
+                    cmds.append(f"STALLED: check-self-correct,pr={pr_num},branch={branch}")
             else:
                 # Self-correct awareness: the parent issue was already flagged
                 # workflow/self-correct by the review agent (local e2e failure,
@@ -1657,8 +1509,7 @@ def _quick_stalled_scan():
                     p_labels = _current_issue_labels(parent)
                     if "workflow/self-correct" in p_labels:
                         if _spawn_gate(pr_num, "self-correct"):
-                            # P3: kanban-only self-correct spawn
-                            kanban_create_task("self-correct", pr_num, pr_num, branch)
+                            cmds.append(f"STALLED: check-self-correct,pr={pr_num},branch={branch}")
                         continue
                 # ── E2E scripted front-load (2026-08-14, plan ②) ──
                 # Parent unresolved / no self-correct label → review, but the
@@ -1931,75 +1782,6 @@ OPENCODE_CRITICAL_FILE = os.path.expanduser("~/.hermes/.opencode-critical")
 # label / fix issue / comment (happened 2×: #466 then #475).
 REVIEW_CONCLUSIONS_DIR = os.path.expanduser("~/.hermes/review-conclusions")
 E2E_STATE_DIR = os.path.expanduser("~/.hermes/e2e-state")
-# ── Kanban scheduling bridge (2026-08-14 migration) ──────────────
-# Phase 2 (dual-run): every SPAWN/STALLED emit ALSO creates a kanban task so
-# the deterministic dispatcher spawns the worker (Popen hermes chat -q)
-# instead of relying on the cron LLM to translate text → delegate_task.
-# Phase 3: delete the text emit entirely.
-KANBAN_BRIDGE = os.environ.get("KANBAN_BRIDGE", "1") == "1"
-_KANBAN_BOARD = "default"
-_KANBAN_SEEN = {}  # (issue, stage) → task_id created this process
-_KANBAN_STATE_FILE = os.path.expanduser("~/.hermes/kanban-bridge-state.json")
-
-
-def _kanban_seen_persist() -> dict:
-    """Persistent (issue:stage) → task-id dedup across cron ticks.
-
-    2026-08-14: the in-process _KANBAN_SEEN resets every cron tick (each tick
-    is a fresh python process), so the bridge re-created duplicate kanban
-    tasks for the same (issue, stage) — 5 parallel workers on #475/#480,
-    redundant work + potential conflicts. The kanban dispatcher already
-    reclaims/retries tasks, so once a task exists we must NOT create another.
-    """
-    with _kanban_state_lock():
-        try:
-            with open(_KANBAN_STATE_FILE) as f:
-                return json.load(f)
-        except (OSError, json.JSONDecodeError, ValueError):
-            return {}
-
-
-def _kanban_state_lock():
-    """Cross-process lock for the bridge state file.
-
-    2026-08-14 18:4x: multiple cron ticks call _kanban_seen_add concurrently;
-    read-modify-write without a lock races → early (issue,stage) records get
-    overwritten → duplicate tasks re-created (8 parallel workers on #475).
-    flock is advisory but sufficient since all writers are ours.
-    """
-    import contextlib
-    import fcntl
-
-    @contextlib.contextmanager
-    def _lock():
-        lock_path = _KANBAN_STATE_FILE + ".lock"
-        fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX)
-            yield
-        finally:
-            try:
-                fcntl.flock(fd, fcntl.LOCK_UN)
-            except Exception:
-                pass
-            os.close(fd)
-    return _lock()
-
-
-def _kanban_seen_add(issue: int, stage: str, task_id: str) -> None:
-    with _kanban_state_lock():
-        try:
-            d = {}
-            try:
-                with open(_KANBAN_STATE_FILE) as f:
-                    d = json.load(f)
-            except (OSError, json.JSONDecodeError, ValueError):
-                d = {}
-            d[f"{issue}:{stage}"] = task_id
-            with open(_KANBAN_STATE_FILE, "w") as f:
-                json.dump(d, f)
-        except OSError:
-            pass
 # Runner lives in the project scripts/ dir. When event-processor runs from the
 # cron copy (~/.hermes/scripts/), __file__ points there — the runner may not
 # be synced (2026-08-14: `bash: .../run-e2e-review.sh: No such file or
@@ -2098,77 +1880,32 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
                         return s in ("0", "pass", "true", "yes")
                     if all(_green(v) for v in layers.values()):
                         verdict = "done"
-                    else:
-                        verdict = "failed"  # content failure — real evidence
                 else:
                     lines.append(f"E2E: pr={pr} summary stale (mtime {mtime:.0f} < start {started:.0f})")
-                    verdict = "failed"
             except (json.JSONDecodeError, OSError):
                 verdict = "failed"
-        else:
-            # No summary at all — the runner died before producing evidence
-            # (e.g. worktree add failed because the implement worker still
-            # holds the branch). This is INFRA failure, not content failure.
-            # 2026-08-15 design: retry with backoff instead of parking in
-            # "failed" (which silently blocked review forever — #491 trace:
-            # orchestrator P1 worktree add failed → harvest saw no summary →
-            # status failed → review never spawned).
-            verdict = "infra-error"
         state["status"] = verdict
         state["finished_at"] = time.time()
         _write_e2e_state(pr, state)
-        if verdict == "infra-error":
-            # backoff retry: re-launch after a cooldown (5 min) so a transient
-            # worktree conflict (implement worker not yet done) resolves.
-            lines.append(f"E2E: pr={pr} infra-error (no summary) — retry in 5m")
-            state["status"] = "absent"  # next tick relaunches (see absent branch)
-            state["retry_at"] = time.time() + 300
-            _write_e2e_state(pr, state)
-            return lines
         lines.append(f"E2E: pr={pr} {verdict} (summary {summary})")
-        if verdict in ("done", "failed"):
-            # done → review interprets green summary; failed → review sees the
-            # failure evidence and classifies (A infra / B pre-existing /
-            # C aesthetic / D code). 2026-08-15: failed NO LONGER stays silent
-            # waiting for self-correct — a green CI with a failed local E2E is
-            # exactly what the review agent must judge (#491 deadlock).
-            kanban_create_task("review", pr, pr, branch, f"e2e_summary={summary}")
+        if verdict == "done":
+            lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={summary}")
         return lines
 
     if status in ("done", "failed"):
-        # Already harvested. Re-emit review task until a review conclusion
-        # file appears — the spawn may be swallowed by a busy cron. The
-        # active-state dedup in kanban_create_task prevents duplicate workers
-        # while a review is in flight and allows re-create once it finishes.
-        if not _read_review_conclusions_file(pr):
-            kanban_create_task("review", pr, pr, branch,
-                               f"e2e_summary={state.get('summary', '')}")
+        # Already harvested. Re-emit SPAWN: review until a review conclusion
+        # file appears — the SPAWN may be swallowed by a busy cron
+        # (2026-08-14 16:10 trace: SPAWN emitted, cron never executed it,
+        # nothing re-emitted for 40 min). Rate-limited by a dedicated
+        # "review-resend" gate (short TTL 300s) so we don't spam the cron
+        # prompt every tick. failed stays silent (self-correct owns it).
+        if status == "done" and not _read_review_conclusions_file(pr):
+            if _spawn_gate(pr, "review-resend"):
+                lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={state.get('summary', '')}")
         return lines
 
     # absent → launch background runner (--no-comment: evidence posted by
     # review agent after interpreting, avoids double-posting)
-    # 2026-08-15: infra-error backoff — if the previous run failed with no
-    # summary, wait out retry_at before relaunching (worktree conflict etc.).
-    retry_at = state.get("retry_at", 0)
-    if retry_at and time.time() < retry_at:
-        mins = int((retry_at - time.time()) / 60) + 1
-        lines.append(f"E2E: pr={pr} backoff — retry in ~{mins}m")
-        return lines
-    # 2026-08-15 (design): worktree decoupling. The runner does
-    # `git worktree add` on the impl branch — if the implement worker's own
-    # worktree still holds that branch, add fails and E2E misjudges as
-    # infra-error (the #491 trace). The implement worker only releases the
-    # branch when it completes + cleans its worktree. So: do NOT launch E2E
-    # while an implement task for this PR is still active. The stalled-scan /
-    # check_run paths re-enter this function every tick, so the launch simply
-    # defers until the implement task is done — no extra machinery needed.
-    try:
-        _active_impl = _kanban_seen_persist().get(f"{pr}:implement")
-        if _active_impl and _kanban_task_active(_active_impl):
-            lines.append(f"E2E: pr={pr} defer — implement worker active (worktree held)")
-            return lines
-    except Exception:
-        pass  # defer check is best-effort; proceed on failure
     try:
         os.makedirs(E2E_STATE_DIR, exist_ok=True)
         log_path = f"/tmp/e2e-{pr}-orchestrator.log"
@@ -2180,15 +1917,7 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         # branch fallback (impl/475). Pass E2E_REPO_ROOT explicitly and run
         # with cwd=project so git/gh resolve correctly.
         import subprocess as _sp
-        # Repo root: derive from this script's location (<repo>/scripts/) so it
-        # works on CI (Linux runner) and the dev machine alike. Fall back to the
-        # dev-machine path when running from the cron copy (~/.hermes/scripts/)
-        # whose parent has no .git. (#475 self-correct: hardcoding the dev path
-        # broke pipeline-tests on GitHub Actions — cwd/E2E_REPO_ROOT pointed at
-        # a nonexistent /Users/devvi/... dir.)
-        _repo = os.path.abspath(os.path.join(_SCRIPT_DIR, ".."))
-        if not os.path.exists(os.path.join(_repo, ".git")):
-            _repo = "/Users/devvi/workspace/agent-game-test"
+        _repo = "/Users/devvi/workspace/agent-game-test"
         if os.path.exists(os.path.join(_repo, ".git")):
             _env = dict(os.environ)
             _env["E2E_REPO_ROOT"] = _repo
@@ -2210,8 +1939,8 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         lines.append(f"E2E: pr={pr} started (pid {proc.pid}) — {branch} (log {log_path})")
     except Exception as e:
         lines.append(f"E2E: pr={pr} launch failed: {e}")
-        # fall back to kanban review spawn so we never stall
-        kanban_create_task("review", pr, pr, branch)
+        # fall back to agent-driven review so we never stall
+        lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch}")
     return lines
 
 
@@ -2222,217 +1951,6 @@ def _read_review_conclusions_file(pr: int) -> bool:
         return os.path.exists(os.path.join(REVIEW_CONCLUSIONS_DIR, f"{pr}.json"))
     except OSError:
         return False
-
-
-# ── Kanban task creation (P2 bridge) ─────────────────────────────
-# Stage → (skill, assignee) mapping. Worker is spawned by the kanban
-# dispatcher (Popen hermes chat -q --skills <skill>), NOT by the cron LLM.
-_KANBAN_STAGE_SKILL = {
-    "research": "game-research-agent",
-    "plan": "game-plan-agent",
-    "implement": "game-implement-agent",
-    "review": "game-review-agent",
-    "self-correct": "game-implement-agent",
-}
-
-# ── Stage → issue label (2026-08-14 regression fix) ──────────────
-# Pre-kanban, SPAWN carried `label=workflow/research` and the cron LLM applied
-# it, so the issue's lifecycle label advanced with the stage (available →
-# research → plan → implement). The kanban bridge dropped that: kanban_create_task
-# only created the task, the issue stayed at workflow/available while the
-# research agent ran — the user cannot manage issue lifecycle from labels.
-# Labels are deterministic ops → the script layer must apply them (kanban
-# bridge, 2026-08-14 user correction).
-_STAGE_LABEL = {
-    "research": "workflow/research",
-    "plan": "workflow/plan",
-    "implement": "workflow/implement",
-    "self-correct": "workflow/self-correct",
-    "review": None,  # review is not in the label chain
-}
-# Label to remove when advancing to a stage (previous stage label).
-_STAGE_LABEL_PREV = {
-    "research": "workflow/available",   # available → research
-    "plan": "workflow/research",        # research → plan
-    "implement": "workflow/plan",       # plan → implement
-    "self-correct": None,
-    "review": None,
-}
-
-
-def _advance_issue_label(stage: str, issue: int) -> None:
-    """Advance the issue's workflow label for the given stage (deterministic).
-    Mirrors the pre-kanban SPAWN `label=` semantics so issue lifecycle stays
-    correct: available → research → plan → implement."""
-    add = _STAGE_LABEL.get(stage)
-    if not add:
-        return
-    try:
-        gh("issue", "edit", str(issue), "--add-label", add)
-        prev = _STAGE_LABEL_PREV.get(stage)
-        if prev:
-            gh("issue", "edit", str(issue), "--remove-label", prev)
-        _invalidate_issues_cache_for(issue)
-    except Exception:
-        pass  # label advance is best-effort; task creation still proceeds
-
-
-def kanban_create_task(stage: str, issue: int, pr: int = 0,
-                       branch: str = "", extra: str = "") -> str:
-    """Create a kanban task for the given workflow stage (P2/P3 bridge).
-
-    The kanban dispatcher picks it up and spawns a deterministic worker
-    (hermes chat -q with the stage's skill). Returns the task id, or "" if
-    the bridge is off / the task already exists (persistent dedup).
-
-    Dedup (2026-08-14 lessons): persistent (issue:stage)→task-id map with a
-    cross-process flock (concurrent cron ticks raced and overwrote records,
-    re-creating duplicate tasks → 8 parallel workers on #475).
-
-    IMPORTANT (self-review 2026-08-14): dedup is ACTIVE-STATE aware. Stages
-    are cyclic — review runs again after self-correct pushes new commits,
-    implement can be re-queued after a force-push. A permanently-remembered
-    (issue:stage) would deadlock those cycles. So:
-      - task exists AND active (ready/running) → skip (dedup)
-      - task exists AND finished (done/blocked/archived) → re-create
-        (new cycle), updating the state map
-    """
-    if not KANBAN_BRIDGE:
-        return ""
-    # ── Closed-issue guard (2026-08-14) ───────────────────────────
-    # #401 (CLOSED research PR) kept getting re-spawned as implement tasks —
-    # 39 duplicates in 21 min during the dedup bug, then more after archive.
-    # A closed issue must NEVER get a new stage task (its lifecycle is over).
-    # FAIL-CLOSED (2026-08-14 23:2x): an ambiguous check (gh timeout/auth
-    # failure) must SKIP creation, not allow it — the original fail-open let
-    # #401 through whenever gh hiccuped (env -i repro: _is_issue_closed→False
-    # without GH_TOKEN → guard passed → task created).
-    try:
-        if not _is_issue_closed(issue):
-            # _is_issue_closed returns False both for "confirmed OPEN" and
-            # "could not verify". Only proceed when we positively confirm
-            # OPEN; anything ambiguous is treated as closed (conservative).
-            state = gh("issue", "view", str(issue), "--json", "state")
-            if not state:
-                return ""
-            try:
-                if json.loads(state).get("state", "") != "OPEN":
-                    return ""
-            except (json.JSONDecodeError, KeyError):
-                return ""
-    except Exception:
-        return ""  # conservative: any guard failure → skip
-    key = (issue, stage)
-    if key in _KANBAN_SEEN:
-        try:
-            if _kanban_task_active(_KANBAN_SEEN[key]):
-                return ""
-        except Exception:
-            pass  # fail-open
-    seen = _kanban_seen_persist()
-    seen_key = f"{issue}:{stage}"
-    existing_id = seen.get(seen_key)
-    if existing_id:
-        try:
-            active = _kanban_task_active(existing_id)
-        except Exception:
-            active = False  # fail-open: query error must not deadlock the cycle
-        if active:
-            return ""
-    skill = _KANBAN_STAGE_SKILL.get(stage, "")
-    if not skill:
-        return ""
-    body = (f"Issue: #{issue}\n"
-            f"Stage: {stage}\n"
-            + (f"PR: #{pr}\n" if pr else "")
-            + (f"Branch: {branch}\n" if branch else "")
-            + (f"{extra}\n" if extra else "")
-            + f"Run as the {skill} (see skill for full protocol). "
-              f"Complete this task with kanban_complete when done. "
-              f"NEVER merge PRs manually.")
-    title = f"{stage}: issue #{issue}" + (f" (PR #{pr})" if pr else "")
-    try:
-        cmd = ["hermes", "kanban", "create", title,
-               "--skill", skill, "--body", body,
-               "--assignee", "default", "--max-runtime", "3600"]
-        # Lesson 3 (2026-08-14): serialize same-issue stages via --parent —
-        # the review/unblock/self-correct workers for one PR must not run
-        # concurrently (they raced on #475: 8 parallel workers, conflicting
-        # labels/fix-issues). Chain: research → plan → implement → review,
-        # with unblock/self-correct as children of review.
-        parent_id = _kanban_stage_parent(stage, issue)
-        if parent_id:
-            cmd += ["--parent", parent_id]
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        out = (r.stdout or "").strip()
-        import re as _re
-        m = _re.search(r"(t_[A-Za-z0-9]+)", out)
-        if m:
-            _KANBAN_SEEN[key] = m.group(1)
-            _kanban_seen_add(issue, stage, m.group(1))
-            # Advance the issue lifecycle label (available → research →
-            # plan → implement). Regression fix 2026-08-14: pre-kanban the
-            # SPAWN label= field did this; the bridge dropped it, leaving the
-            # issue stuck at workflow/available while the agent ran.
-            _advance_issue_label(stage, issue)
-            return m.group(1)
-    except Exception:
-        pass
-    return ""
-
-
-def _kanban_task_active(task_id: str) -> bool:
-    """True if the task is still in flight (ready/running) — a fresh stage
-    cycle must not be created while the previous one is active. Finished
-    states (done/blocked/archived) mean the cycle is over → allow re-create.
-    Uses a short subprocess query (gh-free, hermes kanban show)."""
-    try:
-        r = subprocess.run(
-            ["hermes", "kanban", "show", task_id, "--json"],
-            capture_output=True, text=True, timeout=15,
-        )
-        if r.returncode != 0:
-            # task gone (e.g. board wiped) → not active → allow re-create
-            return False
-        import json as _json
-        d = _json.loads(r.stdout or "{}")
-        # `kanban show --json` wraps the task under {"task": {...}} (verified
-        # 2026-08-14 21:02: top-level "status" was None → active() always
-        # False → dedup never fired → duplicate review/implement tasks). Some
-        # versions return the task flat — handle both.
-        if isinstance(d, dict) and "task" in d:
-            d = d["task"]
-        status = d.get("status", "")
-        return status in ("ready", "running", "claimed")
-    except Exception:
-        # query failed → assume NOT active so the cycle can still progress
-        return False
-
-
-# Same-issue stage ordering (lesson 3, 2026-08-14): which existing task a new
-# stage must wait on. The parent gate prevents same-PR worker concurrency.
-_KANBAN_STAGE_CHAIN = ["research", "plan", "implement", "review"]
-
-
-def _kanban_stage_parent(stage: str, issue: int) -> str:
-    """Return the previous same-issue task id that `stage` must wait on."""
-    try:
-        seen = _kanban_seen_persist()
-        chain = _KANBAN_STAGE_CHAIN
-        if stage in chain:
-            idx = chain.index(stage)
-            for prev in reversed(chain[:idx]):
-                tid = seen.get(f"{issue}:{prev}")
-                if tid:
-                    return tid
-        # unblock/self-correct wait on the review task (they react to its verdict)
-        if stage == "self-correct":
-            tid = seen.get(f"{issue}:review")
-            if tid:
-                return tid
-    except Exception:
-        pass
-    return ""
 
 
 def _read_review_conclusions() -> list:
