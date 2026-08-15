@@ -64,6 +64,8 @@ review agent:     merge 前删 worktree (open worktree blocks branch delete)
 | `stage-gate.py` | 同上 | PR 创建后验证 label/branch/body, 自动修复 |
 | `workflow-watchdog.py` | 同上 | 沉默 SPAWN 检测（no-agent cron every 5m, P2）|
 | `workflow-metrics.py` | 同上 | PM 指标视图：吞吐/SPAWN 分布/健康度（P4c）|
+| `create-issues.py` | `scripts/` | 按分解 JSON 批量创建 Issue（强制 workflow/backlog 防呆, #504 教训）|
+| `webhook-sync.py` | `~/.hermes/scripts/`（未入库） | 每15分钟同步 ngrok URL+secret 到 GitHub webhook（no-agent cron, 空输出=静默, 2026-08-16 修 [SILENT] 噪音）|
 | `run-e2e-review.sh` | `scripts/` | 本地 E2E 主 runner（P0-P8: worktree/L0-L3/证据/清理; P6 截图经 gist raw 上传嵌入 PR comment, 2026-07-31）|
 | `e2e/analyze_bmp.py` | `scripts/` | PNG 原生 4 重防伪断言（非黑/色数/主题色/帧间差异——全帧平均Δluma 或 变化像素占比, 纯 stdlib）|
 | `e2e/resolve_plan.py` | `scripts/` | diff→shot plan 原型选择（loop/journey/walkthrough/visual/system）|
@@ -75,6 +77,7 @@ review agent:     merge 前删 worktree (open worktree blocks branch delete)
 | `game-env/manifest.yaml` | 项目根 | 项目配置单一来源：repo/engine/branch/槽位（P3）|
 | cron `godot-workflow-poller` | Hermes cron | every 1m, deliver=local, 脚本阶段 + LLM 执行 SPAWN/STALLED 指令 |
 | cron `workflow-silent-spawn-watchdog` | Hermes cron | every 5m, no-agent, 沉默 SPAWN → Feishu |
+| cron `webhook-sync` | Hermes cron | every 15m, no-agent, deliver=local（2026-08-16 起, 此前 deliver=origin 踩 Feishu thread 投递 bug）, ngrok URL 变更时同步 webhook |
 | `~/.hermes/workflow-events.jsonl` | 状态 | devlog: 每个 action 一行 JSON（spawn/skip/verdict/merge/error, 5MB rotation×3）|
 | `~/.hermes/review-conclusions/` | 状态 | review 结论文件（脚本收尾层读取）|
 | `~/.hermes/e2e-state/` | 状态 | E2E orchestrator 状态机（running/done/failed）|

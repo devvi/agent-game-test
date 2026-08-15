@@ -121,6 +121,9 @@ workflow/implement
 │  cronjob (webhook-sync)                                   │
 │    └── 每15分钟同步 ngrok URL 到 GitHub webhook 配置      │
 │                                                          │
+│  cronjob (workflow-silent-spawn-watchdog)                 │
+│    └── 每5分钟沉默 SPAWN 检测 → Feishu 告警 (no-agent)   │
+│                                                          │
 │  gateway (:8644)                                         │
 │    └── 接收 webhook → route-script → pending.json        │
 └──────────────────────────────────────────────────────────┘
