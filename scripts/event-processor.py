@@ -53,6 +53,52 @@ if os.path.exists(_ENV_FILE) and not os.environ.get("GH_TOKEN"):
 from typing import Optional
 from collections import defaultdict
 
+# ── Develop-mode structured logging (2026-08-15) ─────────────────
+# 2026-08-15 重构失败教训: 每次诊断都靠猜(时间线重建/grep 推断),
+# 没有系统性可观测性。引入 append-only JSONL event log:
+#   ~/.hermes/workflow-events.jsonl  ← 每个 action 一行 JSON(核心)
+# 写入时机: action 发生时立即写(不是 tick 末汇总) — crash 后最后
+# 一条 log 就是崩溃点, 不丢。
+# develop 模式(workflow-config "mode": "develop")额外输出 stdout
+# 一行摘要(人眼可读); production 只写 error/warn 级。
+_DEVLOG_PATH = os.path.expanduser("~/.hermes/workflow-events.jsonl")
+_DEVLOG_MAX = 5 * 1024 * 1024  # 5MB rotation
+_DEVLOG_KEEP = 3
+
+
+def _workflow_mode() -> str:
+    """Read workflow-config mode: 'develop' or 'production' (default)."""
+    try:
+        cfg = json.load(open(os.path.expanduser("~/.hermes/workflow-config.json")))
+        return cfg.get("mode", "production")
+    except Exception:
+        return "production"
+
+
+def _devlog(event: str, level: str = "info", **fields) -> None:
+    """Append one JSON line to the devlog (always for info+, stdout summary
+    only in develop mode). Called at action time, never at tick end."""
+    import time as _t
+    rec = {"ts": _t.strftime("%Y-%m-%dT%H:%M:%S"), "event": event, "level": level}
+    rec.update(fields)
+    try:
+        os.makedirs(os.path.dirname(_DEVLOG_PATH), exist_ok=True)
+        with open(_DEVLOG_PATH, "a") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+        # rotation: >5MB → shift .1/.2/.3
+        if os.path.getsize(_DEVLOG_PATH) > _DEVLOG_MAX:
+            for i in range(_DEVLOG_KEEP, 0, -1):
+                src = f"{_DEVLOG_PATH}.{i-1}" if i > 1 else _DEVLOG_PATH
+                dst = f"{_DEVLOG_PATH}.{i}"
+                if os.path.exists(src):
+                    os.replace(src, dst)
+    except Exception:
+        pass  # devlog is best-effort; never break the pipeline
+    if _workflow_mode() == "develop":
+        _sum = " ".join(f"{k}={v}" for k, v in fields.items())
+        print(f"[DEV] {event} {_sum}")
+
+
 # ── Pure-logic core (split 2026-07-31, P1-7) ───────────────────
 # Deterministic decision functions live in event_processor_lib.py so they
 # can be unit-tested in isolation (tests/pipeline/test_event_processor.py).
@@ -843,11 +889,14 @@ def _spawn_gate(issue: int, stage: str) -> bool:
         now = time.time()
         ttl = _SPAWN_TTL_BY_STAGE.get(stage, _SPAWN_TTL_SECONDS)
         if prev.get("stage") == stage and now - prev.get("ts", 0) < ttl:
+            _devlog("skip", issue=issue, stage=stage, reason="gate-ttl",
+                    ttl_left=int(ttl - (now - prev.get("ts", 0))))
             return False
         state[str(issue)] = {"stage": stage, "ts": now}
         _write_spawn_state(state)
         return True
     except Exception:
+        _devlog("skip", issue=issue, stage=stage, reason="gate-error", level="warn")
         return True
 
 
@@ -916,6 +965,7 @@ def pick_next_issue() -> list:
             # against the webhook/reconcile label path.
             if _spawn_gate(n, "research") or _dead_spawn_recovery(n, "research"):
                 spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
+                _devlog("spawn", issue=n, stage="research", source="backlog-promotion")
     
     # Also emit SPAWN for issues at plan/implement/available with no PR yet
     issues = _ensure_issues_cache()
@@ -930,6 +980,7 @@ def pick_next_issue() -> list:
             if existing is None or int(existing) == 0:
                 if _spawn_gate(n, "plan") or _dead_spawn_recovery(n, "plan"):
                     spawn_lines.append(f"SPAWN: plan,issue={n},label=workflow/plan")
+                    _devlog("spawn", issue=n, stage="plan", source="picker")
         elif "workflow/implement" in labels:
             existing = gh("pr", "list", "--state", "all",
                           "--search", f"head:impl/{n}- in:headRefName",
@@ -946,9 +997,11 @@ def pick_next_issue() -> list:
                     # surface [CRITICAL] instead; human fixes + resumes.
                     if not opencode_healthy():
                         _pause_workflow(f"opencode-down (implement spawn blocked, issue {n})")
+                        _devlog("blocked", issue=n, stage="implement", reason="opencode-down", level="warn")
                         spawn_lines.append(f"BLOCKED: implement,issue={n},reason=opencode-down — workflow auto-paused, fix OpenCode Serve and `/workflow resume`")
                     else:
                         spawn_lines.append(f"SPAWN: implement,issue={n},label=workflow/implement")
+                        _devlog("spawn", issue=n, stage="implement", source="picker")
         elif "workflow/available" in labels:
             # Available rescan (2026-08-13): deterministic dead-agent recovery.
             # An issue stuck at workflow/available with no research PR (agent
@@ -962,6 +1015,7 @@ def pick_next_issue() -> list:
                         or _dead_spawn_recovery(n, "research")
                         or _spawn_gate(n, "research-resend")):
                     spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
+                    _devlog("spawn", issue=n, stage="research", source="available-rescan")
 
     return spawn_lines
 
@@ -1253,6 +1307,7 @@ def preprocess():
                 if conclusion == "success" and (
                     branch.startswith("research/") or branch.startswith("plan/")
                 ):
+                    _devlog("merge-request", pr=int(issue), branch=branch, source="check_run")
                     output_lines.append(
                         f"STALLED: merge-pr,pr={issue},branch={branch}"
                     )
@@ -1462,6 +1517,7 @@ def _quick_stalled_scan():
                     f"STALLED: merge-pr,pr={pr_num},"
                     f"branch={branch}"
                 )
+                _devlog("merge-request", pr=pr_num, branch=branch, source="stalled-scan")
         elif branch.startswith("impl/"):
             # Stalled impl PR — check CI status, then review or self-correct.
             # All STALLED emissions go through _spawn_gate: the same PR must
@@ -1497,6 +1553,7 @@ def _quick_stalled_scan():
                     parent_self_correct = "workflow/self-correct" in p_labels
                 if _spawn_gate(pr_num, "unblock"):
                     cmds.append(f"STALLED: check-unblock,pr={pr_num},branch={branch}")
+                    _devlog("unblock-request", pr=pr_num, branch=branch)
                 if parent_self_correct and _spawn_gate(pr_num, "self-correct"):
                     cmds.append(f"STALLED: check-self-correct,pr={pr_num},branch={branch}")
             else:
@@ -1536,6 +1593,7 @@ def main():
         # Pause check
         if is_paused():
             _audit(tick="end", in_window=False, paused=True, output="[PAUSED]")
+            _devlog("tick_summary", in_window=False, paused=True, idle=True)
             return
 
         # Flush per-tick caches ──
@@ -1590,6 +1648,7 @@ def main():
         # When all issues are done and no events are queued, skip all expensive
         # operations (picker, preprocess, stalled scan). Only cost:
         # 1 gh issue list call + 1 local file read per tick.
+        events = []
         if in_window and not is_paused():
             events = read_pending()
             if not events:
@@ -1621,6 +1680,11 @@ def main():
                     # running empty ticks).
                     _audit(tick="end", in_window=in_window, paused=False,
                            silent_fast_path=True, output="[SILENT]")
+                    # 2026-08-15: devlog too — distinguish idle from dead.
+                    _devlog("tick_summary", in_window=in_window, paused=False,
+                            pending=0, raw_lines=0, spawn=0, blocked=0,
+                            stalled=0, phase_slots=0, active_phase=0,
+                            idle=True)
                     print("[SILENT]")
                     return
 
@@ -1698,6 +1762,24 @@ def main():
             phase_slots=available_phase_slots,
             active_phase=active_phase,
             output="\n".join(lines)[:200] if lines else "[SILENT]",
+        )
+
+        # ── Tick summary (2026-08-15, develop mode) ──
+        # One-line per-tick digest so any run is auditable without grepping
+        # the JSONL: pending count, spawn/skip/blocked/merge totals, phase
+        # slots, anomalies. Written to the JSONL as event=tick_summary AND
+        # printed in develop mode.
+        _devlog(
+            "tick_summary",
+            in_window=in_window,
+            paused=is_paused(),
+            pending=len(events),
+            raw_lines=len(lines_pre_cap),
+            spawn=sum(1 for l in lines if l.startswith("SPAWN:")),
+            blocked=sum(1 for l in lines if l.startswith("BLOCKED:")),
+            stalled=sum(1 for l in lines if l.startswith("STALLED:")),
+            phase_slots=available_phase_slots,
+            active_phase=active_phase,
         )
         
         if lines:
