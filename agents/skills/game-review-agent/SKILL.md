@@ -35,19 +35,11 @@ hermes gateway restart
 
 ## How It's Triggered
 
-The review agent is NOT label-driven — it has no workflow label. It runs as a
-**kanban worker** (2026-08-14): the dispatcher spawns `hermes chat -q` with
-`--skills game-review-agent` when event-processor creates a `review` kanban
-task. Triggers:
+The review agent is NOT label-driven — it has no workflow label. It is triggered by:
 
-1. **E2E done** — `e2e_orchestrator` harvests a passing summary → creates a
-   `review` task with `e2e_summary=<path>` (you read the summary, don't re-run)
-2. **Stalled PR detection** — stalled scan finds an `impl/*` PR with CI
-   success but no review activity → creates a `review` task
-3. **check_run.completed#N:success** — processed by event-processor → review task
-
-Your task body carries `Issue: #N / Stage: review / PR: #P / Branch: ...`.
-Finish with the conclusion file + `kanban_complete` (see Last-Action Rule).
+1. **`SPAWN: review`** — From `event-processor.py` script output, which processes `check_run.completed#N:success` events
+2. **Stalled PR detection** — When a stalled scan finds an `impl/*` PR with CI success but no review agent activity
+3. **`delegate_task`** — Spawned by the cron poller with full context
 
 **⚠️ Operator race condition (2026-07-23):** The operator agent may merge implement PRs before the check_run webhook triggers this review agent. Two manifestations:
 
@@ -634,29 +626,6 @@ Body:
   ...
 ```
 
-#### ⚠️ Batch-Expose ALL Pre-Existing Failures (2026-08-14 lesson)
-
-**Do NOT create one fix issue per failure.** The #466 chain showed the
-"toothpaste" pattern: review finds failure A → fix issue → merged → review
-finds failure B (BgPulse) → another fix issue → potential C, D… Each round
-costs a full pipeline cycle. Break it:
-
-```
-1. When ANY L3/visual or test failure is confirmed pre-existing (reproduces
-   on main), run the FULL baseline sweep BEFORE creating a fix issue:
-   - godot --headless --script tests/run_tests.gd on main → collect ALL failures
-   - run the visual capture on main → analyze ALL region/rain/pair assertions
-   - inspect bg_pulse.gd / rain / any recently-changed visual systems on main
-2. Put EVERY confirmed pre-existing failure into ONE fix issue (single fset
-   covering the full sorted failure set).
-3. Only if a failure needs a fundamentally different owner/track does it get
-   its own fix issue — and even then, link them.
-```
-
-The goal: **main's pre-existing debt is drained in ONE fix-issue cycle, not
-N.** A fix issue that lists 3 failures and fixes 2 of them is fine — the
-remaining one keeps the issue open (sticky) until all are green.
-
 #### Deduplication: Failure-Set Hash
 
 Multiple review agents may block different PRs for overlapping sets of pre-existing failures. To prevent duplicate fix issues, each fix issue carries a **failure-set hash** (fset) in its title — a unique fingerprint of the exact failure names being addressed.
@@ -702,15 +671,6 @@ FSET_HASH=$(echo -n "$FAILURES" | md5 | cut -c1-8)
 3. Do NOT merge. Do NOT re-evaluate.
 
 ### ⚠️ CRITICAL: Last-Action Rule — Write the Conclusion File
-
-**As a kanban worker, your LAST TWO actions in EVERY review are:**
-1. Write the structured conclusion file (below) — the script layer
-   (`review_followup()` in event-processor) performs the mechanical aftermath
-   (labels, fix issue, comment) from it.
-2. `kanban_complete <task_id> --summary "<verdict>: <one-line evidence>"` —
-   this tells the dispatcher the review finished. **Do both, in that order.**
-   If you can only do one, do the conclusion file first (the script layer
-   guarantees follow-through even if you never complete).
 
 **Your very LAST action in EVERY review (blocked, approved, request_changes,
 self_correct) MUST be writing a structured conclusion file.** Do this BEFORE

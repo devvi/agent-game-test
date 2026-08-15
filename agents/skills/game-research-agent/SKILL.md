@@ -18,14 +18,6 @@ tags:
 
 # Game Design Research Agent
 
-## 🤖 Kanban Worker Mode (2026-08-14 起 — 默认执行形态)
-
-**你现在是一个 kanban worker**(dispatcher 以 `hermes chat -q` 启动,
-`HERMES_KANBAN_TASK` 已设置):上下文在 task body(`Issue: #N / Stage: research`),
-用 `kanban_show` 读;完成后 `kanban_complete <task_id> --summary "<PR号+要点>"`;
-失败用 `--status failed --summary "<原因>"` 交 dispatcher 重试。**不要**
-send_message/发 Feishu。旧 `SPAWN: research` 文本模式已废弃。
-
 ## 🛠️ WORKTREE 工作流（强制, 2026-08-13 起 — 多 agent 隔离红线）
 
 > **必须在独立 worktree 中开发, 禁止在主工作区操作。** 根因: 多 agent 并发共用

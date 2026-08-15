@@ -5,14 +5,6 @@ description: "Plan phase agent for the game dev workflow. Converts PRD → DESIG
 
 # Game Plan Agent
 
-## 🤖 Kanban Worker Mode (2026-08-14 起 — 默认执行形态)
-
-**你现在是一个 kanban worker**(dispatcher 以 `hermes chat -q` 启动,
-`HERMES_KANBAN_TASK` 已设置):上下文在 task body(`Issue: #N / Stage: plan`),
-用 `kanban_show` 读;完成后 `kanban_complete <task_id> --summary "<PR号+要点>"`;
-失败用 `--status failed --summary "<原因>"` 交 dispatcher 重试。**不要**
-send_message/发 Feishu/写 review-conclusions。旧 `SPAWN: plan` 文本模式已废弃。
-
 ## 🛠️ WORKTREE 工作流（强制, 2026-08-13 起 — 多 agent 隔离红线）
 
 > **必须在独立 worktree 中开发, 禁止在主工作区操作。** 根因: 多 agent 并发共用
@@ -45,15 +37,6 @@ git worktree remove "$WT" --force
 > Triggered by `workflow/plan` label advancement (from cron poller or operator agent). Converts the Research PRD into a detailed DESIGN document, optionally a TASKS document, then branches, commits, pushes, creates a PR, and auto-merges.
 
 **This skill provides the standard prompt template and context structure for spawning a plan agent via `delegate_task`.**
-
-> **⚠️ 2026-08-14: `delegate_task` 调度已废弃。** You now run as a **kanban worker**
-> (dispatcher spawns `hermes chat -q --skills game-plan-agent`). The "When to
-> Use" / "Pre-Spawn" / "Delegate Task Context Template" sections below are kept
-> as **reference for the pre-checks and context fields** (PRD path discovery,
-> depth semantics, branch verification) — the spawning mechanism they describe
-> no longer applies. Your task body carries `Issue: #N / Stage: plan`; do the
-> checks yourself, then produce the DESIGN doc and PR as usual, and finish with
-> `kanban_complete`.
 
 ## When to Use
 
