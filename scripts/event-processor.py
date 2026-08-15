@@ -1947,6 +1947,20 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         summary = state.get("summary") or f"/tmp/e2e-{pr}/summary.json"
         started = state.get("started_at", 0)
         verdict = "failed"
+        if not os.path.exists(summary):
+            # 2026-08-15: NO summary at all = infra failure (runner died
+            # before producing evidence — e.g. P1 worktree add failed because
+            # the implement agent's worktree still holds the branch). Not a
+            # content failure. Reset to absent so the next tick relaunches
+            # (the implement agent eventually cleans up / frees the branch).
+            # Without this, verdict=failed + silent = deadlock: CI is green
+            # (no check_run.failure → no self-correct) and review never
+            # spawns (#494 trace, #507 same).
+            lines.append(f"E2E: pr={pr} infra-error (no summary — worktree conflict?) — will retry")
+            state["status"] = "absent"
+            state["retry_at"] = time.time() + 300  # 5-min cooldown
+            _write_e2e_state(pr, state)
+            return lines
         if os.path.exists(summary):
             try:
                 mtime = os.path.getmtime(summary)
@@ -1990,6 +2004,12 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
 
     # absent → launch background runner (--no-comment: evidence posted by
     # review agent after interpreting, avoids double-posting)
+    # 2026-08-15: infra-error cooldown — after a no-summary failure (e.g.
+    # worktree conflict), wait 5 min before relaunching so the implement
+    # agent can free the branch; prevents per-tick relaunch spam.
+    _retry_at = state.get("retry_at", 0)
+    if _retry_at and time.time() < _retry_at:
+        return lines
     try:
         os.makedirs(E2E_STATE_DIR, exist_ok=True)
         log_path = f"/tmp/e2e-{pr}-orchestrator.log"
