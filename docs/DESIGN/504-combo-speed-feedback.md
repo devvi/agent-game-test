@@ -284,11 +284,11 @@ _ready(): GameManager == null 或 has_signal 失败 → 跳过连接（零告警
 
 | 集成 | 我方组件 | 目标 Issue | How | Status |
 |------|:---:|:---:|-----|:---:|
-| 得分事件源 | `paddle.gd._on_score_changed` | #385 | `GameManager.score_changed` 信号连接（PLAYER 分支，null-guard） | ⬜ pending |
-| FSM 冻结 | `paddle.gd._process` frozen early-return | #294 | 计时衰减置于 frozen 检查之后（冻结期不衰减） | ⬜ pending |
-| 手感基值 | `constants.gd` 追加区 | #367 | 倍率乘性叠加于 `PADDLE_SPEED=430.0`，基值不动 | ⬜ pending |
-| 测试注册 | `test_paddle.gd` Scenario G | #504 | `run()` 列表追加 G1~G10；run_tests.gd 自动纳入（零改动） | ⬜ pending |
-| 验证载体 | playthrough / 截图 E2E | #394 | AC2（run_tests 全绿）/ AC3（e2e_shots 截图断言）只读验证，零修改 | ⬜ pending |
+| 得分事件源 | `paddle.gd._on_score_changed` | #385 | `GameManager.score_changed` 信号连接（PLAYER 分支，null-guard） | ✅ connected |
+| FSM 冻结 | `paddle.gd._process` frozen early-return | #294 | 计时衰减置于 frozen 检查之后（冻结期不衰减） | ✅ connected |
+| 手感基值 | `constants.gd` 追加区 | #367 | 倍率乘性叠加于 `PADDLE_SPEED=430.0`，基值不动 | ✅ connected |
+| 测试注册 | `test_paddle.gd` Scenario G | #504 | `run()` 列表追加 G1~G10；run_tests.gd 自动纳入（零改动） | ✅ connected |
+| 验证载体 | playthrough / 截图 E2E | #394 | AC2（run_tests 全绿）/ AC3（e2e_shots 截图断言）只读验证，零修改 | ✅ connected |
 
 ---
 

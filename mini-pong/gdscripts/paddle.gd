@@ -46,6 +46,16 @@ var _ai_delay_timer: float = 0.0
 var _ai_target_x: float = 0.0
 var _ai_error_offset: float = 0.0
 
+# ── Combo Speed Feedback (#504) ──
+## 连击加速反馈：2s 窗口内玩家再次得分 → 板速 +20%（乘性叠加于 paddle_speed）。
+## 数值默认接 CONSTS（#387 AC3 先例），编辑器可调参（taste 校准 #367 域零代码改动）。
+@export var combo_window_seconds: float = CONSTS.COMBO_WINDOW_SECONDS
+@export var combo_speed_bonus: float = CONSTS.COMBO_SPEED_BONUS
+
+var _combo_timer: float = 0.0            # 剩余窗口秒数（delta 累计，确定性）
+var _combo_active: bool = false          # 连击成立 → 板速 +20%
+var _last_player_score: int = -1         # -1 = 尚未见过任何得分（首分判定 + 重开检测基准）
+
 
 func _ready() -> void:
 	# InputMap binding — only for player mode; guard against duplicate bindings
@@ -69,6 +79,10 @@ func _ready() -> void:
 			ev_right.keycode = KEY_RIGHT
 			InputMap.action_add_event("paddle_right", ev_right)
 
+		# #504: 只读消费 score_changed（全 kind 事件源）；autoload 缺失/未接线 → 跳过（G10）
+		if GameManager != null and GameManager.has_signal("score_changed"):
+			GameManager.score_changed.connect(_on_score_changed)
+
 	# Boundary calculation from viewport size (X 轴, #383)
 	base_paddle_width = paddle_width
 	_recalc_bounds()
@@ -82,6 +96,23 @@ func _ready() -> void:
 		_ai_delay_timer = randf_range(ai_reaction_delay_min, ai_reaction_delay_max)
 
 
+## #504: 连击窗口判定。仅 PLAYER 模式；玩家得分增量 > 0 才推进状态。
+func _on_score_changed(player_score: int, _ai_score: int) -> void:
+	if mode != Mode.PLAYER:
+		return
+	# 重开检测（边界 6）: GameManager.reset() 清零 → score 回退 → 复位连击（含基准回退，
+	# 使重开后首分按"首分语义"处理并重新起算窗口 — G8 要求）
+	if _last_player_score >= 0 and player_score < _last_player_score:
+		_combo_active = false
+		_combo_timer = 0.0
+		_last_player_score = -1
+	# 玩家得分: 窗口内再次得分 → 连击成立；首分（0-1 分）→ 不加速但窗口起算（裁决 3）
+	if player_score > _last_player_score:
+		_combo_active = _combo_timer > 0.0
+		_combo_timer = combo_window_seconds
+	_last_player_score = player_score
+
+
 func _process(delta: float) -> void:
 	if frozen:
 		return
@@ -89,6 +120,12 @@ func _process(delta: float) -> void:
 		_ai_process(delta)
 		_apply_magnet(delta)
 		return
+
+	# ── 连击计时（#504，仅 PLAYER；frozen 已 early-return → 冻结期不衰减，裁决 1）──
+	if _combo_timer > 0.0:
+		_combo_timer = max(0.0, _combo_timer - delta)
+		if _combo_timer <= 0.0:
+			_combo_active = false    # 窗口过期 → 恢复基速
 
 	# Read input — simultaneous left+right cancels to zero
 	var left := Input.is_action_pressed("paddle_left")
@@ -99,8 +136,13 @@ func _process(delta: float) -> void:
 	elif right and not left:
 		move = 1.0
 
+	# #504: 连击有效速度（乘性叠加，基值 paddle_speed 不动）
+	var effective_speed: float = paddle_speed
+	if _combo_active:
+		effective_speed = paddle_speed * (1.0 + combo_speed_bonus)
+
 	# Apply movement (frame-rate independent) and clamp
-	position.x += move * paddle_speed * delta
+	position.x += move * effective_speed * delta
 	_apply_magnet(delta)
 	position.x = clamp(position.x, min_x, max_x)
 

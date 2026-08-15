@@ -219,3 +219,9 @@ const BRICK_BREAK_VOLUME: float = 0.7       # <1.0 防削波 (spike peak 0.689 �
 const BRICK_BREAK_DECAY_TAU: float = 0.02   # τ = duration/4 快速指数衰减
 const BRICK_BREAK_SEED: int = 450           # 固定种子 → 合成确定性 (CI 可复现)
 
+# ── Combo Speed Feedback (#504) ──
+# 玩家板连击加速反馈：2s 窗口内玩家再次得分 → 板速 +20%（乘性叠加于 PADDLE_SPEED 基值）。
+# 数值按 issue 字面执行（mechanical，#367 taste 域不校准）；窗口过期恢复基速。
+const COMBO_WINDOW_SECONDS: float = 2.0
+const COMBO_SPEED_BONUS: float = 0.2
+
