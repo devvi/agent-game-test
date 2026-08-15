@@ -74,9 +74,10 @@ maybe() {
 
 # ── Cleanup trap: worktree MUST be gone before merge --delete-branch ───────
 CAFF_PID=""
+WT_OWNED=0  # 2026-08-15: 1=runner 自建(可删), 0=复用的 implement worktree(不删)
 cleanup() {
   [ -n "$CAFF_PID" ] && kill "$CAFF_PID" 2>/dev/null
-  if [ "$KEEP" != "1" ] && [ -d "$WT" ]; then
+  if [ "$KEEP" != "1" ] && [ "$WT_OWNED" = "1" ] && [ -d "$WT" ]; then
     git -C "$REPO_ROOT" worktree remove "$WT" --force 2>/dev/null && log "worktree removed: $WT"
   fi
 }
@@ -144,8 +145,24 @@ fi
 log "P0 ok"
 
 # ═══════════════════════════ P1 WORKTREE ══════════════════════════════════
-log "P1 worktree add $WT"
-maybe git -C "$REPO_ROOT" worktree add "$WT" "$BRANCH" || die "worktree add failed" 2
+# 2026-08-15 设计变更: 优先复用 implement agent 留下的 worktree。
+# implement 完成后保留 worktree(不再删除),E2E 在这里验证 L0-L2 —
+# 避免新建 worktree 与同一分支冲突 (fatal: already checked out at ...)。
+# 找不到该分支的 worktree 才新建(implement 没留的兜底)。
+WT=""
+WT=$(git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null \
+  | grep -B1 "^branch refs/heads/$BRANCH$" | grep "^worktree" | head -1 \
+  | awk '{print $2}')
+if [ -n "$WT" ] && [ -d "$WT" ]; then
+  log "P1 reuse existing worktree: $WT (branch $BRANCH)"
+  WT_OWNED=0  # 复用的 implement worktree — 不删
+else
+  WT="${WORKTREE_ROOT}/wt-impl-$PR_NUM"
+  log "P1 worktree add $WT"
+  maybe git -C "$REPO_ROOT" worktree add "$WT" "$BRANCH" || die "worktree add failed" 2
+  log "P1 worktree created: $WT"
+  WT_OWNED=1  # 自建 — cleanup 时删
+fi
 log "P1 ok — main working tree untouched"
 
 # ═══════════════════════════ P2-P4 LOGIC LAYERS ═══════════════════════════

@@ -26,8 +26,13 @@ WT=$(./scripts/worktree-setup.sh implement <N> <slug>)
 # 4. PR 创建 (worktree 内)
 cd "$WT" && gh pr create --base main --head impl/<N>-<slug> --title "feat(<N>): <title>" --body "Parent #<N>"
 
-# 5. 清理
-git worktree remove "$WT" --force
+# 5. 保留 worktree (2026-08-15 设计变更: 留给 E2E 复用)
+# 之前: git worktree remove "$WT" --force (删除)
+# 现在: 保留! E2E runner 复用这个 worktree 验证 L0-L2, 避免
+#       新建 worktree 与同一分支冲突 (fatal: already checked out)。
+#       E2E runner 验证完会清理。若 E2E 永不跑, 由 orchestrator
+#       或人工清理。
+# ❌ 绝不 git worktree remove — worktree 是 E2E 的验证场所
 ```
 
 **红线:**
