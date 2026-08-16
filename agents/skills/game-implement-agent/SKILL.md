@@ -83,10 +83,17 @@ read_file("game-env/manifest.yaml")
 ```
 Step 1: Read DESIGN doc's test case descriptions (Section 6 or 7)
 Step 2: Write test file(s) FIRST — they must FAIL before any code exists
-Step 3: Run tests → confirm RED (no implementation yet)
-Step 4: Write minimal implementation code → GREEN
-Step 5: Refactor → keep GREEN
+Step 3: Write minimal implementation code to satisfy the tests
+Step 4: Refactor — keep the test contract intact
+Step 5: Commit (worktree-commit.sh 自动编译检查) → PR → CI 跑测试
 ```
+
+> **测试运行归 CI（原设计, 2026-08-17 修正）:** implement 阶段**不本地运行测试**
+> （不跑 `run_tests.gd` 完整套件, 不跑单个测试文件）。测试执行是 GitHub CI
+> （opencode-review.yml: L0 编译 → L1 smoke → L2 run_tests）的职责。本地唯一验证是
+> worktree-commit.sh 提交时的 `--headless --quit` 编译检查。
+> 理由: 本地跑完整套件烧 50-call 预算（完整套件 ~5min + auto_play 100 局 + e2e 3 局,
+> 实测 #508 因此截断, PR 未建）。若测试有疑问 → 提交后看 CI 结果, 失败走 self-correct。
 
 ### Pre-Implementation: Upstream Integration Scan
 
@@ -223,7 +230,7 @@ is what stalls the pipeline — never do it silently.
 2. **Scaffold** — `.tscn` files with correct node hierarchy, CollisionShape2D with non-null shapes
 3. **Core logic** — `.gd` files implementing the DESIGN spec
 4. **Assets** — `.tres`, `.gdshader`, etc.
-5. **Integration** — add to existing `run_tests.gd`, verify with CI-compatible paths
+5. **Integration** — add to existing `run_tests.gd`（注册 runner；测试执行归 CI, 不本地跑）
 6. **Refactor** — clean up, apply GDScript best practices
 
 ## After Implementation: Create PR
@@ -231,16 +238,14 @@ is what stalls the pipeline — never do it silently.
 ### 1. Verify Locally
 
 ```bash
-# Compile check (use --path to scope to the sub-project)
+# 编译检查 — implement 唯一的本地验证 (worktree-commit.sh 提交时也会自动做)
 /Applications/Godot.app/Contents/MacOS/Godot --headless --quit --path mini-pong/ 2>&1 | grep -E "ERROR|SCRIPT ERROR"
-
-# Run tests (--path is REQUIRED — without it, res:// resolves from CWD)
-/Applications/Godot.app/Contents/MacOS/Godot --headless --path mini-pong/ --script tests/run_tests.gd 2>&1 | tail -20
 ```
 
-**Note:** The `--path` flag is mandatory — without it, Godot resolves `res://` from the working directory, so `res://tests/test_*.gd` looks in `<CWD>/tests/` instead of `<project>/tests/`, causing "file not found" on all tests.
-
-Expected: all tests pass, exit code 0.
+**⚠️ 不跑测试（2026-08-17 修正, 对齐原设计）:** 禁止 `godot --headless --script tests/run_tests.gd`。
+测试执行归 CI（opencode-review.yml）。本地跑完整套件会烧掉 50-call 预算
+（实测 #508: 完整套件 ~5min + auto_play 100 局 + e2e 3 局, agent 在建 PR 前被截断）。
+编译通过 → 提交 → 建 PR → CI 跑测试 → 失败则 self-correct 接手。
 
 Leak warnings about RIDs and ObjectDB instances at exit are normal in headless mode — ignore them.
 
@@ -381,8 +386,8 @@ curl -s -X POST -H "Content-Type: application/json" \
 Before considering the task done:
 
 - [ ] All DESIGN doc test cases have corresponding `_test_*()` functions
-- [ ] Tests run and pass: `godot --headless --script tests/run_tests.gd`
 - [ ] New test file integrated into `tests/run_tests.gd`
+- [ ] **测试运行归 CI** — implement 不本地跑测试（编译检查已由 worktree-commit.sh 自动执行）
 - [ ] **Upstream integration points wired** — scanned upstream DESIGN docs, applied ShaderMaterial/GPUParticles2D/scripts to scene nodes, updated Status ⬜→✅
 - [ ] CollisionShape2D/3D shapes are non-null
 - [ ] `.tscn` files: format=3, uid:// present, sub_resources before nodes
