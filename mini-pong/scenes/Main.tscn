@@ -30,7 +30,7 @@ size = Vector2(720, 20)
 
 [node name="WorldEnvironment" parent="." instance=ExtResource("9_world_env")]
 
-[node name="AtmosphereLayer" type="CanvasLayer" parent="."]
+[node name="AtmosphereLayer" type="CanvasLayer" parent="." groups=["game_world"]]
 layer = 0
 
 [node name="BgPulse" type="ColorRect" parent="AtmosphereLayer"]
@@ -54,17 +54,17 @@ position = Vector2(715, 640)
 [node name="CollisionShape2D" type="CollisionShape2D" parent="RightWall"]
 shape = SubResource("rect_wall_right")
 
-[node name="Ball" parent="." instance=ExtResource("1_ball")]
+[node name="Ball" parent="." instance=ExtResource("1_ball") groups=["game_world"]]
 position = Vector2(360, 640)
 
-[node name="PlayerPaddle" parent="." instance=ExtResource("2_player_paddle")]
+[node name="PlayerPaddle" parent="." instance=ExtResource("2_player_paddle") groups=["game_world"]]
 position = Vector2(360, 1240)
 
-[node name="AIPaddle" parent="." instance=ExtResource("2_player_paddle")]
+[node name="AIPaddle" parent="." instance=ExtResource("2_player_paddle") groups=["game_world"]]
 position = Vector2(360, 40)
 mode = 1
 
-[node name="BreakoutGrid" parent="." instance=ExtResource("13_breakout_grid")]
+[node name="BreakoutGrid" parent="." instance=ExtResource("13_breakout_grid") groups=["game_world"]]
 position = Vector2(0, 640)
 
 [node name="WaveController" type="Node" parent="."]

@@ -52,6 +52,11 @@ func _ready() -> void:
 	# Initialize in MENU state
 	enter_state(State.MENU)
 
+	# #508 失败路径缓解（PRD §5.3-1）: 组空 → push_warning, 不崩溃
+	var tree = get_tree() if is_inside_tree() else null
+	if tree != null and tree.get_nodes_in_group("game_world").is_empty():
+		push_warning("FSM: group 'game_world' is empty — title world hiding disabled (#508)")
+
 
 func _input(event: InputEvent) -> void:
 	# Pause toggle: Escape toggles PLAYING ↔ PAUSED
@@ -96,6 +101,7 @@ func enter_state(state: State) -> void:
 			_set_ui("start_menu")
 			_freeze_paddles(true)
 			_transition_lock = false
+			_set_world_visible(false)   # #508: MENU 隐藏游戏世界
 
 		State.SERVING:
 			_set_ui("hud")
@@ -162,6 +168,8 @@ func exit_state(state: State) -> void:
 			_scored_timer_active = false
 		State.GAME_OVER:                # #391 AC4：新增 —— 离开终局屏解冻（SPACE → MENU 后新 run 球可动）
 			_freeze_ball(false)
+		State.MENU:                     # #508: 离开 MENU 恢复世界可见（MENU→SERVING）
+			_set_world_visible(true)
 		_:
 			pass
 
@@ -192,6 +200,15 @@ func _set_ui(layer: String) -> void:
 		game_over_screen.visible = (layer == "game_over")
 	if pause_overlay:
 		pause_overlay.visible = (layer == "pause")
+
+
+## #508: MENU 状态隐藏游戏世界（game_world 组）。call_group 对缺失组 no-op，
+## mini-tree/headless 测试安全（与 _start_first_wave 的 group 寻址模式一致）。
+func _set_world_visible(visible: bool) -> void:
+	var tree = get_tree() if is_inside_tree() else null
+	if tree == null:
+		return
+	tree.call_group("game_world", "set", "visible", visible)
 
 
 func _freeze_paddles(freeze: bool) -> void:
