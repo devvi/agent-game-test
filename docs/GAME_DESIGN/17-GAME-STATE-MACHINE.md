@@ -61,6 +61,11 @@ MENU ──(SPACE)──→ SERVING ──(auto)──→ PLAYING ──(scored)
 - FSM's `_set_ui(layer)` toggles `visible` on CanvasLayer siblings.
 - Layers: StartMenu, GameHUD, GameOverScreen.
 
+### World Visibility (#508)
+- MENU 进入即隐藏游戏世界：`_set_world_visible(false)` → `get_tree().call_group("game_world", "set", "visible", false)`；离开 MENU（exit_state）恢复 `true`。
+- 隐藏对象 = `game_world` 组（Main.tscn 打组：AtmosphereLayer / Ball / PlayerPaddle / AIPaddle / BreakoutGrid）。PAUSED / GAME_OVER 保持可见（范围红线：仅 title 屏隐藏）。
+- 失败路径：组空时 `call_group` no-op + `_ready()` push_warning，不崩溃（headless mini-tree 安全）。
+
 ### Serve Timing
 - SERVING state: await 1s timer → `ball.serve()` → await serve animation → auto-advance to PLAYING.
 - In headless mode, timers are skipped (synchronous advancement).
