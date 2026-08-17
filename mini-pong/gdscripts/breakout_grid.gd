@@ -73,6 +73,16 @@ func generate_wave(thickness: int, layout: int, seed_value: int) -> void:
 	_hole_columns.clear()
 	if layout == BrickLayout.HOLES or layout == BrickLayout.MIXED:
 		_pick_hole_columns(cols)
+	# #527 波次色变：读 GameManager.wave_index（begin_wave 已 +1 → 当前波号）→ palette 映射。
+	# 无 GameManager 环境（单测）容错默认 wave_idx=0 → palette[0] = BRICK_NEON。
+	var wave_idx: int = 0
+	if is_instance_valid(GameManager) and GameManager.has_method("get_wave_index"):
+		wave_idx = GameManager.get_wave_index()
+	var palette_idx: int = maxi(wave_idx - 1, 0) % CONSTS.WAVE_COLOR_PALETTE.size()
+	var wave_color: Color = CONSTS.WAVE_COLOR_PALETTE[palette_idx]
+	# #527 铁砖注入（波 2 起，概率阈值 = IRON_BRICK_COUNT_PER_WAVE*10%，计数上限 =
+	# IRON_BRICK_COUNT_PER_WAVE/波；复用 generate_wave 已 seed 的全局 RNG → 同 seed 可复现）
+	var iron_placed: int = 0
 	var placed: int = 0
 	for r in range(rows):
 		var odd_offset: float = 0.0
@@ -87,7 +97,12 @@ func generate_wave(thickness: int, layout: int, seed_value: int) -> void:
 			var cx: float = start_x + c * (w + g) + odd_offset
 			if cx + w / 2.0 > CONSTS.SCREEN_WIDTH:
 				continue                   # 错位行末砖越界 → 跳过（行可能少 1 块，§4.3）
-			_spawn_brick(Vector2(cx, cy))
+			var variant: int = 0
+			if wave_idx >= 2 and iron_placed < CONSTS.IRON_BRICK_COUNT_PER_WAVE \
+					and randi_range(0, 99) < CONSTS.IRON_BRICK_COUNT_PER_WAVE * 10:
+				variant = 1
+				iron_placed += 1
+			_spawn_brick(Vector2(cx, cy), variant, wave_color)
 			placed += 1
 	remaining_bricks = placed
 	_wall_cleared_emitted = false
@@ -284,7 +299,7 @@ func _compute_start_x(cols: int) -> float:
 	return (CONSTS.SCREEN_WIDTH - total_w) / 2.0 + w / 2.0
 
 
-func _spawn_brick(pos: Vector2) -> void:
+func _spawn_brick(pos: Vector2, variant: int = 0, base_color: Color = CONSTS.BRICK_NEON) -> void:
 	var scene: PackedScene = brick_scene
 	if scene == null:
 		scene = load("res://scenes/brick.tscn")
@@ -292,4 +307,5 @@ func _spawn_brick(pos: Vector2) -> void:
 	brick.name = "Brick%03d" % get_child_count()
 	brick.position = pos
 	brick.grid = self
+	brick.apply_variant(variant, base_color)   # #527: 波次色 + 变体视觉（variant=0 渲染不变）
 	add_child(brick)

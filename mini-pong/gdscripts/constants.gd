@@ -238,3 +238,48 @@ const SPECIAL_BRICK_MIN_THICKNESS: int = 3   # 厚度 < 3 无内部位 → 回�
 const SPECIAL_BRICK_COLOR: Color = Color(0.45, 1.0, 0.75, 1.0)       # taste 占位: 亮薄荷绿 #73ffbf
 const SPECIAL_BRICK_GLOW_COLOR: Color = Color(0.45, 1.0, 0.75, 1.0)  # taste 占位: 同色光晕
 
+# ── City Glow (#527) ──
+# L0 底部城市光晕 (PLAN §3.1「底部城市光晕」执行层; 机制/结构 = mechanical,
+# 色调/周期 = taste-draft, human-review 定稿, 调参零代码改动)
+const CITY_GLOW_HEIGHT: float = 256.0        # 光带高度（底部 256px，不遮中央战场）
+const CITY_GLOW_PERIOD: float = 6.0          # 呼吸周期 6s（慢于 BgPulse 4s，避免同步闪烁）
+const CITY_GLOW_BASE_ALPHA: float = 0.05     # 基线 alpha（克制，环境层亮度最低）
+const CITY_GLOW_AMPLITUDE: float = 0.05      # 振幅 → alpha ∈ [0.0, 0.10]（峰值 ≤10%，同暗角量级）
+const CITY_GLOW_TINT: Color = Color(1.0, 0.5, 0.2, 1.0)  # 暖琥珀灯火（taste-draft 占位；与 4a90d9 距离 ≈137 ≥ 32）
+
+# ── Vignette (#527) ──
+# L0 暗角 (PLAN §3.1「暗角(≤10%)」执行层; 峰值暗度上限 = mechanical 硬约束,
+# 内半径/柔和度 = taste-draft, human-review 定稿)
+const VIGNETTE_MAX_STRENGTH: float = 0.10    # 峰值暗度上限（AC2 硬约束；非黑断言安全）
+const VIGNETTE_INNER_RADIUS: float = 0.62    # 中心不变暗半径（归一化，taste-draft 占位）
+const VIGNETTE_SOFTNESS: float = 0.35        # 边缘过渡柔和度（taste-draft 占位）
+
+# ── Wave Color (#527) ──
+# v1 波次色变 (PLAN §5 v1「波次色变」执行层; 色值 = taste-draft 占位, human-review 定稿;
+# hue 域 [20°,60°] 为 #464 语义硬约束——palette 断言拦截)
+const WAVE_COLOR_PALETTE: Array[Color] = [
+	Color(1.0, 0.616, 0.271, 1.0),  # 波 1: BRICK_NEON #ff9d45 (hue 28.4°) 教学色恒稳
+	Color(1.0, 0.718, 0.302, 1.0),  # 波 2: 橙黄 #ffb74d (hue 35.8°)
+	Color(1.0, 0.757, 0.027, 1.0),  # 波 3: 金黄 #ffc107 (hue 45.0°)
+	Color(1.0, 0.561, 0.235, 1.0),  # 波 4: 深橙 #ff8f3c (hue 25.6°)
+]                                    # 全部 hue ∈ [20°,60°]，与 PADDLE_NEON(186°) 距离 ≥126°
+
+# ── Brick Variant (#527) ──
+# v1 特殊砖视觉 (PLAN §5 v1「特殊砖视觉(铁砖/奖励砖)」执行层; 色值 = taste-draft 占位;
+# 仅视觉载体，玩法语义（铁砖不可破坏等）留给未来玩法 issue)
+const BRICK_VARIANT_COLORS: Dictionary = {
+	0: Color(1.0, 0.616, 0.271, 1.0),  # 0=普通 → BRICK_NEON（默认渲染逐字节不变）
+	1: Color(0.541, 0.608, 0.710, 1.0),# 1=铁砖 → 灰蓝 #8a9bb5（低饱和冷调，非 PADDLE 青）
+	2: Color(0.6, 0.8, 0.3, 1.0),      # 2=奖励砖 → 金绿（接口预留，首期不实现）
+}
+const IRON_BRICK_COUNT_PER_WAVE: int = 2  # 每波铁砖数（波 2 起；taste-draft 可调）
+
+# ── Feedback FX (#527) ──
+# L2 反馈动效 (PLAN §3.3 动效纪律: Tween 150–300ms, 不弹跳; 颜色避开 4a90d9 tol 32)
+const FX_BRICK_FLASH_DURATION: float = 0.2   # 破砖闪光 200ms
+const FX_PIERCE_DURATION: float = 0.25       # 穿墙脉冲 250ms
+const FX_PIERCE_PEAK_ALPHA: float = 0.15     # 脉冲峰值 alpha（克制，非黑断言安全）
+const FX_PIERCE_COLOR: Color = Color(1.0, 0.7, 0.3, 1.0)   # 暖橙脉冲带（非 4a90d9/ff3355 语义）
+const FX_BRICK_FLASH_COLOR: Color = Color(1.0, 0.616, 0.271, 1.0)  # 破砖同色闪光 = BRICK_NEON
+const FX_FLASH_POOL_SIZE: int = 3            # 破砖闪光实例池
+

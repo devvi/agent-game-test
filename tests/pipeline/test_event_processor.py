@@ -1494,6 +1494,11 @@ class TestE2EOrchestrator(unittest.TestCase):
             _expected_cwd = os.path.dirname(os.path.dirname(os.path.abspath(ep.__file__ or "")))
             self.assertEqual(kwargs.get("cwd"), _expected_cwd)
             self.assertIn("E2E_REPO_ROOT", kwargs.get("env", {}))
+            # 2026-08-17 (PR #538/#540/#541 实测): orchestrator 必须注入
+            # E2E_BRANCH — runner 在 cron 环境 gh pr view 失败时会回退成
+            # impl/<PR_NUM> 错误分支 → P0 branch fetch failed。
+            self.assertEqual(kwargs.get("env", {}).get("E2E_BRANCH"),
+                             "impl/466-x")
 
     def test_running_alive_reports_progress(self):
         with tempfile.TemporaryDirectory() as td:

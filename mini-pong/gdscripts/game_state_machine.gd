@@ -150,6 +150,8 @@ func enter_state(state: State) -> void:
 		State.SCORED:
 			_set_ui("hud")
 			_freeze_paddles(true)
+			# #525: SCORED 冻结球 — 回归 #294 设计表 (SCORED/SERVING Ball Moving = No)；解冻由 SERVING serve() 内 frozen=false (#391 AC4) 接管
+			_freeze_ball(true)
 			_scored_timer_active = true
 			await _timer_1s()
 			_scored_timer_active = false

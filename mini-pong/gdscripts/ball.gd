@@ -177,11 +177,11 @@ func _process(delta: float) -> void:
 	if position.y < -BALL_RADIUS:
 		if not _scored_this_frame:
 			score.emit(0)  # Player scores (ball exited top past AI)
-			serve()
+			# serve() 移除 (#525): 发球编排归 FSM SCORED→SERVING，消除双发球竞态
 	elif position.y > screen_height + BALL_RADIUS:
 		if not _scored_this_frame:
 			score.emit(1)  # AI scores (ball exited bottom past player)
-			serve()
+			# serve() 移除 (#525): 发球编排归 FSM SCORED→SERVING，消除双发球竞态
 
 
 func _on_score_zone(side: int) -> void:
@@ -190,7 +190,7 @@ func _on_score_zone(side: int) -> void:
 		return
 	_scored_this_frame = true
 	score.emit(side)
-	serve()
+	# serve() 移除 (#525): 发球编排归 FSM SCORED→SERVING，消除双发球竞态
 
 
 func _on_body_entered(body: Node2D) -> void:

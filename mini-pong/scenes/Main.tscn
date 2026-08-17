@@ -16,6 +16,10 @@
 [ext_resource type="PackedScene" path="res://scenes/wave_transition.tscn" id="15_wave_transition"]
 [ext_resource type="PackedScene" path="res://scenes/ui_game_over.tscn" id="16_game_over_scene"]
 [ext_resource type="Script" path="res://gdscripts/bg_pulse.gd" id="17_bg_pulse"]
+[ext_resource type="Script" path="res://gdscripts/city_glow.gd" id="18_city_glow"]
+[ext_resource type="Script" path="res://gdscripts/vignette.gd" id="19_vignette"]
+[ext_resource type="Shader" path="res://gdscripts/vignette.gdshader" id="20_vignette_shader"]
+[ext_resource type="Script" path="res://gdscripts/feedback_fx.gd" id="21_feedback_fx"]
 
 [sub_resource type="RectangleShape2D" id="rect_wall_left"]
 size = Vector2(10, 1280)
@@ -25,6 +29,12 @@ size = Vector2(10, 1280)
 
 [sub_resource type="RectangleShape2D" id="rect_score_zone"]
 size = Vector2(720, 20)
+
+[sub_resource type="ShaderMaterial" id="vignette_mat"]
+shader = ExtResource("20_vignette_shader")
+shader_parameter/strength = 0.08
+shader_parameter/inner_radius = 0.62
+shader_parameter/softness = 0.35
 
 [node name="Game" type="Node2D"]
 
@@ -40,7 +50,23 @@ anchor_bottom = 1.0
 color = Color(0.29, 0.56, 0.85, 1)
 script = ExtResource("17_bg_pulse")
 
+[node name="CityGlow" type="TextureRect" parent="AtmosphereLayer"]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -256.0
+script = ExtResource("18_city_glow")
+
 [node name="RainCurtain" parent="AtmosphereLayer" instance=ExtResource("11_rain_curtain")]
+
+[node name="Vignette" type="ColorRect" parent="AtmosphereLayer"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0, 0, 0, 0)
+material = SubResource("vignette_mat")
+script = ExtResource("19_vignette")
 
 [node name="LeftWall" type="StaticBody2D" parent="." groups=["walls"]]
 position = Vector2(5, 640)
@@ -106,6 +132,18 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 color = Color(1, 1, 1, 1)
+
+[node name="FeedbackFX" type="Node" parent="."]
+script = ExtResource("21_feedback_fx")
+
+[node name="PiercePulseRect" type="ColorRect" parent="FeedbackFX"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+visible = false
+color = Color(1, 0.7, 0.3, 1)
+
+[node name="BrickFlashPool" type="Node2D" parent="FeedbackFX"]
 
 [node name="StartMenu" type="CanvasLayer" parent="."]
 layer = 1

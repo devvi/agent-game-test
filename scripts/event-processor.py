@@ -2134,12 +2134,31 @@ def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False) -> list:
         # (main 7+ 次 pipeline-tests 全红)。改为从脚本位置推导 repo 根
         # (scripts/ 上一级), 支持环境变量覆盖 (测试注入)。
         import subprocess as _sp
-        _repo = os.environ.get("E2E_REPO_ROOT_FALLBACK") or os.path.dirname(_SCRIPT_DIR)
-        if os.path.exists(os.path.join(_repo, ".git")):
-            _env = dict(os.environ)
+        # 2026-08-17 (PR #538/#540/#541 实测): cron 副本从 ~/.hermes/scripts/ 运行,
+        # _SCRIPT_DIR 上级 (~/.hermes) 无 .git → 旧逻辑 repo 探测失败走 else 分支,
+        # E2E_REPO_ROOT/E2E_BRANCH 全不注入 → runner 的 git remote 失败 → GH_REPO 空
+        # → gh pr view 失败 → 回退 impl/<PR_NUM> 错误分支 → P0 branch fetch failed。
+        # 修复: 无条件注入, repo 根用 manifest.project.repo 推导 (有 GH_TOKEN 即可
+        # 用 gh, 不依赖本地 .git)。E2E_BRANCH 由 orchestrator 从事件/PR 拿到, 必传。
+        _repo = os.environ.get("E2E_REPO_ROOT_FALLBACK")
+        if not _repo or not os.path.exists(os.path.join(_repo, ".git")):
+            # 从 PROJECT_REPO (manifest) 推导 repo 本地路径: 优先 ~/workspace/<name>
+            import pathlib
+            _name = PROJECT_REPO.split("/")[-1] if PROJECT_REPO else "agent-game-test"
+            for cand in (os.path.expanduser(f"~/workspace/{_name}"),
+                         os.path.expanduser(f"~/workspace/agent-game-test"),
+                         os.getcwd()):
+                if os.path.exists(os.path.join(cand, ".git")):
+                    _repo = cand
+                    break
+        _env = dict(os.environ)
+        if _repo and os.path.exists(os.path.join(_repo, ".git")):
             _env["E2E_REPO_ROOT"] = _repo
-        else:
-            _env = os.environ
+        # GH_REPO 已在模块级 setdefault (manifest.project.repo) — runner 依赖它
+        # 做 gh pr view --repo; 显式兜底确保存在。
+        _env.setdefault("GH_REPO", PROJECT_REPO or "")
+        # 2026-08-17: 显式传 E2E_BRANCH — runner 优先用它, 不再回退 impl/<PR_NUM>。
+        _env["E2E_BRANCH"] = branch
         proc = _sp.Popen(
             ["bash", runner, str(pr), "--no-comment", "--skip-visual"],
             stdout=open(log_path, "w"), stderr=_sp.STDOUT,
