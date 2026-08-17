@@ -254,7 +254,39 @@ PY
       prev=""
       for png in "$OUT/shots/"*.png; do
         args=(--min-colors 3 --name "$(basename "$png")")
-        [ -n "$THEME" ] && args+=(--theme "$THEME")
+        shot_theme_args="$(python3 - "$OUT/plan.json" "$(basename "$png" .png)" <<'PY'
+import json, sys
+plan = json.load(open(sys.argv[1]))
+name = sys.argv[2]
+shot = next((s for s in plan.get("shots", []) if s.get("name") == name), {})
+top = plan.get("theme_color", "")
+for k in shot:
+    if k.startswith("theme") and k not in ("theme_color", "theme_absent"):
+        print(f"WARN: shot {name} unknown theme key '{k}'", file=sys.stderr)
+ta = shot.get("theme_absent")
+tc = shot.get("theme_color")
+if ta and tc is not None:
+    print(f"ERROR: shot {name} declares both theme_color and theme_absent", file=sys.stderr)
+    sys.exit(3)
+out = []
+if ta:
+    out += ["--theme-absent", str(ta).lstrip("#")]
+elif "theme_color" in shot and tc is None:
+    pass  # explicit null -> skip theme assertion
+elif tc:
+    out += ["--theme", str(tc).lstrip("#")]
+elif top:
+    out += ["--theme", str(top).lstrip("#")]
+print(" ".join(out))
+PY
+)"
+        rc=$?
+        if [ "$rc" -eq 3 ]; then
+          log "  ❌ shot '$(basename "$png")' theme config error (mutually exclusive)"
+          VISUAL_FAIL=1
+          continue
+        fi
+        [ -n "$shot_theme_args" ] && args+=( $shot_theme_args )
         if [ -n "$prev" ]; then
           args+=(--diff-with "$prev" --min-delta 5.0 --diff-ratio 0.005)
         fi

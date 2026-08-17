@@ -20,7 +20,7 @@
       "_comment": "match 覆盖 gdscripts/.*\\.gd、scenes/.*\\.tscn、project\\.godot —— 本 PR 改动必然命中，L3 视觉层会被执行",
       "match": ["gdscripts/.*\\.gd", "scenes/.*\\.tscn", "project\\.godot"],
       "shots": [
-        { "name": "01_title", "state": "MENU", "settle_frames": 10, "assert_text": [ { "node": "/root/Game/StartMenu/VersionLabel", "prop": "text", "contains": "v1.0.0" } ] },
+        { "name": "01_title", "state": "MENU", "theme_absent": "4a90d9", "settle_frames": 10, "assert_text": [ { "node": "/root/Game/StartMenu/VersionLabel", "prop": "text", "contains": "v1.0.0" } ] },
         { "name": "02_midgame", "state": "PLAYING", "press": { "key": "enter" }, "require": { "node": "/root/GameManager", "prop": "player_score", "min": 1 }, "settle_frames": 5 },
         { "name": "03_gameover", "state": "GAME_OVER", "settle_frames": 10, "deadline_s": 300 }
       ]

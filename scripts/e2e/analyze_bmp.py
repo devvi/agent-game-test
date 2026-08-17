@@ -2,11 +2,12 @@
 """E2E screenshot anti-fake-evidence analyzer (pure stdlib, PNG-native).
 
 Verifies a screenshot PNG is REAL rendered content, not a black/frozen frame.
-Four assertions (flag-gated):
+Five assertions (flag-gated):
   1. non-black     : near-black pixel ratio <= --max-black-ratio (default 0.50)
   2. color count   : distinct colors >= --min-colors (default 3)
   3. theme color   : --theme RRGGBB present within RGB tolerance 32
   4. frame diff    : --diff-with FILE — mean luminance delta >= --min-delta
+  5. theme absent  : --theme-absent RRGGBB absent within RGB tolerance 32 (0 sampled hits = world hidden)
 
 PNG decoding is implemented with zlib+struct only (no PIL/sips) so it runs in
 CI (ubuntu) and on the Mac mini alike. Supports bit depths 8/16 and color
@@ -14,7 +15,7 @@ types 0/2/3/4/6.
 
 Usage:
   python3 scripts/e2e/analyze_bmp.py shot.png [--min-colors N] [--max-black-ratio R]
-      [--theme 4a90d9] [--diff-with prev.png] [--min-delta D]
+      [--theme 4a90d9] [--theme-absent 4a90d9] [--diff-with prev.png] [--min-delta D]
       [--diff-ratio R] [--pixel-delta D] [--name LABEL] [--json]
 Exit: 0 = all enabled assertions pass, 1 = any fail.
 """
@@ -218,6 +219,13 @@ def _theme_present(path: str, hex_color: str, tol: int = 32) -> bool:
     return False
 
 
+def _theme_absent(path: str, hex_color: str, tol: int = 32) -> bool:
+    """True = theme color ABSENT everywhere (0 sampled hits). Mirror of
+    _theme_present(): same stride-5 sampling, same tolerance. Encodes the
+    "world hidden" semantics — the color must NOT appear."""
+    return not _theme_present(path, hex_color, tol)
+
+
 # ── CLI ────────────────────────────────────────────────────────────────────
 
 
@@ -229,6 +237,7 @@ def main() -> int:
     path = args[0]
     opts: dict[str, object] = {
         "--min-colors": None, "--max-black-ratio": None, "--theme": None,
+        "--theme-absent": None,
         "--diff-with": None, "--min-delta": None, "--name": None,
         "--diff-ratio": None, "--pixel-delta": None,
         "--json": False,
@@ -287,9 +296,19 @@ def main() -> int:
     else:
         fails.append(f"only {st['color_buckets']} color buckets (< {min_colors}) — flat/frozen frame")
 
-    # 3. theme color
+    # 3. theme color (present / absent — mutually exclusive)
     theme_arg = _s("--theme")
-    if theme_arg:
+    theme_absent_arg = _s("--theme-absent")
+    if theme_arg and theme_absent_arg:
+        print("❌ --theme and --theme-absent are mutually exclusive")
+        return 2
+    if theme_absent_arg:
+        hexc = theme_absent_arg.lstrip("#")
+        if _theme_absent(path, hexc):
+            passes.append(f"theme #{hexc} absent (world hidden)")
+        else:
+            fails.append(f"theme #{hexc} FOUND — expected hidden (world visible?)")
+    elif theme_arg:
         theme = theme_arg.lstrip("#")
         if _theme_present(path, theme):
             passes.append(f"theme #{theme} present")
