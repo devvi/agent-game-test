@@ -68,6 +68,17 @@ func run() -> void:
 	await _test_f4_generate_wave_missing()
 	# Scenario G: 重置与防御
 	await _test_g1_max_index_defense()
+	# Scenario H: #529 特殊砖触发链路（真实 grid，PRD #529 §5.1 AC1–AC5）
+	await _test_h1_special_full_chain()
+	await _test_h2_not_wait_wall_clear()
+	await _test_h3_ai_symmetric()
+	await _test_h4_empty_breaker()
+	await _test_h5_same_frame_dedup()
+	await _test_h6_settling_ignored()
+	await _test_h7_run_over()
+	await _test_h8_upgrade_chain()
+	await _test_h9_thin_wall_fallback()
+	await _test_h10_max_index()
 	GameManager.wave_started.disconnect(_on_wave_started)
 	GameManager.wave_settled.disconnect(_on_wave_settled)
 	print("  Wave Cycle: %d passed, %d failed" % [passed, failed])
@@ -553,4 +564,290 @@ func _test_g1_max_index_defense() -> void:
 	ctrl._advance_wave()
 	_assert(GameManager.wave_index == CONSTS.WAVE_MAX_INDEX, "G-1: 达上限不再递增")
 	_assert(grid.generate_calls.size() == 0, "G-1: 达上限不再生成")
+	_cleanup(fx)
+
+
+# ── Scenario H: #529 特殊砖触发链路（PRD §5.1 AC1–AC5；DESIGN §8 Scenario C）──
+# 特殊砖链路需要真实 BreakoutGrid（is_special / special_brick_destroyed / _spawn_special_brick），
+# mock 只覆盖 #414 契约子集 → 用 _make_real_controller 建真实 mini-tree。
+
+func _make_real_controller() -> Dictionary:
+	## 真实 BreakoutGrid + 真实 WaveController 的 mini-tree（H 组专用）。
+	## 返回 {host, controller, grid}；挂 SceneTree.root 触发 _ready（组注册 + 双守卫接线）。
+	var tree = Engine.get_main_loop() as SceneTree
+	var host = Node2D.new()
+	host.name = "TestHost"
+	tree.root.add_child(host)
+
+	var grid = Node2D.new()
+	grid.set_script(load("res://gdscripts/breakout_grid.gd"))
+	grid.name = "BreakoutGrid"
+	host.add_child(grid)   # _ready: breakout_grids 组 + brick_scene 惰性加载 + 升级钩子
+
+	var controller = Node.new()
+	controller.set_script(load("res://gdscripts/wave_controller.gd"))
+	controller.name = "WaveController"
+	host.add_child(controller)   # _ready: wall_cleared / special_brick_destroyed 双守卫接线
+	controller.settle_delay = SHORT_SETTLE   # 测试用短结算延时（DESIGN §9 A-2 允许）
+	controller.settle_hold = true            # H 组用显式 advance_settlement() 驱动推进（#388 接管）
+
+	return {"host": host, "controller": controller, "grid": grid}
+
+
+func _grid_brick_children(grid) -> Array:
+	var out: Array = []
+	for child in grid.get_children():
+		if child.is_in_group("bricks"):
+			out.append(child)
+	return out
+
+
+func _find_special_brick(grid) -> Node2D:
+	for child in grid.get_children():
+		if child.is_in_group("bricks") and child.is_special:
+			return child
+	return null
+
+
+## H-1（AC2 全链路）：击碎特殊砖 → wave_settled → advance_settlement → 下一波含新特殊砖。
+## 建波 2（推进后新墙厚 3 才有内部位）→ 换确定性 3 行墙 → destroy("player")
+func _test_h1_special_full_chain() -> void:
+	_reset()
+	var fx = _make_real_controller()
+	var ctrl = fx.controller
+	var grid = fx.grid
+	ctrl._advance_wave()
+	ctrl._advance_wave()          # 波 2（RUNNING，wave_index=2；下一波厚 3 有内部位）
+	grid.generate_wave(3, 0, 42)  # 确定性厚墙（含特殊砖，seed 契约同 #384）
+	await _wait(0.02)
+	var special = _find_special_brick(grid)
+	_assert(special != null, "H-1: 3 行墙含特殊砖")
+	if special == null:
+		_cleanup(fx)
+		return
+	_captured_wave_settled.clear()
+	special.destroy("player")
+	_assert(GameManager.wave_state == GameManager.WaveState.SETTLED, "H-1: 特殊砖击碎 → SETTLED")
+	_assert(_captured_wave_settled.size() == 1 and _captured_wave_settled[0] == 2,
+		"H-1: wave_settled 恰好一次且负载 == 2")
+	await _wait(WAIT)
+	_assert(GameManager.wave_index == 2, "H-1: settle_hold 接管，wave_index 未自动推进")
+	ctrl.advance_settlement()
+	_assert(GameManager.wave_index == 3, "H-1: advance_settlement → wave_index +1")
+	_assert(GameManager.wave_state == GameManager.WaveState.RUNNING, "H-1: 推进后 RUNNING")
+	await _wait(0.02)
+	var new_special: int = 0
+	for b in _grid_brick_children(grid):
+		if b.is_special:
+			new_special += 1
+	_assert(new_special == 1, "H-1: 新墙（厚 3）含 1 颗特殊砖 (got %d)" % new_special)
+	_cleanup(fx)
+
+
+## H-2（AC3 不等墙空）：击碎特殊砖时剩余旧砖 > 0 → 轮换仍发生；advance 后旧砖全部清除
+func _test_h2_not_wait_wall_clear() -> void:
+	_reset()
+	var fx = _make_real_controller()
+	var ctrl = fx.controller
+	var grid = fx.grid
+	ctrl._advance_wave()
+	grid.generate_wave(3, 0, 42)
+	await _wait(0.02)
+	var old_bricks: Array = _grid_brick_children(grid)
+	var old_count: int = old_bricks.size()
+	_assert(old_count > 0, "H-2: 旧墙砖数 > 0 (got %d)" % old_count)
+	var special = _find_special_brick(grid)
+	if special == null:
+		_cleanup(fx)
+		return
+	_captured_wave_settled.clear()
+	special.destroy("player")
+	_assert(_captured_wave_settled.size() == 1, "H-2: 未清空也轮换（wave_settled 发出）")
+	_assert(grid.remaining_bricks == old_count - 1, "H-2: 剩余旧砖仍 > 0 (got %d)" % grid.remaining_bricks)
+	ctrl.advance_settlement()
+	await _wait(0.05)   # queue_free 生效
+	var all_invalid: bool = true
+	for b in old_bricks:
+		if is_instance_valid(b):
+			all_invalid = false
+	_assert(all_invalid, "H-2: advance 后旧砖全部清除（is_instance_valid == false）")
+	_cleanup(fx)
+
+
+## H-3（方案 A 对称触发）：destroy("ai") → 同样 wave_settled（窗口归玩家，不断言 AI 分支）
+func _test_h3_ai_symmetric() -> void:
+	_reset()
+	var fx = _make_real_controller()
+	var ctrl = fx.controller
+	var grid = fx.grid
+	ctrl._advance_wave()
+	grid.generate_wave(3, 0, 42)
+	await _wait(0.02)
+	var special = _find_special_brick(grid)
+	if special == null:
+		_cleanup(fx)
+		return
+	_captured_wave_settled.clear()
+	special.destroy("ai")
+	_assert(_captured_wave_settled.size() == 1, "H-3: 方案 A 对称触发（ai 击碎同样 wave_settled）")
+	_assert(GameManager.wave_state == GameManager.WaveState.SETTLED, "H-3: SETTLED")
+	await _wait(WAIT)
+	_cleanup(fx)
+
+
+## H-4（边界 2 发球直撞）：destroy("") → 不 wave_settled、不轮换；砖碎 + 计数减
+func _test_h4_empty_breaker() -> void:
+	_reset()
+	var fx = _make_real_controller()
+	var ctrl = fx.controller
+	var grid = fx.grid
+	ctrl._advance_wave()
+	grid.generate_wave(3, 0, 42)
+	await _wait(0.02)
+	var special = _find_special_brick(grid)
+	if special == null:
+		_cleanup(fx)
+		return
+	var before: int = grid.remaining_bricks
+	_captured_wave_settled.clear()
+	special.destroy("")   # 发球直撞（last_toucher == ""）
+	_assert(grid.remaining_bricks == before - 1, "H-4: 砖碎 + 计数减 (got %d)" % grid.remaining_bricks)
+	_assert(_captured_wave_settled.size() == 0, "H-4: 空 breaker 不 wave_settled")
+	_assert(GameManager.wave_state == GameManager.WaveState.RUNNING, "H-4: 不轮换（仍 RUNNING）")
+	await _wait(WAIT)
+	_cleanup(fx)
+
+
+## H-5（边界 1 同帧去重）：特殊砖 = 最后一块 → special_brick_destroyed 与 wall_cleared 同帧
+## → wave_settled 计数 == 1（_settling 守卫恰好一次）
+func _test_h5_same_frame_dedup() -> void:
+	_reset()
+	var fx = _make_real_controller()
+	var ctrl = fx.controller
+	var grid = fx.grid
+	ctrl._advance_wave()
+	grid.generate_wave(3, 0, 42)
+	await _wait(0.02)
+	var special = _find_special_brick(grid)
+	if special == null:
+		_cleanup(fx)
+		return
+	for b in _grid_brick_children(grid):
+		if b != special:
+			b.destroy("")   # 非特殊砖清掉（breaker == "" 不触发）
+	_assert(grid.remaining_bricks == 1, "H-5: 仅剩特殊砖 (got %d)" % grid.remaining_bricks)
+	_captured_wave_settled.clear()
+	special.destroy("player")   # 最后一块 → 同帧 wall_cleared + special_brick_destroyed
+	_assert(_captured_wave_settled.size() == 1,
+		"H-5: 同帧双信号 → wave_settled 恰好一次 (got %d)" % _captured_wave_settled.size())
+	_assert(GameManager.wave_state == GameManager.WaveState.SETTLED, "H-5: SETTLED")
+	_assert(grid.remaining_bricks == 0, "H-5: remaining 归 0")
+	await _wait(WAIT)
+	_cleanup(fx)
+
+
+## H-6（边界 5 结算期忽略）：_settling == true 期间再发 wall_cleared / special_brick_destroyed
+## → 无二次结算（wave_settled 计数仍 1）
+func _test_h6_settling_ignored() -> void:
+	_reset()
+	var fx = _make_real_controller()
+	var ctrl = fx.controller
+	var grid = fx.grid
+	ctrl._advance_wave()
+	grid.generate_wave(3, 0, 42)
+	await _wait(0.02)
+	var special = _find_special_brick(grid)
+	if special == null:
+		_cleanup(fx)
+		return
+	_captured_wave_settled.clear()
+	special.destroy("player")   # 首次结算 → _settling == true
+	_assert(_captured_wave_settled.size() == 1, "H-6: 首次结算 wave_settled == 1")
+	grid.wall_cleared.emit()
+	grid.special_brick_destroyed.emit("player")
+	_assert(_captured_wave_settled.size() == 1,
+		"H-6: 结算中重复信号被忽略 (got %d)" % _captured_wave_settled.size())
+	_assert(GameManager.wave_state == GameManager.WaveState.SETTLED, "H-6: 仍 SETTLED")
+	await _wait(WAIT)
+	_cleanup(fx)
+
+
+## H-7（边界 6 终局竞态）：击碎特殊砖使一方到 21 分 → end_wave_cycle、不生成新墙、wave_index 冻结
+func _test_h7_run_over() -> void:
+	_reset()
+	var fx = _make_real_controller()
+	var ctrl = fx.controller
+	var grid = fx.grid
+	ctrl._advance_wave()
+	grid.generate_wave(3, 0, 42)
+	await _wait(0.02)
+	var special = _find_special_brick(grid)
+	if special == null:
+		_cleanup(fx)
+		return
+	for i in range(20):
+		GameManager.add_score("player")   # 差 1 分到 21
+	var index_before: int = GameManager.wave_index
+	GameManager.wave_settled.connect(_on_settled_reach_21)   # 挂点内 add_score 到 21
+	special.destroy("player")
+	GameManager.wave_settled.disconnect(_on_settled_reach_21)
+	_assert(GameManager.is_run_over() == true, "H-7: 结算时到 21 分 → run over")
+	_assert(GameManager.wave_state == GameManager.WaveState.IDLE, "H-7: end_wave_cycle → IDLE")
+	_assert(GameManager.wave_index == index_before, "H-7: wave_index 冻结")
+	_assert(grid.remaining_bricks == 23, "H-7: 不生成新墙（剩余旧砖仍在，got %d）" % grid.remaining_bricks)
+	_cleanup(fx)
+
+
+## H-8（边界 4 升级连锁）：blast_neighbors 波及特殊砖（内部 destroy("upgrade")）→ wave_settled 触发
+func _test_h8_upgrade_chain() -> void:
+	_reset()
+	var fx = _make_real_controller()
+	var ctrl = fx.controller
+	var grid = fx.grid
+	ctrl._advance_wave()
+	grid.generate_wave(3, 0, 42)
+	await _wait(0.02)
+	var special = _find_special_brick(grid)
+	if special == null:
+		_cleanup(fx)
+		return
+	_captured_wave_settled.clear()
+	grid.blast_neighbors(special.global_position, 200)
+	_assert(_captured_wave_settled.size() == 1,
+		"H-8: blast 波及特殊砖 → wave_settled 触发 (got %d)" % _captured_wave_settled.size())
+	_assert(GameManager.wave_state == GameManager.WaveState.SETTLED, "H-8: SETTLED")
+	await _wait(WAIT)
+	_cleanup(fx)
+
+
+## H-9（AC4 回退回归）：薄墙无特殊砖 → wall_cleared 路径照旧（a1 回归）
+func _test_h9_thin_wall_fallback() -> void:
+	_reset()
+	var fx = _make_real_controller()
+	var ctrl = fx.controller
+	var grid = fx.grid
+	ctrl._advance_wave()   # 波 1：厚 1 薄墙
+	var special_count: int = 0
+	for b in _grid_brick_children(grid):
+		if b.is_special:
+			special_count += 1
+	_assert(special_count == 0, "H-9: 薄墙（厚 1）无特殊砖 (got %d)" % special_count)
+	_captured_wave_settled.clear()
+	grid.wall_cleared.emit()   # 既有 a1 路径
+	_assert(_captured_wave_settled.size() == 1, "H-9: wall_cleared 回退 → wave_settled (a1 回归)")
+	_assert(GameManager.wave_state == GameManager.WaveState.SETTLED, "H-9: SETTLED")
+	await _wait(WAIT)
+	_cleanup(fx)
+
+
+## H-10（WAVE_MAX_INDEX 防御）：特殊砖路径同样受 _advance_wave 防御（g1 回归）
+func _test_h10_max_index() -> void:
+	_reset()
+	var fx = _make_real_controller()
+	var ctrl = fx.controller
+	GameManager.wave_index = CONSTS.WAVE_MAX_INDEX
+	GameManager.wave_state = GameManager.WaveState.RUNNING
+	ctrl._advance_wave()
+	_assert(GameManager.wave_index == CONSTS.WAVE_MAX_INDEX, "H-10: 达上限 wave_index 不变 (g1 回归)")
+	_assert(GameManager.wave_state == GameManager.WaveState.RUNNING, "H-10: 状态不变")
 	_cleanup(fx)

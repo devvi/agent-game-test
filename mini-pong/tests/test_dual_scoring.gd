@@ -64,6 +64,9 @@ func run() -> void:
 	_test_h1_tolerant_connect_no_grid()
 	_test_h2_connect_with_grid()
 	_test_h3_events_ignored_after_end()
+	# Scenario J: 特殊砖触发波次结算 (#529)
+	_test_j1_special_brick_score()
+	_test_j2_empty_breaker_zero()
 
 	GameManager.score_changed.disconnect(_on_score_changed)
 	GameManager.match_over.disconnect(_on_match_over)
@@ -526,3 +529,50 @@ func _test_h3_events_ignored_after_end() -> void:
 	_assert(GameManager.ai_score == 0, "H-3: ai unchanged")
 	_assert(_scored_count == 0, "H-3: no scored signal")
 	_assert(_captured_match_overs.size() == 0, "H-3: no new match_over")
+
+
+# ── Scenario J: 特殊砖触发波次结算 (#529) ──
+
+## J-1: 特殊砖拆砖分不变式（D1：无特殊计分）—— 真实 brick.gd 脚本 + is_special=true，
+## 拆砖仍走标准拆砖分流（toucher +1 / brick_count +1），不额外计分
+func _test_j1_special_brick_score() -> void:
+	_reset_all()
+	var ball = _make_mock_ball()
+	ball.last_toucher = "player"
+	var sm = _make_sm(ball)
+
+	var brick = StaticBody2D.new()
+	brick.set_script(load("res://gdscripts/brick.gd"))
+	brick.is_special = true
+
+	sm._on_brick_destroyed(brick, Vector2.ZERO)
+
+	_assert(GameManager.player_score == 1, "J-1: player_score == 1 (special brick)")
+	_assert(GameManager.get_brick_count("player") == 1, "J-1: player_brick_count == 1")
+
+	_reset_all()
+	ball.last_toucher = "ai"
+	sm._on_brick_destroyed(brick, Vector2.ZERO)
+
+	_assert(GameManager.ai_score == 1, "J-1: ai_score == 1 (special brick)")
+	_assert(GameManager.get_brick_count("ai") == 1, "J-1: ai_brick_count == 1")
+
+
+## J-2: 空 breaker（发球直撞特殊砖）→ 零分、无 score_changed（D2 / a3 边界回归）
+func _test_j2_empty_breaker_zero() -> void:
+	_reset_all()
+	var ball = _make_mock_ball()
+	ball.last_toucher = ""
+	var sm = _make_sm(ball)
+
+	var brick = StaticBody2D.new()
+	brick.set_script(load("res://gdscripts/brick.gd"))
+	brick.is_special = true
+
+	sm._on_brick_destroyed(brick, Vector2.ZERO)
+
+	_assert(GameManager.player_score == 0, "J-2: player_score == 0")
+	_assert(GameManager.ai_score == 0, "J-2: ai_score == 0")
+	_assert(GameManager.get_brick_count("player") == 0, "J-2: no player brick count")
+	_assert(GameManager.get_brick_count("ai") == 0, "J-2: no ai brick count")
+	_assert(_captured_scores.size() == 0, "J-2: no score_changed")

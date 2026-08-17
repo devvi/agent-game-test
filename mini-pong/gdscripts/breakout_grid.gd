@@ -22,6 +22,7 @@ enum BrickLayout { GAPS, OFFSET, HOLES, MIXED }
 signal brick_destroyed(brick: Node2D, pos: Vector2)
 signal wall_cleared()
 signal wall_generated(remaining: int)
+signal special_brick_destroyed(breaker: String)   # #529: 特殊砖被击碎 (breaker 非空才发)
 
 const CONSTS = preload("res://gdscripts/constants.gd")
 const BrickUpgradeHooks = preload("res://gdscripts/brick_upgrade_hooks.gd")
@@ -92,6 +93,7 @@ func generate_wave(thickness: int, layout: int, seed_value: int) -> void:
 	_wall_cleared_emitted = false
 	_destroyed = {}
 	_consume_pending_holes()               # B.3 #13: 消费上波挂起的 open_hole 请求（升级在下波生效）
+	_spawn_special_brick()                 # #529 新增: 内部位特殊砖 (见下)
 	wall_generated.emit(remaining_bricks)  # #392 增补：新墙总数（每墙一次，含洞后净数）
 
 
@@ -116,6 +118,8 @@ func _on_brick_destroyed(brick: Node2D) -> void:
 	_destroyed[brick] = true
 	remaining_bricks -= 1
 	brick_destroyed.emit(brick, brick.global_position)
+	if brick.get("is_special") == true and brick.get("breaker") != "":     # #529 新增: 触发规则见 §2 gap 核查
+		special_brick_destroyed.emit(brick.get("breaker"))
 	if remaining_bricks <= 0 and not _wall_cleared_emitted:
 		_wall_cleared_emitted = true
 		wall_cleared.emit()                # 每墙恰好一次（generate_wave 重置守卫）
@@ -161,6 +165,60 @@ func _open_hole_now(count: int) -> void:
 		_remove_column(c)
 
 
+# ── #529 特殊砖（替换式生成 + 内部位判定）──
+
+## 替换式特殊砖生成 (PRD 方案1)。仅厚度 ≥ SPECIAL_BRICK_MIN_THICKNESS 且存在
+## 4 正交邻域齐全的砖位时, 标记恰好 1 颗。无候选 → 静默跳过 + 回退 wall_cleared (容错先例)。
+func _spawn_special_brick() -> void:
+	if rows < CONSTS.SPECIAL_BRICK_MIN_THICKNESS:
+		return                              # AC4: 薄墙回退 (行为与现状一致)
+	var target = _pick_internal_brick()
+	if target == null:
+		return                              # 无内部位 → 本波回退, 不 push_error (边界 8)
+	target.set("is_special", true)
+	target.set("breaker", "")
+	if target.has_method("apply_special_visual"):
+		target.call("apply_special_visual")
+
+
+## 内部位候选: 4 正交邻域 (上/下/左/右) 均为存在砖。邻域判定 = 距离判定
+## (dx==±(w+g) ∧ dy==0 或 dx==0 ∧ dy==±(h+g)), 布局无关 (洞/缝列无砖 → 天然不产生候选)。
+## 候选选择: 距墙几何中心最近 (欧氏距离平方), 平局取行主序首个 — 确定性, 同 seed 可复现。
+func _pick_internal_brick() -> Node2D:
+	var step_x: float = _brick_w() + brick_gap
+	var step_y: float = _brick_h() + brick_gap
+	var by_pos: Dictionary = {}             # 位置量化 0.5 网格 → 砖 (浮点容差)
+	for child in get_children():
+		if child.is_in_group("bricks"):
+			by_pos[_key(child.position)] = child
+	if by_pos.size() < 5:
+		return null                          # 少于 5 砖不可能有完整 4 邻域
+	var center: Vector2 = _wall_center_local()
+	var best: Node2D = null
+	var best_d: float = INF
+	for b in by_pos.values():
+		var p: Vector2 = b.position
+		if not (by_pos.has(_key(p + Vector2(-step_x, 0))) and by_pos.has(_key(p + Vector2(step_x, 0)))
+			and by_pos.has(_key(p + Vector2(0, -step_y))) and by_pos.has(_key(p + Vector2(0, step_y)))):
+			continue
+		var d: float = b.position.distance_squared_to(center)
+		if d < best_d:
+			best_d = d
+			best = b
+	return best
+
+
+func _key(v: Vector2) -> Vector2:
+	return (v * 2.0).round() / 2.0          # 量化到 0.5 网格 (步长 68/28 整数, 位置精度 ≤0.5)
+
+
+func _wall_center_local() -> Vector2:
+	var cols: int = _compute_cols()
+	var step_x: float = _brick_w() + brick_gap
+	return Vector2(_compute_start_x(cols) + (cols - 1) * step_x * 0.5,
+		wall_y - position.y)                # local_wall_y 同 generate_wave 推导
+
+
 ## blast_neighbors(pos, radius): 以 pos 为中心 radius 半径炸碎邻近砖
 func blast_neighbors(pos: Vector2, radius: float) -> void:
 	var to_destroy: Array = []
@@ -168,7 +226,7 @@ func blast_neighbors(pos: Vector2, radius: float) -> void:
 		if child.is_in_group("bricks") and child.global_position.distance_to(pos) <= radius:
 			to_destroy.append(child)
 	for b in to_destroy:
-		b.destroy()
+		b.destroy("upgrade")                 # #529: 升级连锁来源标记 (≠ "" → 触发, 边界 4)
 
 
 # ── 布局算法（§4.3）──
@@ -202,7 +260,7 @@ func _remove_column(c: int) -> void:
 		if child.is_in_group("bricks") and abs(child.position.x - cx) <= w / 2.0:
 			to_destroy.append(child)
 	for b in to_destroy:
-		b.destroy()
+		b.destroy("upgrade")                 # #529: 升级连锁来源标记 (≠ "" → 触发, 边界 4)
 
 
 # ── 几何 ──

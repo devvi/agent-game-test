@@ -18,6 +18,7 @@ const CONSTS = preload("res://gdscripts/constants.gd")
 @onready var breakout_grid = get_node_or_null("../BreakoutGrid")   # #384 容错：#393 接线前为 null
 @onready var ai_paddle = get_node_or_null("../AIPaddle")
 @onready var rain_curtain = _find_rain_curtain()                   # #389 契约（Main.tscn: AtmosphereLayer/RainCurtain）
+@onready var ball = get_node_or_null("../Ball")                    # #529: 归属诊断 (方案 A 仅记录, null 跳过)
 
 var _settling: bool = false   # 结算中守卫：忽略重复 wall_cleared / 并发信号（边界 4）
 var settle_delay: float = CONSTS.WAVE_SETTLE_DELAY   # 结算 → 下一波延时（测试可注入短延时；#388 接线后由其接管推进时机）
@@ -30,11 +31,29 @@ func _ready() -> void:
 		breakout_grid.wall_cleared.connect(_on_wall_cleared)
 	else:
 		push_warning("WaveController: BreakoutGrid 未接线 (#384/#393)，波次循环暂不激活")
+	# #529 新增: 特殊砖触发源 (双触发源之一, 同样双守卫容错)
+	if breakout_grid != null and breakout_grid.has_signal("special_brick_destroyed"):
+		breakout_grid.special_brick_destroyed.connect(_on_special_brick_destroyed)
 
 
+## #529: 触发入口 1 — 整墙打空 (现状路径, 主体已抽至 _begin_settlement)
 func _on_wall_cleared() -> void:
 	if _settling or GameManager.is_run_over():
 		return
+	_begin_settlement()
+
+
+## #529: 触发入口 2 — 特殊砖击碎 (方案 A: 对称触发, 窗口归玩家, breaker 仅记录)
+func _on_special_brick_destroyed(breaker: String) -> void:
+	if _settling or GameManager.is_run_over():
+		return
+	if breaker != "" and ball != null:
+		pass    # 归属记录占位 (诊断/未来统计用; 本 Issue 不落地消费方)
+	_begin_settlement()
+
+
+## #529: 共享结算主体 (原 _on_wall_cleared 主体抽取; 双触发源复用, 守卫/接管零重复)
+func _begin_settlement() -> void:
 	_settling = true
 	GameManager.settle_wave()                 # SETTLED + wave_settled（#388/#390 挂点）
 	if GameManager.is_run_over():
