@@ -55,6 +55,29 @@ func _on_match_over(winner: String) -> void:
 	if not winner_label or not restart_label:
 		return
 
+	# #543: 2P 胜者宣告分支 — 两侧都走「胜者宣告」，不复用失败文案分支（AC5）。
+	if is_instance_valid(GameManager) and GameManager.has_method("get_game_mode") \
+			and GameManager.get_game_mode() == GameManager.GameMode.LOCAL_2P:
+		winner_label.visible = true
+		if failure_phrase_label:
+			failure_phrase_label.visible = false
+		if run_stats_label:
+			run_stats_label.visible = false
+		winner_label.text = "P1 WIN!" if winner == "player" else "P2 WIN!"
+		winner_label.modulate = COLOR_PLAYER if winner == "player" else COLOR_AI
+		if is_inside_tree() and get_tree():
+			_start_winner_pulse()
+		# Hide HUD
+		var hud := _get_sibling("GameHUD")
+		if hud:
+			hud.visible = false
+		# Show this screen
+		visible = true
+		_transitioning = false
+		if is_inside_tree() and get_tree():
+			_start_prompt_blink()
+		return
+
 	var is_fail := winner == "ai"
 	winner_label.visible = not is_fail                          # fail 分支隐藏胜者宣告
 	if failure_phrase_label:

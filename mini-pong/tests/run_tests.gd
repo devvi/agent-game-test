@@ -43,6 +43,7 @@ func _run_tests() -> void:
 	await _run_async("res://tests/test_wave_transition.gd", "Wave Transition")
 	await _run_async("res://tests/test_integration_393.gd", "Assembly Integration")
 	await _run_async("res://tests/test_visual_enrichment.gd", "Visual Enrichment")
+	_run("res://tests/test_local_2p.gd", "Local 2P")
 	await _run_async("res://tests/e2e_playthrough.gd", "E2E Playthrough")
 	await _run_async("res://tests/auto_play_test.gd", "Auto-Play")
 	print("

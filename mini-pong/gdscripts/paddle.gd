@@ -12,6 +12,9 @@ enum Mode { PLAYER = 0, AI = 1 }
 
 @export var mode: Mode = Mode.PLAYER
 
+## #543: 0 = P1（底侧，默认，兼容既有场景/测试）；1 = P2（顶侧，2P）。
+@export var player_index: int = 0
+
 # ── 实例级手感参数 (#387 AC3: const → @export，默认值仍 = CONSTS，#367 定稿值不变) ──
 @export var paddle_speed: float = CONSTS.PADDLE_SPEED
 @export var paddle_width: float = CONSTS.PADDLE_WIDTH
@@ -35,6 +38,87 @@ var frozen: bool = false
 
 func set_frozen(value: bool) -> void:
 	frozen = value
+
+# ── Debuff 定时状态 API (#543) ──
+## set_frozen_timed: 重复施加取 max（防覆盖）；duration <= 0 视为解除（E2 归零语义）。
+## 与 FSM 冻结判定式或关系（Spike 2 定稿）。
+func set_frozen_timed(duration: float) -> void:
+	if duration <= 0.0:
+		_timed_freeze_remaining = 0.0
+	else:
+		_timed_freeze_remaining = max(_timed_freeze_remaining, duration)
+
+
+func set_speed_scale_timed(scale: float, duration: float) -> void:
+	_speed_scale = scale
+	_speed_scale_remaining = duration
+
+
+func set_input_invert_timed(duration: float) -> void:
+	_input_invert_remaining = duration
+
+
+## 判定式或关系: FSM 全局冻结优先，临时冻结计时独立走完，二者互不覆盖。
+func is_effectively_frozen() -> bool:
+	return frozen or _timed_freeze_remaining > 0.0
+
+# ── InputMap 分键重建器 (#543 §3.3) ──
+## 幂等重建：SINGLE 下 paddle_left={A,←}/paddle_right={D,→}（现状绑定集合）；
+## LOCAL_2P 下 ←/→ 增量 erase 移入 p2_left/p2_right。重复开局无残留（事件级比对，B3）。
+static func rebind_for_mode(mode: int) -> void:
+	# 前置：4 个 2P action 恒存在（静态定义于 project.godot；has_action 兜底）
+	_ensure_action(CONSTS.P1_CONFIRM_ACTION)
+	_ensure_keycode(CONSTS.P1_CONFIRM_ACTION, KEY_E)
+	_ensure_action(CONSTS.P1_LEFT_ACTION)
+	_ensure_keycode(CONSTS.P1_LEFT_ACTION, KEY_A)
+	_ensure_action(CONSTS.P1_RIGHT_ACTION)
+	_ensure_keycode(CONSTS.P1_RIGHT_ACTION, KEY_D)
+	_ensure_action(CONSTS.P2_CONFIRM_ACTION)
+	_ensure_keycode(CONSTS.P2_CONFIRM_ACTION, KEY_SHIFT)
+	_ensure_action(CONSTS.P2_LEFT_ACTION)
+	_ensure_keycode(CONSTS.P2_LEFT_ACTION, KEY_LEFT)
+	_ensure_action(CONSTS.P2_RIGHT_ACTION)
+	_ensure_keycode(CONSTS.P2_RIGHT_ACTION, KEY_RIGHT)
+	# paddle_left/paddle_right 基础键（A/D）恒在
+	_ensure_action("paddle_left")
+	_ensure_keycode("paddle_left", KEY_A)
+	_ensure_action("paddle_right")
+	_ensure_keycode("paddle_right", KEY_D)
+
+	if mode == 1:   # LOCAL_2P
+		_erase_keycode("paddle_left", KEY_LEFT)
+		_erase_keycode("paddle_right", KEY_RIGHT)
+		_ensure_keycode(CONSTS.P2_LEFT_ACTION, KEY_LEFT)
+		_ensure_keycode(CONSTS.P2_RIGHT_ACTION, KEY_RIGHT)
+	else:           # SINGLE（默认，逐字节回归）
+		_ensure_keycode("paddle_left", KEY_LEFT)
+		_ensure_keycode("paddle_right", KEY_RIGHT)
+		_erase_keycode(CONSTS.P2_LEFT_ACTION, KEY_LEFT)
+		_erase_keycode(CONSTS.P2_RIGHT_ACTION, KEY_RIGHT)
+
+
+static func _ensure_action(action: String) -> void:
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+
+
+static func _ensure_keycode(action: String, keycode: int) -> void:
+	if not InputMap.has_action(action):
+		InputMap.add_action(action)
+	for ev in InputMap.action_get_events(action):
+		if ev is InputEventKey and ev.keycode == keycode:
+			return
+	var key := InputEventKey.new()
+	key.keycode = keycode
+	InputMap.action_add_event(action, key)
+
+
+static func _erase_keycode(action: String, keycode: int) -> void:
+	if not InputMap.has_action(action):
+		return
+	for ev in InputMap.action_get_events(action):
+		if ev is InputEventKey and ev.keycode == keycode:
+			InputMap.action_erase_event(action, ev)
 
 # ── State ──
 var min_x: float = 0.0
@@ -62,28 +146,49 @@ var _combo_timer: float = 0.0            # 剩余窗口秒数（delta 累计，�
 var _combo_active: bool = false          # 连击成立 → 板速 +20%
 var _last_player_score: int = -1         # -1 = 尚未见过任何得分（首分判定 + 重开检测基准）
 
+# ── Debuff 定时状态 (#543) ──
+## 与 #387 slow_time 的 set_speed_scale_timed 同构的三套定时状态 + 一个即时状态
+## （DESIGN 543 §3.4）。freeze/slow/reverse 由 opponent 卡回调施加。
+var _timed_freeze_remaining: float = 0.0    # freeze_opponent 临时冻结剩余秒数
+var _speed_scale: float = 1.0               # slow_opponent 速度倍率（默认 1.0）
+var _speed_scale_remaining: float = 0.0     # 减速剩余秒数（归零 → _speed_scale 恢复 1.0）
+var _input_invert_remaining: float = 0.0    # reverse_opponent 左右方向反转剩余秒数
+
 
 func _ready() -> void:
 	# InputMap binding — only for player mode; guard against duplicate bindings
 	# 竖屏 (#383): paddle_left(A/←) / paddle_right(D/→)；旧 paddle_up/paddle_down 已删除
+	# #543: player_index==1（P2 顶侧）改绑 p2_left/p2_right（←/→，分键隔离，AC3）
 	if mode == Mode.PLAYER:
-		if not InputMap.has_action("paddle_left"):
-			InputMap.add_action("paddle_left")
-			var ev_a = InputEventKey.new()
-			ev_a.keycode = KEY_A
-			InputMap.action_add_event("paddle_left", ev_a)
-			var ev_left = InputEventKey.new()
-			ev_left.keycode = KEY_LEFT
-			InputMap.action_add_event("paddle_left", ev_left)
+		if player_index == 1:
+			if not InputMap.has_action("p2_left"):
+				InputMap.add_action("p2_left")
+				var ev_left = InputEventKey.new()
+				ev_left.keycode = KEY_LEFT
+				InputMap.action_add_event("p2_left", ev_left)
+			if not InputMap.has_action("p2_right"):
+				InputMap.add_action("p2_right")
+				var ev_right = InputEventKey.new()
+				ev_right.keycode = KEY_RIGHT
+				InputMap.action_add_event("p2_right", ev_right)
+		else:
+			if not InputMap.has_action("paddle_left"):
+				InputMap.add_action("paddle_left")
+				var ev_a = InputEventKey.new()
+				ev_a.keycode = KEY_A
+				InputMap.action_add_event("paddle_left", ev_a)
+				var ev_left = InputEventKey.new()
+				ev_left.keycode = KEY_LEFT
+				InputMap.action_add_event("paddle_left", ev_left)
 
-		if not InputMap.has_action("paddle_right"):
-			InputMap.add_action("paddle_right")
-			var ev_d = InputEventKey.new()
-			ev_d.keycode = KEY_D
-			InputMap.action_add_event("paddle_right", ev_d)
-			var ev_right = InputEventKey.new()
-			ev_right.keycode = KEY_RIGHT
-			InputMap.action_add_event("paddle_right", ev_right)
+			if not InputMap.has_action("paddle_right"):
+				InputMap.add_action("paddle_right")
+				var ev_d = InputEventKey.new()
+				ev_d.keycode = KEY_D
+				InputMap.action_add_event("paddle_right", ev_d)
+				var ev_right = InputEventKey.new()
+				ev_right.keycode = KEY_RIGHT
+				InputMap.action_add_event("paddle_right", ev_right)
 
 		# #504: 只读消费 score_changed（全 kind 事件源）；autoload 缺失/未接线 → 跳过（G10）
 		if GameManager != null and GameManager.has_signal("score_changed"):
@@ -118,53 +223,72 @@ func _ready() -> void:
 		_ai_delay_timer = randf_range(ai_reaction_delay_min, ai_reaction_delay_max)
 
 
-## #504: 连击窗口判定。仅 PLAYER 模式；玩家得分增量 > 0 才推进状态。
-func _on_score_changed(player_score: int, _ai_score: int) -> void:
+## #504: 连击窗口判定。仅 PLAYER 模式；得分增量 > 0 才推进状态。
+## #543: 按 player_index 选分数通道（P2 顶侧看 ai_score，C2 互不污染）。
+func _on_score_changed(player_score: int, ai_score: int) -> void:
 	if mode != Mode.PLAYER:
 		return
+	var my_score: int = ai_score if player_index == 1 else player_score
 	# 重开检测（边界 6）: GameManager.reset() 清零 → score 回退 → 复位连击（含基准回退，
 	# 使重开后首分按"首分语义"处理并重新起算窗口 — G8 要求）
-	if _last_player_score >= 0 and player_score < _last_player_score:
+	if _last_player_score >= 0 and my_score < _last_player_score:
 		_combo_active = false
 		_combo_timer = 0.0
 		_last_player_score = -1
 	# 玩家得分: 窗口内再次得分 → 连击成立；首分（0-1 分）→ 不加速但窗口起算（裁决 3）
-	if player_score > _last_player_score:
+	if my_score > _last_player_score:
 		_combo_active = _combo_timer > 0.0
 		_combo_timer = combo_window_seconds
-	_last_player_score = player_score
+	_last_player_score = my_score
 
 
 func _process(delta: float) -> void:
-	if frozen:
+	# ── 定时状态递减（#543，先于任何 early-return）──
+	_timed_freeze_remaining = max(0.0, _timed_freeze_remaining - delta)
+	if _speed_scale_remaining > 0.0:
+		_speed_scale_remaining = max(0.0, _speed_scale_remaining - delta)
+		if _speed_scale_remaining <= 0.0:
+			_speed_scale = 1.0
+	_input_invert_remaining = max(0.0, _input_invert_remaining - delta)
+
+	if is_effectively_frozen():
 		return
 	if mode == Mode.AI:
 		_ai_process(delta)
 		_apply_magnet(delta)
 		return
 
-	# ── 连击计时（#504，仅 PLAYER；frozen 已 early-return → 冻结期不衰减，裁决 1）──
+	# ── 连击计时（#504，仅 PLAYER；冻结已 early-return → 冻结期不衰减，裁决 1）──
 	if _combo_timer > 0.0:
 		_combo_timer = max(0.0, _combo_timer - delta)
 		if _combo_timer <= 0.0:
 			_combo_active = false    # 窗口过期 → 恢复基速
 
+	# #543: 按 player_index 选 action 对（P2 顶侧读 p2_left/p2_right，分键隔离）
+	var left_action: String = "paddle_left" if player_index == 0 else "p2_left"
+	var right_action: String = "paddle_right" if player_index == 0 else "p2_right"
+
 	# Read input — simultaneous left+right cancels to zero
-	var left := Input.is_action_pressed("paddle_left")
-	var right := Input.is_action_pressed("paddle_right")
+	var left := Input.is_action_pressed(left_action)
+	var right := Input.is_action_pressed(right_action)
 	var move: float = 0.0
 	if left and not right:
 		move = -1.0
 	elif right and not left:
 		move = 1.0
 
+	# #543: 方向反转（reverse_opponent，仅 PLAYER 模式有意义）
+	if _input_invert_remaining > 0.0:
+		move = -move
+
 	# #504: 连击有效速度（乘性叠加，基值 paddle_speed 不动）
 	var effective_speed: float = paddle_speed
 	if _combo_active:
 		effective_speed = paddle_speed * (1.0 + combo_speed_bonus)
 
+	# #543: slow_opponent 减速（_speed_scale 默认 1.0）
 	# Apply movement (frame-rate independent) and clamp
-	position.x += move * effective_speed * delta
+	position.x += move * effective_speed * _speed_scale * delta
 	_apply_magnet(delta)
 	position.x = clamp(position.x, min_x, max_x)
 

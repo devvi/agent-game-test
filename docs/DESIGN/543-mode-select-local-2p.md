@@ -455,19 +455,19 @@ UpgradePool._build_ctx(player_index=1)    # P2 确认了一张 debuff
 
 | 集成 | 我方组件 | 目标 Issue | 方式 | 状态 |
 |------|:---:|:---:|------|:---:|
-| ModeSelect 高亮/切换 | start_menu.gd `_mode_index` | #543 | `_unhandled_input` ui_up/ui_down + Tween 高亮 | ⬜ pending |
-| 模式写入 | start_menu.gd → GameManager | #543 | `GameManager.set_game_mode(_mode_index)` | ⬜ pending |
-| 模式落盘/双板配置 | GameManager `apply_mode_to_paddles()` | #543 | FSM `enter_state(SERVING)` 调用 | ⬜ pending |
-| InputMap 分键 | paddle.gd `rebind_for_mode()` | #543 | `apply_mode_to_paddles` 内调用；paddle `_ready` 按索引绑定 | ⬜ pending |
-| 双游标输入 | upgrade_pick_ui.gd `_unhandled_input` | #543 | `p1_left/p1_right/p1_confirm`（P1）、`p2_left/p2_right/p2_confirm`（P2） | ⬜ pending |
-| 升级目标解析 | upgrade_pool.gd `_build_ctx(player_index)` | #543 | `self_paddle`/`opponent_paddle`/`paddle` 回退键 | ⬜ pending |
-| debuff 回调 | upgrade_defs.gd `_effect_*` | #543 | `ctx["opponent_paddle"].set_*_timed(...)` | ⬜ pending |
-| 连击分流 | paddle.gd `_on_score_changed` | #504 | 按 `player_index` 选分数通道（P2 看 ai_score） | ⬜ pending |
-| 结算语义 | game_over_screen.gd `_on_match_over` | #391 | 2P 分支胜者宣告（P1/P2 WIN!） | ⬜ pending |
-| HUD 显示 | game_hud.gd `_on_score_changed` | #392 | 2P 下 `"AI: "` → `"P2: "`（红区保留） | ⬜ pending |
-| 波次推进 | UpgradePickUI `_advance_settlement` → WaveController | #388 | 既有 group 寻址接管，零改动（回归验证） | ⬜ pending |
+| ModeSelect 高亮/切换 | start_menu.gd `_mode_index` | #543 | `_unhandled_input` ui_up/ui_down + Tween 高亮 | ✅ connected |
+| 模式写入 | start_menu.gd → GameManager | #543 | `GameManager.set_game_mode(_mode_index)` | ✅ connected |
+| 模式落盘/双板配置 | GameManager `apply_mode_to_paddles()` | #543 | FSM `enter_state(SERVING)` 调用 | ✅ connected |
+| InputMap 分键 | paddle.gd `rebind_for_mode()` | #543 | `apply_mode_to_paddles` 内调用；paddle `_ready` 按索引绑定 | ✅ connected |
+| 双游标输入 | upgrade_pick_ui.gd `_unhandled_input` | #543 | `p1_left/p1_right/p1_confirm`（P1）、`p2_left/p2_right/p2_confirm`（P2） | ✅ connected |
+| 升级目标解析 | upgrade_pool.gd `_build_ctx(player_index)` | #543 | `self_paddle`/`opponent_paddle`/`paddle` 回退键 | ✅ connected |
+| debuff 回调 | upgrade_defs.gd `_effect_*` | #543 | `ctx["opponent_paddle"].set_*_timed(...)` | ✅ connected |
+| 连击分流 | paddle.gd `_on_score_changed` | #504 | 按 `player_index` 选分数通道（P2 看 ai_score） | ✅ connected |
+| 结算语义 | game_over_screen.gd `_on_match_over` | #391 | 2P 分支胜者宣告（P1/P2 WIN!） | ✅ connected |
+| HUD 显示 | game_hud.gd `_on_score_changed` | #392 | 2P 下 `"AI: "` → `"P2: "`（红区保留） | ✅ connected |
+| 波次推进 | UpgradePickUI `_advance_settlement` → WaveController | #388 | 既有 group 寻址接管，零改动（回归验证） | ✅ connected |
 | debuff 文案 | upgrade_pool.json（draft: true） | #395 | human-review 定稿显示名/短句 | ⬜ deferred |
-| E2E 断言 | e2e_shots.json 01_title | #517 | 模式 UI 存在性断言（可选）+ theme_absent 保持 | ⬜ pending |
+| E2E 断言 | e2e_shots.json 01_title | #517 | 未改文件（可选）；默认单人 + SPACE 直开兼容 autoplay；模式高亮色避 #4a90d9（A2 测试固化） | ✅ connected |
 
 ---
 

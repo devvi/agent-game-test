@@ -168,7 +168,7 @@ const HUD_WAVE_SUFFIX: String = " 波"
 # 稀有度内均匀选（见 upgrade_pool.gd get_candidates）。
 const UPGRADE_RARITY_WEIGHTS: Array[int] = [60, 30, 10]
 const UPGRADE_CANDIDATE_COUNT: int = 3
-const UPGRADE_POOL_SIZE: int = 9
+const UPGRADE_POOL_SIZE: int = 13  # #543: +4 debuff 卡（6 自利 + 4 opponent）
 const UPGRADE_JSON_PATH: String = "res://assets/content/upgrade_pool.json"
 
 # ── Failure Screen (#391) ──
@@ -282,4 +282,21 @@ const FX_PIERCE_PEAK_ALPHA: float = 0.15     # 脉冲峰值 alpha（克制，非
 const FX_PIERCE_COLOR: Color = Color(1.0, 0.7, 0.3, 1.0)   # 暖橙脉冲带（非 4a90d9/ff3355 语义）
 const FX_BRICK_FLASH_COLOR: Color = Color(1.0, 0.616, 0.271, 1.0)  # 破砖同色闪光 = BRICK_NEON
 const FX_FLASH_POOL_SIZE: int = 3            # 破砖闪光实例池
+
+# ── Local 2P Mode (#543) ──
+# 本地双人对战 (PRD #543; 机制/常量 = mechanical, debuff 数值/文案 = taste 占位 #395)
+const GAME_MODE_SINGLE: int = 0
+const GAME_MODE_LOCAL_2P: int = 1
+const P1_CONFIRM_ACTION: String = "p1_confirm"
+const P1_LEFT_ACTION: String = "p1_left"
+const P1_RIGHT_ACTION: String = "p1_right"
+const P2_CONFIRM_ACTION: String = "p2_confirm"
+const P2_LEFT_ACTION: String = "p2_left"
+const P2_RIGHT_ACTION: String = "p2_right"
+const UPGRADE_2P_CONFIRM_TIMEOUT: float = 10.0
+const DEBUFF_SHRINK_FACTOR: float = 0.7
+const DEBUFF_FREEZE_DURATION: float = 1.5
+const DEBUFF_SLOW_SCALE: float = 0.75
+const DEBUFF_SLOW_DURATION: float = 8.0
+const DEBUFF_REVERSE_DURATION: float = 3.0
 
