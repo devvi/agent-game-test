@@ -40,6 +40,12 @@ func set_frozen(value: bool) -> void:
 var min_x: float = 0.0
 var max_x: float = 0.0
 
+# ── 共享 shape 隔离 (#526) ──
+## 幂等隔离标志：shape 已 duplicate 到实例私有。set_paddle_width 可能先于 _ready() 被调用
+## （如 TC-F10），届时直接改写共享 sub_resource 会污染同场景其他实例（TC-F12 断言 120 失败）。
+## 该标志保证无论调用顺序如何，只 duplicate 一次，绝不改写场景共享的 RectangleShape2D。
+var _shape_isolated: bool = false
+
 # ── AI state ──
 var _ball_node: Node2D = null
 var _ai_delay_timer: float = 0.0
@@ -98,6 +104,7 @@ func _ready() -> void:
 				break
 	if cs != null and cs.shape is RectangleShape2D:
 		cs.shape = cs.shape.duplicate()
+		_shape_isolated = true
 
 	_sync_visual()
 	_recalc_bounds()
@@ -226,6 +233,12 @@ func set_paddle_width(w: float) -> void:
 				cs = child
 				break
 	if cs != null and cs.shape is RectangleShape2D:
+		# #526: 幂等隔离 guard — 本函数可能在 _ready() 之前被调用（TC-F10），此时
+		# shape 仍是场景共享 sub_resource，直接改 size.x 会污染同场景其他实例。
+		# 已隔离则跳过（幂等，绝不重复 duplicate），也绝不改写共享对象。
+		if not _shape_isolated:
+			cs.shape = cs.shape.duplicate()
+			_shape_isolated = true
 		cs.shape.size.x = w
 	_recalc_bounds()
 	# #526: 效果写入点补表现层 — 玩家下一帧看到变宽（碰撞即时生效 + 视觉同步）
