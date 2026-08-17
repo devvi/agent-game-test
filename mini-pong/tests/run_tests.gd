@@ -36,6 +36,7 @@ func _run_tests() -> void:
 	_run("res://tests/test_rain.gd", "Rain Curtain")
 	await _run_async("res://tests/test_hud.gd", "Neon HUD")
 	_run("res://tests/test_integration_fsm.gd", "FSM Integration")
+	await _run_async("res://tests/test_ball_fsm_serve_race.gd", "Ball Serve Race")
 	_run("res://tests/test_world_visibility.gd", "World Visibility")
 	await _run_async("res://tests/test_wave_cycle.gd", "Wave Cycle")
 	await _run_async("res://tests/test_upgrade_pick_ui.gd", "Upgrade Pick UI")
