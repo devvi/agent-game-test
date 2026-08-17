@@ -1401,7 +1401,12 @@ class TestE2EOrchestrator(unittest.TestCase):
             self.assertEqual(state.get("pid"), 4242)
             # runner must run with cwd=project so git/gh resolve the repo
             kwargs = m_popen.call_args.kwargs
-            self.assertEqual(kwargs.get("cwd"), "/Users/devvi/workspace/agent-game-test")
+            # 2026-08-17 (pipeline-tests CI 修复): cwd 断言不再硬编码 macOS
+            # 路径 — ubuntu CI 上 /Users/devvi/... 不存在。改为动态推导
+            # (event-processor 所在目录的上一级 = repo 根; 测试从 repo 根
+            # 运行, os.getcwd() 即 repo 根, 与实现推导一致)。
+            _expected_cwd = os.path.dirname(os.path.dirname(os.path.abspath(ep.__file__ or "")))
+            self.assertEqual(kwargs.get("cwd"), _expected_cwd)
             self.assertIn("E2E_REPO_ROOT", kwargs.get("env", {}))
 
     def test_running_alive_reports_progress(self):

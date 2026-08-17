@@ -1873,10 +1873,16 @@ E2E_STATE_DIR = os.path.expanduser("~/.hermes/e2e-state")
 # be synced (2026-08-14: `bash: .../run-e2e-review.sh: No such file or
 # directory`). Fall back to the project repo path.
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# 2026-08-17 (pipeline-tests CI 修复): E2E runner 查找不再依赖 macOS
+# 硬编码路径 — CI (ubuntu) 上 ~/workspace/agent-game-test 不存在 → 测试
+# 的 E2E launch 全部 Errno 2 (main 7+ 次 pipeline-tests 全红)。
+# _SCRIPT_DIR 在 CI checkout 下即 repo 的 scripts/, 直接存在; fallback
+# 改为从 repo 根推导 (BASH_SOURCE 语义), 覆盖同步副本 (~/.hermes/scripts/)。
 E2E_RUNNER = os.path.join(_SCRIPT_DIR, "run-e2e-review.sh")
 if not os.path.exists(E2E_RUNNER):
+    _repo_root = os.path.dirname(_SCRIPT_DIR)  # scripts/ 上一级
     for _cand in (
-        "/Users/devvi/workspace/agent-game-test/scripts/run-e2e-review.sh",
+        os.path.join(_repo_root, "scripts", "run-e2e-review.sh"),
         os.path.expanduser("~/workspace/agent-game-test/scripts/run-e2e-review.sh"),
     ):
         if os.path.exists(_cand):
@@ -2095,8 +2101,12 @@ def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False) -> list:
         # WRONG (~/.hermes/), breaking git remote → GH_REPO → gh pr view →
         # branch fallback (impl/475). Pass E2E_REPO_ROOT explicitly and run
         # with cwd=project so git/gh resolve correctly.
+        # 2026-08-17 (pipeline-tests CI 修复): 硬编码 macOS 路径在 ubuntu CI
+        # 上不存在 → Popen(cwd=...) FileNotFoundError → launch failed Errno 2
+        # (main 7+ 次 pipeline-tests 全红)。改为从脚本位置推导 repo 根
+        # (scripts/ 上一级), 支持环境变量覆盖 (测试注入)。
         import subprocess as _sp
-        _repo = "/Users/devvi/workspace/agent-game-test"
+        _repo = os.environ.get("E2E_REPO_ROOT_FALLBACK") or os.path.dirname(_SCRIPT_DIR)
         if os.path.exists(os.path.join(_repo, ".git")):
             _env = dict(os.environ)
             _env["E2E_REPO_ROOT"] = _repo
