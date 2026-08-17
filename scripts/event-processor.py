@@ -2138,6 +2138,11 @@ def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False) -> list:
         if os.path.exists(os.path.join(_repo, ".git")):
             _env = dict(os.environ)
             _env["E2E_REPO_ROOT"] = _repo
+            # 2026-08-17 (PR #538/#540/#541 实测): 显式传 E2E_BRANCH — runner 在
+            # cron 环境 gh pr view 可能失败 (repo 探测依赖 cwd/remote), 回退成
+            # impl/<PR_NUM> 错误分支 → P0 branch fetch failed。orchestrator 知道
+            # 正确 branch (来自 check_run 事件), 直接注入, runner 第 52 行优先用。
+            _env["E2E_BRANCH"] = branch
         else:
             _env = os.environ
         proc = _sp.Popen(
