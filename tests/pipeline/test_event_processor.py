@@ -10,9 +10,11 @@ Constraints:
   - Tests the PURE functions: parsing, prioritization, time windows,
     grouping/dedup, and the issue picker.
 """
+import glob
 import importlib.util
 import json
 import os
+import re
 import sys
 import tempfile
 import time
@@ -1682,6 +1684,75 @@ class TestDevlog(unittest.TestCase):
         with mock.patch.object(ep, "_workflow_mode",
                                side_effect=lambda: "production"):
             self.assertEqual(ep._workflow_mode(), "production")
+
+
+class TestNoHardcodedPaths(unittest.TestCase):
+    _ENV_ABS_PATH_RE = re.compile(r"/(?:Users|home)/")
+    _WHITELIST = ("github.com/devvi", "devvi/agent-game-test", "~/.hermes")
+    _SCRIPTS_UNDER_TEST = (
+        "scripts/event-processor.py",
+        "scripts/event_processor_lib.py",
+        "scripts/create-issues.py",
+        "scripts/e2e/analyze_bmp.py",
+        "scripts/e2e/resolve_plan.py",
+        "scripts/workflow-watchdog.py",
+    )
+    _MODULE_TO_SCRIPT = {
+        "event_processor": "scripts/event-processor.py",
+        "event_processor_lib": "scripts/event_processor_lib.py",
+        "create_issues": "scripts/create-issues.py",
+        "analyze_bmp": "scripts/e2e/analyze_bmp.py",
+        "resolve_plan": "scripts/e2e/resolve_plan.py",
+        "workflow_watchdog": "scripts/workflow-watchdog.py",
+    }
+
+    def _repo_root(self):
+        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def _scanned_files(self):
+        root = self._repo_root()
+        files = sorted(glob.glob(os.path.join(root, "tests", "pipeline", "*.py")))
+        for rel in self._SCRIPTS_UNDER_TEST:
+            p = os.path.join(root, rel)
+            if not os.path.exists(p):
+                raise FileNotFoundError(f"扫描目标缺失: {rel}")
+            files.append(p)
+        return files
+
+    def _sanitized_lines(self, path):
+        in_doc = False
+        with open(path, encoding="utf-8") as fh:
+            for lineno, raw in enumerate(fh, 1):
+                line = raw.strip()
+                if line.startswith(('"""', "'''")) or in_doc:
+                    in_doc = not (line.endswith(('"""', "'''")) and len(line) >= 3)
+                    continue
+                if line.startswith("#"):
+                    continue
+                yield lineno, line
+
+    def _violations(self):
+        out = []
+        root = self._repo_root()
+        for p in self._scanned_files():
+            rel = os.path.relpath(p, root)
+            for lineno, line in self._sanitized_lines(p):
+                if self._ENV_ABS_PATH_RE.search(line) and \
+                   not any(w in line for w in self._WHITELIST):
+                    out.append(f"{rel}:{lineno}: {line}")
+        return out
+
+    def test_no_hardcoded_env_absolute_paths(self):
+        v = self._violations()
+        self.assertEqual(v, [], f"禁止环境特定绝对路径（pattern={self._ENV_ABS_PATH_RE.pattern}）:\n" + "\n".join(v))
+
+    def test_scripts_under_test_covers_all_importlib_loads(self):
+        root = self._repo_root()
+        for tf in sorted(glob.glob(os.path.join(root, "tests", "pipeline", "*.py"))):
+            src = open(tf, encoding="utf-8").read()
+            for m in re.findall(r'spec_from_file_location\(\s*["\']([^"\']+)', src):
+                self.assertIn(m, self._MODULE_TO_SCRIPT,
+                    f"新增被测脚本 {m} 需补录 _SCRIPTS_UNDER_TEST + _MODULE_TO_SCRIPT")
 
 
 if __name__ == "__main__":
