@@ -218,13 +218,22 @@ not work** (returns HTTP 422). The correct syntax pipes JSON via stdin:
 REMOTE_URL=$(git remote get-url origin)
 OWNER_REPO=$(echo "$REMOTE_URL" | sed -E 's|.*github\\.com[:/]||; s|\\.git$||')
 
-# Add workflow/plan label — use --input -, NOT -f labels=...
-echo '{"labels":["workflow/plan"]}' \
-  | gh api repos/$OWNER_REPO/issues/<N>/labels -X POST --input -
+# ⚠️ 前置守卫 (2026-08-17 #525 实测): 先查 issue 当前 labels — 若已被其他 agent /
+# workflow-chain 推进 (含 workflow/plan 或 implement 或任何非 research 的 stage label),
+# 直接跳过, 绝不把旧 label 打回。重复 research agent 在 workflow-chain 已推进后
+# 执行本 fallback, 会把 workflow/research 加回已进 plan 的 issue → 污染阶段计数。
+CURRENT_LABELS=$(gh issue view <N> --json labels --jq '[.labels[].name] | join(",")' 2>/dev/null || echo "")
+if echo "$CURRENT_LABELS" | grep -qE "workflow/(plan|implement|self-correct)"; then
+  echo "⏭ Issue #<N> 已推进 (labels: $CURRENT_LABELS) — 跳过 label fallback, 不回打旧 label"
+else
+  # Add workflow/plan label — use --input -, NOT -f labels=...
+  echo '{"labels":["workflow/plan"]}' \
+    | gh api repos/$OWNER_REPO/issues/<N>/labels -X POST --input -
 
-# Remove old label (may 404 — harmless, GitHub often auto-cleans)
-gh api repos/$OWNER_REPO/issues/<N>/labels/workflow/research \
-  -X DELETE 2>/dev/null || true
+  # Remove old label (may 404 — harmless, GitHub often auto-cleans)
+  gh api repos/$OWNER_REPO/issues/<N>/labels/workflow/research \
+    -X DELETE 2>/dev/null || true
+fi
 ```
 
 Also verify the label state after, not just trust the API exit code:

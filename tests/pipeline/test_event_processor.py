@@ -507,6 +507,55 @@ class TestPreprocess(unittest.TestCase):
         self.assertEqual(len(spawns2), 0,
                          f"second rescan within TTL must NOT re-spawn: {spawns2}")
 
+    def test_active_phase_counts_db_running_not_labels(self):
+        """active_phase must reflect ACTUAL running delegates, not labels.
+
+        Regression for 2026-08-17: label-based counting treated every open
+        issue with a phase label as an active agent → stale labels (advanced
+        by workflow-chain, then re-written by duplicate agents) saturated
+        MAX_PHASE_SLOTS and silently capped all new SPAWNs. DB-backed count
+        must return 0 when no delegates are running even if labels exist.
+        """
+        issue = {"number": 525,
+                 "labels": [{"name": "workflow/research"},
+                            {"name": "workflow/plan"}]}
+
+        def fake_db_count(*a, **kw):
+            # simulate an empty async_delegations table → 0 running
+            class FakeCon:
+                def execute(self, *a, **kw):
+                    return self
+                def fetchone(self):
+                    return (0,)
+                def close(self):
+                    pass
+            return FakeCon()
+
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_ensure_issues_cache",
+                               return_value=[issue]), \
+             mock.patch("os.path.exists",
+                        side_effect=lambda p: p == os.path.expanduser("~/.hermes/state.db")), \
+             mock.patch("sqlite3.connect", side_effect=fake_db_count):
+            n = ep._count_active_phase_agents()
+        self.assertEqual(n, 0,
+                         f"0 running delegates → active_phase must be 0 "
+                         f"even with phase labels present, got {n}")
+
+    def test_active_phase_falls_back_to_labels_on_db_error(self):
+        """DB read failure falls back to label count (rare duplicate > stall)."""
+        issue = {"number": 526, "labels": [{"name": "workflow/implement"}]}
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_ensure_issues_cache",
+                               return_value=[issue]), \
+             mock.patch("os.path.exists",
+                        side_effect=lambda p: p == os.path.expanduser("~/.hermes/state.db")), \
+             mock.patch("sqlite3.connect",
+                        side_effect=RuntimeError("db locked")):
+            n = ep._count_active_phase_agents()
+        self.assertEqual(n, 1,
+                         f"DB error fallback must count phase labels, got {n}")
+
     def test_group_keeps_highest_priority_only(self):
         """Same issue with both a labeled event and a check_run event →
         only the check_run (P1) survives."""

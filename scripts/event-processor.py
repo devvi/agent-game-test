@@ -729,15 +729,39 @@ def _get_active_issue_target_files() -> set:
 
 
 def _count_active_phase_agents() -> int:
-    """Count phase agents (research/plan/implement) from cache.
-    Excludes issues with lock-mbot (already has an agent assigned)."""
-    issues = _ensure_issues_cache()
-    phase_labels = {"workflow/research", "workflow/plan", "workflow/implement"}
-    return sum(
-        1 for iss in issues
-        if any(l.get("name", "") in phase_labels for l in iss.get("labels", []))
-        and "workflow/lock-mbot" not in [l.get("name", "") for l in iss.get("labels", [])]
-    )
+    """Count phase agents (research/plan/implement) that are ACTUALLY running.
+
+    2026-08-17 (#525/#526/#527 实测): label-based counting was WRONG —
+    labels are milestones (persist after the agent finished), not liveness.
+    workflow-chain advances labels on PR merge but stale/duplicate label
+    writes (multi-agent) left all open issues with phase labels →
+    active_phase=4 while 0 agents ran → every new SPAWN silently capped →
+    pipeline stalled. Count from state.db async_delegations (state=running)
+    instead. Falls back to label count on any DB error (rare duplicate >
+    silent stall — matches the existing gate-error philosophy).
+    """
+    try:
+        import sqlite3 as _sqlite
+        db = os.path.expanduser("~/.hermes/state.db")
+        if not os.path.exists(db):
+            return 0
+        con = _sqlite.connect(f"file:{db}?mode=ro", uri=True)
+        try:
+            n = con.execute(
+                "SELECT COUNT(*) FROM async_delegations WHERE state='running'"
+            ).fetchone()[0]
+        finally:
+            con.close()
+        return int(n)
+    except Exception:
+        # Fallback: label count (conservative — prefer rare duplicate over stall)
+        issues = _ensure_issues_cache()
+        phase_labels = {"workflow/research", "workflow/plan", "workflow/implement"}
+        return sum(
+            1 for iss in issues
+            if any(l.get("name", "") in phase_labels for l in iss.get("labels", []))
+            and "workflow/lock-mbot" not in [l.get("name", "") for l in iss.get("labels", [])]
+        )
 
 
 def _has_file_conflict(issue_num: int, active_files: set) -> bool:
