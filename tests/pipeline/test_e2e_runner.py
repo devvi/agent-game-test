@@ -186,7 +186,7 @@ class RunnerTestBase(unittest.TestCase):
             return json.load(f)
 
     def _wt_exists(self):
-        return os.path.isdir(os.path.join(self.worktree_root, "wt-impl-1"))
+        return os.path.isdir(os.path.join(self.worktree_root, "wt-implement-1"))
 
     def _shots(self):
         d = os.path.join(self.worktree_root, "e2e-1", "shots")
@@ -221,11 +221,31 @@ class TestRunnerFlow(RunnerTestBase):
         self.assertEqual(self._summary()["layers"]["L1_logic"], "1")
 
     def test_worktree_conflict_exits_2(self):
-        os.makedirs(os.path.join(self.worktree_root, "wt-impl-1"))
+        # 2026-08-17: 命名统一后兜底新建路径是 wt-implement-<N> — 模拟
+        # 该路径已被占 (非空目录 → git worktree add 必然失败) → exit 2
+        conflict = os.path.join(self.worktree_root, "wt-implement-1")
+        os.makedirs(conflict)
+        with open(os.path.join(conflict, "occupied.txt"), "w") as f:
+            f.write("occupied")
         r = self._run("--no-comment")
         self.assertEqual(r.returncode, 2)
         self.assertEqual(self._godot_calls(), [],
                          "no godot calls on pre-flight failure")
+
+    def test_reuses_existing_implement_worktree(self):
+        """2026-08-17 (复盘修复 #1): implement 保留的 worktree 必须被复用,
+        而不是新建 — porcelain 里 branch 行前 2 行才是 worktree 行
+        (grep -B2)。复用后 WT_OWNED=0, runner 不删它。"""
+        wt = os.path.join(self.worktree_root, "wt-implement-1")
+        self._git("worktree", "add", wt, "impl/1-test")
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn("P1 reuse existing worktree", r.stdout,
+                      f"must reuse implement worktree, got: {r.stdout}")
+        self.assertTrue(self._wt_exists(),
+                        "reused worktree (WT_OWNED=0) must NOT be removed")
+        # L0-L2 在复用的 worktree 里真实执行了
+        self.assertGreater(len(self._godot_calls()), 0)
 
     def test_visual_fail_when_no_pngs(self):
         self._write_config({"no_pngs": True})
