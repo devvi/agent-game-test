@@ -250,7 +250,6 @@ PY
       log "❌ zero screenshots produced — capture failed"
       VISUAL_FAIL=1
     else
-      THEME="$(python3 -c 'import json;print(json.load(open("'"$OUT"'/plan.json")).get("theme_color",""))' 2>/dev/null)"
       prev=""
       for png in "$OUT/shots/"*.png; do
         args=(--min-colors 3 --name "$(basename "$png")")
