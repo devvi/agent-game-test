@@ -1085,6 +1085,107 @@ class TestPreprocess(unittest.TestCase):
         self.assertFalse(any("STALLED: check-self-correct,pr=475" in c for c in cmds),
                          "no self-correct label → must NOT emit check-self-correct")
 
+    # ── 2026-08-17 conflict deadlock (#542) ──
+    # CONFLICTING impl PR was a silent deadlock: e2e-state terminal "reviewed"
+    # (ran on pre-conflict commit), _pr_exists_for_issue() treats the PR as
+    # "implement done" → never re-spawned, stalled scan emitted nothing.
+    # Fix: emit STALLED: check-conflict (delegate implement agent to merge
+    # main → resolve → push), skip all other paths until mergeable.
+
+    def test_stalled_scan_conflicting_pr_emits_check_conflict(self):
+        """CONFLICTING impl PR → STALLED: check-conflict, not e2e/review."""
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "pr" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 542, "headRefName": "impl/529-special-brick",
+                     "mergeable": "CONFLICTING", "labels": [],
+                     "body": "Parent #529", "title": "feat(529)", "state": "OPEN"}
+                ])
+            return ""
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "gh", side_effect=fake_gh), \
+             mock.patch.object(ep, "e2e_orchestrator",
+                               side_effect=AssertionError("e2e must NOT run on CONFLICTING")):
+            cmds = ep._quick_stalled_scan()
+        self.assertTrue(any("STALLED: check-conflict,pr=542" in c for c in cmds),
+                        f"CONFLICTING PR must emit check-conflict: {cmds}")
+        self.assertFalse(any("SPAWN: review" in c for c in cmds),
+                         "must NOT spawn review on a conflicting PR")
+
+    def test_stalled_scan_conflicting_pr_gated_once_per_ttl(self):
+        """Same CONFLICTING PR scanned twice → check-conflict emitted once
+        (spawn gate dedup, same as self-correct/3b59ede pattern)."""
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "pr" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 542, "headRefName": "impl/529-special-brick",
+                     "mergeable": "CONFLICTING", "labels": [],
+                     "body": "Parent #529", "title": "feat(529)", "state": "OPEN"}
+                ])
+            return ""
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "gh", side_effect=fake_gh):
+            first = ep._quick_stalled_scan()
+            second = ep._quick_stalled_scan()
+        self.assertEqual(
+            sum(1 for c in first if "STALLED: check-conflict" in c), 1,
+            f"first scan emits check-conflict exactly once: {first}")
+        self.assertFalse(any("STALLED: check-conflict" in c for c in second),
+                         f"gate must suppress re-emission within TTL: {second}")
+
+    def test_stalled_scan_conflicting_blocked_prioritizes_conflict(self):
+        """Blocked AND conflicting PR → check-conflict wins (conflict must be
+        resolved first — blocked recovery needs update-branch which fails on
+        a conflicting branch)."""
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "pr" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 542, "headRefName": "impl/529-special-brick",
+                     "mergeable": "CONFLICTING", "labels": [{"name": "status/blocked"}],
+                     "body": "Parent #529", "title": "feat(529)", "state": "OPEN"}
+                ])
+            return ""
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "gh", side_effect=fake_gh):
+            cmds = ep._quick_stalled_scan()
+        self.assertTrue(any("STALLED: check-conflict,pr=542" in c for c in cmds),
+                        f"conflict takes priority over blocked: {cmds}")
+        self.assertFalse(any("STALLED: check-unblock" in c for c in cmds),
+                         "blocked recovery must wait for conflict resolution")
+
+    def test_stalled_scan_mergeable_impl_not_conflicting(self):
+        """MERGEABLE impl PR must NOT emit check-conflict (regression guard —
+        conflict path only fires on CONFLICTING, normal flow untouched)."""
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "pr" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 444, "headRefName": "impl/393-main-scene-assembly",
+                     "mergeable": "MERGEABLE", "labels": [], "body": "Closes #393",
+                     "title": "feat(393)", "state": "OPEN"}
+                ])
+            return ""
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "E2E_STATE_DIR", os.path.join(td, "e2e-state")), \
+             mock.patch.object(ep, "E2E_RUNNER", "/bin/true"), \
+             mock.patch.object(ep, "gh", side_effect=fake_gh):
+            cmds = ep._quick_stalled_scan()
+        self.assertFalse(any("STALLED: check-conflict" in c for c in cmds),
+                         f"MERGEABLE PR must not emit check-conflict: {cmds}")
+        self.assertTrue(any("E2E: pr=444 started" in c for c in cmds),
+                        "MERGEABLE PR must follow the normal e2e path")
+
     # ── 2026-08-13 dependency-hole regression tests (#384/#390 trace) ──
     # Closed ≠ resolved: #384/#390 were closed early WITHOUT status/done while
     # their code only landed in the unmerged #444 — old logic treated them as
