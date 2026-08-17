@@ -177,7 +177,8 @@ func _build_ctx(player_index: int = 0) -> Dictionary:
 			if "player_index" in p:
 				p_idx = int(p.get("player_index"))
 			if p_idx == player_index:
-				self_paddle = p
+				if self_paddle == null:
+					self_paddle = p
 			else:
 				opponent_paddle = p
 		if self_paddle == null and not paddles.is_empty():
