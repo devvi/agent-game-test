@@ -46,10 +46,13 @@ func _reset_game() -> void:
 		GameManager.reset_match()
 
 func _make_grid() -> Node2D:
+	var tree = Engine.get_main_loop() as SceneTree
+	for n in tree.get_nodes_in_group("breakout_grids"):
+		n.remove_from_group("breakout_grids")
 	var grid: Node2D = Node2D.new()
 	grid.set_script(load("res://gdscripts/breakout_grid.gd"))
 	grid.name = "BreakoutGrid"
-	(Engine.get_main_loop() as SceneTree).root.add_child(grid)
+	tree.root.add_child(grid)
 	return grid
 
 func _brick_children(grid) -> Array:
@@ -307,9 +310,9 @@ func _test_c5_menu_structural_hide() -> void:
 	layer.add_child(vig)
 	(Engine.get_main_loop() as SceneTree).root.add_child(layer)
 	layer.visible = false
-	_assert(glow.visible == false and vig.visible == false, "glow/vignette hidden with layer")
+	_assert(not glow.is_visible_in_tree() and not vig.is_visible_in_tree(), "glow/vignette hidden with layer")
 	layer.visible = true
-	_assert(glow.visible == true and vig.visible == true, "glow/vignette visible with layer")
+	_assert(glow.is_visible_in_tree() and vig.is_visible_in_tree(), "glow/vignette visible with layer")
 	_free_node(layer)
 
 func _test_d5_unwired_no_crash() -> void:
