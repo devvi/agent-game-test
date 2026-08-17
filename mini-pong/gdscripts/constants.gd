@@ -157,6 +157,10 @@ const HUD_TOP_BAND_Y: float = 12.0         # 顶部安全区上缘
 const HUD_TOP_BAND_H: float = 72.0         # 顶部区高度 → y∈[12,84]
 const HUD_BOTTOM_BAND_Y: float = 1252.0    # 底部区上缘（玩家挡板 1230–1250 之下，零交集）
 const HUD_INFO_BAR_Y: float = 88.0         # 信息条 Y（顶部区下方）
+const HUD_SCORE_PREFIX_PLAYER: String = "Player: "
+const HUD_SCORE_PREFIX_AI: String = "AI: "
+const HUD_WAVE_PREFIX: String = "第 "
+const HUD_WAVE_SUFFIX: String = " 波"
 
 # ── Upgrade Pool (#387) ──
 # 稀有度权重 60/30/10（common/rare/legendary）——AC2 精确权重，研究 spike 已证伪

@@ -185,3 +185,33 @@ horizontal_alignment = 1
 vertical_alignment = 1
 font_size = 48
 modulate = Color(1.0, 1.0, 1.0, 1.0)
+
+[node name="ScoreLabel" type="Label" parent="PauseOverlay"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = 80.0
+offset_right = 220.0
+offset_bottom = 120.0
+text = "—"
+horizontal_alignment = 1
+vertical_alignment = 1
+font_size = 32
+
+[node name="WaveLabel" type="Label" parent="PauseOverlay"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = 132.0
+offset_right = 220.0
+offset_bottom = 172.0
+text = "—"
+horizontal_alignment = 1
+vertical_alignment = 1
+font_size = 32
