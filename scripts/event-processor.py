@@ -854,6 +854,7 @@ _SPAWN_TTL_BY_STAGE = {
     "plan": 3600,          # 60 min
     "implement": 3600,     # 60 min
     "self-correct": 1800,  # 30 min
+    "conflict": 1800,      # 30 min — CONFLICTING PR 冲突解决 delegate 去重 (#542, 2026-08-17)
     # review-resend 已移除 (2026-08-17 方案 X): E2E-done 的 review 改为
     # one-shot 派发 + emitted_at 标记, 不再重发 — 重发 + 消费即删 = 死循环
     # (#494 157-task / #511 24-agent)。漏派发兜底 = watchdog review-stuck。
@@ -1556,6 +1557,21 @@ def _quick_stalled_scan():
             # not re-emit STALLED every tick (3b59ede exposed the ungated
             # per-tick review re-spawn hole). Gate is the ONLY dedup —
             # review/self-correct each fire once per TTL per PR.
+            if pr.get("mergeable") == "CONFLICTING":
+                # ── Conflict detection (2026-08-17, #542) ──
+                # A CONFLICTING impl PR is a deadlock: review/merge cannot
+                # proceed, e2e-state may be a terminal "reviewed" (E2E ran on
+                # the pre-conflict commit), and _pr_exists_for_issue() treats
+                # the PR as "implement done" → never re-spawned. Recovery =
+                # delegate an implement agent (check-conflict) to merge main
+                # into the branch, resolve conflicts, push → CI synchronize →
+                # fresh_ci resets e2e → new review round (link auto-heals).
+                # Priority: conflict first — blocked/self-correct/e2e paths
+                # are all meaningless while the branch cannot merge.
+                if _spawn_gate(pr_num, "conflict"):
+                    cmds.append(f"STALLED: check-conflict,pr={pr_num},branch={branch}")
+                    _devlog("conflict-request", pr=pr_num, branch=branch)
+                continue  # 冲突未解决前不做任何其他处理 (含 e2e/review)
             if "status/blocked" in labels:
                 # ── Blocked PR handling (2026-08-14 rework) ──
                 # A blocked PR has TWO independent recovery paths that must
