@@ -1707,7 +1707,7 @@ class TestNoHardcodedPaths(unittest.TestCase):
     }
 
     def _repo_root(self):
-        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
     def _scanned_files(self):
         root = self._repo_root()
