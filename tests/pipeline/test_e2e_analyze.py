@@ -213,3 +213,79 @@ class TestFrameDiffRatio(unittest.TestCase):
                         "--min-delta", "1.0")
             self.assertEqual(r.returncode, 1, r.stdout)
             self.assertIn("frozen", r.stdout)
+
+
+class TestThemeAbsent(unittest.TestCase):
+    """#517: reverse theme assertion --theme-absent (world-hidden semantics).
+
+    与 _theme_present() 同采样（stride 5 / 容差 32），互为镜像：
+    0 个采样点命中 → 「世界隐藏」成立（通过）；任一命中 → 断言 fail。
+    """
+
+    def _theme_patch_png(self):
+        """64x64 渐变 + 左上 8x8 #4a90d9 色块（模拟世界可见的漏渲染画面）。"""
+        def fn(x, y):
+            if x < 8 and y < 8:
+                return (0x4a, 0x90, 0xd9)
+            return (x * 3 % 256, y * 3 % 256, 40)
+        return make_png(64, 64, fn)
+
+    def test_theme_patch_fails_absent(self):
+        # A1: 含 theme 色 → 反向断言 fail（世界本应隐藏却可见）
+        with tempfile.TemporaryDirectory() as td:
+            write_png(td, "title.png", self._theme_patch_png())
+            r = run_cli(td, "title.png", "--theme-absent", "4a90d9")
+            self.assertEqual(r.returncode, 1, r.stdout)
+            self.assertIn("theme #4a90d9 FOUND — expected hidden", r.stdout)
+
+    def test_plain_gradient_passes_absent(self):
+        # A2: 无 theme 色 → 反向断言 pass（世界隐藏成立）
+        def fn(x, y):
+            return (x * 3 % 256, y * 3 % 256, 40)
+        with tempfile.TemporaryDirectory() as td:
+            write_png(td, "title.png", make_png(64, 64, fn))
+            r = run_cli(td, "title.png", "--theme-absent", "4a90d9")
+            self.assertEqual(r.returncode, 0, r.stdout)
+            self.assertIn("theme #4a90d9 absent (world hidden)", r.stdout)
+
+    def test_mutually_exclusive(self):
+        # A3: --theme 与 --theme-absent 互斥 → exit 2（analyzer 层防御）
+        with tempfile.TemporaryDirectory() as td:
+            write_png(td, "title.png", self._theme_patch_png())
+            r = run_cli(td, "title.png", "--theme", "4a90d9",
+                        "--theme-absent", "4a90d9")
+            self.assertEqual(r.returncode, 2, r.stdout)
+            self.assertIn("mutually exclusive", r.stdout)
+
+    def test_symmetry(self):
+        # A4: 同一含 theme 的 PNG — 正断言过 / 反向断言 fail（互为镜像）
+        with tempfile.TemporaryDirectory() as td:
+            write_png(td, "title.png", self._theme_patch_png())
+            pos = run_cli(td, "title.png", "--theme", "4a90d9")
+            self.assertEqual(pos.returncode, 0, pos.stdout)
+            neg = run_cli(td, "title.png", "--theme-absent", "4a90d9")
+            self.assertEqual(neg.returncode, 1, neg.stdout)
+
+    def test_tolerance_boundary(self):
+        # A5: 容差 32 边界 — Δg=2 命中（fail），Δg=64 越界（pass）
+        def near(x, y, g):
+            if x < 8 and y < 8:
+                return (0x4a, g, 0xd9)
+            return (x * 3 % 256, y * 3 % 256, 40)
+        with tempfile.TemporaryDirectory() as td:
+            write_png(td, "near.png", make_png(64, 64, lambda x, y: near(x, y, 0x92)))
+            r_in = run_cli(td, "near.png", "--theme-absent", "4a90d9")
+            self.assertEqual(r_in.returncode, 1, r_in.stdout)
+            self.assertIn("theme #4a90d9 FOUND — expected hidden", r_in.stdout)
+            write_png(td, "far.png", make_png(64, 64, lambda x, y: near(x, y, 0x50)))
+            r_out = run_cli(td, "far.png", "--theme-absent", "4a90d9")
+            self.assertEqual(r_out.returncode, 0, r_out.stdout)
+            self.assertIn("theme #4a90d9 absent (world hidden)", r_out.stdout)
+
+    def test_default_behavior_unchanged(self):
+        # A6: 不带任何 theme flag → 既有 4 断言行为不受影响（无回归）
+        with tempfile.TemporaryDirectory() as td:
+            write_png(td, "grad.png",
+                make_png(64, 64, lambda x, y: (x * 3 % 256, y * 3 % 256, 40)))
+            r = run_cli(td, "grad.png")
+            self.assertEqual(r.returncode, 0, r.stdout)

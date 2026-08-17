@@ -9,6 +9,7 @@ assertions, baseline mode, dry-run, and the worktree-conflict pre-flight.
 
 Run locally:  python3 -m unittest discover -s tests/pipeline -v
 """
+import copy
 import json
 import os
 import shutil
@@ -57,13 +58,16 @@ if "--display-driver" in sys.argv:
         out_dir = plan["out_dir"]
         os.makedirs(out_dir, exist_ok=True)
         theme = plan.get("theme_color", "")
-        def pixel(x, y, b):
-            if theme and x < 8 and y < 8:
+        # Per-shot theme patch: shots with a truthy "theme_absent" get NO
+        # theme-color block (world hidden); all others draw it as before.
+        def pixel(x, y, b, patch):
+            if patch and theme and x < 8 and y < 8:
                 return (int(theme[0:2], 16), int(theme[2:4], 16), int(theme[4:6], 16))
             return ((x * 3 + b) % 256, (y * 2 + b) % 256, 60)
         for i, s in enumerate(plan.get("shots", [])):
+            patch = not s.get("theme_absent")
             with open(os.path.join(out_dir, s["name"] + ".png"), "wb") as f:
-                f.write(make_png(320, 180, lambda x, y, b=i * 40: pixel(x, y, b)))
+                f.write(make_png(320, 180, lambda x, y, b=i * 40, pt=patch: pixel(x, y, b, pt)))
     sys.exit(0)
 
 exit_code = 0
@@ -323,3 +327,105 @@ class TestRunnerP6Comment(RunnerTestBase):
         self.assertNotIn("name_: unbound variable", text)
         self.assertNotIn("command not found", text)
         self.assertNotIn("_upload failed", text)
+
+
+class TestRunnerShotTheme(RunnerTestBase):
+    """#517 Scenario B: shot-level theme resolution in the L3 loop.
+
+    Verifies run-e2e-review.sh resolves per-shot theme config from $OUT/plan.json:
+      theme_absent        → --theme-absent (reverse assertion)
+      theme_color: null   → no theme flag (skip assertion)
+      theme_color: value  → --theme
+      neither             → top-level THEME fallback (backward compatible)
+    Fake godot draws the theme patch only for shots WITHOUT a truthy
+    theme_absent, so the reverse assertion has clean pixels to assert on.
+    """
+
+    def _plan_with(self, shot_overrides):
+        """Deep-copy GAME_PLAN, apply shot overrides, write to the fixture's
+        mini-pong/e2e_shots.json, commit on the impl branch (the runner reads
+        it via the worktree), then run the runner end-to-end."""
+        plan = copy.deepcopy(GAME_PLAN)
+        for shot in plan["groups"]["loop"]["shots"]:
+            if shot["name"] in shot_overrides:
+                shot.update(shot_overrides[shot["name"]])
+        self._git("checkout", "impl/1-test")
+        with open(os.path.join(self.repo, "mini-pong", "e2e_shots.json"), "w") as f:
+            json.dump(plan, f, indent=2)
+        changed = subprocess.run(
+            ["git", "-C", self.repo, "diff", "--quiet", "--",
+             "mini-pong/e2e_shots.json"]).returncode == 1
+        if changed:
+            self._git("add", "mini-pong/e2e_shots.json")
+            self._git("commit", "-m", "shot theme fixture")
+        self._git("checkout", "main")
+        return self._run("--no-comment")
+
+    def _assert_log(self):
+        with open(os.path.join(self.worktree_root, "e2e-1", "P5-assert.log")) as f:
+            return f.read()
+
+    def _shot_block(self, log, shot_name):
+        """Lines belonging to one shot: from the line containing '<shot>.png ['
+        up to the next line containing '.png ['."""
+        start = log.index(f"{shot_name}.png [")
+        end = log.index(".png [", start + 1)
+        return log[start:end]
+
+    def test_b1_theme_absent_passthrough(self):
+        r = self._plan_with({"01_title": {"theme_absent": "4a90d9"}})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self._summary()["layers"]["L3_visual"], "pass")
+        log = self._assert_log()
+        self.assertIn("theme #4a90d9 absent (world hidden)", log,
+                      "01_title reverse assertion must fire")
+        self.assertIn("theme #4a90d9 present", log,
+                      "02/03 top-level fallback must stay positive")
+
+    def test_b2_theme_color_null_skips(self):
+        r = self._plan_with({"01_title": {"theme_color": None}})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self._summary()["layers"]["L3_visual"], "pass")
+        log = self._assert_log()
+        block = self._shot_block(log, "01_title")
+        self.assertNotIn("theme #", block,
+                         "explicit theme_color:null must skip the theme assertion")
+        self.assertIn("theme #4a90d9 present", log,
+                      "02/03 top-level fallback still fires")
+
+    def test_b3_fallback_top_level(self):
+        r = self._plan_with({})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self._summary()["layers"]["L3_visual"], "pass")
+        self.assertIn("theme #4a90d9 present", self._assert_log(),
+                      "no shot theme fields → top-level fallback (backward compat)")
+
+    def test_b4_mutually_exclusive_fails(self):
+        r = self._plan_with({"01_title": {
+            "theme_color": "4a90d9", "theme_absent": "4a90d9"}})
+        self.assertEqual(r.returncode, 1)
+        self.assertEqual(self._summary()["layers"]["L3_visual"], "fail")
+        self.assertIn("theme config error", r.stdout)
+
+    def test_b5_unknown_theme_key_warns(self):
+        r = self._plan_with({"01_title": {"theme_abset": "4a90d9"}})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self._summary()["layers"]["L3_visual"], "pass")
+        self.assertIn("unknown theme key", r.stderr)
+
+    def test_b6_fake_godot_per_shot_pixels(self):
+        r = self._plan_with({"01_title": {"theme_absent": "4a90d9"}})
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        shots_dir = os.path.join(self.worktree_root, "e2e-1", "shots")
+        analyzer = os.path.join(_REPO_ROOT, "scripts", "e2e", "analyze_bmp.py")
+        absent = subprocess.run(
+            [sys.executable, analyzer,
+             os.path.join(shots_dir, "01_title.png"), "--theme-absent", "4a90d9"],
+            cwd=_REPO_ROOT, capture_output=True, text=True)
+        self.assertEqual(absent.returncode, 0, absent.stdout + absent.stderr)
+        present = subprocess.run(
+            [sys.executable, analyzer,
+             os.path.join(shots_dir, "02_midgame.png"), "--theme", "4a90d9",
+             "--max-black-ratio", "0.9"],
+            cwd=_REPO_ROOT, capture_output=True, text=True)
+        self.assertEqual(present.returncode, 0, present.stdout + present.stderr)
