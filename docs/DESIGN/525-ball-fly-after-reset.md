@@ -218,10 +218,10 @@ headless 测试（无 SceneTree）:
 |------|:---:|:---:|------|:---:|
 | 发球编排 | FSM SERVING → `ball.serve()` | #294 | 既有调用（game_state_machine.gd:120，has_method 守卫） | ✅ 既有 |
 | 计分信号链 | `ball.score` → ScoringManager → `scored.emit` | #385 | 既有信号流，不变 | ✅ 既有 |
-| SCORED 球冻结 | FSM SCORED enter → `ball.set_frozen(true)` | #525 | 新增 `_freeze_ball(true)` 调用（复用 :227 helper） | ⬜ 待实现 |
+| SCORED 球冻结 | FSM SCORED enter → `ball.set_frozen(true)` | #525 | 新增 `_freeze_ball(true)` 调用（复用 :227 helper） | ✅ 已实现 |
 | 解冻契约 | `ball.serve()` 内 `frozen=false` | #391 AC4 | 保持（唯一解冻入口） | ✅ 既有 |
 | MENU 球冻结 | FSM MENU enter → `ball.set_frozen(true)` | #508 | 既有（previous==MENU 守卫），不变 | ✅ 既有 |
-| 得分路径发球 | `ball.gd` 3 处 `serve()` 调用 | #287→#525 | **删除**（回归 #294 编排收权） | ⬜ 待实现 |
+| 得分路径发球 | `ball.gd` 3 处 `serve()` 调用 | #287→#525 | **删除**（回归 #294 编排收权） | ✅ 已实现 |
 
 ---
 
