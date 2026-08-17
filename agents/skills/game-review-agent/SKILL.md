@@ -362,6 +362,22 @@ When the project has **zero test infrastructure** (no `tests/` directory, no `te
 - **Do NOT block the merge on missing test files.** Flag the need for a test infrastructure issue as a follow-up, not a blocker.
 - Greenfield-first-feature PRs are treated like scene-layout PRs for test-file purposes: verification is via runtime checks, not unit tests.
 
+#### Follow-up Issue 创建协议（2026-08-17 #512 教训：裸建 issue 成孤儿）
+
+发现 PR 之外的真实缺陷（如 #508 修复副作用导致 e2e_shots.json 断言过时）需要提 follow-up issue 时，**必须带 workflow label**——否则 event-processor 的 picker 只捡 `workflow/available`/`workflow/backlog`，无 label issue 永远不会被处理（#512 从 04:34 挂到 15:00 无人 pick，被人工 close）。
+
+```bash
+# 必带 workflow/available（新 issue 进 pipeline 的红线）+ 类型 + depth label
+gh issue create --title "[Follow-up] <一句话问题>" \
+  --label "workflow/available" --label "bug" \
+  --label "depth/light" --label "priority/medium" \
+  --body "**Parent:** #<N>（已 merge 的 #<M> 修复）\n\n## 背景\n<为什么是缺陷>\n\n## 任务\n1. <步骤>\n\n## 验收\n- <可断言条件>\n\n工作深度: light\n所有权: content_ownership: mechanical"
+```
+
+- `workflow/available` **必须**（picker 直接捡）；不要用 `workflow/backlog`（要多等一轮 promotion，且 review agent 提的多是明确缺陷，应直接进队列）
+- body 格式对齐 #512：背景 / 任务 / 验收 / 所有权
+- 提完在 review 结论里注明 follow-up issue 编号
+
 ### 3.5. Verify Upstream Integration Points Are Resolved (NEW)
 
 When the PR implements a feature whose DESIGN doc has an "Integration Points" table
