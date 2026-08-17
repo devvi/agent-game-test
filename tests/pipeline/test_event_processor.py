@@ -1178,6 +1178,18 @@ class TestReviewFollowup(unittest.TestCase):
     call-budget-exhausted agent never leaves a blocked PR dangling.
     """
 
+    def setUp(self):
+        # 2026-08-17 (方案 X): followup 消费结论时会写 e2e-state reviewed
+        # 标记 — 隔离, 防测试污染真实 ~/.hermes/e2e-state/
+        self._td = tempfile.TemporaryDirectory()
+        self._e2e_patch = mock.patch.object(
+            ep, "E2E_STATE_DIR", os.path.join(self._td.name, "e2e-state"))
+        self._e2e_patch.start()
+
+    def tearDown(self):
+        self._e2e_patch.stop()
+        self._td.cleanup()
+
     def _write_conclusion(self, td, pr, verdict="blocked", fix=None,
                           parent=466, cls="B"):
         d = os.path.join(td, "concl")
@@ -1274,13 +1286,66 @@ class TestReviewFollowup(unittest.TestCase):
             self.assertTrue(any("dedup" in l for l in lines), lines)
             self.assertEqual(created, [], "must NOT create duplicate fix issue")
 
-    def test_non_blocked_verdict_recorded(self):
+    def test_approved_verdict_merges(self):
+        """2026-08-17 (方案 X #2 配套): verdict=approved → review_followup
+        performs the merge deterministically (agent only judges). Success →
+        file consumed."""
         with tempfile.TemporaryDirectory() as td:
             d = self._write_conclusion(td, 475, verdict="approved", fix=None)
+            merged = []
+
+            def fake_gh(*args):
+                joined = " ".join(str(a) for a in args)
+                if joined.startswith("pr view"):
+                    return '{"state": "OPEN", "mergeable": "MERGEABLE"}'
+                if joined.startswith("pr merge"):
+                    merged.append(args)
+                    return "https://github.com/devvi/agent-game-test/pull/475"
+                return ""
+
+            with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR", d), \
+                 mock.patch.object(ep, "gh", side_effect=fake_gh):
+                ep._write_e2e_state(475, {"status": "done",
+                                          "emitted_at": time.time() - 10,
+                                          "summary": "/tmp/e2e-475/summary.json"})
+                lines = ep.review_followup()
+            self.assertTrue(any("approved → merged" in l for l in lines), lines)
+            self.assertEqual(len(merged), 1, "must merge exactly once")
+            self.assertIn("--squash", merged[0])
+            self.assertEqual(os.listdir(d), [], "file consumed after merge")
+            # e2e-state marked reviewed → watchdog won't false-alarm
+            self.assertEqual(ep._read_e2e_state(475).get("status"), "reviewed")
+
+    def test_approved_merge_failed_keeps_file(self):
+        """2026-08-17 (方案 X #2 配套): approve but merge fails (conflict /
+        error) → conclusion file KEPT for idempotent retry next tick; a new
+        commit meanwhile triggers fresh_ci reset (self-healing)."""
+        with tempfile.TemporaryDirectory() as td:
+            d = self._write_conclusion(td, 475, verdict="approved", fix=None)
+
+            def fake_gh(*args):
+                joined = " ".join(str(a) for a in args)
+                if joined.startswith("pr view"):
+                    return '{"state": "OPEN", "mergeable": "CONFLICTING"}'
+                return ""
+
+            with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR", d), \
+                 mock.patch.object(ep, "gh", side_effect=fake_gh):
+                lines = ep.review_followup()
+            self.assertTrue(any("merge FAILED" in l for l in lines), lines)
+            self.assertEqual(os.listdir(d), ["475.json"],
+                             "file must be kept for retry")
+
+    def test_non_blocked_verdict_recorded(self):
+        """request_changes / self_correct verdicts: recorded + file consumed
+        (their mechanical aftermath — self-correct label etc — is done by the
+        review agent itself)."""
+        with tempfile.TemporaryDirectory() as td:
+            d = self._write_conclusion(td, 475, verdict="self_correct", fix=None)
             with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR", d), \
                  mock.patch.object(ep, "gh", return_value=""):
                 lines = ep.review_followup()
-            self.assertTrue(any("verdict=approved" in l for l in lines), lines)
+            self.assertTrue(any("verdict=self_correct" in l for l in lines), lines)
             self.assertEqual(os.listdir(d), [], "file consumed")
 
 
@@ -1422,9 +1487,13 @@ class TestE2EOrchestrator(unittest.TestCase):
             self.assertTrue(any("SPAWN: review" in l for l in lines),
                             "visual skip → done → review spawned")
 
-    def test_done_state_reemits_review_until_conclusion(self):
-        """2026-08-14: done state re-emits SPAWN: review (rate-limited by
-        review-resend gate) until a review conclusion file exists."""
+    def test_done_state_spawns_review_once(self):
+        """2026-08-17 (方案 X): done state spawns SPAWN: review ONCE
+        (one-shot, emitted_at marker) — the old per-5-min re-send until a
+        conclusion file appears (ce03bd2/80d6aaa) + review_followup's
+        consume-and-delete cancelled each other into an infinite review loop
+        (#494 157-task / #511 24-agent). After the first spawn the state is
+        silent; a conclusion file also silences it (followup will consume)."""
         with tempfile.TemporaryDirectory() as td:
             state_dir = os.path.join(td, "state")
             with mock.patch.object(ep, "E2E_STATE_DIR", state_dir), \
@@ -1433,19 +1502,21 @@ class TestE2EOrchestrator(unittest.TestCase):
                 ep._write_e2e_state(475, {"status": "done", "pid": None,
                                           "summary": "/tmp/e2e-475/summary.json",
                                           "finished_at": time.time()})
-                # no conclusion file → re-emit (first call passes gate)
+                # no conclusion file, no emitted_at → spawn ONCE + mark
                 with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR",
                                        os.path.join(td, "concl")):
                     lines = ep.e2e_orchestrator(475, "impl/x")
                 self.assertTrue(any("SPAWN: review" in l and "e2e_summary" in l for l in lines),
-                                f"done+no-conclusion must re-emit SPAWN: {lines}")
-                # within review-resend TTL (300s) → suppressed
+                                f"done+no-conclusion must spawn SPAWN: {lines}")
+                self.assertIsNotNone(ep._read_e2e_state(475).get("emitted_at"),
+                                     "emitted_at marker must be written")
+                # emitted_at set → one-shot, silent (NO re-send, no gate wait)
                 with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR",
                                        os.path.join(td, "concl")):
                     lines1 = ep.e2e_orchestrator(475, "impl/x")
                 self.assertFalse(any("SPAWN: review" in l for l in lines1),
-                                 f"rate-limited within 5 min: {lines1}")
-                # conclusion file present → silent
+                                 f"emitted_at → silent, was the #511 loop: {lines1}")
+                # conclusion file present → silent (followup will consume)
                 os.makedirs(os.path.join(td, "concl"), exist_ok=True)
                 with open(os.path.join(td, "concl", "475.json"), "w") as f:
                     json.dump({"pr": 475, "verdict": "approved"}, f)
@@ -1453,6 +1524,53 @@ class TestE2EOrchestrator(unittest.TestCase):
                                        os.path.join(td, "concl")):
                     lines2 = ep.e2e_orchestrator(475, "impl/x")
                 self.assertEqual(lines2, [], "conclusion present → silent")
+
+    def test_done_state_fresh_ci_restarts_round(self):
+        """2026-08-17 (方案 X): a new check_run.completed event (fresh_ci=True)
+        resets done+emitted_at → absent → launches a NEW E2E round. This is
+        the only re-review path for new commits (without it, done+emitted_at
+        would silently swallow re-review of updated branches)."""
+        with tempfile.TemporaryDirectory() as td:
+            state_dir = os.path.join(td, "state")
+            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir), \
+                 mock.patch.object(ep, "E2E_RUNNER", "/fake/runner.sh"), \
+                 mock.patch("subprocess.Popen", return_value=mock.Mock(pid=777)):
+                ep._write_e2e_state(475, {"status": "done",
+                                          "emitted_at": time.time() - 100,
+                                          "summary": "/tmp/e2e-475/summary.json"})
+                lines = ep.e2e_orchestrator(475, "impl/x", fresh_ci=True)
+                state = ep._read_e2e_state(475)
+            self.assertTrue(any("E2E: pr=475 started" in l for l in lines), lines)
+            self.assertEqual(state.get("status"), "running")
+            self.assertIsNone(state.get("emitted_at"),
+                              "fresh round must clear the emitted_at marker")
+
+    def test_running_fresh_ci_kills_old_runner(self):
+        """2026-08-17 (方案 X): fresh CI event while the previous round's
+        runner is still alive must KILL it (two runners concurrently building
+        the same /tmp worktree = the #511 conflict source) and restart."""
+        with tempfile.TemporaryDirectory() as td:
+            import subprocess as _sp
+            proc = _sp.Popen(["/bin/sleep", "60"], start_new_session=True)
+            state_dir = os.path.join(td, "state")
+            try:
+                with mock.patch.object(ep, "E2E_STATE_DIR", state_dir), \
+                     mock.patch.object(ep, "E2E_RUNNER", "/fake/runner.sh"), \
+                     mock.patch("subprocess.Popen", return_value=mock.Mock(pid=888)):
+                    ep._write_e2e_state(475, {"status": "running", "pid": proc.pid,
+                                              "started_at": time.time() - 60,
+                                              "branch": "impl/x",
+                                              "summary": "/tmp/e2e-475/summary.json"})
+                    lines = ep.e2e_orchestrator(475, "impl/x", fresh_ci=True)
+                # poll() is not None = dead (SIGTERM reaped state); os.kill(pid,0)
+                # would still report a zombie as alive, so poll is the honest check
+                self.assertIsNotNone(proc.poll(), "old runner must be killed")
+            finally:
+                try:
+                    proc.kill()
+                except OSError:
+                    pass
+            self.assertTrue(any("E2E: pr=475 started" in l for l in lines), lines)
 
 
 class TestDevlog(unittest.TestCase):

@@ -25,9 +25,13 @@ HOME = os.path.expanduser("~")
 PENDING_FILE = os.path.join(HOME, ".hermes", "workflow-pending.json")
 AUDIT_FILE = os.path.join(HOME, ".hermes", "workflow-audit.jsonl")
 STATE_FILE = os.path.join(HOME, ".hermes", "workflow-watchdog-state.json")
+E2E_STATE_DIR = os.path.join(HOME, ".hermes", "e2e-state")
+REVIEW_CONCLUSIONS_DIR = os.path.join(HOME, ".hermes", "review-conclusions")
 FEISHU_WEBHOOK = "https://open.feishu.cn/open-apis/bot/v2/hook/76101281-b359-49ab-ae2f-fc486bf65958"
 LOOKBACK_TICKS = 6  # ~6 minutes of 1m ticks
 ALERT_COOLDOWN = 3600  # seconds
+REVIEW_SENT_TIMEOUT = 1800  # 30 min: review 派发后应有结论文件
+CONCLUSION_STALE_TIMEOUT = 3600  # 60 min: followup 应消费结论文件
 
 
 def read_json(path, default):
@@ -59,6 +63,69 @@ def post_feishu(text):
         return False
 
 
+def check_review_stuck(now):
+    """2026-08-17 (方案 X 兜底): e2e done + emitted_at 超时无结论文件 → 告警.
+
+    one-shot 派发机制不自动重发 (历史教训: 重发 + 消费即删 = 死循环),
+    所以 SPAWN 丢失 / review agent 失败必须靠这个检测暴露, 人工介入。
+    """
+    alerts = []
+    try:
+        if not os.path.isdir(E2E_STATE_DIR):
+            return alerts
+        for fn in sorted(os.listdir(E2E_STATE_DIR)):
+            if not fn.endswith(".json"):
+                continue
+            path = os.path.join(E2E_STATE_DIR, fn)
+            try:
+                with open(path) as f:
+                    st = json.load(f)
+            except (OSError, json.JSONDecodeError):
+                continue
+            pr = fn[:-5]
+            emitted = st.get("emitted_at") or 0
+            if st.get("status") != "done" or not emitted:
+                continue
+            if now - emitted < REVIEW_SENT_TIMEOUT:
+                continue
+            if os.path.exists(os.path.join(REVIEW_CONCLUSIONS_DIR, f"{pr}.json")):
+                continue  # 结论在, followup 处理中 — 不是卡住
+            alerts.append(
+                f"⚠️ review 卡住: PR #{pr} 的 review 已派发 "
+                f"{int((now - emitted) / 60)} 分钟仍无结论文件 "
+                f"(SPAWN 被吞 / review agent 失败)。one-shot 不自动重发, 需人工介入。")
+    except OSError:
+        pass
+    return alerts
+
+
+def check_conclusion_stale(now):
+    """2026-08-17 (方案 X 兜底): 结论文件滞留 → 告警.
+
+    review_followup 未消费 (通常 approve 后 merge 失败卡住, 幂等重试中;
+    也可能是 followup 自身故障)。60 分钟还没消费说明需要人看。
+    """
+    alerts = []
+    try:
+        if not os.path.isdir(REVIEW_CONCLUSIONS_DIR):
+            return alerts
+        for fn in sorted(os.listdir(REVIEW_CONCLUSIONS_DIR)):
+            if not fn.endswith(".json"):
+                continue
+            path = os.path.join(REVIEW_CONCLUSIONS_DIR, fn)
+            try:
+                age = now - os.path.getmtime(path)
+            except OSError:
+                continue
+            if age > CONCLUSION_STALE_TIMEOUT:
+                alerts.append(
+                    f"⚠️ 结论文件滞留: {fn} 存在 {int(age / 60)} 分钟未被消费 "
+                    f"(review_followup 卡住 / approve 后 merge 失败)。")
+    except OSError:
+        pass
+    return alerts
+
+
 def main():
     now = time.time()
     state = read_json(STATE_FILE, {})
@@ -67,6 +134,27 @@ def main():
     cfg = read_json(os.path.join(HOME, ".hermes", "workflow-config.json"), {})
     if not cfg.get("enabled", True):
         return  # paused/disabled — silence is by design
+
+    # 2026-08-17 (方案 X 兜底): review 卡住 / 结论滞留检测 — 独立于 pending,
+    # 无条件跑 (one-shot 派发后不自动重发, 这类故障只能靠告警暴露)。
+    for cls, alerts in (
+        ("review-stuck", check_review_stuck(now)),
+        ("conclusion-stale", check_conclusion_stale(now)),
+    ):
+        if not alerts:
+            continue
+        last = state.get(f"last_alert_ts_{cls}", 0)
+        if now - last < ALERT_COOLDOWN:
+            continue
+        state[f"last_alert_ts_{cls}"] = now
+        try:
+            with open(STATE_FILE, "w") as f:
+                json.dump(state, f)
+        except OSError:
+            pass
+        msg = "\n".join(alerts[:3])
+        ok = post_feishu(msg)
+        print(msg if ok else f"[watchdog] alert POST failed: {msg}")
 
     pending = read_json(PENDING_FILE, {"events": []})
     events = pending.get("events", [])

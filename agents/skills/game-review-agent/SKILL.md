@@ -481,7 +481,10 @@ Approved. Merging.
 ```"
 ```
 
-- All checks pass → APPROVE with summary, then merge
+- All checks pass → APPROVE with summary (write the conclusion file with
+  `verdict: approved` — **merge is executed by `review_followup` script**,
+  2026-08-17 方案 X: LLM 只做判定, merge 必须脚本化。Do NOT run
+  `gh pr merge` yourself; the script layer merges from your conclusion file)
 
   **⚠️ Pitfall: cannot approve own PR.** When the agent's `GH_TOKEN` belongs to the same GitHub user who authored the PR (common in single-dev repos), `gh pr review --approve` fails with `GraphQL: Review Can not approve your own pull request`. This is a hard GitHub constraint, not a config issue. Do NOT silently skip — leave a `--comment` review with the full summary so the PR has a review trail:
 
@@ -707,8 +710,8 @@ Rules:
   already happened (labels present) and skip duplicates.
 - `failures` is the list of failure identifiers for fset hashing. Keep them
   stable strings (test names / defect names), sorted order irrelevant.
-- For `approved` verdicts the file is optional (nothing mechanical to do),
-  but writing it is still harmless and gives the dashboard a record.
+- For `approved` verdicts the file is **MANDATORY** (2026-08-17 方案 X):
+  `review_followup` merges the PR from it. No conclusion file = no merge.
 
 ### ⚠️ Pitfall: Self-approval Constraint
 

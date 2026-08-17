@@ -25,6 +25,8 @@ class WatchdogTestCase(unittest.TestCase):
         wd.PENDING_FILE = os.path.join(self.base, "workflow-pending.json")
         wd.STATE_FILE = os.path.join(self.base, "workflow-watchdog-state.json")
         wd.AUDIT_FILE = os.path.join(self.base, "workflow-audit.jsonl")
+        wd.E2E_STATE_DIR = os.path.join(self.base, "e2e-state")
+        wd.REVIEW_CONCLUSIONS_DIR = os.path.join(self.base, "review-conclusions")
         wd.FEISHU_WEBHOOK = "http://127.0.0.1:1/x"  # unreachable → POST fails, print path runs
 
         # Real machine config is enabled:false; force enabled for these tests.
@@ -100,6 +102,44 @@ class WatchdogTestCase(unittest.TestCase):
         self._write_audit(["[SILENT]"] * 5 + ["SPAWN: review,issue=1,pr=2,branch=impl/1"])
         self._write_state(0)
         self.assertEqual(self._run(), "")
+
+    # ── 2026-08-17 (方案 X 兜底): review-stuck / conclusion-stale ──
+
+    def test_review_stuck_alerts(self):
+        """e2e done + emitted_at 超时 + 无结论文件 → 告警 (SPAWN 被吞 /
+        review agent 失败)。one-shot 不自动重发, 必须告警暴露。"""
+        os.makedirs(wd.E2E_STATE_DIR, exist_ok=True)
+        with open(os.path.join(wd.E2E_STATE_DIR, "511.json"), "w") as f:
+            json.dump({"status": "done", "emitted_at": time.time() - 3600}, f)
+        self._write_state(0)
+        self.assertIn("review 卡住", self._run())
+
+    def test_review_stuck_skips_reviewed_state(self):
+        """status=reviewed (结论已消费) → 不告警 (防误报)。"""
+        os.makedirs(wd.E2E_STATE_DIR, exist_ok=True)
+        with open(os.path.join(wd.E2E_STATE_DIR, "511.json"), "w") as f:
+            json.dump({"status": "reviewed", "emitted_at": time.time() - 3600}, f)
+        self._write_state(0)
+        self.assertEqual(self._run(), "")
+
+    def test_review_stuck_skips_recent_emission(self):
+        """emitted_at 未超时 (30min 内) → 等 review agent, 不告警。"""
+        os.makedirs(wd.E2E_STATE_DIR, exist_ok=True)
+        with open(os.path.join(wd.E2E_STATE_DIR, "511.json"), "w") as f:
+            json.dump({"status": "done", "emitted_at": time.time() - 60}, f)
+        self._write_state(0)
+        self.assertEqual(self._run(), "")
+
+    def test_conclusion_stale_alerts(self):
+        """结论文件滞留 > 60min (followup 未消费 / merge 失败卡住) → 告警。"""
+        os.makedirs(wd.REVIEW_CONCLUSIONS_DIR, exist_ok=True)
+        p = os.path.join(wd.REVIEW_CONCLUSIONS_DIR, "511.json")
+        with open(p, "w") as f:
+            json.dump({"pr": 511, "verdict": "approved"}, f)
+        old = time.time() - 7200
+        os.utime(p, (old, old))
+        self._write_state(0)
+        self.assertIn("结论文件滞留", self._run())
 
 
 if __name__ == "__main__":

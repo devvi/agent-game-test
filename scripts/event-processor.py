@@ -830,7 +830,9 @@ _SPAWN_TTL_BY_STAGE = {
     "plan": 3600,          # 60 min
     "implement": 3600,     # 60 min
     "self-correct": 1800,  # 30 min
-    "review-resend": 300,  # 5 min — E2E-done SPAWN re-emit rate limit
+    # review-resend 已移除 (2026-08-17 方案 X): E2E-done 的 review 改为
+    # one-shot 派发 + emitted_at 标记, 不再重发 — 重发 + 消费即删 = 死循环
+    # (#494 157-task / #511 24-agent)。漏派发兜底 = watchdog review-stuck。
     "research-resend": 300,  # 5 min — swallowed research SPAWN re-emit
 }
 _SPAWN_TTL_SECONDS = _SPAWN_TTL_BY_STAGE["plan"]  # legacy uniform value (tests)
@@ -1288,7 +1290,9 @@ def preprocess():
                 # running the harness itself. The orchestrator returns either
                 # progress lines (running) or a SPAWN: review line once the
                 # summary is harvested.
-                e2e_lines = e2e_orchestrator(pr_num, branch)
+                # 2026-08-17 (方案 X): fresh_ci=True — 这是 check_run.completed
+                # 事件路径, 新 CI 完成 = 新轮次 (重置状态, kill 旧 runner)。
+                e2e_lines = e2e_orchestrator(pr_num, branch, fresh_ci=True)
                 if e2e_lines:
                     output_lines.extend(e2e_lines)
                 # One-shot consumption (see self-correct SPAWN note above).
@@ -1911,7 +1915,38 @@ def _pid_alive(pid: int) -> bool:
         return False
 
 
-def e2e_orchestrator(pr: int, branch: str) -> list:
+def _kill_runner(pid: int) -> None:
+    """Terminate a background E2E runner (whole process group).
+
+    2026-08-17 (方案 X): a fresh CI round must not leave the previous
+    round's runner alive — two runners concurrently building/deleting the
+    same /tmp/wt-impl-<pr> worktree is exactly the #511 conflict source.
+    SIGTERM then wait briefly for exit, escalate to SIGKILL on timeout.
+    """
+    import signal as _sig
+    pid = int(pid)
+    try:
+        os.killpg(os.getpgid(pid), _sig.SIGTERM)
+    except (OSError, ProcessLookupError, ValueError):
+        try:
+            os.kill(pid, _sig.SIGTERM)
+        except (OSError, ProcessLookupError, ValueError):
+            return
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        if not _pid_alive(pid):
+            return
+        time.sleep(0.05)
+    try:
+        os.killpg(os.getpgid(pid), _sig.SIGKILL)
+    except (OSError, ProcessLookupError, ValueError):
+        try:
+            os.kill(pid, _sig.SIGKILL)
+        except (OSError, ProcessLookupError, ValueError):
+            pass
+
+
+def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False) -> list:
     """E2E scripted front-load (2026-08-14, plan ②).
 
     Instead of spawning the review agent and letting IT run the E2E runner
@@ -1926,14 +1961,33 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
                        VISIBLE, so a long E2E on a big project never looks
                        like a stall
       running+dead  → read summary.json, transition to done/failed
-      done/failed   → emit SPAWN: review with e2e_summary=... for the agent
-                       to interpret (it does NOT re-run the runner)
+      done          → emit SPAWN: review ONCE (one-shot, emitted_at marker)
+                       with e2e_summary=... for the agent to interpret (it
+                       does NOT re-run the runner); silent afterwards
+      failed        → silent (self-correct owns it)
+
+    fresh_ci=True (2026-08-17, 方案 X): the caller is a check_run.completed
+    event — a NEW CI round (webhook + reconcile dedup by sha, so an event
+    ≈ a new commit's CI conclusion). Any existing state is reset (old runner
+    killed to avoid concurrent worktree conflicts) and a fresh round starts.
+    This is the ONLY reset path: without it, done+emitted_at would silently
+    swallow re-review of new commits.
 
     Returns output lines for the tick.
     """
     lines = []
     state = _read_e2e_state(pr)
     status = state.get("status")
+
+    # 2026-08-17 (方案 X): fresh CI event → fresh round. Kill any runner
+    # still alive from the previous round (concurrent worktrees = the #511
+    # conflict source), reset state, fall through to the absent launch path.
+    if fresh_ci:
+        old_pid = int(state.get("pid") or 0)
+        if old_pid and _pid_alive(old_pid):
+            _kill_runner(old_pid)
+        state = {}
+        status = None
 
     if status == "running":
         if _pid_alive(int(state.get("pid") or 0)):
@@ -1984,6 +2038,10 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
                 verdict = "failed"
         state["status"] = verdict
         state["finished_at"] = time.time()
+        if verdict == "done":
+            # 2026-08-17 (方案 X): harvest 即派发 (one-shot), 记 emitted_at —
+            # done 分支据此静默, 不再重发。
+            state["emitted_at"] = time.time()
         _write_e2e_state(pr, state)
         lines.append(f"E2E: pr={pr} {verdict} (summary {summary})")
         if verdict == "done":
@@ -1991,15 +2049,22 @@ def e2e_orchestrator(pr: int, branch: str) -> list:
         return lines
 
     if status in ("done", "failed"):
-        # Already harvested. Re-emit SPAWN: review until a review conclusion
-        # file appears — the SPAWN may be swallowed by a busy cron
-        # (2026-08-14 16:10 trace: SPAWN emitted, cron never executed it,
-        # nothing re-emitted for 40 min). Rate-limited by a dedicated
-        # "review-resend" gate (short TTL 300s) so we don't spam the cron
-        # prompt every tick. failed stays silent (self-correct owns it).
-        if status == "done" and not _read_review_conclusions_file(pr):
-            if _spawn_gate(pr, "review-resend"):
-                lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={state.get('summary', '')}")
+        # 2026-08-17 (方案 X): one-shot 派发, 不再重发。
+        # 历史教训: done 分支"每 5 分钟重发直到结论文件出现"(ce03bd2/
+        # 80d6aaa) 与 review_followup"消费即删"互相抵消 → review 无限循环
+        # (#494 157-task, #511 24-agent, worktree 冲突为次生症状)。
+        # SPAWN 只发一次; 漏派发的兜底 = workflow-watchdog review-stuck
+        # 检测 (告警, 不自动重发)。failed 保持静默 (self-correct owns it)。
+        if status == "done":
+            if _read_review_conclusions_file(pr):
+                return lines  # 结论在 → review_followup 将消费, 等待
+            if state.get("emitted_at"):
+                return lines  # 已派发过 → one-shot, 静默
+            # 防御性补发: harvest 路径已写 emitted_at, 这里只覆盖历史残留
+            # 状态 (08-17 之前的 e2e-state 无 emitted_at 字段)。
+            lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={state.get('summary', '')}")
+            state["emitted_at"] = time.time()
+            _write_e2e_state(pr, state)
         return lines
 
     # absent → launch background runner (--no-comment: evidence posted by
@@ -2054,6 +2119,47 @@ def _read_review_conclusions_file(pr: int) -> bool:
         os.makedirs(REVIEW_CONCLUSIONS_DIR, exist_ok=True)
         return os.path.exists(os.path.join(REVIEW_CONCLUSIONS_DIR, f"{pr}.json"))
     except OSError:
+        return False
+
+
+def _mark_reviewed(pr: int) -> None:
+    """2026-08-17 (方案 X): 结论已消费 → e2e-state 标记 reviewed.
+
+    watchdog 的 review-stuck 检测只盯 status==done 的 PR — 消费后若不
+    标记, done+emitted_at+无结论文件会让已 review 的 PR 误报"卡住"。
+    fresh_ci 重置 (新 commit) 会覆盖此状态, 开始新轮次。
+    """
+    try:
+        path = _e2e_state_path(pr)
+        if os.path.exists(path):
+            st = _read_e2e_state(pr)
+            st["status"] = "reviewed"
+            _write_e2e_state(pr, st)
+    except OSError:
+        pass
+
+
+def _try_merge(pr: int) -> bool:
+    """Deterministic approve-merge (2026-08-17, 方案 X #2 配套).
+
+    The review agent only JUDGES (writes the conclusion file); the mechanical
+    merge is executed here — LLM 只做判定, merge 必须脚本化 (用户铁律).
+    Returns True on success or when the PR is already merged/closed; False on
+    conflict/error, in which case the caller keeps the conclusion file and
+    retries next tick (a new commit meanwhile triggers fresh_ci reset, which
+    starts a new review round on the updated branch — self-healing).
+    """
+    try:
+        raw = gh("pr", "view", str(pr), "--json", "state,mergeable")
+        if not raw:
+            return False
+        info = json.loads(raw)
+        if info.get("state") != "OPEN":
+            return True  # already merged/closed — nothing to do
+        if info.get("mergeable") != "MERGEABLE":
+            return False
+        return bool(gh("pr", "merge", str(pr), "--squash", "--delete-branch"))
+    except Exception:
         return False
 
 
@@ -2151,8 +2257,20 @@ def review_followup() -> list:
                     comment += f"\nBlocked → tracked by #{fix_num} (pre-existing)\n"
                 gh("pr", "comment", str(pr), "--body", comment)
                 lines.append(f"FOLLOWUP: pr={pr} comment posted")
+                _mark_reviewed(pr)
+            elif verdict == "approved":
+                # 2026-08-17 (方案 X #2 配套): approve 的 merge 由脚本执行
+                # (确定性, LLM 只判定)。成功 → 删文件; 失败 → 保留文件
+                # 下 tick 幂等重试 — 新 commit 会触发 fresh_ci 重置自愈。
+                if _try_merge(pr):
+                    lines.append(f"FOLLOWUP: pr={pr} approved → merged")
+                    _mark_reviewed(pr)
+                else:
+                    lines.append(f"FOLLOWUP: pr={pr} approved but merge FAILED — file kept, retry next tick")
+                    continue  # 不消费, 重试
             else:
                 lines.append(f"FOLLOWUP: pr={pr} verdict={verdict} recorded")
+                _mark_reviewed(pr)
             try:
                 os.remove(os.path.join(REVIEW_CONCLUSIONS_DIR, fn))
             except OSError:
