@@ -472,6 +472,41 @@ class TestPreprocess(unittest.TestCase):
         self.assertTrue(any("SPAWN: plan,issue=359" in l for l in second),
                         "TTL expiry must allow re-spawn")
 
+    def test_available_rescan_no_dup_spawn_within_ttl(self):
+        """Available-rescan must NOT re-emit research SPAWN within gate TTL.
+
+        Regression for 2026-08-17 #525/#526/#527: the `research-resend` OR
+        branch (independent 5-min marker, always fresh) re-emitted SPAWN
+        every tick → 3 concurrent research agents per issue, PR #528 merged
+        while duplicates still running. Gate must suppress the 2nd tick even
+        when the label path re-runs (deterministic rescan loop).
+        """
+        issue = {"number": 525, "labels": [{"name": "workflow/available"}]}
+
+        def fake_run(cmd, *a, **kw):
+            joined = " ".join(str(c) for c in cmd)
+            if "head:research/" in joined:  # no research PR yet
+                return mock.Mock(stdout="0", returncode=0)
+            return mock.Mock(stdout="", returncode=1)
+
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "is_paused", return_value=False), \
+             mock.patch.object(ep, "current_workflow_count", return_value=9), \
+             mock.patch.object(ep, "_pick_candidates", return_value=[]), \
+             mock.patch.object(ep, "_ensure_issues_cache",
+                               return_value=[issue]), \
+             mock.patch("subprocess.run", fake_run):
+            first = ep.pick_next_issue()
+            second = ep.pick_next_issue()  # same tick, same state file
+        spawns1 = [l for l in first if "SPAWN: research,issue=525" in l]
+        spawns2 = [l for l in second if "SPAWN: research,issue=525" in l]
+        self.assertEqual(len(spawns1), 1,
+                         f"first rescan must spawn exactly once: {spawns1}")
+        self.assertEqual(len(spawns2), 0,
+                         f"second rescan within TTL must NOT re-spawn: {spawns2}")
+
     def test_group_keeps_highest_priority_only(self):
         """Same issue with both a labeled event and a check_run event →
         only the check_run (P1) survives."""

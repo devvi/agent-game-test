@@ -1010,12 +1010,16 @@ def pick_next_issue() -> list:
             # died, label event lost) is re-spawned after the gate TTL.
             # 2026-08-14: also try _dead_spawn_recovery — a SPAWN consumed by
             # cron timeout (#480: 45 min stall) must re-emit after TTL/2.
-            # Plus a research-resend gate (5 min TTL) so a swallowed SPAWN
-            # (busy cron) re-emits promptly instead of waiting the full TTL.
+            # 2026-08-17 (#525/#526/#527 实测): REMOVED the `research-resend`
+            # OR branch — it was an UNCONDITIONAL re-emitter (independent
+            # 5-min marker always fresh) → same issue re-spawned every ~3-4min,
+            # producing 3 concurrent research agents per issue (PR #528 merged
+            # while duplicates still running). _dead_spawn_recovery (TTL/2)
+            # is the deterministic recovery path; swallowed-SPAWN recovery
+            # latency is 45min instead of 5min — correctness over speed.
             if not _pr_exists_for_issue("research", n):
                 if (_spawn_gate(n, "research")
-                        or _dead_spawn_recovery(n, "research")
-                        or _spawn_gate(n, "research-resend")):
+                        or _dead_spawn_recovery(n, "research")):
                     spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
                     _devlog("spawn", issue=n, stage="research", source="available-rescan")
 
