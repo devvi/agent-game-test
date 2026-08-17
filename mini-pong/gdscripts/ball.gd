@@ -206,7 +206,7 @@ func _on_body_entered(body: Node2D) -> void:
 			velocity.y = -velocity.y       # 顶/底击翻 Y
 		_bounce_cooldown = BOUNCE_COOLDOWN_FRAMES
 		if body.has_method("destroy"):
-			body.destroy()                 # 原子: 同 handler 内先标记后反弹（失败路径 2）
+			body.destroy(last_toucher)       # #529: 注入触球方快照 (发球直撞 = "" → 不触发)
 		return
 
 	if body.is_in_group("walls"):

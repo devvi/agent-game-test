@@ -229,6 +229,15 @@ const BRICK_BREAK_SEED: int = 450           # 固定种子 → 合成确定性 (
 const COMBO_WINDOW_SECONDS: float = 2.0
 const COMBO_SPEED_BONUS: float = 0.2
 
+# ── Special Brick Wave Trigger (#529) ──
+# 波数触发迭代 (PRD #529 方案1; 机制/常量 = mechanical, 色值 = taste-draft 占位,
+# human-review 定稿, 调参零代码改动)。特殊砖 = 普通砖 + is_special 标记,
+# 击碎即触发波次结算 (替代整墙打空), 拆砖分/计数/终局规则不变 (AC5)。
+const SPECIAL_BRICK_PER_WAVE: int = 1        # 每波恰好 1 颗 (替换式, 不新增砖)
+const SPECIAL_BRICK_MIN_THICKNESS: int = 3   # 厚度 < 3 无内部位 → 回退 wall_cleared (AC4)
+const SPECIAL_BRICK_COLOR: Color = Color(0.45, 1.0, 0.75, 1.0)       # taste 占位: 亮薄荷绿 #73ffbf
+const SPECIAL_BRICK_GLOW_COLOR: Color = Color(0.45, 1.0, 0.75, 1.0)  # taste 占位: 同色光晕
+
 # ── City Glow (#527) ──
 # L0 底部城市光晕 (PLAN §3.1「底部城市光晕」执行层; 机制/结构 = mechanical,
 # 色调/周期 = taste-draft, human-review 定稿, 调参零代码改动)

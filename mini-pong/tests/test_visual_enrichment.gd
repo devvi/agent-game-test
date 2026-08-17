@@ -207,8 +207,14 @@ func _test_b3_iron_injection() -> void:
 		_assert(m != shared, "iron brick material is duplicated")
 		_assert(m.get_shader_parameter("glow_color") == CONSTS.BRICK_VARIANT_COLORS[1], "iron glow_color == variant[1]")
 	for b in bricks:
-		if b.brick_variant == 0:
+		if b.brick_variant == 0 and not b.is_special:
 			_assert(b.get_node("ColorRect").material == shared, "normal brick shares material")
+	# #529 适配: 特殊砖 (is_special, variant 仍为 0) 按 DESIGN 独立材质 duplicate
+	# (#464 教训: 共享 .tres glow_color.a=1.0 → 不独立则污染共享资源) — 固化契约
+	for b in bricks:
+		if b.is_special:
+			_assert(b.get_node("ColorRect").material != shared, "special brick material is duplicated")
+			_assert(_rect_color(b) == CONSTS.SPECIAL_BRICK_COLOR, "special brick color == SPECIAL_BRICK_COLOR")
 	_free_node(grid)
 
 func _test_b5_same_seed_reproducible() -> void:

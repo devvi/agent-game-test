@@ -12,13 +12,17 @@ extends StaticBody2D
 ## Design: docs/DESIGN/527-visual-enrichment.md §4.3
 ## Parent Issue: #384 (实现随 #393 组装落地), #527
 
-const CONSTS = preload("res://gdscripts/constants.gd")
+const CONSTS = preload("res://gdscripts/constants.gd")   # #529 新增
 
-@export var brick_variant: int = 0        # 默认 0 → 既有渲染逐字节不变（AC5）
+@export var brick_variant: int = 0        # #527: 默认 0 → 既有渲染逐字节不变（AC5）
 
 var grid: Node                 # 实例化时由 BreakoutGrid 注入
 var _destroyed: bool = false
-var _variant_applied: bool = false
+var is_special: bool = false      # #529: grid 生成时标记 (替换式, 每波 ≤1)
+var breaker: String = ""          # #529: 销毁来源快照 ("player"/"ai"/"upgrade"/"")
+var _variant_applied: bool = false  # #527: 变体视觉幂等标记
+
+
 
 
 func _ready() -> void:
@@ -46,12 +50,26 @@ func apply_variant(variant: int, base_color: Color) -> void:
 	rect.material.set_shader_parameter("glow_color", vcolor)     # glow 同色（视觉一致）
 
 
-func destroy() -> void:
+func destroy(source: String = "") -> void:    # #529: 签名加默认参 (既有调用零破坏)
 	if _destroyed:
 		return
 	_destroyed = true
+	breaker = source                          # #529: 来源快照 (ball 传 last_toucher; grid 内部销毁传 "upgrade")
 	if grid != null and is_instance_valid(grid) and grid.has_method("_on_brick_destroyed"):
 		grid._on_brick_destroyed(self)
 	if is_instance_valid(AudioEngine):   # #450 null-safe: 无 autoload 环境静默跳过
 		AudioEngine.play_brick_break()
 	queue_free()
+
+
+## #529: 特殊砖视觉覆写 (brick.tscn 内运行时改色, 零 tscn 改动 — E2-2 文本断言保护)
+## 由 grid._spawn_special_brick() 在 is_special=true 后调用; 无 ColorRect → no-op (容错先例 #526)。
+func apply_special_visual() -> void:
+	var rect := find_child("ColorRect", false, false) as ColorRect
+	if rect == null:
+		return
+	rect.color = CONSTS.SPECIAL_BRICK_COLOR
+	if rect.material != null:
+		var mat: ShaderMaterial = rect.material.duplicate()
+		mat.set_shader_parameter("glow_color", CONSTS.SPECIAL_BRICK_GLOW_COLOR)
+		rect.material = mat       # #464 教训: 共享 .tres glow_color.a=1.0 → 必须独立材质实例

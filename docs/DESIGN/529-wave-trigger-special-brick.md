@@ -407,11 +407,11 @@ settle_wave() 后 GameManager.is_run_over() == true
 
 | 集成 | 我方组件 | 目标 Issue | 方式 | 状态 |
 |------|:---:|:---:|------|:---:|
-| 特殊砖触发信号 | `BreakoutGrid.special_brick_destroyed(breaker)` | #529 | WaveController `_ready` `has_signal` 双守卫 connect → `_on_special_brick_destroyed` | ⬜ |
-| 触球方快照注入 | `ball.gd` `body.destroy(last_toucher)` | #385/#529 | ball.gd 208-209 行 bricks 分支改传参（1 行） | ⬜ |
-| 升级连锁来源标记 | `blast_neighbors`/`_remove_column` → `b.destroy("upgrade")` | #387/#529 | grid 内部销毁路径传来源标记（边界 4） | ⬜ |
-| 特殊砖视觉 | `brick.apply_special_visual()` | #529 | `_spawn_special_brick` 标记后调用；ColorRect 改色 + 材质 duplicate + glow_color | ⬜ |
-| 结算复用 | `_begin_settlement()` | #386/#529 | `_on_wall_cleared` 主体抽取；双触发入口共享守卫/接管 | ⬜ |
+| 特殊砖触发信号 | `BreakoutGrid.special_brick_destroyed(breaker)` | #529 | WaveController `_ready` `has_signal` 双守卫 connect → `_on_special_brick_destroyed` | ✅ |
+| 触球方快照注入 | `ball.gd` `body.destroy(last_toucher)` | #385/#529 | ball.gd 208-209 行 bricks 分支改传参（1 行） | ✅ |
+| 升级连锁来源标记 | `blast_neighbors`/`_remove_column` → `b.destroy("upgrade")` | #387/#529 | grid 内部销毁路径传来源标记（边界 4） | ✅ |
+| 特殊砖视觉 | `brick.apply_special_visual()` | #529 | `_spawn_special_brick` 标记后调用；ColorRect 改色 + 材质 duplicate + glow_color | ✅ |
+| 结算复用 | `_begin_settlement()` | #386/#529 | `_on_wall_cleared` 主体抽取；双触发入口共享守卫/接管 | ✅ |
 | 既有结算挂点 | `GameManager.wave_settled` | #388 | UpgradePickUI 既有消费，零改动（✅ 既有，不需 implement 动作） | ✅ |
 | 新墙转场 | `GameManager.wave_started` | #390/#389 | `_advance_wave` 既有调用，零改动 | ✅ |
 
