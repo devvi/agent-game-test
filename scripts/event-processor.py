@@ -2038,13 +2038,17 @@ def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False) -> list:
                 verdict = "failed"
         state["status"] = verdict
         state["finished_at"] = time.time()
-        if verdict == "done":
-            # 2026-08-17 (方案 X): harvest 即派发 (one-shot), 记 emitted_at —
-            # done 分支据此静默, 不再重发。
+        if verdict in ("done", "failed"):
+            # 2026-08-17 (方案 X 复盘): failed 也派发 review — 原设计
+            # (PLAN-e2e-verification-v2 §5.1): 本地 E2E 失败由 review agent
+            # 判类 → D 类打 workflow/self-correct label → event-processor
+            # label 规则 (L1428) SPAWN self-correct → 本地收敛循环 (2 轮上限)。
+            # 方案② 迁移时 failed 静默 → review agent 不在场 → 没人打 label
+            # → 死锁 (#516 实证: E2E failed + CI 假绿 = 永久卡 workflow/implement)。
             state["emitted_at"] = time.time()
         _write_e2e_state(pr, state)
         lines.append(f"E2E: pr={pr} {verdict} (summary {summary})")
-        if verdict == "done":
+        if verdict in ("done", "failed"):
             lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={summary}")
         return lines
 
@@ -2054,17 +2058,18 @@ def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False) -> list:
         # 80d6aaa) 与 review_followup"消费即删"互相抵消 → review 无限循环
         # (#494 157-task, #511 24-agent, worktree 冲突为次生症状)。
         # SPAWN 只发一次; 漏派发的兜底 = workflow-watchdog review-stuck
-        # 检测 (告警, 不自动重发)。failed 保持静默 (self-correct owns it)。
-        if status == "done":
-            if _read_review_conclusions_file(pr):
-                return lines  # 结论在 → review_followup 将消费, 等待
-            if state.get("emitted_at"):
-                return lines  # 已派发过 → one-shot, 静默
-            # 防御性补发: harvest 路径已写 emitted_at, 这里只覆盖历史残留
-            # 状态 (08-17 之前的 e2e-state 无 emitted_at 字段)。
-            lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={state.get('summary', '')}")
-            state["emitted_at"] = time.time()
-            _write_e2e_state(pr, state)
+        # 检测 (告警, 不自动重发)。
+        # 2026-08-17 (复盘): done 与 failed 同权 — failed 也由 review agent
+        # 判类 (原设计 §5.1), 所以 failed 的防御补发与 done 一致。
+        if _read_review_conclusions_file(pr):
+            return lines  # 结论在 → review_followup 将消费, 等待
+        if state.get("emitted_at"):
+            return lines  # 已派发过 → one-shot, 静默
+        # 防御性补发: harvest 路径已写 emitted_at, 这里只覆盖历史残留
+        # 状态 (08-17 之前的 e2e-state 无 emitted_at 字段)。
+        lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={state.get('summary', '')}")
+        state["emitted_at"] = time.time()
+        _write_e2e_state(pr, state)
         return lines
 
     # absent → launch background runner (--no-comment: evidence posted by

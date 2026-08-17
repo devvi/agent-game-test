@@ -239,6 +239,12 @@ cat /tmp/e2e-<PR>/L1-logic.log 2>/dev/null | tail -5   # if present
 
 Interpret the layers (pass/fail per layer), classify failures (A infra / B pre-existing / C spec / D code), and spend your call budget on **judgment + conclusion**, not on running the harness. If the summary is missing or stale (e.g. predates the head commit), re-run the runner yourself once.
 
+**Summary has FAIL layers (2026-08-17, 方案 X 复盘 — E2E failed 也会派发 review):** this is the 本地收敛循环 entry (原设计 PLAN-e2e-verification-v2 §5.1). Classify per the Local E2E Failure Handling table below:
+- **D code defect** → 打 `workflow/self-correct` label 到 parent issue（`gh issue edit <parent> --add-label workflow/self-correct`）+ 证据 comment（L1-logic.log 尾部/疑似根因）+ 写结论文件 `verdict: self_correct`。label 触发 event-processor 规则 → `SPAWN: self-correct,source=local-e2e` → implement 修 → 重跑本地 e2e 收敛（2 轮上限）。
+- **B pre-existing** → 正常 blocked 结论（status/blocked + fix issue）。
+- **C spec/aesthetic** → REQUEST_CHANGES 结论 → 人工。
+- **A infra**（runner 自身坏了，非代码）→ 结论记录 + 说明，不标 self-correct（harness 修复归人工）。
+
 **`--headless` CANNOT produce screenshots** — dummy rendering driver = zero pixels (`get_texture().get_image()` hangs on `await process_frame`; `--write-movie` writes nothing; verified Godot 4.7.1/macOS M1). To capture real frames proving "the game actually looks right and actually plays", use the real display driver (brief window flash — acceptable for low-frequency review):
 
 ```bash

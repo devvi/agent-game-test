@@ -1444,8 +1444,10 @@ class TestE2EOrchestrator(unittest.TestCase):
                 lines = ep.e2e_orchestrator(475, "impl/x")
                 self.assertEqual(ep._read_e2e_state(475).get("status"), "failed")
             self.assertTrue(any("stale" in l for l in lines), lines)
-            self.assertFalse(any("SPAWN: review" in l for l in lines),
-                             "stale summary must NOT spawn review")
+            # 2026-08-17 (方案 X 复盘): stale → verdict=failed → review 也
+            # 派发 (one-shot) — skill 指示 agent 对 stale summary 重跑 runner。
+            self.assertTrue(any("SPAWN: review" in l for l in lines),
+                            f"stale → failed → review spawns (agent re-runs): {lines}")
 
     def test_running_dead_harvests_failed(self):
         with tempfile.TemporaryDirectory() as td:
@@ -1462,9 +1464,19 @@ class TestE2EOrchestrator(unittest.TestCase):
                     "summary": os.path.join(out, "summary.json"),
                 })
                 lines = ep.e2e_orchestrator(475, "impl/x")
+                self.assertEqual(ep._read_e2e_state(475).get("status"), "failed")
+                self.assertIsNotNone(ep._read_e2e_state(475).get("emitted_at"),
+                                     "failed also gets emitted_at (one-shot)")
             self.assertTrue(any("E2E: pr=475 failed" in l for l in lines), lines)
-            self.assertFalse(any("SPAWN: review" in l for l in lines),
-                             "visual fail → no review (self-correct owns)")
+            # 2026-08-17 (方案 X 复盘): failed 也派发 review — 原设计 §5.1
+            # (本地 E2E 失败由 review agent 判类 → D 类打 self-correct label)
+            self.assertTrue(any("SPAWN: review" in l and "e2e_summary" in l for l in lines),
+                            f"failed → review must spawn for classification: {lines}")
+            # second call → silent (one-shot, no re-spawn — was the #511 loop)
+            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir):
+                lines2 = ep.e2e_orchestrator(475, "impl/x")
+            self.assertFalse(any("SPAWN: review" in l for l in lines2),
+                             f"failed + emitted_at → one-shot silent: {lines2}")
 
     def test_visual_skip_is_green(self):
         """2026-08-15 (L3 降级): visual layer default-skipped — a summary

@@ -150,14 +150,21 @@ log "P0 ok"
 # 避免新建 worktree 与同一分支冲突 (fatal: already checked out at ...)。
 # 找不到该分支的 worktree 才新建(implement 没留的兜底)。
 WT=""
+# 2026-08-17 修复 (方案 X 复盘 #1): `git worktree list --porcelain` 的
+# branch 行前一行是 HEAD, 不是 worktree — grep -B1 恒抓 HEAD → 复用检测
+# 从未成功 → 总走新建 → 与 implement 保留的 worktree 冲突 (fatal: already
+# checked out) → E2E infra-error 无限重试 (#513 实证)。必须 -B2。
 WT=$(git -C "$REPO_ROOT" worktree list --porcelain 2>/dev/null \
-  | grep -B1 "^branch refs/heads/$BRANCH$" | grep "^worktree" | head -1 \
+  | grep -B2 "^branch refs/heads/$BRANCH$" | grep "^worktree" | head -1 \
   | awk '{print $2}')
 if [ -n "$WT" ] && [ -d "$WT" ]; then
   log "P1 reuse existing worktree: $WT (branch $BRANCH)"
   WT_OWNED=0  # 复用的 implement worktree — 不删
 else
-  WT="${WORKTREE_ROOT}/wt-impl-$PR_NUM"
+  # 2026-08-17 命名统一 (#3): implement 用 /tmp/wt-implement-<N>
+  # (worktree-setup.sh: WT=/tmp/wt-$PHASE-$ISSUE) — 兜底新建也用同名,
+  # 避免 wt-impl-<pr> 与 wt-implement-<N> 双名并存造成混乱。
+  WT="${WORKTREE_ROOT}/wt-implement-$PR_NUM"
   log "P1 worktree add $WT"
   maybe git -C "$REPO_ROOT" worktree add "$WT" "$BRANCH" || die "worktree add failed" 2
   log "P1 worktree created: $WT"
