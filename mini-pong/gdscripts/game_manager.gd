@@ -16,6 +16,15 @@ const WIN_SCORE: int = CONSTS.WIN_SCORE
 signal score_changed(player_score: int, ai_score: int)
 signal match_over(winner: String)     # "player" | "ai" — 21 分终局（复用既有信号名，FSM/结算屏零新接线）
 
+# ── Game Mode (#543) ──
+## 本地双人对战模式状态（DESIGN 543 §3.2）。默认 SINGLE（与 StartMenu _mode_index 同值对齐）。
+enum GameMode { SINGLE = 0, LOCAL_2P = 1 }
+
+## 顶侧挡板 player_index（2P 下 P2 映射 "ai" 侧，PRD §3.3 对手语义复用）
+const MODE_P2_TOP_INDEX: int = 1
+
+var game_mode: GameMode = GameMode.SINGLE   # reset_match() 不触碰 — 重开保留上次选择
+
 # ── Wave Cycle (#386) ──
 enum WaveState { IDLE, RUNNING, SETTLED }
 
@@ -111,6 +120,46 @@ func reset_match() -> void:
 
 
 # ── Internal ──
+
+## #543 模式 API：越界 clamp 回 SINGLE（防御性，A4）。
+func set_game_mode(mode: int) -> void:
+	if mode < GameMode.SINGLE or mode > GameMode.LOCAL_2P:
+		game_mode = GameMode.SINGLE
+	else:
+		game_mode = mode
+
+
+func get_game_mode() -> int:
+	return game_mode
+
+
+## #543 模式落盘：按 game_mode 配置 paddles 组 + InputMap 重建（DESIGN §3.2/§3.3）。
+## 身份契约: 节点名 "AIPaddle" → 顶侧 P2（player_index 1），"PlayerPaddle" → P1（0），
+## 其余节点按自身 player_index。组空/节点失效 → push_warning + 跳过（headless 容错）。
+func apply_mode_to_paddles() -> void:
+	if not is_inside_tree():
+		return
+	var paddles := get_tree().get_nodes_in_group("paddles")
+	if paddles.is_empty():
+		push_warning("GameManager: paddles group empty — mode config skipped (#543)")
+		return
+	for p in paddles:
+		if not ("mode" in p and "player_index" in p):
+			continue
+		var idx: int = MODE_P2_TOP_INDEX if p.name == "AIPaddle" else 0
+		if p.name != "AIPaddle" and p.name != "PlayerPaddle":
+			idx = int(p.get("player_index"))
+		if game_mode == GameMode.LOCAL_2P:
+			p.mode = 0                     # 双板均 PLAYER
+			p.player_index = idx
+		else:
+			if idx == MODE_P2_TOP_INDEX:
+				p.mode = 1                 # 顶侧回写 AI（场景默认值，幂等）
+			else:
+				p.mode = 0
+				p.player_index = 0
+	load("res://gdscripts/paddle.gd").rebind_for_mode(int(game_mode))
+
 
 func _emit_class_signals(winner: String, kind: String) -> void:   # #392 纯增量：boundary 不触发
 	match kind:

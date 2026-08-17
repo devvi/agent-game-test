@@ -27,6 +27,13 @@ const BATTERING_RAM_RADIUS: float = 120.0 # 破城锤冲击半径（占位）
 const SLOW_TIME_SCALE: float = 0.0        # 缓时冻结球速
 const SLOW_TIME_DURATION: float = 2.0     # 缓时持续 2s
 
+# ── Debuff 数值（#543，taste 占位 #395 定稿；与 CONSTS.DEBUFF_* 单源对齐）──
+const SHRINK_FACTOR: float = CONSTS.DEBUFF_SHRINK_FACTOR        # 缩板 ×0.7
+const FREEZE_DURATION: float = CONSTS.DEBUFF_FREEZE_DURATION    # 冻结 1.5s
+const SLOW_SCALE: float = CONSTS.DEBUFF_SLOW_SCALE              # 减速 ×0.75
+const SLOW_DURATION: float = CONSTS.DEBUFF_SLOW_DURATION        # 持续 8s
+const REVERSE_DURATION: float = CONSTS.DEBUFF_REVERSE_DURATION  # 方向反转 3s
+
 
 static func definitions() -> Array:
 	return [
@@ -35,6 +42,7 @@ static func definitions() -> Array:
 			"name": "长臂",
 			"rarity": Rarity.COMMON,
 			"is_stub": false,
+			"target": "self",
 			"max_stacks": 3,
 			"effect_desc": "挡板宽度 +30%（对基数加算，两次 → +60%）",
 			"effect": Callable(_SELF, "_effect_long_arm"),
@@ -44,6 +52,7 @@ static func definitions() -> Array:
 			"name": "燃烧弹",
 			"rarity": Rarity.COMMON,
 			"is_stub": false,
+			"target": "self",
 			"max_stacks": 3,
 			"effect_desc": "球速 +10%，破砖烧碎相邻砖",
 			"effect": Callable(_SELF, "_effect_fireball"),
@@ -53,6 +62,7 @@ static func definitions() -> Array:
 			"name": "破城锤",
 			"rarity": Rarity.COMMON,
 			"is_stub": false,
+			"target": "self",
 			"max_stacks": 3,
 			"effect_desc": "破砖冲击波，碎邻近砖",
 			"effect": Callable(_SELF, "_effect_battering_ram"),
@@ -62,6 +72,7 @@ static func definitions() -> Array:
 			"name": "磁心",
 			"rarity": Rarity.RARE,
 			"is_stub": false,
+			"target": "self",
 			"max_stacks": 2,
 			"effect_desc": "挡板磁力吸球",
 			"effect": Callable(_SELF, "_effect_magnet_core"),
@@ -80,6 +91,7 @@ static func definitions() -> Array:
 			"name": "缓时",
 			"rarity": Rarity.RARE,
 			"is_stub": false,
+			"target": "self",
 			"max_stacks": 2,
 			"effect_desc": "球速冻结 2 秒后恢复",
 			"effect": Callable(_SELF, "_effect_slow_time"),
@@ -89,6 +101,7 @@ static func definitions() -> Array:
 			"name": "预开洞",
 			"rarity": Rarity.RARE,
 			"is_stub": false,
+			"target": "self",
 			"max_stacks": 1,
 			"effect_desc": "下波砖墙预开洞（经 BreakoutGrid upgrade_hooks）",
 			"effect": Callable(_SELF, "_effect_pre_hole"),
@@ -110,6 +123,47 @@ static func definitions() -> Array:
 			"max_stacks": 1,
 			"effect_desc": "挡板残影多段判定（桩：完整实现独立小 PR 深化）",
 			"effect": Callable(_SELF, "_effect_phantom_stub"),
+		},
+		# ── Debuff 卡 (#543 §3.6，target=opponent；数值/文案 taste 占位 #395 定稿) ──
+		{
+			"id": "shrink_opponent",
+			"name": "压缩",
+			"rarity": Rarity.COMMON,
+			"is_stub": false,
+			"target": "opponent",
+			"max_stacks": 2,
+			"effect_desc": "对手挡板宽度 -30%（对基数减算，占位）",
+			"effect": Callable(_SELF, "_effect_shrink_opponent"),
+		},
+		{
+			"id": "freeze_opponent",
+			"name": "冻结",
+			"rarity": Rarity.RARE,
+			"is_stub": false,
+			"target": "opponent",
+			"max_stacks": 1,
+			"effect_desc": "对手挡板冻结 1.5 秒（占位）",
+			"effect": Callable(_SELF, "_effect_freeze_opponent"),
+		},
+		{
+			"id": "slow_opponent",
+			"name": "迟缓",
+			"rarity": Rarity.RARE,
+			"is_stub": false,
+			"target": "opponent",
+			"max_stacks": 1,
+			"effect_desc": "对手挡板减速 25% 持续 8 秒（占位）",
+			"effect": Callable(_SELF, "_effect_slow_opponent"),
+		},
+		{
+			"id": "reverse_opponent",
+			"name": "紊乱",
+			"rarity": Rarity.RARE,
+			"is_stub": false,
+			"target": "opponent",
+			"max_stacks": 1,
+			"effect_desc": "对手左右方向反转 3 秒（占位）",
+			"effect": Callable(_SELF, "_effect_reverse_opponent"),
 		},
 	]
 
@@ -202,3 +256,39 @@ static func _effect_phantom_stub(ctx: Dictionary) -> void:
 	var pool = ctx.get("pool")
 	if pool != null and pool.has_method("mark_stub_effect"):
 		pool.mark_stub_effect("phantom")
+
+
+# ── Debuff 效果回调（#543 §3.6；target=opponent，目标判空 push_warning + no-op）──
+# ctx["opponent_paddle"] 由 UpgradePool._build_ctx(player_index) 解析；单板/无匹配 →
+# null → 不崩（#387 判空风格，D3）。
+
+static func _effect_shrink_opponent(ctx: Dictionary) -> void:
+	var opponent_paddle = ctx.get("opponent_paddle")
+	if opponent_paddle == null or not opponent_paddle.has_method("set_paddle_width"):
+		push_warning("UpgradePool: shrink_opponent skipped — opponent paddle missing")
+		return
+	opponent_paddle.set_paddle_width(opponent_paddle.paddle_width * SHRINK_FACTOR)
+
+
+static func _effect_freeze_opponent(ctx: Dictionary) -> void:
+	var opponent_paddle = ctx.get("opponent_paddle")
+	if opponent_paddle == null or not opponent_paddle.has_method("set_frozen_timed"):
+		push_warning("UpgradePool: freeze_opponent skipped — opponent paddle missing")
+		return
+	opponent_paddle.set_frozen_timed(FREEZE_DURATION)
+
+
+static func _effect_slow_opponent(ctx: Dictionary) -> void:
+	var opponent_paddle = ctx.get("opponent_paddle")
+	if opponent_paddle == null or not opponent_paddle.has_method("set_speed_scale_timed"):
+		push_warning("UpgradePool: slow_opponent skipped — opponent paddle missing")
+		return
+	opponent_paddle.set_speed_scale_timed(SLOW_SCALE, SLOW_DURATION)
+
+
+static func _effect_reverse_opponent(ctx: Dictionary) -> void:
+	var opponent_paddle = ctx.get("opponent_paddle")
+	if opponent_paddle == null or not opponent_paddle.has_method("set_input_invert_timed"):
+		push_warning("UpgradePool: reverse_opponent skipped — opponent paddle missing")
+		return
+	opponent_paddle.set_input_invert_timed(REVERSE_DURATION)

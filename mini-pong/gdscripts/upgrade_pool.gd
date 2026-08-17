@@ -48,17 +48,18 @@ func get_stacks(id: String) -> int:
 
 ## 抽取 n 张候选卡（AC2/AC5）：每张卡独立走一次稀有度先掷 60/30/10 →
 ## 稀有度内均匀选 → 候选内 id 去重 → 回退链（DESIGN §5 Flow 3）。
-func get_candidates(n: int = CONSTS.UPGRADE_CANDIDATE_COUNT) -> Array:
+## #543: allow_opponent=false（默认，单人）过滤 target=="opponent" 卡 → 单人池逐字节不回归（E5）。
+func get_candidates(n: int = CONSTS.UPGRADE_CANDIDATE_COUNT, allow_opponent: bool = false) -> Array:
 	var picked_ids: Dictionary = {}
 	var result: Array = []
 	for i in n:
 		if _available.is_empty():
 			break
 		var rarity: int = _roll_rarity()
-		var eligible: Array = _eligible_for(rarity, picked_ids)
+		var eligible: Array = _eligible_for(rarity, picked_ids, allow_opponent)
 		if eligible.is_empty():
-			rarity = _fallback_rarity(picked_ids)
-			eligible = _eligible_for(rarity, picked_ids)
+			rarity = _fallback_rarity(picked_ids, allow_opponent)
+			eligible = _eligible_for(rarity, picked_ids, allow_opponent)
 		if eligible.is_empty():
 			break
 		var chosen: Dictionary = eligible[rng.randi_range(0, eligible.size() - 1)]
@@ -68,11 +69,12 @@ func get_candidates(n: int = CONSTS.UPGRADE_CANDIDATE_COUNT) -> Array:
 
 
 ## 应用升级（AC5）。失败路径（DESIGN §6）: 未知 id / 已耗尽 → false，不计数不 emit。
-func apply(upgrade_id: String) -> bool:
+## #543: player_index 传入目标解析（2P 双目标；默认 0 = 单人回退）。
+func apply(upgrade_id: String, player_index: int = 0) -> bool:
 	var def: Dictionary = Defs.by_id(upgrade_id)
 	if def.is_empty() or not _is_available(upgrade_id):
 		return false
-	var ctx := _build_ctx()
+	var ctx := _build_ctx(player_index)
 	ctx["pool"] = self  # 桩效果经 ctx 回调（避免 autoload 名解析，headless 可测）
 	def.effect.call(ctx)
 	stacks[upgrade_id] = stacks.get(upgrade_id, 0) + 1
@@ -119,18 +121,22 @@ static func rarity_from_roll(roll: int) -> int:
 	return Defs.Rarity.LEGENDARY
 
 
-func _eligible_for(rarity: int, picked_ids: Dictionary) -> Array:
+func _eligible_for(rarity: int, picked_ids: Dictionary, allow_opponent: bool = false) -> Array:
 	var out: Array = []
 	for d in _available:
-		if d.rarity == rarity and not picked_ids.has(d.id):
-			out.append(d)
+		if d.rarity != rarity or picked_ids.has(d.id):
+			continue
+		if not allow_opponent and d.get("target", "self") == "opponent":
+			continue
+		out.append(d)
 	return out
 
 
 ## 回退链 [COMMON, RARE, LEGENDARY] 取第一个非空稀有度（DESIGN §5 Flow 3）。
-func _fallback_rarity(picked_ids: Dictionary) -> int:
+## #543: allow_opponent 沿 _eligible_for 同步透传（所有路径尊重 target 过滤）。
+func _fallback_rarity(picked_ids: Dictionary, allow_opponent: bool = false) -> int:
 	for r in [Defs.Rarity.COMMON, Defs.Rarity.RARE, Defs.Rarity.LEGENDARY]:
-		if not _eligible_for(r, picked_ids).is_empty():
+		if not _eligible_for(r, picked_ids, allow_opponent).is_empty():
 			return r
 	return Defs.Rarity.COMMON
 
@@ -153,14 +159,42 @@ func _available_remove(id: String) -> void:
 ## 惰性 + 可注入目标解析（DESIGN §3.2）:
 ## ball_ref = balls 组（ball.gd _ready 加组）；paddle_ref = paddles 组（已有）；
 ## grid_ref = breakout_grids 组（#384 落地时加组 — 契约）。
-func _build_ctx() -> Dictionary:
+## #543 双目标: self_paddle = player_index 匹配的挡板（无匹配/单板 → 组内第一个，回退现状）；
+## opponent_paddle = 组内另一挡板（无 → null，D2/D3）；paddle 键 = self_paddle（既有零回归）。
+func _build_ctx(player_index: int = 0) -> Dictionary:
 	if ball_ref == null and is_inside_tree():
 		ball_ref = get_tree().get_first_node_in_group("balls")
 	if paddle_ref == null and is_inside_tree():
 		paddle_ref = get_tree().get_first_node_in_group("paddles")
 	if grid_ref == null and is_inside_tree():
 		grid_ref = get_tree().get_first_node_in_group("breakout_grids")
-	return {"ball": ball_ref, "paddle": paddle_ref, "grid": grid_ref, "params": {}}
+	var self_paddle = null
+	var opponent_paddle = null
+	if is_inside_tree():
+		var paddles := get_tree().get_nodes_in_group("paddles")
+		for p in paddles:
+			var p_idx: int = 0
+			if "player_index" in p:
+				p_idx = int(p.get("player_index"))
+			if p_idx == player_index:
+				self_paddle = p
+			else:
+				opponent_paddle = p
+		if self_paddle == null and not paddles.is_empty():
+			self_paddle = paddles[0]
+	if self_paddle == null:
+		self_paddle = paddle_ref   # 注入回退（既有测试 mock 兼容，TC-E1/E3）
+	if opponent_paddle == self_paddle:
+		opponent_paddle = null     # 单板/无匹配 → 无对手（D2）
+	return {
+		"ball": ball_ref,
+		"paddle": self_paddle,
+		"grid": grid_ref,
+		"params": {},
+		"self_paddle": self_paddle,
+		"opponent_paddle": opponent_paddle,
+		"player_index": player_index,
+	}
 
 
 ## #395 JSON 只读消费（DESIGN §4.4）: FileAccess + JSON.parse_string + 逐级兜底。

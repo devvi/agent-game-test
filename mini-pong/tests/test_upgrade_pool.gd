@@ -127,7 +127,7 @@ func _assert(condition: bool, name: String) -> void:
 
 func _test_a1_definitions_complete() -> void:
 	var defs = Defs.definitions()
-	_assert(defs.size() == CONSTS.UPGRADE_POOL_SIZE, "TC-A1: 9 definitions (%d)" % defs.size())
+	_assert(defs.size() == CONSTS.UPGRADE_POOL_SIZE, "TC-A1: 13 definitions (%d)" % defs.size())
 	var ids: Array = []
 	for d in defs:
 		ids.append(d.id)
@@ -153,8 +153,8 @@ func _test_a3_rarity_distribution() -> void:
 			rare += 1
 		elif d.rarity == Defs.Rarity.LEGENDARY:
 			legendary += 1
-	_assert(common == 3, "TC-A3: COMMON == 3 (long_arm/fireball/battering_ram)")
-	_assert(rare == 4, "TC-A3: RARE == 4 (magnet_core/twin/slow_time/pre_hole)")
+	_assert(common == 4, "TC-A3: COMMON == 4 (long_arm/fireball/battering_ram/shrink_opponent)")
+	_assert(rare == 7, "TC-A3: RARE == 7 (magnet_core/twin/slow_time/pre_hole/freeze_opponent/slow_opponent/reverse_opponent)")
 	_assert(legendary == 2, "TC-A3: LEGENDARY == 2 (stardust/phantom)")
 
 

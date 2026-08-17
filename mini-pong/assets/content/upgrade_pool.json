@@ -289,6 +289,134 @@
       "context": "升级卡短句位，≤12 字；稀有度由 #387 定义；效果：挡板残影多段判定",
       "name": "幻影",
       "finalized": true
+    },
+    {
+      "id": "shrink_opponent",
+      "name_working": "压缩",
+      "rarity": "common",
+      "short_phrase": "对手变窄了",
+      "phrase_draft": true,
+      "emotion": "压迫感",
+      "emotion_assertion": "价值极 安全/危险 → 向危险移动：\"对手变窄了\"",
+      "naming_candidates": [
+        {
+          "name": "压缩",
+          "recommended": true,
+          "note": "沿用 #543 工作名，与 upgrade_defs.gd 一致",
+          "adopted": true
+        },
+        {
+          "name": "紧束",
+          "recommended": false,
+          "note": "束缚意象",
+          "adopted": false
+        },
+        {
+          "name": "收窄",
+          "recommended": false,
+          "note": "更直白",
+          "adopted": false
+        }
+      ],
+      "context": "升级卡短句位，≤12 字；稀有度由 #543 定义；效果：对手挡板宽度 -30%",
+      "name": "压缩",
+      "finalized": false
+    },
+    {
+      "id": "freeze_opponent",
+      "name_working": "冻结",
+      "rarity": "rare",
+      "short_phrase": "冻住不许走",
+      "phrase_draft": true,
+      "emotion": "压制快感",
+      "emotion_assertion": "价值极 快/慢：把对手钉在原地",
+      "naming_candidates": [
+        {
+          "name": "冻结",
+          "recommended": true,
+          "note": "沿用 #543 工作名，与 upgrade_defs.gd 一致",
+          "adopted": true
+        },
+        {
+          "name": "寒凝",
+          "recommended": false,
+          "note": "寒=冻结意象",
+          "adopted": false
+        },
+        {
+          "name": "冰封",
+          "recommended": false,
+          "note": "更冷硬",
+          "adopted": false
+        }
+      ],
+      "context": "升级卡短句位，≤12 字；稀有度由 #543 定义；效果：对手挡板冻结 1.5 秒",
+      "name": "冻结",
+      "finalized": false
+    },
+    {
+      "id": "slow_opponent",
+      "name_working": "迟缓",
+      "rarity": "rare",
+      "short_phrase": "慢下来吧",
+      "phrase_draft": true,
+      "emotion": "掌控感",
+      "emotion_assertion": "价值极 快/慢：夺走对手的节奏",
+      "naming_candidates": [
+        {
+          "name": "迟缓",
+          "recommended": true,
+          "note": "沿用 #543 工作名，与 upgrade_defs.gd 一致",
+          "adopted": true
+        },
+        {
+          "name": "滞重",
+          "recommended": false,
+          "note": "沉重迟缓感",
+          "adopted": false
+        },
+        {
+          "name": "拖步",
+          "recommended": false,
+          "note": "步履维艰意象",
+          "adopted": false
+        }
+      ],
+      "context": "升级卡短句位，≤12 字；稀有度由 #543 定义；效果：对手挡板减速 25% 持续 8 秒",
+      "name": "迟缓",
+      "finalized": false
+    },
+    {
+      "id": "reverse_opponent",
+      "name_working": "紊乱",
+      "rarity": "rare",
+      "short_phrase": "左右不分了",
+      "phrase_draft": true,
+      "emotion": "戏弄感",
+      "emotion_assertion": "价值极 秩序/混沌：让对手失去方向",
+      "naming_candidates": [
+        {
+          "name": "紊乱",
+          "recommended": true,
+          "note": "沿用 #543 工作名，与 upgrade_defs.gd 一致",
+          "adopted": true
+        },
+        {
+          "name": "错乱",
+          "recommended": false,
+          "note": "方向错乱直译",
+          "adopted": false
+        },
+        {
+          "name": "晕眩",
+          "recommended": false,
+          "note": "天旋地转意象",
+          "adopted": false
+        }
+      ],
+      "context": "升级卡短句位，≤12 字；稀有度由 #543 定义；效果：对手左右方向反转 3 秒",
+      "name": "紊乱",
+      "finalized": false
     }
   ]
 }

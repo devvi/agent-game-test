@@ -121,9 +121,15 @@ func _seed_initial_values() -> void:
 
 func _on_score_changed(player_score: int, ai_score: int) -> void:
 	if ai_score_label:
-		ai_score_label.text = "AI: " + str(ai_score)
+		ai_score_label.text = ("P2: " if _is_2p_mode() else "AI: ") + str(ai_score)
 	if player_score_label:
 		player_score_label.text = "Player: " + str(player_score)
+
+
+## #543: 2P 下顶区「P2: N」（红区颜色保留）；SINGLE 下「AI: N」（现状，G1）。
+func _is_2p_mode() -> bool:
+	return is_instance_valid(GameManager) and GameManager.has_method("get_game_mode") \
+		and GameManager.get_game_mode() == GameManager.GameMode.LOCAL_2P
 
 
 func _on_brick_scored(side: String) -> void:

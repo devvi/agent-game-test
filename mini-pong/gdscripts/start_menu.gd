@@ -21,6 +21,11 @@ var _title_tween: Tween = null
 var _prompt_tween: Tween = null
 var _transitioning: bool = false
 
+# ── 模式选择 (#543 §3.1) ──
+var _mode_index: int = 0              # 0 = SINGLE（默认），1 = LOCAL_2P（与 GameManager.GameMode 同值对齐）
+var _mode_labels: Array = []          # _ready 收集 ModeOption1/2（append only 非 null）
+var _mode_tween: Tween = null         # 高亮切换动效句柄（keep simple，未强制启用）
+
 
 # ── Lifecycle ──
 func _ready() -> void:
@@ -37,6 +42,16 @@ func _ready() -> void:
 		_start_title_pulse()
 		_start_prompt_blink()
 
+	# #543: 收集模式选项行 + 默认高亮单人（节点缺失静默跳过，headless 容错）
+	_mode_labels = []
+	var opt1 = get_node_or_null("CenterContainer/VBoxContainer/ModeSelectVBox/ModeOption1")
+	var opt2 = get_node_or_null("CenterContainer/VBoxContainer/ModeSelectVBox/ModeOption2")
+	if opt1 != null:
+		_mode_labels.append(opt1)
+	if opt2 != null:
+		_mode_labels.append(opt2)
+	_apply_mode_highlight()
+
 	visible = true
 
 
@@ -44,10 +59,15 @@ func _ready() -> void:
 
 
 # ── Public ──
+func get_selected_mode() -> int:
+	return _mode_index
+
+
 func show_menu() -> void:
 	"""Called by state machine (#294) to re-show the start screen."""
 	visible = true
 	_transitioning = false
+	_apply_mode_highlight()            # #543: 重绘高亮（保留上次选择，§6-8）
 	if is_inside_tree() and get_tree():
 		_start_title_pulse()
 		_start_prompt_blink()
@@ -56,7 +76,40 @@ func show_menu() -> void:
 func hide_menu() -> void:
 	"""Cleanup animations and hide."""
 	_kill_tweens()
+	_kill_tween(_mode_tween)           # #543: 模式高亮动效一并清理
+	_mode_tween = null
 	visible = false
+
+
+## #543: 模式切换（↑/↓）。仅 visible（MENU 态）响应；不消费 ui_accept（FSM 继续处理）。
+func _unhandled_input(event: InputEvent) -> void:
+	if not visible:
+		return
+	if event.is_action_pressed("ui_up"):
+		_mode_index = posmod(_mode_index - 1, 2)
+		_apply_mode_highlight()
+		if is_instance_valid(GameManager) and GameManager.has_method("set_game_mode"):
+			GameManager.set_game_mode(_mode_index)
+	elif event.is_action_pressed("ui_down"):
+		_mode_index = posmod(_mode_index + 1, 2)
+		_apply_mode_highlight()
+		if is_instance_valid(GameManager) and GameManager.has_method("set_game_mode"):
+			GameManager.set_game_mode(_mode_index)
+
+
+## #543: 高亮重绘 — 选中行 PADDLE_NEON + 字号 24；未选中 0.4 透明度 + 字号 20
+## （色值距 #4a90d9 远离 tol 32，E2E 01_title theme_absent 保护；Tween 150ms 可选，keep simple）。
+func _apply_mode_highlight() -> void:
+	for i in _mode_labels.size():
+		var lbl: Label = _mode_labels[i]
+		if lbl == null:
+			continue
+		if i == _mode_index:
+			lbl.modulate = CONSTS.PADDLE_NEON
+			lbl.add_theme_font_size_override("font_size", 24)
+		else:
+			lbl.modulate = Color(1, 1, 1, 0.4)
+			lbl.add_theme_font_size_override("font_size", 20)
 
 
 # ── Animation ──

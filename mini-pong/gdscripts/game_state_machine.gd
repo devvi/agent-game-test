@@ -115,6 +115,9 @@ func enter_state(state: State) -> void:
 			if previous_state == State.MENU:
 				if is_instance_valid(GameManager) and GameManager.has_method("reset_match"):
 					GameManager.reset_match()
+				# #543: 模式落盘后按 game_mode 配置双板 + InputMap 重建（SINGLE 逐字节回归）
+				if is_instance_valid(GameManager) and GameManager.has_method("apply_mode_to_paddles"):
+					GameManager.apply_mode_to_paddles()
 			await _timer_1s()
 			if ball and ball.has_method("serve"):
 				ball.serve()
