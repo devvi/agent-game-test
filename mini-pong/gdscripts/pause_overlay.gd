@@ -35,13 +35,11 @@ func hide_overlay() -> void:
 func _resolve_game_manager():
 	if game_manager != null:
 		return game_manager
-	var gm_singleton = Engine.get_singleton("GameManager")
-	if is_instance_valid(gm_singleton):
-		game_manager = gm_singleton
-	elif game_manager == null:
-		var root_gm = get_node_or_null("/root/GameManager")
-		if is_instance_valid(root_gm):
-			game_manager = root_gm
+	# autoload 为 lazy `*` 前缀（project.godot）：Engine.get_singleton 不可用（报错+null），
+	# 节点常驻 /root/GameManager —— 树查找（同 skill: lazy autoload 用 get_node_or_null("/root/...")）
+	var root_gm = get_node_or_null("/root/GameManager")
+	if is_instance_valid(root_gm):
+		game_manager = root_gm
 	return game_manager
 
 

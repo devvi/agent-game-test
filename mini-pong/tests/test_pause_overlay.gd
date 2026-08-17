@@ -33,6 +33,14 @@ func _make_overlay() -> Array:
 	var overlay: CanvasLayer = CanvasLayer.new()
 	overlay.set_script(load("res://gdscripts/pause_overlay.gd"))
 	overlay.name = "PauseOverlay"
+	# 镜像 Main.tscn PauseOverlay 子树（ColorRect/Label/ScoreLabel/WaveLabel）——
+	# 脚本 @onready 依赖这 4 个子节点（DESIGN §3.1：@onready + 场景同步变更）
+	var color_rect: ColorRect = ColorRect.new()
+	color_rect.name = "ColorRect"
+	overlay.add_child(color_rect)
+	var title_label: Label = Label.new()
+	title_label.name = "Label"
+	overlay.add_child(title_label)
 	var score_label: Label = Label.new()
 	score_label.name = "ScoreLabel"
 	overlay.add_child(score_label)
@@ -60,14 +68,24 @@ func _make_gm_mock(player_score: int, ai_score: int, wave_index: int) -> Node:
 	return mock
 
 
-func _restore_real_gm() -> void:
-	if Engine.has_singleton("GameManager"):
-		Engine.unregister_singleton("GameManager")
-	var real_script = load("res://gdscripts/game_manager.gd")
-	var real_gm: Node = Node.new()
-	real_gm.set_script(real_script)
-	real_gm.name = "GameManager"
-	Engine.register_singleton("GameManager", real_gm)
+func _detach_real_gm() -> Node:
+	# 真实 GameManager autoload（lazy `*` 前缀）节点常驻 /root/GameManager；
+	# pause_overlay.gd 走树查找，测试临时摘除节点以模拟「GameManager 缺失」（DESIGN §9 C1/C2）。
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	var root_gm: Node = null
+	if tree != null and tree.root != null:
+		root_gm = tree.root.get_node_or_null("GameManager")
+		if root_gm != null:
+			tree.root.remove_child(root_gm)
+	return root_gm
+
+
+func _reattach_real_gm(root_gm: Node) -> void:
+	if root_gm == null:
+		return
+	var tree: SceneTree = Engine.get_main_loop() as SceneTree
+	if tree != null and tree.root != null and root_gm.get_parent() == null:
+		tree.root.add_child(root_gm)
 
 
 func _cleanup(overlay: CanvasLayer) -> void:
@@ -146,25 +164,23 @@ func _test_c1_missing_gm_placeholder() -> void:
 	var overlay: CanvasLayer = result[0]
 	var score_label: Label = result[1]
 	var wave_label: Label = result[2]
-	if Engine.has_singleton("GameManager"):
-		Engine.unregister_singleton("GameManager")
+	var root_gm: Node = _detach_real_gm()
 	overlay.call("show_overlay")
 	_assert(score_label.text == "—", "C1: score placeholder when GM missing")
 	_assert(wave_label.text == "—", "C1: wave placeholder when GM missing")
-	_restore_real_gm()
+	_reattach_real_gm(root_gm)
 	_cleanup(overlay)
 
 
 func _test_c2_warn_once() -> void:
 	var result: Array = _make_overlay()
 	var overlay: CanvasLayer = result[0]
-	if Engine.has_singleton("GameManager"):
-		Engine.unregister_singleton("GameManager")
+	var root_gm: Node = _detach_real_gm()
 	overlay.call("show_overlay")
 	_assert(overlay.get("_warned_gm") == true, "C2: _warned_gm set on missing GM")
 	overlay.call("show_overlay")
 	_assert(overlay.get("_warned_gm") == true, "C2: second show_overlay with missing GM does not crash")
-	_restore_real_gm()
+	_reattach_real_gm(root_gm)
 	_cleanup(overlay)
 
 
