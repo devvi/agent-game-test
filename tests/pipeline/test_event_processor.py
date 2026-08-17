@@ -1336,6 +1336,32 @@ class TestReviewFollowup(unittest.TestCase):
             self.assertEqual(os.listdir(d), ["475.json"],
                              "file must be kept for retry")
 
+    def test_approve_variant_verdict_merges(self):
+        """2026-08-17 (#516 实证修复): LLM 写的 verdict 可能非严格 "approved"
+        (如 "approve") — 归一化小写后变体都接受, 否则 approve 永不 merge。"""
+        with tempfile.TemporaryDirectory() as td:
+            d = self._write_conclusion(td, 475, verdict="approve", fix=None)
+            merged = []
+
+            def fake_gh(*args):
+                joined = " ".join(str(a) for a in args)
+                if joined.startswith("pr view"):
+                    return '{"state": "OPEN", "mergeable": "MERGEABLE"}'
+                if joined.startswith("pr merge"):
+                    merged.append(args)
+                    return "https://github.com/devvi/agent-game-test/pull/475"
+                return ""
+
+            with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR", d), \
+                 mock.patch.object(ep, "gh", side_effect=fake_gh):
+                ep._write_e2e_state(475, {"status": "done",
+                                          "emitted_at": time.time() - 10,
+                                          "summary": "/tmp/e2e-475/summary.json"})
+                lines = ep.review_followup()
+            self.assertTrue(any("approved → merged" in l for l in lines),
+                            f"approve variant must merge: {lines}")
+            self.assertEqual(len(merged), 1)
+
     def test_non_blocked_verdict_recorded(self):
         """request_changes / self_correct verdicts: recorded + file consumed
         (their mechanical aftermath — self-correct label etc — is done by the
@@ -1536,6 +1562,24 @@ class TestE2EOrchestrator(unittest.TestCase):
                                        os.path.join(td, "concl")):
                     lines2 = ep.e2e_orchestrator(475, "impl/x")
                 self.assertEqual(lines2, [], "conclusion present → silent")
+
+    def test_reviewed_state_silent_no_restart(self):
+        """2026-08-17 (#516 实证修复): status=reviewed (结论已消费的终态)
+        必须静默返回 — 否则落进 absent 分支会启动新 E2E runner (stalled
+        scan 每 tick 扫到就重启, 无限轮次)。"""
+        with tempfile.TemporaryDirectory() as td:
+            state_dir = os.path.join(td, "state")
+            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir), \
+                 mock.patch.object(ep, "E2E_RUNNER", "/fake/runner.sh"), \
+                 mock.patch("subprocess.Popen") as m_popen:
+                ep._write_e2e_state(475, {"status": "reviewed",
+                                          "emitted_at": time.time() - 100,
+                                          "summary": "/tmp/e2e-475/summary.json"})
+                lines = ep.e2e_orchestrator(475, "impl/x")
+                self.assertEqual(ep._read_e2e_state(475).get("status"), "reviewed",
+                                 "state must not be mutated")
+            self.assertEqual(lines, [], f"reviewed must be silent: {lines}")
+            m_popen.assert_not_called()
 
     def test_done_state_fresh_ci_restarts_round(self):
         """2026-08-17 (方案 X): a new check_run.completed event (fresh_ci=True)

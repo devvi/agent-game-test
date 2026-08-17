@@ -2052,7 +2052,7 @@ def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False) -> list:
             lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={summary}")
         return lines
 
-    if status in ("done", "failed"):
+    if status in ("done", "failed", "reviewed"):
         # 2026-08-17 (方案 X): one-shot 派发, 不再重发。
         # 历史教训: done 分支"每 5 分钟重发直到结论文件出现"(ce03bd2/
         # 80d6aaa) 与 review_followup"消费即删"互相抵消 → review 无限循环
@@ -2061,6 +2061,11 @@ def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False) -> list:
         # 检测 (告警, 不自动重发)。
         # 2026-08-17 (复盘): done 与 failed 同权 — failed 也由 review agent
         # 判类 (原设计 §5.1), 所以 failed 的防御补发与 done 一致。
+        # reviewed (2026-08-17): 终态 — review_followup 已消费结论。
+        # 必须静默返回, 否则落进 absent 分支会重启 E2E (stalled scan 每
+        # tick 扫到就启动新 runner, 无限轮次)。新 commit 由 fresh_ci 重置。
+        if status == "reviewed":
+            return lines  # 终态: 已 review, 静默 (不重启)
         if _read_review_conclusions_file(pr):
             return lines  # 结论在 → review_followup 将消费, 等待
         if state.get("emitted_at"):
@@ -2210,7 +2215,7 @@ def review_followup() -> list:
     for fn, data in _read_review_conclusions():
         try:
             pr = int(data.get("pr", 0))
-            verdict = data.get("verdict", "")
+            verdict = str(data.get("verdict", "")).strip().lower()
             parent = data.get("parent_issue")
             fix = data.get("fix_issue") or {}
             evidence = data.get("evidence", "")
@@ -2263,10 +2268,13 @@ def review_followup() -> list:
                 gh("pr", "comment", str(pr), "--body", comment)
                 lines.append(f"FOLLOWUP: pr={pr} comment posted")
                 _mark_reviewed(pr)
-            elif verdict == "approved":
+            elif verdict in ("approved", "approve"):
                 # 2026-08-17 (方案 X #2 配套): approve 的 merge 由脚本执行
-                # (确定性, LLM 只判定)。成功 → 删文件; 失败 → 保留文件
-                # 下 tick 幂等重试 — 新 commit 会触发 fresh_ci 重置自愈。
+                # (确定性, LLM 只判定)。verdict 归一化为小写, "approve"/
+                # "approved" 变体都接受 (#516 实证: LLM 写 decision=approve
+                # 但 verdict 字段非严格 "approved" → 严格匹配漏 merge)。
+                # 成功 → 删文件; 失败 → 保留文件下 tick 幂等重试 — 新
+                # commit 会触发 fresh_ci 重置自愈。
                 if _try_merge(pr):
                     lines.append(f"FOLLOWUP: pr={pr} approved → merged")
                     _mark_reviewed(pr)
