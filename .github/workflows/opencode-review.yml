@@ -65,8 +65,14 @@ jobs:
           exit_code=0
           if [ -f mini-pong/tests/check_compile.gd ]; then
             echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-            godot --path mini-pong/ --headless --script tests/check_compile.gd > compile-mini-pong-output.log 2>&1
-            exit_code=$?
+            # 2026-08-17 (CI 修复): if 形式绕过 bash -e — godot exit 1 不会
+            # 终止脚本, exit_code 正常写入 GITHUB_OUTPUT (原: godot; exit_code=$?
+            # 在 bash -e 下提前终止 → outputs 缺失 → gate 假绿)
+            if godot --path mini-pong/ --headless --script tests/check_compile.gd > compile-mini-pong-output.log 2>&1; then
+              exit_code=0
+            else
+              exit_code=$?
+            fi
             cat compile-mini-pong-output.log
             # 退出码非0 或 输出含 FAIL/SCRIPT ERROR = 编译失败
             if [ "$exit_code" -ne 0 ] || grep -qE "FAIL|SCRIPT ERROR" compile-mini-pong-output.log; then
@@ -76,8 +82,11 @@ jobs:
           elif [ -d mini-pong ]; then
             # Fallback: quick project validation if check_compile.gd missing
             echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-            godot --path mini-pong/ --headless --quit > compile-mini-pong-output.log 2>&1
-            exit_code=$?
+            if godot --path mini-pong/ --headless --quit > compile-mini-pong-output.log 2>&1; then
+              exit_code=0
+            else
+              exit_code=$?
+            fi
             if [ "$exit_code" -ne 0 ] || grep -qE "FAIL|SCRIPT ERROR" compile-mini-pong-output.log; then
               echo "❌ COMPILE ERROR(s) detected"
               exit_code=1
@@ -93,8 +102,12 @@ jobs:
         run: |
           if [ -f tests/run_tests.gd ]; then
             echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-            godot --headless --script tests/run_tests.gd > test-output.log 2>&1
-            TEST_EXIT=$?
+            # 2026-08-17 (CI 修复): if 形式绕过 bash -e (同 mini-pong-test)
+            if godot --headless --script tests/run_tests.gd > test-output.log 2>&1; then
+              TEST_EXIT=0
+            else
+              TEST_EXIT=$?
+            fi
             echo "Test output:"
             cat test-output.log
             # 失败判定（2026-08-13 修复 critical 缺陷）: 任何一条命中即失败
@@ -118,8 +131,12 @@ jobs:
         run: |
           if [ -f tests/smoke_test.gd ]; then
             echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-            godot --headless --script tests/smoke_test.gd > smoke-output.log 2>&1
-            echo "exit_code=$?" >> $GITHUB_OUTPUT
+            # 2026-08-17 (CI 修复): if 形式绕过 bash -e (同 mini-pong-test)
+            if godot --headless --script tests/smoke_test.gd > smoke-output.log 2>&1; then
+              echo "exit_code=0" >> $GITHUB_OUTPUT
+            else
+              echo "exit_code=$?" >> $GITHUB_OUTPUT
+            fi
           else
             echo "SKIP: tests/smoke_test.gd not found"
             echo "exit_code=0" >> $GITHUB_OUTPUT
@@ -130,8 +147,12 @@ jobs:
         id: rnp
         run: |
           if [ -d rainy-night-prometheus ]; then
-            godot --path rainy-night-prometheus/ --headless --quit > rnp-output.log 2>&1
-            echo "exit_code=$?" >> $GITHUB_OUTPUT
+            # 2026-08-17 (CI 修复): if 形式绕过 bash -e
+            if godot --path rainy-night-prometheus/ --headless --quit > rnp-output.log 2>&1; then
+              echo "exit_code=0" >> $GITHUB_OUTPUT
+            else
+              echo "exit_code=$?" >> $GITHUB_OUTPUT
+            fi
           else
             echo "SKIP: rainy-night-prometheus/ not found"
             echo "exit_code=0" >> $GITHUB_OUTPUT
@@ -142,8 +163,12 @@ jobs:
         id: mini-pong
         run: |
           if [ -d mini-pong ]; then
-            godot --path mini-pong/ --headless --quit > mini-pong-output.log 2>&1
-            echo "exit_code=$?" >> $GITHUB_OUTPUT
+            # 2026-08-17 (CI 修复): if 形式绕过 bash -e
+            if godot --path mini-pong/ --headless --quit > mini-pong-output.log 2>&1; then
+              echo "exit_code=0" >> $GITHUB_OUTPUT
+            else
+              echo "exit_code=$?" >> $GITHUB_OUTPUT
+            fi
           else
             echo "SKIP: mini-pong/ not found"
             echo "exit_code=0" >> $GITHUB_OUTPUT
@@ -155,8 +180,14 @@ jobs:
         run: |
           if [ -f mini-pong/tests/run_tests.gd ]; then
             echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-            godot --path mini-pong/ --headless --script tests/run_tests.gd > mini-pong-test-output.log 2>&1
-            TEST_EXIT=$?
+            # 2026-08-17 (CI 修复): if 形式绕过 bash -e — godot exit 1 不会
+            # 终止脚本, TEST_EXIT 正常捕获, 判定块真实执行 (原: godot; TEST_EXIT=$?
+            # 在 bash -e 下提前终止 → exit_code 未写入 outputs → gate 假绿)
+            if godot --path mini-pong/ --headless --script tests/run_tests.gd > mini-pong-test-output.log 2>&1; then
+              TEST_EXIT=0
+            else
+              TEST_EXIT=$?
+            fi
             echo "Test output:"
             cat mini-pong-test-output.log
             # 失败判定（2026-08-13 修复 critical 缺陷）: 任何一条命中即失败
