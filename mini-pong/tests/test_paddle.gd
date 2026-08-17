@@ -26,6 +26,14 @@ func run() -> void:
 	_test_recalc_bounds_f2()        # TC-F2
 	_test_player_speed_instance_f3() # TC-F3
 	_test_ai_speed_instance_f4()     # TC-F4
+	_test_visual_width_f5()          # TC-F5 (#526 AC1)
+	_test_collision_visual_sync_f6() # TC-F6 (#526 AC2)
+	_test_stack_additive_f7()        # TC-F7 (#526 AC3)
+	_test_ai_visual_sync_f8()        # TC-F8 (#526 AC4)
+	_test_no_color_rect_noop_f9()    # TC-F9 (#526 边界 2)
+	_test_set_before_ready_f10()     # TC-F10 (#526 边界 3)
+	_test_initial_frame_zero_f11()   # TC-F11 (#526 初始帧零回归)
+	_test_shared_shape_isolation_f12() # TC-F12 (#526 共享 shape 隔离)
 	_test_combo_first_score_no_boost() # G1
 	_test_combo_score_within_window()   # G2
 	_test_combo_continuous_refresh()    # G3
@@ -259,6 +267,106 @@ func _test_ai_speed_instance_f4() -> void:
 	var d2 = paddle.position.x - x2
 	_assert(d1 > 0.0 and d2 > 0.0, "TC-F4: AI moves toward target (d1=%.2f d2=%.2f)" % [d1, d2])
 	_assert(abs(d2 - 2.0 * d1) < 0.5, "TC-F4: AI move scales with paddle_speed (2× speed → 2× move)")
+
+
+# ── Scenario F: 长臂视觉同步（#526，场景级 player_paddle.tscn）──
+# 根因（PRD §2.1）: 验收只看物理层 + FakePaddle 锁变量层 → 本组测试穿透到表现层
+# （ColorRect offsets），从场景实例化起步。TC-F2 编号已被 _test_recalc_bounds_f2
+# 占用 → 新用例从 TC-F5 起。
+
+func _scene_paddle():
+	# 场景级实例化（不锁类型：headless 下禁用 := 推断 load()/get_node() 返回值类型）
+	var scene = load("res://scenes/player_paddle.tscn")
+	var paddle = scene.instantiate()
+	return paddle
+
+
+func _color_rect_width(paddle) -> float:
+	var cr = paddle.get_node("ColorRect")
+	return cr.offset_right - cr.offset_left
+
+
+func _collision_shape(paddle):
+	var cs = paddle.get_node("CollisionShape2D")
+	return cs.shape
+
+
+func _test_visual_width_f5() -> void:
+	# TC-F5 (AC1): set_paddle_width 同步 ColorRect 视觉宽度（修复点 1 主诉）
+	var paddle = _scene_paddle()
+	paddle._ready()
+	paddle.set_paddle_width(156.0)
+	_assert(abs(_color_rect_width(paddle) - 156.0) < 0.01, "TC-F5: ColorRect width == 156 (视觉变宽)")
+	_assert(abs(paddle.paddle_width - 156.0) < 0.01, "TC-F5: paddle_width == 156 (实例属性)")
+
+
+func _test_collision_visual_sync_f6() -> void:
+	# TC-F6 (AC2): 碰撞体与视觉双通道同步（碰撞即时生效 + 表现层同步）
+	var paddle = _scene_paddle()
+	paddle._ready()
+	paddle.set_paddle_width(156.0)
+	var shape = _collision_shape(paddle)
+	_assert(abs(shape.size.x - 156.0) < 0.01, "TC-F6: CollisionShape2D.shape.size.x == 156 (碰撞不回退)")
+	_assert(abs(_color_rect_width(paddle) - 156.0) < 0.01, "TC-F6: ColorRect width == 156 (双通道同步)")
+
+
+func _test_stack_additive_f7() -> void:
+	# TC-F7 (AC3): 连续设置 → 每次 视觉 == 碰撞 == 实例变量（156 → 192，基数加算语义）
+	var paddle = _scene_paddle()
+	paddle._ready()
+	paddle.set_paddle_width(156.0)
+	_assert(abs(paddle.paddle_width - 156.0) < 0.01 and abs(_color_rect_width(paddle) - 156.0) < 0.01 and abs(_collision_shape(paddle).size.x - 156.0) < 0.01, "TC-F7: 1st set 156 → 三通道一致")
+	paddle.set_paddle_width(156.0)
+	_assert(abs(paddle.paddle_width - 156.0) < 0.01 and abs(_color_rect_width(paddle) - 156.0) < 0.01 and abs(_collision_shape(paddle).size.x - 156.0) < 0.01, "TC-F7: 2nd set 156 → 三通道一致")
+	paddle.set_paddle_width(192.0)
+	_assert(abs(paddle.paddle_width - 192.0) < 0.01, "TC-F7: paddle_width == 192")
+	_assert(abs(_color_rect_width(paddle) - 192.0) < 0.01, "TC-F7: ColorRect width == 192")
+	_assert(abs(_collision_shape(paddle).size.x - 192.0) < 0.01, "TC-F7: CollisionShape2D.shape.size.x == 192")
+
+
+func _test_ai_visual_sync_f8() -> void:
+	# TC-F8 (AC4): AI 挡板同场景脚本 → set_paddle_width 同步视觉（显式断言防回归）
+	var paddle = _scene_paddle()
+	paddle.mode = paddle.Mode.AI
+	paddle._ready()
+	paddle.set_paddle_width(156.0)
+	_assert(abs(_color_rect_width(paddle) - 156.0) < 0.01, "TC-F8: AI paddle ColorRect width == 156 (视觉同步)")
+
+
+func _test_no_color_rect_noop_f9() -> void:
+	# TC-F9 (边界 2): 动态构造 paddle 无 ColorRect 子节点 → 视觉同步判空 no-op，不崩溃
+	var paddle = _make_paddle()
+	paddle._ready()
+	paddle.set_paddle_width(156.0)
+	_assert(abs(paddle.paddle_width - 156.0) < 0.01, "TC-F9: 无 ColorRect 不崩溃且 paddle_width == 156")
+
+
+func _test_set_before_ready_f10() -> void:
+	# TC-F10 (边界 3): _ready() 前调 set_paddle_width → 不崩溃；_ready() 后 ColorRect == 当前宽度
+	var paddle = _scene_paddle()
+	paddle.set_paddle_width(156.0)
+	_assert(abs(paddle.paddle_width - 156.0) < 0.01, "TC-F10: _ready 前 set 不崩溃且 paddle_width == 156")
+	paddle._ready()
+	_assert(abs(_color_rect_width(paddle) - 156.0) < 0.01, "TC-F10: _ready() 后 ColorRect 宽度 == 当前 paddle_width (156)")
+
+
+func _test_initial_frame_zero_f11() -> void:
+	# TC-F11 (初始帧零回归): 仅 _ready()（不调 setter）→ ColorRect 宽度 == 120 == 场景硬编码
+	var paddle = _scene_paddle()
+	paddle._ready()
+	_assert(abs(_color_rect_width(paddle) - 120.0) < 0.01, "TC-F11: 初始 ColorRect 宽度 == 120 (场景硬编码零回归)")
+
+
+func _test_shared_shape_isolation_f12() -> void:
+	# TC-F12 (research 复核: 共享 shape 隔离, #526): 双实例碰撞体必须独立，
+	# 玩家升级不得连带 AI 挡板碰撞体（sub_resource 每实例独立，防未来共享回归）
+	var paddle_a = _scene_paddle()
+	var paddle_b = _scene_paddle()
+	paddle_a._ready()
+	paddle_b._ready()
+	paddle_a.set_paddle_width(156.0)
+	_assert(abs(_collision_shape(paddle_a).size.x - 156.0) < 0.01, "TC-F12: paddle_a CollisionShape2D.shape.size.x == 156")
+	_assert(abs(_collision_shape(paddle_b).size.x - 120.0) < 0.01, "TC-F12: paddle_b CollisionShape2D.shape.size.x == 120 (独立, 未连带)")
 
 
 # ── Scenario G: Combo Speed Feedback (#504, RED — API not yet implemented) ──
