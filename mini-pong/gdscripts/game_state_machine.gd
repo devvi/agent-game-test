@@ -100,6 +100,11 @@ func enter_state(state: State) -> void:
 		State.MENU:
 			_set_ui("start_menu")
 			_freeze_paddles(true)
+			# #508 补漏: 初始 MENU (previous==MENU, 刚启动) 冻结球 — 否则 ball._ready() 的
+			# serve() 使球在 title 界面后台空转/出界循环。GAME_OVER→MENU 重开路径
+			# (previous==GAME_OVER) 不冻结 — #391 AC4 要求退出 GAME_OVER 后球可动。
+			if previous_state == State.MENU:
+				_freeze_ball(true)
 			_transition_lock = false
 			_set_world_visible(false)   # #508: MENU 隐藏游戏世界
 
