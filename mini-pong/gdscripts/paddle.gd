@@ -40,6 +40,12 @@ func set_frozen(value: bool) -> void:
 var min_x: float = 0.0
 var max_x: float = 0.0
 
+# ── 共享 shape 隔离 (#526) ──
+## 幂等隔离标志：shape 已 duplicate 到实例私有。set_paddle_width 可能先于 _ready() 被调用
+## （如 TC-F10），届时直接改写共享 sub_resource 会污染同场景其他实例（TC-F12 断言 120 失败）。
+## 该标志保证无论调用顺序如何，只 duplicate 一次，绝不改写场景共享的 RectangleShape2D。
+var _shape_isolated: bool = false
+
 # ── AI state ──
 var _ball_node: Node2D = null
 var _ai_delay_timer: float = 0.0
@@ -85,6 +91,22 @@ func _ready() -> void:
 
 	# Boundary calculation from viewport size (X 轴, #383)
 	base_paddle_width = paddle_width
+
+	# #526（research 复核 2026-08-17）: player_paddle.tscn 的 RectangleShape2D sub_resource
+	# 未设 resource_local_to_scene，PlayerPaddle/AIPaddle 双实例共享同一 shape 对象 —
+	# set_paddle_width 改 shape.size.x 会连带改 AI 挡板碰撞体。每实例 duplicate() 隔离，
+	# 玩家升级不影响 AI 碰撞体（节点名优先，动态构造未命名 → 遍历 fallback，同下风格）。
+	var cs = get_node_or_null("CollisionShape2D") as CollisionShape2D
+	if cs == null:
+		for child in get_children():
+			if child is CollisionShape2D:
+				cs = child
+				break
+	if cs != null and cs.shape is RectangleShape2D:
+		cs.shape = cs.shape.duplicate()
+		_shape_isolated = true
+
+	_sync_visual()
 	_recalc_bounds()
 
 	# Register with paddles group for ball collision detection
@@ -183,6 +205,21 @@ func _ai_process(delta: float) -> void:
 	position.x = clamp(position.x, min_x, max_x)
 
 
+## #526: 视觉同步 — ColorRect offsets ← paddle_width/paddle_height（单一事实源）。
+## 场景硬编码（-60..60/-10..10）保留作初始值，_ready() 运行时覆盖（零 diff、零回归）。
+## 动态/测试构造的 paddle 无 ColorRect → 判空 no-op（与 set_paddle_width 现有 fallback 同风格）。
+func _sync_visual() -> void:
+	var cr = get_node_or_null("ColorRect") as ColorRect
+	if cr == null:
+		return
+	var half_w := paddle_width / 2.0
+	var half_h := paddle_height / 2.0
+	cr.offset_left = -half_w
+	cr.offset_right = half_w
+	cr.offset_top = -half_h
+	cr.offset_bottom = half_h
+
+
 ## #387 AC3/AC5: 长臂升级入口 — 同步实例属性 + CollisionShape2D.size.x（球读
 ## shape.size.x → 下一帧即时感知），并重算边界 + clamp（DESIGN §4.2 伪代码）。
 func set_paddle_width(w: float) -> void:
@@ -196,8 +233,16 @@ func set_paddle_width(w: float) -> void:
 				cs = child
 				break
 	if cs != null and cs.shape is RectangleShape2D:
+		# #526: 幂等隔离 guard — 本函数可能在 _ready() 之前被调用（TC-F10），此时
+		# shape 仍是场景共享 sub_resource，直接改 size.x 会污染同场景其他实例。
+		# 已隔离则跳过（幂等，绝不重复 duplicate），也绝不改写共享对象。
+		if not _shape_isolated:
+			cs.shape = cs.shape.duplicate()
+			_shape_isolated = true
 		cs.shape.size.x = w
 	_recalc_bounds()
+	# #526: 效果写入点补表现层 — 玩家下一帧看到变宽（碰撞即时生效 + 视觉同步）
+	_sync_visual()
 
 
 func _recalc_bounds() -> void:

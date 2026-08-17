@@ -9,6 +9,8 @@ extends RefCounted
 ## 不崩溃的桩（写 UpgradePool.stub_activated 标记 + push_warning），完整实现
 ## 随 #384 落地后以独立小 PR 深化。6/9 效果（long_arm / fireball /
 ## battering_ram / magnet_core / slow_time / pre_hole）机械完整实现。
+## #526 桩过滤决策: 3 桩经 is_stub 标记从候选池排除（玩家可选的升级必须全部
+## 有可见反馈，PRD §2.2 情感误归因约束）；完整实现后置 false 回归候选池。
 ##
 ## 稀有度来源: docs/PLAN-rogue-pong.md §2.5（已确认 2026-08-13）。
 
@@ -32,6 +34,7 @@ static func definitions() -> Array:
 			"id": "long_arm",
 			"name": "长臂",
 			"rarity": Rarity.COMMON,
+			"is_stub": false,
 			"max_stacks": 3,
 			"effect_desc": "挡板宽度 +30%（对基数加算，两次 → +60%）",
 			"effect": Callable(_SELF, "_effect_long_arm"),
@@ -40,6 +43,7 @@ static func definitions() -> Array:
 			"id": "fireball",
 			"name": "燃烧弹",
 			"rarity": Rarity.COMMON,
+			"is_stub": false,
 			"max_stacks": 3,
 			"effect_desc": "球速 +10%，破砖烧碎相邻砖",
 			"effect": Callable(_SELF, "_effect_fireball"),
@@ -48,6 +52,7 @@ static func definitions() -> Array:
 			"id": "battering_ram",
 			"name": "破城锤",
 			"rarity": Rarity.COMMON,
+			"is_stub": false,
 			"max_stacks": 3,
 			"effect_desc": "破砖冲击波，碎邻近砖",
 			"effect": Callable(_SELF, "_effect_battering_ram"),
@@ -56,6 +61,7 @@ static func definitions() -> Array:
 			"id": "magnet_core",
 			"name": "磁心",
 			"rarity": Rarity.RARE,
+			"is_stub": false,
 			"max_stacks": 2,
 			"effect_desc": "挡板磁力吸球",
 			"effect": Callable(_SELF, "_effect_magnet_core"),
@@ -64,6 +70,7 @@ static func definitions() -> Array:
 			"id": "twin",
 			"name": "双生",
 			"rarity": Rarity.RARE,
+			"is_stub": true,
 			"max_stacks": 1,
 			"effect_desc": "球分裂为二（桩：完整实现随 #384 落地后深化）",
 			"effect": Callable(_SELF, "_effect_twin_stub"),
@@ -72,6 +79,7 @@ static func definitions() -> Array:
 			"id": "slow_time",
 			"name": "缓时",
 			"rarity": Rarity.RARE,
+			"is_stub": false,
 			"max_stacks": 2,
 			"effect_desc": "球速冻结 2 秒后恢复",
 			"effect": Callable(_SELF, "_effect_slow_time"),
@@ -80,6 +88,7 @@ static func definitions() -> Array:
 			"id": "pre_hole",
 			"name": "预开洞",
 			"rarity": Rarity.RARE,
+			"is_stub": false,
 			"max_stacks": 1,
 			"effect_desc": "下波砖墙预开洞（经 BreakoutGrid upgrade_hooks）",
 			"effect": Callable(_SELF, "_effect_pre_hole"),
@@ -88,6 +97,7 @@ static func definitions() -> Array:
 			"id": "stardust",
 			"name": "星尘",
 			"rarity": Rarity.LEGENDARY,
+			"is_stub": true,
 			"max_stacks": 1,
 			"effect_desc": "穿墙轨迹伤害（桩：完整实现独立小 PR 深化）",
 			"effect": Callable(_SELF, "_effect_stardust_stub"),
@@ -96,6 +106,7 @@ static func definitions() -> Array:
 			"id": "phantom",
 			"name": "幻影",
 			"rarity": Rarity.LEGENDARY,
+			"is_stub": true,
 			"max_stacks": 1,
 			"effect_desc": "挡板残影多段判定（桩：完整实现独立小 PR 深化）",
 			"effect": Callable(_SELF, "_effect_phantom_stub"),

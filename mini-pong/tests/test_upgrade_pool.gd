@@ -81,6 +81,8 @@ func run() -> void:
 	_test_a2_definition_fields()
 	_test_a3_rarity_distribution()
 	_test_a4_by_id_lookup()
+	_test_a5_stub_marker_complete()   # #526 (AC5)
+	_test_a6_stub_excluded_from_pool()  # #526 (AC5)
 	# Scenario B: 稀有度先掷 60/30/10（AC2）
 	_test_b1_rarity_mapping()
 	_test_b2_rarity_statistics()
@@ -163,6 +165,39 @@ func _test_a4_by_id_lookup() -> void:
 	_assert(Defs.by_id("unknown").is_empty(), "TC-A4: by_id('unknown') → empty dict, no crash")
 
 
+func _test_a5_stub_marker_complete() -> void:
+	# #526 (AC5): 9 条定义均有 is_stub 标记（bool）；twin/stardust/phantom == true、
+	# 其余 6 条 == false；桩定义保留（by_id 仍可查，供未来实现回归）
+	var stub_ids := {"twin": true, "stardust": true, "phantom": true}
+	for d in Defs.definitions():
+		var id_str: String = d.get("id", "?")
+		_assert(d.has("is_stub") and typeof(d.get("is_stub")) == TYPE_BOOL, "TC-A5: %s 有 is_stub 且为 bool" % id_str)
+		var expect_stub: bool = stub_ids.get(id_str, false)
+		_assert(bool(d.get("is_stub")) == expect_stub, "TC-A5: %s is_stub == %s" % [id_str, expect_stub])
+	_assert(Defs.by_id("stardust").has("is_stub"), "TC-A5: by_id('stardust') 仍可查（定义保留）")
+
+
+func _test_a6_stub_excluded_from_pool() -> void:
+	# #526 (AC5): 候选池排除桩 — _ready() 后多轮候选永不含 twin/stardust/phantom，
+	# 候选恒为 3 张非桩；get_candidates(30) 全量返回 ≤ 6 张且不含桩
+	var pool = _make_pool()
+	if pool == null:
+		_assert(false, "TC-A6: upgrade_pool.gd script loaded")
+		return
+	pool.rng.seed = 20260817
+	pool._ready()
+	var stub_ids: Array = ["twin", "stardust", "phantom"]
+	for i in 50:
+		var cards = pool.get_candidates(3)
+		_assert(cards.size() == 3, "TC-A6: 第 %d 轮候选恒为 3 张" % i)
+		for c in cards:
+			_assert(not stub_ids.has(c.id), "TC-A6: 候选永不含桩 (%s)" % c.id)
+	var all_cards = pool.get_candidates(30)
+	_assert(all_cards.size() <= 6, "TC-A6: get_candidates(30) 全量返回 ≤ 6 张 (实际 %d)" % all_cards.size())
+	for c in all_cards:
+		_assert(not stub_ids.has(c.id), "TC-A6: 全量返回不含桩 (%s)" % c.id)
+
+
 # ── Scenario B: 稀有度先掷 60/30/10（AC2）──
 
 func _test_b1_rarity_mapping() -> void:
@@ -188,17 +223,25 @@ func _test_b2_rarity_statistics() -> void:
 	pool._ready()
 	var counts: Array = [0, 0, 0]
 	var total: int = 0
+	var all_nonempty := true
 	for i in 20000:
 		var cards = pool.get_candidates(3)
+		if cards.is_empty():
+			all_nonempty = false
 		for c in cards:
 			counts[c.rarity] += 1
 			total += 1
 	var c_pct: float = 100.0 * counts[0] / total
 	var r_pct: float = 100.0 * counts[1] / total
 	var l_pct: float = 100.0 * counts[2] / total
-	_assert(c_pct >= 55.0 and c_pct <= 65.0, "TC-B2: common %.1f%% ∈ [55,65]" % c_pct)
+	# #526 桩过滤后: 池 = 6 张非桩（COMMON 3 / RARE 3 / LEGENDARY 0）。
+	# 理论分布: 60% 直接 COMMON + 10% 传说掷出经 _fallback_rarity 回退 COMMON ≈ 70%；
+	# 30% RARE；传说恒 0%（池内无传说）。
+	_assert(c_pct >= 65.0 and c_pct <= 75.0, "TC-B2: common %.1f%% ∈ [65,75]" % c_pct)
 	_assert(r_pct >= 25.0 and r_pct <= 35.0, "TC-B2: rare %.1f%% ∈ [25,35]" % r_pct)
-	_assert(l_pct >= 5.0 and l_pct <= 15.0, "TC-B2: legendary %.1f%% ∈ [5,15]" % l_pct)
+	_assert(l_pct == 0.0, "TC-B2: legendary 0%%（池内 0 传说）")
+	_assert(c_pct + r_pct > 99.9, "TC-B2: c_pct + r_pct 接近 100 (%.1f)" % (c_pct + r_pct))
+	_assert(all_nonempty, "TC-B2: 20000 轮候选恒非空（传说空池回退，边界 4）")
 
 
 func _test_b3_candidate_rarity_meta() -> void:
@@ -275,16 +318,18 @@ func _test_d1_max_stacks_one() -> void:
 		_assert(false, "TC-D1: upgrade_pool.gd script loaded")
 		return
 	pool._ready()
-	_assert(pool.apply("stardust"), "TC-D1: first apply('stardust') succeeds")
-	_assert(pool.get_stacks("stardust") == 1, "TC-D1: stacks == 1")
-	_assert(not pool.apply("stardust"), "TC-D1: second apply returns false (max_stacks=1, 整局不可重复)")
+	# #526: stardust 为桩（候选池排除 → apply 恒 false）→ 改用非桩 max_stacks=1 的
+	# pre_hole 验证「整局不可重复」语义（桩无关）。
+	_assert(pool.apply("pre_hole"), "TC-D1: first apply('pre_hole') succeeds")
+	_assert(pool.get_stacks("pre_hole") == 1, "TC-D1: stacks == 1")
+	_assert(not pool.apply("pre_hole"), "TC-D1: second apply returns false (max_stacks=1, 整局不可重复)")
 	var seen_later := false
 	for i in 10:
 		var cards = pool.get_candidates(3)
 		for c in cards:
-			if c.id == "stardust":
+			if c.id == "pre_hole":
 				seen_later = true
-	_assert(not seen_later, "TC-D1: stardust absent from future candidates")
+	_assert(not seen_later, "TC-D1: pre_hole absent from future candidates")
 
 
 func _test_d2_max_stacks_multi() -> void:
@@ -324,20 +369,22 @@ func _test_d4_candidate_vs_global() -> void:
 		_assert(false, "TC-D4: upgrade_pool.gd script loaded")
 		return
 	pool._ready()
+	# #526: stardust 为桩（候选池排除，永不出现）→ 改用非桩 max_stacks=1 的 pre_hole
+	# 复现「取前可见 → 取后全局消失」。
 	var seen_before := false
 	for i in 50:
 		var cards = pool.get_candidates(3)
 		for c in cards:
-			if c.id == "stardust":
+			if c.id == "pre_hole":
 				seen_before = true
 		if seen_before:
 			break
-	_assert(seen_before, "TC-D4: stardust appears in candidates before taking")
-	pool.apply("stardust")
+	_assert(seen_before, "TC-D4: pre_hole appears in candidates before taking")
+	pool.apply("pre_hole")
 	for i in 10:
 		var cards = pool.get_candidates(3)
 		for c in cards:
-			_assert(c.id != "stardust", "TC-D4: stardust gone globally after taking")
+			_assert(c.id != "pre_hole", "TC-D4: pre_hole gone globally after taking")
 
 
 func _test_d5_get_stacks_zero() -> void:
@@ -392,15 +439,25 @@ func _test_e3_apply_magnet_core() -> void:
 
 
 func _test_e4_stub_effects() -> void:
-	# 桩效果（twin/stardust/phantom）：可调用、可断言、不崩溃（§3.1 桩决策）
+	# #526 (AC5): 桩升级（twin/stardust/phantom）被候选池排除 → apply 均返回 false
+	# （不在 _available，_is_available 前置拦截，不计数不 emit）。
 	for id in ["twin", "stardust", "phantom"]:
 		var pool = _make_pool()
 		if pool == null:
 			_assert(false, "TC-E4: upgrade_pool.gd script loaded")
 			return
 		pool._ready()
-		_assert(pool.apply(id), "TC-E4: apply('%s') returns true" % id)
-		_assert(pool.stub_activated.get(id, false), "TC-E4: stub_activated['%s'] == true" % id)
+		_assert(not pool.apply(id), "TC-E4: apply('%s') returns false（桩不在候选池）" % id)
+		_assert(pool.get_stacks(id) == 0, "TC-E4: apply('%s') 不计数" % id)
+	# 桩回调保留性（§3.1 桩决策）: 标记逻辑保留供未来实现回归——直接调用桩回调仍写
+	# stub_activated（不经过 apply 拦截路径）。
+	var pool = _make_pool()
+	if pool == null:
+		_assert(false, "TC-E4: upgrade_pool.gd script loaded")
+		return
+	pool._ready()
+	Defs._effect_twin_stub({"pool": pool})
+	_assert(pool.stub_activated.get("twin", false), "TC-E4: _effect_twin_stub → stub_activated['twin'] == true")
 
 
 func _test_e5_signal_emit() -> void:

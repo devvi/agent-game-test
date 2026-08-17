@@ -28,7 +28,13 @@ var grid_ref = null
 
 
 func _ready() -> void:
-	_available = Defs.definitions().duplicate()
+	# #526: 候选池过滤桩升级 — 玩家可选的升级必须全部有可见反馈（PRD §2.2）。
+	# 过滤在 _load_display_names 之前（二者互不依赖）；桩定义保留（by_id 仍可查，
+	# stub 回调/标记逻辑不动），完整实现后置 is_stub=false 回归候选池。
+	_available = []
+	for d in Defs.definitions():
+		if not d.get("is_stub", false):
+			_available.append(d)
 	_load_display_names()
 
 
