@@ -88,12 +88,15 @@ Step 4: Refactor — keep the test contract intact
 Step 5: Commit (worktree-commit.sh 自动编译检查) → PR → CI 跑测试
 ```
 
-> **测试运行归 CI（原设计, 2026-08-17 修正）:** implement 阶段**不本地运行测试**
-> （不跑 `run_tests.gd` 完整套件, 不跑单个测试文件）。测试执行是 GitHub CI
-> （opencode-review.yml: L0 编译 → L1 smoke → L2 run_tests）的职责。本地唯一验证是
-> worktree-commit.sh 提交时的 `--headless --quit` 编译检查。
-> 理由: 本地跑完整套件烧 50-call 预算（完整套件 ~5min + auto_play 100 局 + e2e 3 局,
-> 实测 #508 因此截断, PR 未建）。若测试有疑问 → 提交后看 CI 结果, 失败走 self-correct。
+> **测试运行归 CI（原设计, 2026-08-17 修正 + 强化）:** implement 阶段**不本地运行任何测试**——
+> 包括 Godot 测试（`run_tests.gd` 完整套件 / 单个测试文件）**和 Python 单测**（`tests/pipeline/` 的
+> `unittest` / pytest / 任何 `python3 -m unittest` 调用）。测试执行是 GitHub CI 的职责
+> （opencode-review.yml: L0 编译 → L1 smoke → L2 run_tests；pipeline-tests.yml: scripts 改动跑
+> Python 单测）。**本地唯一允许的验证是 worktree-commit.sh 提交时的 `--headless --quit` 编译检查**
+> （自动执行, 不额外烧预算）。即便你改了 `scripts/*.py`, 也不要本地跑 Python 测试 ——
+> pipeline-tests.yml 会在 PR 上自动跑。
+> 理由: 本地验证循环烧 50-call 迭代上限（实测 #508/#517 均因此截断, PR 未建; 555c1e82
+> 跑 186 个 Python 单测烧掉 ~40 轮）。若测试有疑问 → 提交后看 CI 结果, 失败走 self-correct。
 
 ### Pre-Implementation: Upstream Integration Scan
 
