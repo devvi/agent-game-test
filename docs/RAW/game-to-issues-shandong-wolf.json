@@ -143,7 +143,7 @@
       "id": 6,
       "title": "[Feature] 拼刀 / 弹反 / 架势崩解判定系统",
       "description": "核心战斗判定：攻击碰撞帧（Hitbox）与弹反帧（Parry-box）的叠加窗口检测。实现规则：敌人攻击命中玩家时，若玩家处于 parry 帧且有正确方向判定 → 触发弹反（不受伤害 + 对敌人造成固定架势伤害）；若玩家普通攻击与敌人攻击同时发生 → 拼刀（clash，双方小架势伤害 + 特效触发）；非弹反受击 → 玩家掉血。架势条积满 → 敌人进入 stance_break。所有窗口帧数（弹反 6 帧、拼刀优先级等）集中 constants.gd # DRAFT。",
-      "context": "审美坐标：这是『我赢了一场艰难的仗』的核心手感引擎。弹反必须『难而公平』：窗口小（6-9 帧）、成功反馈强（火花 + 短暂慢动作）、失败代价明确。参考只狼的『打铁』音画节奏，本层负责判定，反馈由 SW-008 配合。\n🔍 开源优先: 开始实现前,先在 Godot Asset Library/GitHub/社区搜索 Godot hitbox/parry 开源实现,成熟方案优先复用,不重复造轮子,找不到再自行实现,并在 PR 中说明调研结果。\n画面实现路径：判定层不渲染；命中火花/刀光由 SW-008 的 GPUParticles2D 呈现。本 Issue 的数值手感属 taste-draft 候补，集中 constants.gd 供后续裁决。",
+      "context": "审美坐标：这是『我赢了一场艰难的仗』的核心手感引擎。弹反必须『难而公平』：窗口小（6-9 帧）、成功反馈强（火花 + 短暂慢动作）、失败代价明确。参考只狼的『打铁』音画节奏，本层负责判定，反馈由 SW-008 配合。\n🔍 开源优先: 开始实现前,先在 Godot Asset Library/GitHub/社区搜索 Godot hitbox/parry 开源实现,成熟方案优先复用,不重复造轮子,找不到再自行实现,并在 PR 中说明调研结果。\n画面实现路径：判定层不渲染；命中火花/刀光由 SW-008 的 GPUParticles2D 呈现。本 Issue 的数值手感属 taste-draft 候补，集中 constants.gd 供后续裁决。\n弹反窗口等数值基准：参考只狼体系（game-to-issues references/sekiro-tuning-reference.md），数值从 constants.gd 读取，判定逻辑与数值解耦。",
       "depth": "deep",
       "priority": "critical",
       "dependencies": [
@@ -333,8 +333,8 @@
     {
       "id": 13,
       "title": "[Taste] 战斗数值 DRAFT 集中表（手感候补值 + 一次性调参面板）",
-      "description": "集中维护 constants.gd 中所有战斗/受击/帧节奏数值：弹反窗口 6-9 帧（候选值 [6,7,8,9]）、架势初始值 100 / 回速度 20/s、两条命血量（第一条 100 / 第二条 50）、刀伤害 10-25、敌人攻击前摇 12 帧、拼刀架势伤害 15、处决触发距离 1.2m、慢动作系数。提供一个 DebugCanvas 调参面板（物理键 F1 开关，仅 debug build 可见），支持运行中改参数并导出候选对比。",
-      "context": "审美坐标：数值决定‘赢一场艰难的仗’的手感——太容易则爽文，太难则折磨。弹反窗口 6-9 帧（约 0.1-0.15s）是只狼中等难度；两条命第二条半管制造‘命悬一线’的紧张。本表所有值为 # DRAFT 候补，必须可由 E2E 截图 + 用户实机裁决。\n🔍 开源优先: 开始实现前,先在 Godot Asset Library/GitHub/社区搜索 Godot debug menu / tunable parameter 插件（如 godot-debug-menu）,成熟方案优先复用,不重复造轮子,找不到再自行实现,并在 PR 中说明调研结果。\n画面实现路径：调参面板为纯 Control 节点，用 StyleBox 空白背景+写字板字体；不引入 UI 图片。禁止‘实现手感系统’式空洞描述——本表直接列具体数值与候选。",
+      "description": "集中维护 constants.gd 中所有战斗/受击/帧节奏数值。**数值基准 = 只狼体系（references/sekiro-tuning-reference.md，2026-08-19 用户指定）**：每个 DRAFT 值必须标注『只狼基准 → 本项目候选』，偏离只狼处写理由。基准要点：弹反窗口 ~12 帧(0.2s@60fps，候选 [8,10,12,14])、架势上限=当前 HP 上限(100)、架势回复 20-35/s(脱战 1.5s 延迟)、格挡扣架势 8-12、弹反扣 0-2、受击扣 30-40、两条命血量(第一条 100 / 回生后 40-60)、轻击 10-15 / 重击 25-40 架势伤害、敌人攻击前摇 12-18 帧、处决触发距离 1.2m、慢动作系数。提供一个 DebugCanvas 调参面板(物理键 F1 开关，仅 debug build 可见)，支持运行中改参数并导出候选对比。调参优先级：弹反窗口 > 架势回复 > 受击扣架势 > 敌人前摇 > 攻击架势伤害 > 两条命血量。",
+      "context": "审美坐标：数值决定『赢一场艰难的仗』的手感——太容易则爽文，太难则折磨。**只狼基准（2026-08-19 用户拍板）：draft 数值直接参考只狼体系，不拍脑袋**——弹反窗口 10-14 帧（只狼 ~12 帧/0.2s 偏宽松=容错手感来源）、架势上限=当前 HP 上限、架势回复 20-35/s 是节奏阀（太快无脑弹反，太慢龟缩）、两条命=只狼回生（第 1 条归零→原地复活→半血=命悬一线）、受击双重惩罚（扣血+扣架势）逼玩家进攻（只狼核心哲学）。完整基准表：game-to-issues skill references/sekiro-tuning-reference.md。本表所有值为 # DRAFT 候补，必须可由 E2E 截图 + 用户实机裁决。\n🔍 开源优先: 开始实现前,先在 Godot Asset Library/GitHub/社区搜索 Godot debug menu / tunable parameter 插件(如 godot-debug-menu),成熟方案优先复用,不重复造轮子,找不到再自行实现,并在 PR 中说明调研结果。\n画面实现路径：调参面板为纯 Control 节点，用 StyleBox 空白背景+写字板字体；不引入 UI 图片。禁止『实现手感系统』式空洞描述——本表直接列具体数值与候选。",
       "depth": "standard",
       "priority": "medium",
       "dependencies": [
@@ -349,7 +349,7 @@
       "estimate": "2d",
       "milestone": "mvp",
       "acceptance_criteria": [
-        "constants.gd 内含完整 # DRAFT 数值表，每项标注候选值/当前值/备注（来源如只狼参考/自测手感）",
+        "constants.gd 内含完整 # DRAFT 数值表，每项标注「只狼基准 → 本项目候选」或偏离理由，禁止无出处数值",
         "F1 调参面板运行时可修改 ≥10 个核心参数并实时生效",
         "调参面板仅 debug build 可见，release 不编译",
         "PR 中附调参对比说明（至少 3 组候选对比手感差异）",
