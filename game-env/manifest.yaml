@@ -3,7 +3,7 @@
 # (P3 parameterization, 2026-07-31)
 #
 # 游戏切换（2026-08-18）: 一次只做一个游戏。切换 = 改 game.active 一个字段:
-#   sed -i '' 's/active: mini-pong/active: snow-blade/' game-env/manifest.yaml
+#   sed -i '' 's/active: mini-pong/active: mini-pong/' game-env/manifest.yaml
 # 全链路（CI / E2E / worktree-commit / SPAWN）自动跟随。
 
 project:
@@ -28,6 +28,12 @@ game:
       smoke_entry: tests/smoke_test.gd
       compile_check: tests/check_compile.gd
       e2e_plan: mini-pong/e2e_shots.json
+    snow-blade:
+      path: snow-blade/
+      test_entry: tests/run_tests.gd
+      smoke_entry: tests/smoke_test.gd
+      compile_check: tests/check_compile.gd
+      e2e_plan: snow-blade/e2e_shots.json
 
 source:
   dir: gdscripts/

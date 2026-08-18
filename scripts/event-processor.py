@@ -629,7 +629,12 @@ WORKDIR = os.path.expanduser("~/workspace/agent-game-test")
 MANIFEST_PATH = os.path.join(WORKDIR, "game-env", "manifest.yaml")
 
 def _load_manifest() -> dict:
-    """Load game environment manifest. Falls back to project defaults."""
+    """Load game environment manifest. Falls back to project defaults.
+
+    2026-08-18: 不再依赖 yaml 库 — 系统 python3 无 yaml, 旧逻辑 import yaml
+    抛异常 → 永远返回 default → manifest 参数化(repo/分支/game.active)全部
+    失效走 fallback。改为纯正则解析关键字段(够用且零依赖)。
+    """
     default = {
         "engine": {"name": "godot", "runner": "godot"},
         "source": {"dir": "gdscripts/"},
@@ -641,8 +646,55 @@ def _load_manifest() -> dict:
         return default
     try:
         with open(MANIFEST_PATH) as f:
+            txt = f.read()
+        # 先试 yaml（venv 环境有）
+        try:
             import yaml
-            return {**default, **yaml.safe_load(f)}
+            return {**default, **yaml.safe_load(txt)}
+        except ImportError:
+            pass
+        # 纯正则 fallback：解析本项目用到的关键字段
+        out: dict = dict(default)
+        m = re.search(r"^repo:\s*(\S+)", txt, re.M)
+        if m:
+            out["project"] = {"repo": m.group(1)}
+        m = re.search(r"^engine:\s*\n(?:.*\n)*?\s*name:\s*(\S+)", txt, re.M)
+        if m:
+            out["engine"] = {**out.get("engine", {}), "name": m.group(1)}
+        m = re.search(r"^  default_branch:\s*(\S+)", txt, re.M)
+        if m:
+            out["git"] = {**out.get("git", {}), "default_branch": m.group(1)}
+        # game.active + game.subprojects.<active>.path
+        gm = re.search(r"^game:\s*$", txt, re.M)
+        if gm:
+            gblock = txt[gm.end():]
+            am = re.search(r"active:\s*(\S+)", gblock[:200])
+            if am:
+                active = am.group(1)
+                game_cfg: dict = {"active": active, "subprojects": {}}
+                sm = re.search(r"subprojects:\s*\n(.*?)(?=\n\S|\Z)", gblock, re.S)
+                if sm:
+                    pm = re.search(
+                        r"^\s*" + re.escape(active) + r":\s*\n(.*?)(?=\n\s{4}\S|\Z)",
+                        sm.group(1), re.S | re.M)
+                    if pm:
+                        pm2 = re.search(r"path:\s*(\S+)", pm.group(1))
+                        if pm2:
+                            game_cfg["subprojects"][active] = {"path": pm2.group(1)}
+                out["game"] = game_cfg
+        # source.subprojects 列表
+        sm2 = re.search(r"^  subprojects:\s*$", txt, re.M)
+        if sm2:
+            subs: list = []
+            for line in txt[sm2.end():].splitlines():
+                s = line.strip()
+                if s.startswith("- "):
+                    subs.append(s[2:].strip())
+                elif s and not s.startswith("#"):
+                    break
+            if subs:
+                out["source"] = {**out.get("source", {}), "subprojects": subs}
+        return out
     except Exception:
         return default
 
