@@ -17,6 +17,7 @@ config/features=PackedStringArray("4.7")
 
 [autoload]
 
+WindowAutofit="*res://gdscripts/window_autofit.gd"
 GameManager="*res://gdscripts/game_manager.gd"
 AudioEngine="*res://gdscripts/audio_engine.gd"
 UpgradePool="*res://gdscripts/upgrade_pool.gd"
@@ -26,6 +27,8 @@ UpgradePool="*res://gdscripts/upgrade_pool.gd"
 window/size/viewport_width=720
 window/size/viewport_height=1280
 window/size/resizable=false
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
 
 [rendering]
 

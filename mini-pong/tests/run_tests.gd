@@ -30,6 +30,7 @@ func _run_tests() -> void:
 	_run("res://tests/test_pause_overlay.gd", "Pause Overlay")
 	_run("res://tests/test_audio_engine.gd", "AudioEngine")
 	_run("res://tests/test_constants.gd", "Constants")
+	_run("res://tests/test_window_autofit.gd", "Window Autofit")
 	_run("res://tests/test_visual_contrast.gd", "Visual Contrast")
 	_run("res://tests/test_upgrade_pool.gd", "Upgrade Pool")
 	_run("res://tests/test_main_scene.gd", "Main Scene Assembly")
