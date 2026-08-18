@@ -247,12 +247,12 @@ _ready() → _should_skip() → false
 
 | 集成 | 本组件 | 目标 | 方式 | 状态 |
 |------|:---:|:---:|------|:---:|
-| autoload 注册 | `window_autofit.gd` | `project.godot [autoload]` | 新增行置于 GameManager 之前 | ⬜ pending |
-| stretch 渲染 | `project.godot [display]` | 渲染管线 | `window/stretch/mode="canvas_items"` + `aspect="keep"` | ⬜ pending |
-| 屏幕查询 | `window_autofit.gd` | `DisplayServer.screen_get_usable_rect(0)` | Godot 4.7 平台 API（主屏可用区域） | ⬜ pending |
-| 窗口尺寸/位置 | `window_autofit.gd` | `DisplayServer.window_set_size` / `window_set_position` | Godot 4.7 平台 API | ⬜ pending |
+| autoload 注册 | `window_autofit.gd` | `project.godot [autoload]` | 新增行置于 GameManager 之前 | ✅ 已接线 (PR #550) |
+| stretch 渲染 | `project.godot [display]` | 渲染管线 | `window/stretch/mode="canvas_items"` + `aspect="keep"` | ✅ 已接线 (PR #550) |
+| 屏幕查询 | `window_autofit.gd` | `DisplayServer.screen_get_usable_rect(0)` | Godot 4.7 平台 API（主屏可用区域） | ✅ 已接线 (PR #550) |
+| 窗口尺寸/位置 | `window_autofit.gd` | `DisplayServer.window_set_size` / `window_set_position` | Godot 4.7 平台 API | ✅ 已接线 (PR #550) |
 | 逻辑分辨率 | `window_autofit.gd` | `constants.gd` SCREEN_WIDTH/HEIGHT | `preload` 只读引用（单一事实源） | ✅ 既有 |
-| 测试注册 | `tests/test_window_autofit.gd` | `tests/run_tests.gd` | 追加 `_run("res://tests/test_window_autofit.gd", "Window Autofit")` | ⬜ pending |
+| 测试注册 | `tests/test_window_autofit.gd` | `tests/run_tests.gd` | 追加 `_run("res://tests/test_window_autofit.gd", "Window Autofit")` | ✅ 已接线 (PR #550) |
 
 ---
 
