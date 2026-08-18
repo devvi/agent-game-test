@@ -1,0 +1,727 @@
+{
+  "meta": {
+    "title": "雪夜大刀 — 中国版像素只狼（抗战动作）",
+    "description": "做一个中国版像素只狼，主角是国民党先进分子（抗战背景），敌人是日本人。爽快民族叙事。",
+    "engine": "Godot 4.7.1",
+    "platform": "macOS",
+    "created_at": "2026-08-18T06:47:17Z",
+    "model": "deepseek/deepseek-v4-flash",
+    "status": "draft",
+    "total_issues": 17
+  },
+  "issues": [
+    {
+      "id": 1,
+      "title": "[Scaffold] strike_snow 模块脚手架与 Godot 启动场景",
+      "description": "在 mini-pong/gdscripts/ 下建立 strike_snow 模块，包含可启动的 main.tscn 与最小空场景。设置 Godot 4.7.1 viewport 为 1280x720 且 resizable=false，加入 CanvasLayer HUD 层（layer>=1），并确保与现有 mini-pong 项目互不冲突。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：全局脚手架，不直接进入玩家体验。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/；测试 mini-pong/tests/run_tests.gd。",
+      "depth": "standard",
+      "priority": "critical",
+      "dependencies": [],
+      "labels": [
+        "enhancement",
+        "workflow/backlog",
+        "mvp"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "新增 main.tscn 可从项目启动进入雪夜空场景；viewport 1280x720 且窗口不可缩放",
+        "HUD CanvasLayer layer>=1；strike_snow 模块与 mini-pong 旧代码隔离",
+        "运行 godot --headless --script tests/run_tests.gd 不回归",
+        "启动场景不出现默认灰色或页游光效"
+      ],
+      "content_ownership": "mechanical"
+    },
+    {
+      "id": 2,
+      "title": "[Combat Tuning] constants.gd 集中数值与 DRAFT 手感候补",
+      "description": "创建 strike_snow/constants.gd，集中所有 MVP 手感参数：大刀攻击力/前摇/硬直、弹反窗口帧、玩家士气上限与回复速度、敌人士气上限、处决判定距离。每个参数用 # DRAFT 标出，并提供候补档位（例如 8/10/12 帧弹反窗口）。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：全局手感底座，服务于所有战斗节奏段。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/。",
+      "depth": "light",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog",
+        "taste-draft",
+        "mvp"
+      ],
+      "estimate": "small",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "所有战斗脚本通过 constants.gd 获取数值，不散落魔法数字",
+        "每个 DRAFT 参数至少 2 个候补值并有手感说明",
+        "参数改动不需要修改战斗代码",
+        "headless 测试能加载 constants.gd 并读取所有关键值"
+      ],
+      "content_ownership": "taste-draft"
+    },
+    {
+      "id": 3,
+      "title": "[Rendering] 雪夜水墨渲染氛围系统",
+      "description": "实现全局渲染氛围：淡白月光、飘雪粒子、暗色村庄基底、水墨风格画面合成（可用 CanvasModulate、Gradient、简单 shader）、血色的高光点；只做氛围不做 UI。优先使用 Godot 内置 2D 光效/粒子，避免重造轮子。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：全流程氛围底层，支撑开场建立与高潮释放。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        1
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog",
+        "taste-draft",
+        "mvp"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "画面风格与主题一致：雪夜、水墨、黄土、血色、苍白；没有页游光效堆砌",
+        "关键战斗元素（玩家/敌人）在低照度下仍然可见",
+        "粒子/氛围在集成后不造成明显掉帧",
+        "血色只服务于处决与牺牲表达，不做装饰性血浆"
+      ],
+      "content_ownership": "taste-draft"
+    },
+    {
+      "id": 4,
+      "title": "[UI] 克制 HUD：士气槽与架势提示主题",
+      "description": "实现 CanvasLayer HUD 主题：玩家士气条（代替血条）、敌人架势/士气条、教学提示、处决提示。视觉上采用低饱和墨色、细线、留白；禁止红点/充值/自动战斗/浮夸动效。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：全流程信息层，不打断战斗节奏。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        1,
+        2
+      ],
+      "labels": [
+        "enhancement",
+        "workflow/backlog",
+        "taste-draft",
+        "mvp"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "HUD 与水墨主题一致，无页游感、无浮夸 UI 光效",
+        "士气条数值变化由信号驱动，和 Issue 6 数据一致",
+        "教学提示的显示/隐藏不遮挡战斗中心",
+        "CanvasLayer layer>=1；测试中不泄漏节点到 SceneTree root"
+      ],
+      "content_ownership": "taste-draft"
+    },
+    {
+      "id": 5,
+      "title": "[Feature] 大刀 Player Controller：移动/重砍/格挡/处决状态机",
+      "description": "实现玩家基础控制器：移动、大刀重砍（前摇/硬直/命中反馈）、格挡/弹反状态、处决状态；使用像素占位角色，但大刀轮廓要清晰。状态机为后续拼刀系统留接口。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：战斗核心基础，所有节奏段落都依赖玩家控制器。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/。",
+      "depth": "standard",
+      "priority": "critical",
+      "dependencies": [
+        1,
+        2
+      ],
+      "labels": [
+        "enhancement",
+        "mvp"
+      ],
+      "estimate": "large",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "玩家可移动、攻击、格挡、处决；攻击有前摇和收招硬直",
+        "大刀攻击手感为重砍，命中反馈清晰，所有手感参数来自 constants.gd",
+        "角色状态机可被拼刀系统查询与驱动",
+        "没有自动战斗；所有操作由玩家输入触发"
+      ],
+      "content_ownership": "mechanical"
+    },
+    {
+      "id": 6,
+      "title": "[Feature] 玩家士气槽/被俘重试/原地喘息",
+      "description": "实现士气系统代替血条：受击/弹反失败扣士气；脱战后原地不动缓慢回复；士气归零进入被俘失败画面并回到当前检查点重试。提供被俘文本/失败文本候补，需符合短句、克制、乡土质感。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：开场建立与失败重试，维持 10-15 分钟节奏不因失败拖沓。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        2,
+        5
+      ],
+      "labels": [
+        "enhancement",
+        "mvp",
+        "taste-draft"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "士气归零到被俘画面，再回到当前检查点重试，全流程可继续",
+        "原地不动 1.5-2 秒后缓慢回复，移动/攻击打断",
+        "被俘文本为 draft:true 候补，无卖惨/夸张/抗日神剧腔，等待用户定稿",
+        "HUD 能显示士气变化且不闪烁滥用"
+      ],
+      "content_ownership": "taste-draft"
+    },
+    {
+      "id": 7,
+      "title": "[Feature] 日本兵小兵 AI（2-3人战斗单位）",
+      "description": "实现日本兵小兵 AI：巡逻、索敌、近战挥舞、受击硬直、敌人士气崩解后被处决；支持 2-3 人同时在场。外观用像素占位，但需可辨识为侵华日军兵。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：发展积累，作为第一战棋子和拼刀对象。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        2
+      ],
+      "labels": [
+        "enhancement",
+        "mvp"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "AI 可同时驱动 2-3 个敌人并与玩家战斗",
+        "敌人可以被弹反/士气崩解/处决，死亡不残留碰撞体",
+        "敌人表现是占领村庄的兵，不出现武士道仪式/切腹/美化台词",
+        "敌人数值来自 constants.gd，且生成/销毁不泄漏节点"
+      ],
+      "content_ownership": "mechanical"
+    },
+    {
+      "id": 8,
+      "title": "[Feature] 拼刀系统：弹反/硬直/士气崩解/白刃处决",
+      "description": "实现拼刀核心规则：精准格挡触发弹反（敌人硬直）；攻击/弹反累计敌人士气；士气崩解后进入可处决状态；玩家处决为白刃斩并触发简单特写（hit-stop/镜头顿帧）。核心为可复用 Hitbox/ParryBox/信号。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：战斗核心，服务开场第一战、精英战与 Boss 高潮。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/。",
+      "depth": "deep",
+      "priority": "critical",
+      "dependencies": [
+        2,
+        5,
+        7
+      ],
+      "labels": [
+        "enhancement",
+        "mvp"
+      ],
+      "estimate": "large",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "弹反窗口与 constants.gd DRAFT 一致；成功则敌人受击硬直",
+        "敌方士气崩解后只能通过处决终结",
+        "处决为一击必杀，并有特写信号供 UI/结局使用",
+        "战斗反馈是硬碰硬的拼刀，不是站桩对砍"
+      ],
+      "content_ownership": "mechanical"
+    },
+    {
+      "id": 9,
+      "title": "[Scene] 雪夜山东村庄场景视觉实现",
+      "description": "制作雪夜山东村庄场景的视觉与碰撞：村口、村道、Boss 空场三个区域。使用免费/开源像素素材优先，必要时用简单色块占位；整体构图必须传达雪夜、墨色房舍、黄土墙、苍白月光。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：全场景空间基础；服务开场建立到发展积累再到高潮释放与结局回落。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/。",
+      "depth": "deep",
+      "priority": "high",
+      "dependencies": [
+        3
+      ],
+      "labels": [
+        "enhancement",
+        "mvp",
+        "taste-draft"
+      ],
+      "estimate": "large",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "有村口、村道、Boss空场三个明确战斗区域，可通行、可做战斗",
+        "视觉与审美坐标一致：雪夜、水墨、黄土、血色、苍白；不像干净舞台或页游地图",
+        "敌人出生点、玩家检查点可见且由 flow 控制",
+        "场景缩放适配 1280x720"
+      ],
+      "content_ownership": "taste-draft"
+    },
+    {
+      "id": 10,
+      "title": "[Scene] 开场：日军进村、主角抄大刀、第一战教学",
+      "description": "实现开场演出与教学关：雪夜日军进村，主角（抗战背景中的先进分子）抄起大刀，进入第一场战斗（2-3 个日本兵）。教学提示依次出现：格挡、弹反、敌人士气崩解、处决。使用简短乡土文字交代，不做长过场。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：开场建立（雪夜进村、抄刀、第一战）。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/。",
+      "depth": "standard",
+      "priority": "critical",
+      "dependencies": [
+        4,
+        6,
+        8,
+        9
+      ],
+      "labels": [
+        "enhancement",
+        "mvp",
+        "taste-draft"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "玩家从场景加载开始即可操作或按提示行动，不强制看长过场",
+        "第一战有 2-3 个日本兵，打完进入村口",
+        "教学提示不阻断战斗，并能在操作成功后自行消失",
+        "开场文本短句/克制/乡土；无口号化、神剧化旁白",
+        "关键交互元素可见，画面风格与主题一致"
+      ],
+      "content_ownership": "taste-draft"
+    },
+    {
+      "id": 11,
+      "title": "[Feature] 村口精英战：汉奸带路队与军曹/刺刀兵",
+      "description": "实现村口精英战：汉奸带路队 + 军曹/刺刀兵。精英敌人拥有更高士气、刺刀突刺/呼叫小兵等行为。战后触发 Boss 登场。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：发展积累（第一战胜利后敌人变强，带路队带来更直接的背叛感）。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        8,
+        10
+      ],
+      "labels": [
+        "enhancement",
+        "mvp"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "村口区域刷出精英战单位，战斗可重复且可被弹反突破",
+        "精英敌人不依赖霸体/无敌帧，而是通过硬直和攻击节奏制造压力",
+        "击败后自动过渡到 Boss 战，不出现叙事断档",
+        "视觉与战斗反馈符合水墨/血色审美，不加入浮夸特效"
+      ],
+      "content_ownership": "mechanical"
+    },
+    {
+      "id": 12,
+      "title": "[Feature] 汉奸 Boss 战机制：军刀 vs 大刀",
+      "description": "实现汉奸 Boss 战机制：Boss 使用日军军刀，主角使用大刀；玩家靠弹反制造破绽、累积士气崩解、触发处决。Boss 有两个阶段：第一段稳重试探，第二段狂暴攻击（速度/连段提升，对应可弹反窗口变化）。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：高潮释放（单挑 Boss，背叛者比敌人更可恨）。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/。",
+      "depth": "deep",
+      "priority": "critical",
+      "dependencies": [
+        8,
+        11
+      ],
+      "labels": [
+        "enhancement",
+        "mvp"
+      ],
+      "estimate": "large",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "Boss 战可以且必须通过拼刀博弈完成，最终由处决终结",
+        "Boss 招式有明确前摇；弹反成功产生大硬直；士气崩解后进入可处决状态",
+        "Boss 死亡信号触发 Issue 14 结局演出",
+        "战斗失败时通过士气系统重试，不需要从开头重打",
+        "不美化日军军刀/武士道；Boss 表现以背叛者、施加暴行为基调"
+      ],
+      "content_ownership": "mechanical"
+    },
+    {
+      "id": 13,
+      "title": "[Taste] 汉奸 Boss 命名与对白草案（含游戏名候选）",
+      "description": "输出 Boss 命名/游戏名候选与对白草案 JSON（draft:true）：Boss 登场嘲讽、拼刀时短句、被处决时台词；游戏名与 Boss 名各给出 5 个候选。均需符合短句、克制、乡土，不出现抗日神剧式口号和日式美化。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：Boss 战高潮中的文本，克制使用，只在关键时刻出现。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/。",
+      "depth": "light",
+      "priority": "medium",
+      "dependencies": [
+        12
+      ],
+      "labels": [
+        "enhancement",
+        "mvp",
+        "taste-draft"
+      ],
+      "estimate": "small",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "对白 JSON 带 draft:true，等待用户定稿",
+        "台词风格符合短句/克制/乡土；Boss 的可恨来自对同乡下杀手，不是强大敌人浪漫化",
+        "游戏名、Boss 名各至少 5 个候选；不采用中二/页游命名",
+        "候选文本不出现自动战斗/充值红点/浮夸 UI 相关表述"
+      ],
+      "content_ownership": "taste-draft"
+    },
+    {
+      "id": 14,
+      "title": "[Scene] 结局：处决特写与雪夜余韵",
+      "description": "实现 Boss 处决特写与结局：士气崩解后处决、白刃斩、Boss 倒下；雪夜+血色+水墨构图；村民得救剪影；主角立于雪夜村口望向远方，淡出。此处为审美坐标验收点。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：结局回落（高潮后的斩杀与留白）。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/。",
+      "depth": "standard",
+      "priority": "high",
+      "dependencies": [
+        12,
+        13
+      ],
+      "labels": [
+        "enhancement",
+        "mvp",
+        "taste-draft"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "处决特写构图包含雪夜、血色、水墨三要素；出现时即达标：我知道这游戏成了",
+        "结局不给人沉重感或廉价爽文感，而是赢了一场艰难的仗",
+        "结局不做长篇字幕/演出，只留短句和远景",
+        "结局画面没有页游光效、没有神剧式欢呼",
+        "结束后可回到重试入口或黑屏淡出；MVP 不要求存档"
+      ],
+      "content_ownership": "taste-draft"
+    },
+    {
+      "id": 15,
+      "title": "[Feature] Game Flow：开场→第一战→精英→Boss→结局场景链状态机",
+      "description": "实现关卡流程状态机：开场（教学）、村口精英战、Boss 战、结局。负责场景切换、检查点重置、敌人生成、叙事信号调度；玩家士气归零时重试当前段。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：把完整节奏弧绑定到状态机：开场建立、发展积累、高潮释放、结局回落。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/。",
+      "depth": "deep",
+      "priority": "critical",
+      "dependencies": [
+        10,
+        11,
+        12,
+        13,
+        14
+      ],
+      "labels": [
+        "enhancement",
+        "mvp",
+        "integration"
+      ],
+      "estimate": "large",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "从开场可连续玩到结局，流程顺序固定",
+        "士气归零只重试当前段，不回到整个游戏开头",
+        "状态机可查询当前阶段供测试与 UI 使用",
+        "流程切换不泄漏旧场景节点；全部走 SceneTree 正常释放"
+      ],
+      "content_ownership": "mechanical"
+    },
+    {
+      "id": 16,
+      "title": "[Integration] 组装 MVP 完整可玩垂直切片",
+      "description": "将全部 mvp 功能组件集成到一条完成路径：启动 main.tscn、雪夜开场、第一战教学、村口精英、汉奸 Boss、处决结局。修复集成冲突并产出 10-15 分钟可玩垂直切片。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：验证完整节奏弧，开场建立到结局回落一气呵成。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/；测试 mini-pong/tests/run_tests.gd。",
+      "depth": "deep",
+      "priority": "critical",
+      "dependencies": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15
+      ],
+      "labels": [
+        "enhancement",
+        "mvp",
+        "integration"
+      ],
+      "estimate": "large",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "在干净 clone 上按说明启动可完整试玩 10-15 分钟",
+        "无孤儿组件/死场景；每个 mvp 功能都有入口",
+        "审美坐标全项通过：雪夜/水墨/黄土/血色/苍白、短句/克制/乡土、爽快胜利感；无页游感/神剧/日式美化",
+        "自动测试命令 godot --headless --script tests/run_tests.gd 通过"
+      ],
+      "content_ownership": "mechanical"
+    },
+    {
+      "id": 17,
+      "title": "[Test] 端到端 Playtest 验证与自动冒烟测试",
+      "description": "编写自动冒烟测试与手动 playtest checklist：headless 加载 main.tscn，模拟移动、攻击、弹反、敌人士气崩解、处决、Boss 击杀、结局；手动清单覆盖 10-15 分钟节奏、审美坐标与 Bug 检查。",
+      "context": "🎨 审美坐标：只狼拼刀博弈 / 抗战黑白电影水墨 / 山东乡土；目标爽快胜利；画面词汇：雪夜、水墨、黄土、血色、苍白；文字：短句、克制、乡土；反例：页游感、抗日神剧式夸张、日式武士道美化。🔍 开源优先：先在 Godot Asset Library/GitHub/社区搜索现有插件/模板/开源 assets，成熟方案优先复用，不重复造轮子，找不到再自行实现。节奏定位：验证完整节奏弧与审美验收点。项目基座：Godot 4.7.1 / macOS；mini-pong/gdscripts/strike_snow/；测试 mini-pong/tests/run_tests.gd。",
+      "depth": "standard",
+      "priority": "critical",
+      "dependencies": [
+        16
+      ],
+      "labels": [
+        "test",
+        "mvp"
+      ],
+      "estimate": "medium",
+      "milestone": "mvp",
+      "acceptance_criteria": [
+        "godot --headless --script tests/run_tests.gd 通过",
+        "自动测试覆盖场景加载、玩家实例、弹反判定、敌人士气崩解、Boss处决",
+        "测试运行后 SceneTree root 无泄漏节点",
+        "手动 playtest checklist 包含审美坐标/节奏弧/反例检查，并至少 1 人按此通过"
+      ],
+      "content_ownership": "mechanical"
+    }
+  ],
+  "versions": {
+    "mvp": {
+      "name": "雪夜村庄垂直切片",
+      "description": "可玩完整路径：开场→教学战→精英→Boss→结局",
+      "issues": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+      ]
+    },
+    "v1": {
+      "name": "内容补齐",
+      "description": "音效系统/存档系统/升级成长（大刀强化/士气上限提升）— 用户明确推迟",
+      "issues": []
+    },
+    "v2": {
+      "name": "打磨扩展",
+      "description": "多Boss（日军尉官/炮楼攻坚）/额外场景（黄土高坡伏击/铁路线）/多结局",
+      "issues": []
+    },
+    "full": {
+      "name": "完整版",
+      "description": "全部Issue",
+      "issues": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17
+      ]
+    }
+  },
+  "dependency_graph": {
+    "nodes": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "edges": [
+      {
+        "from": 1,
+        "to": 2
+      },
+      {
+        "from": 1,
+        "to": 3
+      },
+      {
+        "from": 1,
+        "to": 4
+      },
+      {
+        "from": 2,
+        "to": 4
+      },
+      {
+        "from": 1,
+        "to": 5
+      },
+      {
+        "from": 2,
+        "to": 5
+      },
+      {
+        "from": 2,
+        "to": 6
+      },
+      {
+        "from": 5,
+        "to": 6
+      },
+      {
+        "from": 2,
+        "to": 7
+      },
+      {
+        "from": 2,
+        "to": 8
+      },
+      {
+        "from": 5,
+        "to": 8
+      },
+      {
+        "from": 7,
+        "to": 8
+      },
+      {
+        "from": 3,
+        "to": 9
+      },
+      {
+        "from": 4,
+        "to": 10
+      },
+      {
+        "from": 6,
+        "to": 10
+      },
+      {
+        "from": 8,
+        "to": 10
+      },
+      {
+        "from": 9,
+        "to": 10
+      },
+      {
+        "from": 8,
+        "to": 11
+      },
+      {
+        "from": 10,
+        "to": 11
+      },
+      {
+        "from": 8,
+        "to": 12
+      },
+      {
+        "from": 11,
+        "to": 12
+      },
+      {
+        "from": 12,
+        "to": 13
+      },
+      {
+        "from": 12,
+        "to": 14
+      },
+      {
+        "from": 13,
+        "to": 14
+      },
+      {
+        "from": 10,
+        "to": 15
+      },
+      {
+        "from": 11,
+        "to": 15
+      },
+      {
+        "from": 12,
+        "to": 15
+      },
+      {
+        "from": 13,
+        "to": 15
+      },
+      {
+        "from": 14,
+        "to": 15
+      },
+      {
+        "from": 1,
+        "to": 16
+      },
+      {
+        "from": 2,
+        "to": 16
+      },
+      {
+        "from": 3,
+        "to": 16
+      },
+      {
+        "from": 4,
+        "to": 16
+      },
+      {
+        "from": 5,
+        "to": 16
+      },
+      {
+        "from": 6,
+        "to": 16
+      },
+      {
+        "from": 7,
+        "to": 16
+      },
+      {
+        "from": 8,
+        "to": 16
+      },
+      {
+        "from": 9,
+        "to": 16
+      },
+      {
+        "from": 10,
+        "to": 16
+      },
+      {
+        "from": 11,
+        "to": 16
+      },
+      {
+        "from": 12,
+        "to": 16
+      },
+      {
+        "from": 13,
+        "to": 16
+      },
+      {
+        "from": 14,
+        "to": 16
+      },
+      {
+        "from": 15,
+        "to": 16
+      },
+      {
+        "from": 16,
+        "to": 17
+      }
+    ]
+  }
+}
