@@ -257,7 +257,7 @@ AC4 自然路径不足 3 个不同机械升级 →
 | 2 | 终局后残留事件 | GameManager `_is_run_over` 守卫 return（#385）；驱动循环 match_over 后停止；`_cleanup` 断开信号防跨套件泄漏 |
 | 3 | 超时/死循环 | 双闸 fail + 完整诊断打印（分数/波次/升级/帧数） |
 | 4 | 一局内升级未达 3 个（随机性） | seed 固定 + ai_position_error=200（实测可达）优先；仍不足 → 降级路径直接 `apply` 补足（PRD §5.3 失败路径 4，注释说明） |
-| 5 | 零穿墙分（pierce 未发生） | `ai_position_error=200` 下 AI 漏接 → 穿越墙带后出界概率高；若整局 0 pierce（统计上极罕见），AC3 一致性公式仍成立，另可重跑一局（≤3 次）再断言 pierce ≥ 1 |
+| 5 | 零穿墙分（pierce 未发生） | `ai_position_error=200` 下 AI 漏接 → 穿越墙带后出界概率高；整局 0 pierce 并非「极罕见」（#555 研究实测 2/3 对局 0 pierce）——AC3-T5 的 pierce 覆盖已由 #555 承接（全局 RNG seed + `_test_pierce_deterministic` 确定性穿墙微检查），本行不再依赖重试兜底 |
 
 ---
 
