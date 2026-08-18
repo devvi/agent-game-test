@@ -195,10 +195,10 @@
     {
       "id": 8,
       "title": "[Rendering] 打击反馈系统（火花 / hit-stop / 屏震 / 慢动作）",
-      "description": "实现战斗反馈渲染层：①GPUParticles2D 火花 burst（命中/弹反/拼刀三种强度，金色偏苍白）；②hit-stop：命中时 Engine.time_scale 0.05-0.1s（弹反成功时 0.08s + 慢动作 0.5s）；③Camera2D 屏震（位移 2-4px 方向随机，衰减曲线）；④命中时短暂慢动作（time_scale 0.3 持续 0.2s）。所有数值集中 constants.gd # DRAFT。反馈事件从 SW-006 信号消费，由 ReactionController 统一调度。",
-      "context": "审美坐标：『打铁』节奏是只狼式爽快的 50% 来源。火花=苍白金色（#ffd9a0），不是橙色页游爆焰；hit-stop 必须有『刀锋入肉』的停顿感但不超过 0.1s，否则黏腻。慢动作只对弹反/处决使用，滥用则失去重量。\n🔍 开源优先: 开始实现前,先在 Godot Asset Library/GitHub/社区搜索 Godot hit-stop / time_scale / camera shake 开源方案,成熟方案优先复用,不重复造轮子,找不到再自行实现,并在 PR 中说明调研结果。\n画面实现路径：GPUParticles2D（粒子数量 12-20，不得多到盖住角色）；hit-stop 直接对 SceneTree.time_scale 操作并安全恢复；屏震=Camera2D offset 程序化噪声。禁止全屏闪白/光效叠加。",
-      "depth": "standard",
-      "priority": "high",
+      "description": "实现战斗反馈渲染层——**只狼手感的灵魂（2026-08-19 用户强调：打击反馈是只狼核心，特效效果重点落实）**。\n反馈不是特效堆砌，是**分级事件矩阵**：每个战斗事件有精确的反馈组合（火花/hit-stop/屏震/慢动作/白闪），强度分级 S/A/B/C 与事件奖励成正比（处决>弹反>格挡>命中）。\n**反馈分级矩阵（constants.gd # DRAFT 集中）**：\n| 事件 | 等级 | 火花 | hit-stop | 屏震 | 慢动作 | 白闪 |\n|------|------|------|----------|------|--------|------|\n| 处决 | S | 刀光弧线+血色粒子 | 150ms | 4px 强 | 0.05x 特写 | 无 |\n| 弹反成功 | A | 16-20 粒大火花 | 80-100ms | 3px | 0.3x 0.2s 渐变恢复 | 敌人白闪 |\n| 架势崩解 | A- | 全屏淡白闪 | 100ms | 3px | 0.5x 0.3s | 敌人持续白闪+失衡 |\n| 普通格挡 | B | 6 粒最小火花 | 30ms | 1px | 无 | 无 |\n| 普通命中 | C | 8 粒小火花 | 50ms | 2px 沿攻击方向 | 无 | 敌人硬直 |\n| 玩家受击 | C | 无 | 60ms | 4px | 无 | 玩家后仰 |\n火花碰撞点必须**精准定位在刀与刀的交点**（不是角色中心），方向沿刀面法线；颜色苍白金 #ffd9a0 系（禁橙色页游爆焰）。由 ReactionController 统一消费 #6 的反馈信号，参数全部进 constants.gd，音效接口预留（v1 音效系统接入）。",
+      "context": "审美坐标：『打铁』节奏是只狼式爽快的 50% 来源（用户 2026-08-19 强调：打击反馈=只狼核心，特效效果重点落实）。只狼的秘诀不是特效多，而是**每个事件都有精准、克制的反馈组合**——弹反成功瞬间：火花+顿帧+清脆金属声+敌人硬直，四者同步 80-100ms 内完成，形成『叮！』的瞬间爽感。反馈必须分层：S/A/B/C 等级与事件奖励成正比，滥用慢动作会失去重量（慢动作只用于弹反/处决/崩解）。火花=苍白金 #ffd9a0，不是橙色页游爆焰；hit-stop 必须有『刀锋入肉』的停顿感但 ≤0.1s，否则黏腻。\n🔍 开源优先: 开始实现前,先在 Godot Asset Library/GitHub/社区搜索 Godot hit-stop / time_scale / camera shake / impact spark 开源方案,成熟方案优先复用,不重复造轮子,找不到再自行实现,并在 PR 中说明调研结果。\n画面实现路径：火花=GPUParticles2D burst（碰撞点定位，粒子 6-20 按等级，不得盖住角色）；hit-stop=SceneTree.time_scale 短暂归零并安全恢复（注意与慢动作时间缩放的嵌套恢复）；屏震=Camera2D offset 程序化噪声（方向沿攻击向量，衰减曲线）；白闪=CanvasItem modulate 动画；刀光=Polygon2D additive 弧线。禁止全屏闪白/光效叠加/粒子盖角色。工程/品味分离：反馈机制实现=mechanical；强度参数（时长/幅度/粒子数）=taste-draft（constants.gd # DRAFT + 候补值 + E2E 截图用户裁决）。",
+      "depth": "deep",
+      "priority": "critical",
       "dependencies": [
         3,
         4
@@ -211,11 +211,12 @@
       "estimate": "3d",
       "milestone": "mvp",
       "acceptance_criteria": [
-        "命中/弹反/拼刀分别触发不同强度火花 burst（粒子数 8/16/24），颜色为苍白金 #ffd9a0 系",
-        "弹反成功触发 hit-stop 0.08s + 慢动作 0.5s（time_scale 0.3），普通命中 hit-stop 0.05s",
-        "Camera2D 屏震位移峰值 ≤4px、衰减到 0 时间 ≤0.3s，可独立开关",
-        "反馈参数全部来自 constants.gd # DRAFT，注释含候补值范围",
-        "E2E 截图提交用户裁决：火花/震屏强度是否有『刀锋相撞』的重量感，且未破坏雪夜水墨宁静基调（禁止页游光效感）"
+        "反馈分级矩阵完整实现：S/A/B/C 六级事件各有独立反馈组合（火花/hit-stop/屏震/慢动作/白闪），参数集中 constants.gd # DRAFT",
+        "弹反成功四要素同步：火花(16-20粒) + hit-stop(80-100ms) + 屏震(3px) + 敌人白闪/硬直 1.2s——E2E 截图可捕获同一帧",
+        "火花碰撞点位于刀与刀交点（非角色中心），方向沿刀面法线，颜色苍白金 #ffd9a0 系",
+        "hit-stop 与慢动作时间缩放可安全嵌套恢复（处决 0.05x 特写结束后恢复正常 time_scale，无卡死）",
+        "反馈强度与事件奖励成正比（处决>弹反>格挡>命中），滥用慢动作/满屏特效=AC 失败",
+        "E2E 截图提交用户裁决：『刀锋相撞』重量感成立，且未破坏雪夜水墨宁静基调（禁止页游光效感）"
       ],
       "content_ownership": "mechanical"
     },
