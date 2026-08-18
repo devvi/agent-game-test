@@ -1529,6 +1529,57 @@ class TestReviewFollowup(unittest.TestCase):
             # e2e-state marked reviewed → watchdog won't false-alarm
             self.assertEqual(ep._read_e2e_state(475).get("status"), "reviewed")
 
+    def test_verdict_composite_value_merges(self):
+        """2026-08-19 (#562 死锁回归): review agent 写复合 verdict
+        "approve / merge"（带后缀）→ 归一化取第一段 → 走 merge 路径，
+        而不是落 else 提前标记 reviewed 终态（旧实现导致 PR 永不 merge）。"""
+        with tempfile.TemporaryDirectory() as td:
+            d = self._write_conclusion(td, 562, verdict="approve / merge", fix=None)
+            merged = []
+
+            def fake_gh(*args):
+                joined = " ".join(str(a) for a in args)
+                if joined.startswith("pr view"):
+                    return '{"state": "OPEN", "mergeable": "MERGEABLE"}'
+                if joined.startswith("pr merge"):
+                    merged.append(args)
+                    return "https://github.com/devvi/agent-game-test/pull/562"
+                return ""
+
+            with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR", d), \
+                 mock.patch.object(ep, "gh", side_effect=fake_gh):
+                ep._write_e2e_state(562, {"status": "done",
+                                          "emitted_at": time.time() - 10,
+                                          "summary": "/tmp/e2e-562/summary.json"})
+                lines = ep.review_followup()
+            self.assertTrue(any("approved → merged" in l for l in lines), lines)
+            self.assertEqual(len(merged), 1, "composite verdict must merge")
+            self.assertEqual(os.listdir(d), [], "file consumed after merge")
+
+    def test_unknown_verdict_keeps_file_no_terminal(self):
+        """2026-08-19 (#562 死锁回归): 完全未知的 verdict（如 "pending"）
+        → 保留结论文件 + 不标记 reviewed 终态（旧实现提前终态 → 死锁）。"""
+        with tempfile.TemporaryDirectory() as td:
+            d = self._write_conclusion(td, 999, verdict="totally-unknown", fix=None)
+
+            def fake_gh(*args):
+                return ""
+
+            with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR", d), \
+                 mock.patch.object(ep, "gh", side_effect=fake_gh), \
+                 mock.patch.object(ep, "_devlog") as mock_devlog:
+                ep._write_e2e_state(999, {"status": "done",
+                                          "emitted_at": time.time() - 10})
+                lines = ep.review_followup()
+            self.assertFalse(any("verdict=" in l for l in lines),
+                             "unknown verdict must NOT emit FOLLOWUP lines")
+            self.assertEqual(os.listdir(d), ["999.json"], "file kept for retry")
+            self.assertEqual(ep._read_e2e_state(999).get("status"), "done",
+                             "must NOT mark reviewed terminal")
+            mock_devlog.assert_called_once_with("review-verdict-unknown",
+                                                pr=999, verdict="totally-unknown",
+                                                file="999.json", level="warning")
+
     def test_approved_merge_failed_keeps_file(self):
         """2026-08-17 (方案 X #2 配套): approve but merge fails (conflict /
         error) → conclusion file KEPT for idempotent retry next tick; a new

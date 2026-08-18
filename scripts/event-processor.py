@@ -2353,7 +2353,11 @@ def review_followup() -> list:
     for fn, data in _read_review_conclusions():
         try:
             pr = int(data.get("pr", 0))
+            # 2026-08-19 (#562 死锁修复): review agent 可能写复合值
+            # ("approve / merge"、"approved, with notes") → 取第一段再匹配。
+            # 旧实现只 strip+lower → "approve / merge" 落 else → 提前终态死锁。
             verdict = str(data.get("verdict", "")).strip().lower()
+            verdict = re.split(r"[/|,，;；]", verdict)[0].strip()
             parent = data.get("parent_issue")
             fix = data.get("fix_issue") or {}
             evidence = data.get("evidence", "")
@@ -2420,8 +2424,24 @@ def review_followup() -> list:
                     lines.append(f"FOLLOWUP: pr={pr} approved but merge FAILED — file kept, retry next tick")
                     continue  # 不消费, 重试
             else:
-                lines.append(f"FOLLOWUP: pr={pr} verdict={verdict} recorded")
-                _mark_reviewed(pr)
+                if verdict in ("self_correct", "request_changes",
+                               "changes_requested", "reject", "no_merge"):
+                    # 已知非 merge verdict: 消费 + 记录。其机械后续
+                    # (self-correct label 等) 由 review agent 自行完成;
+                    # _mark_reviewed 安全 — 新 commit 会 fresh_ci 重置新轮。
+                    lines.append(f"FOLLOWUP: pr={pr} verdict={verdict} recorded")
+                    _mark_reviewed(pr)
+                else:
+                    # 2026-08-19 (#562 死锁修复): 完全未知 verdict 绝不提前
+                    # 终态。旧实现: 记录 + _mark_reviewed + 删文件 → reviewed
+                    # 终态抑制一切后续 → PR 永不 merge (#562 实测:
+                    # verdict="approve / merge" 落 else 死锁)。
+                    # 新行为: 保留结论文件 (归一化后下 tick 重试) + devlog
+                    # 告警 (不入 lines 避免 cron 刷屏)。持续未知 → watchdog
+                    # 检测 review-verdict-unknown → 人工介入。
+                    _devlog("review-verdict-unknown", pr=pr, verdict=verdict,
+                            file=fn, level="warning")
+                    continue  # 不消费、不标记终态
             try:
                 os.remove(os.path.join(REVIEW_CONCLUSIONS_DIR, fn))
             except OSError:
