@@ -129,12 +129,12 @@ git commit -m "chore: switch active game → mini-pong"
 | E2E runner | `default_subproject()` 读 `game.active` | 无 |
 | worktree-commit | 编译检查路径从 manifest 读 | 无 |
 | CI (opencode-review.yml) | `steps.active-game` → GAME_DIR | 无 |
-| Skills (research/review) | **待办 P2**：加"先读 manifest game.active"指令 | 需要时改 skill |
+| Skills (research/review/implement) | ✅ 已参数化（2026-08-19：加"先读 manifest game.active"指令） | 已处理 |
 
 **已知边界**：
 - 分支命名不加游戏前缀（`impl/xxx`），issue 号全局唯一，多游戏 issue 不会串
 - 一次只做一个游戏（并发两个游戏 = 未支持，需要分支隔离改造）
-- GDD 分目录（`docs/GAME_DESIGN/<game>/`）为 P2，新游戏开工前处理
+- GDD 分目录（`docs/GAME_DESIGN/<game>/`）✅ 已落地（2026-08-19），mini-pong 遗留根目录
 
 ## 5. 测试与 CI
 

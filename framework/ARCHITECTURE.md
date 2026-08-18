@@ -284,17 +284,17 @@ game:
 | E2E runner | `default_subproject()` 读 `game.active` | `scripts/run-e2e-review.sh` |
 | worktree-commit | 编译检查路径从 manifest 读 | `scripts/worktree-commit.sh` |
 | CI | `steps.active-game` 解析 manifest → GAME_DIR | `.github/workflows/opencode-review.yml` |
-| Skills | 待办 P2（加"先读 manifest game.active"指令） | `agents/skills/` |
+| Skills | ✅ 已参数化（2026-08-19：research/review/implement 加"先读 manifest game.active → $GAME_DIR"指令，禁止写死 mini-pong/） | `agents/skills/` |
 
 **切换操作**：
 
 ```bash
 # 新游戏目录就绪后（含 project.godot/tests/e2e_shots.json）：
 # 1. manifest 注册 + 切换
-#    game.active: mini-pong → snow-blade
-#    game.subprojects.snow-blade: {path: snow-blade/, ...}
+#    game.active: mini-pong → shandong-wolf
+#    game.subprojects.shandong-wolf: {path: shandong-wolf/, ...}
 # 2. 提交 → 下个 tick 起全链路跟随
-git commit -m "chore: switch active game → snow-blade"
+git commit -m "chore: switch active game → shandong-wolf"
 ```
 
 **关键实现细节**：

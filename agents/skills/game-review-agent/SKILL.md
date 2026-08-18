@@ -133,16 +133,24 @@ If it returns `MERGEABLE` or `CONFLICTING`, that's authoritative. If still `UNKN
 
 ### 2. Run Tests Locally (Unit + Smoke)
 
+**⚠️ 先读当前游戏目录（P3 参数化收尾, 2026-08-19 — 禁止写死 mini-pong/）:**
+
+```bash
+# manifest 单一事实源；所有 godot --path / 测试命令用 $GAME_DIR
+GAME_DIR=$(python3 -c "import re; txt=open('game-env/manifest.yaml',encoding='utf-8').read(); m=re.search(r'^game:\s*$',txt,re.M); am=re.search(r'active:\s*(\S+)',txt[m.end():m.end()+200]) if m else None; print(am.group(1) if am else 'mini-pong')")
+echo "当前游戏: $GAME_DIR"
+```
+
 Run both the unit test suite and the E2E playthrough smoke test:
 
 ```bash
 # Unit tests — capture results, avoid pipe deadlock with > redirect
-godot --headless --script tests/run_tests.gd > /tmp/godot_unit_output.txt 2>&1
+godot --path "$GAME_DIR/" --headless --script tests/run_tests.gd > /tmp/godot_unit_output.txt 2>&1
 echo "Unit exit: $?"
 grep -E '(===|✅|❌|Passed:|Failed:|All tests|Results)' /tmp/godot_unit_output.txt | tail -80
 
 # Smoke test — verifies full playthrough integrity
-godot --headless --script tests/smoke_test.gd > /tmp/godot_smoke_output.txt 2>&1
+godot --path "$GAME_DIR/" --headless --script tests/smoke_test.gd > /tmp/godot_smoke_output.txt 2>&1
 echo "Smoke exit: $?"
 grep -E '(❌|Passed:|Failed)' /tmp/godot_smoke_output.txt
 
@@ -822,6 +830,13 @@ Do NOT assume these exist until verified — check the code before relying on th
 
 After the PR merges, update the Game Design Document (GDD) in `docs/GAME_DESIGN/`. The review agent is the ONLY agent that updates the GDD — it happens AFTER merge, not before.
 
+**⚠️ 多游戏分目录（2026-08-19, P3 参数化收尾）:** 当前游戏的 GDD 写到 `docs/GAME_DESIGN/<GAME_DIR>/` 子目录（如 `docs/GAME_DESIGN/shandong-wolf/`），每个游戏自己的 `INDEX.md` 与编号（01-09+ 按功能域）。GAME_DIR 从 manifest 读（见 §2 的指令块）。mini-pong 遗留 GDD 在根目录（历史单游戏时期），**新游戏一律分目录**；INDEX.md 表内路径使用子目录内相对路径。
+
+```bash
+GDD_DIR="docs/GAME_DESIGN/$GAME_DIR"   # 例如 docs/GAME_DESIGN/shandong-wolf/
+mkdir -p "$GDD_DIR"
+```
+
 ### Which GDD Files to Update
 
 Read the DESIGN doc (`docs/DESIGN/<N>-*.md`) for the specific feature. It mentions which GDD files need updating. Common targets:
@@ -1240,10 +1255,10 @@ disk and passed locally, but CI reported nothing.**
 3. **If the CI skipped but tests exist in a sub-project**, the sub-project needs
    its own test step with `--path`:
    ```yaml
-   - name: Run Mini Pong tests
+   - name: Run active game tests
      run: |
-       if [ -f mini-pong/tests/run_tests.gd ]; then
-         godot --path mini-pong/ --headless --script tests/run_tests.gd
+       if [ -f "$GAME_DIR/tests/run_tests.gd" ]; then
+         godot --path "$GAME_DIR/" --headless --script tests/run_tests.gd
          echo "exit_code=$?" >> $GITHUB_OUTPUT
        fi
    ```
@@ -1333,6 +1348,7 @@ for script in $(find mini-pong/gdscripts/ mini-pong/tests/ -name '*.gd'); do
   godot --path mini-pong/ --headless --check-only "$script"
 done
 ```
+（历史案例路径写死；当前用 manifest 读 `$GAME_DIR`，见 §2）
 12 files × ~25s each = ~5 minutes worst-case... but GitHub Actions runners vary
 and the step was cancelled at ~10 minutes. The `review` workflow showed red despite
 all tests passing locally.
@@ -1377,7 +1393,7 @@ PR_FILES=$(gh pr diff <N> --name-only)
 | Signal | Example (PR #300) |
 |--------|-------------------|
 | Wrong tech stack | Issue: Godot → PR adds package.json, vite |
-| Wrong directory | Issue: mini-pong/ → PR adds to root |
+| Wrong directory | Issue 引用的游戏目录与 PR 实际落点不符（manifest game.active 与预期不符） | `grep active: game-env/manifest.yaml` + 检查 PR diff 路径 |
 | Scope creep | Issue: scaffold → PR adds Snake game |
 | Unauthorized CI changes | PR rewrites deploy.yml from Godot export to Vite build |
 | Unjustified deps | PR adds 1100-line package-lock.json for a scaffold |

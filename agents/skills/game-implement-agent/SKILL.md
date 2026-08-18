@@ -16,12 +16,14 @@ tags: ["workflow", "implement", "tdd", "godot", "gdscript", "opencode"]
 WT=$(./scripts/worktree-setup.sh implement <N> <slug>)
 
 # 2. 所有文件操作在 worktree 内 (绝对路径)
-#    代码:  $WT/mini-pong/gdscripts/...  测试: $WT/mini-pong/tests/...
-#    文档:  $WT/docs/DESIGN/...          场景:  $WT/mini-pong/scenes/...
+#    ⚠️ 当前游戏目录从 manifest 读（2026-08-19 多游戏切换，禁止写死 mini-pong/）：
+GAME_DIR=$(python3 -c "import re; txt=open('$WT/game-env/manifest.yaml',encoding='utf-8').read(); m=re.search(r'^game:\s*$',txt,re.M); am=re.search(r'active:\s*(\S+)',txt[m.end():m.end()+200]) if m else None; print(am.group(1) if am else 'mini-pong')")
+#    代码:  $WT/$GAME_DIR/gdscripts/...  测试: $WT/$GAME_DIR/tests/...
+#    文档:  $WT/docs/DESIGN/...          场景:  $WT/$GAME_DIR/scenes/...
 
 # 3. 完成 → 提交 (脚本自动: 提交前 merge main + 冲突分级 + 白名单 add + 编译验证)
 ./scripts/worktree-commit.sh <N> "feat(<N>): <feature description>" \
-  "$WT/mini-pong/gdscripts/<your-file>.gd" "$WT/mini-pong/tests/<your-test>.gd" ...
+  "$WT/$GAME_DIR/gdscripts/<your-file>.gd" "$WT/$GAME_DIR/tests/<your-test>.gd" ...
 
 # 4. PR 创建 (worktree 内)
 cd "$WT" && gh pr create --base main --head impl/<N>-<slug> --title "feat(<N>): <title>" --body "Parent #<N>"
@@ -242,7 +244,7 @@ is what stalls the pipeline — never do it silently.
 
 ```bash
 # 编译检查 — implement 唯一的本地验证 (worktree-commit.sh 提交时也会自动做)
-/Applications/Godot.app/Contents/MacOS/Godot --headless --quit --path mini-pong/ 2>&1 | grep -E "ERROR|SCRIPT ERROR"
+/Applications/Godot.app/Contents/MacOS/Godot --headless --quit --path "$GAME_DIR/" 2>&1 | grep -E "ERROR|SCRIPT ERROR"
 ```
 
 **⚠️ 不跑测试（2026-08-17 修正, 对齐原设计）:** 禁止 `godot --headless --script tests/run_tests.gd`。
@@ -267,7 +269,7 @@ git checkout -b impl/<N>-<slug>
 
 # Stage ONLY your files — never `git add .` in multi-agent workspace
 # Run `git status --short` first to inspect sibling agent changes
-git add mini-pong/gdscripts/<your-file>.gd mini-pong/tests/<your-test>.gd ...
+git add "$GAME_DIR/gdscripts/<your-file>.gd" "$GAME_DIR/tests/<your-test>.gd" ...
 git commit -m "feat(<N>): <feature description>"
 git push origin impl/<N>-<slug>
 ```

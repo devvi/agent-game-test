@@ -541,7 +541,7 @@ echo "✅ PRD quality PASS: $MEANINGFUL_LINES substantive lines, $NONBLANK_LINES
 
 ### Patch 19: Issue constraint inheritance — PRD must inherit engine/dir/platform from the issue
 
-The PRD must explicitly carry forward the issue's technical constraints. A scaffold Issue that says "Godot 4.7.1, directory mini-pong/, CI workflow" must produce a PRD that references these exact constraints.
+The PRD must explicitly carry forward the issue's technical constraints. A scaffold Issue that says "Godot 4.7.1, directory <game_dir>/, CI workflow" must produce a PRD that references these exact constraints.
 
 **Before creating the PRD, read the issue body:**
 
@@ -694,14 +694,22 @@ greenfield PRDs, and bug-investigation PRDs.
 
 **Research procedure (3 phases):**
 
+**Phase 0: 读取当前游戏目录（P3 参数化收尾, 2026-08-19 — 禁止写死 mini-pong/）:**
+
+```bash
+# 所有侦查/落盘命令统一用 $GAME_DIR 前缀（manifest 单一事实源）
+GAME_DIR=$(python3 -c "import re; txt=open('game-env/manifest.yaml',encoding='utf-8').read(); m=re.search(r'^game:\s*$',txt,re.M); am=re.search(r'active:\s*(\S+)',txt[m.end():m.end()+200]) if m else None; print(am.group(1) if am else 'mini-pong')")
+echo "当前游戏: $GAME_DIR"
+```
+
 **Phase 1: Node inventory — parse the existing scene file:**
 
 ```bash
 # Read the existing scene file (game.tscn, Main.tscn, etc.)
 # Extract all node names and their types
-grep '\[node name=' mini-pong/scenes/game.tscn | head -30
+grep '\[node name=' "$GAME_DIR/scenes/game.tscn" | head -30
 # Check which ext_resource refs are already wired
-grep 'ext_resource.*path=' mini-pong/scenes/game.tscn
+grep 'ext_resource.*path=' "$GAME_DIR/scenes/game.tscn"
 ```
 
 **Phase 2: Gap analysis — compare scene file against issue requirements:**
@@ -738,7 +746,7 @@ ScoringManager._on_ball_score(side)
 
 ```bash
 # Find duplicate const definitions across gdscripts/
-grep -rh '^const [A-Z_]' mini-pong/gdscripts/*.gd | sort | uniq -c | sort -rn | head -20
+grep -rh '^const [A-Z_]' "$GAME_DIR/gdscripts/"*.gd | sort | uniq -c | sort -rn | head -20
 # Any count > 1 is a candidate for extraction to constants.gd
 ```
 

@@ -1,5 +1,8 @@
 # GAME DESIGN DOCUMENT INDEX
 
+> **多游戏目录约定（2026-08-19, P3 参数化收尾）**：每个游戏一个子目录 `docs/GAME_DESIGN/<game>/`（含自己的 INDEX.md）。
+> 本文件为 **mini-pong**（历史单游戏时期遗留）；新游戏一律分目录——《山东抗日之狼》见 [shandong-wolf/](shandong-wolf/INDEX.md)。
+
 | File | Description |
 |------|-------------|
 | [09-TESTING](09-TESTING.md) | Testing system — headless test runner, E2E Playthrough (真实物理完整一局), auto-play test, local E2E review harness (L0-L3), coverage map |
