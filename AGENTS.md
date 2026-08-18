@@ -140,7 +140,8 @@ Python 脚本在 cron tick 的 LLM 阶段之前运行，做纯数据加工：
 ## 配置与项目参数
 
 - `~/.hermes/workflow-config.json` — 启停 + 工作时段 + preset（`best-deepseek` 多窗口 `[[0,9],[12,14],[18,24]]`）
-- `game-env/manifest.yaml` — 项目配置单一来源（repo/engine/branch/槽位），**已入库**（P0，2026-07-31）
+- `game-env/manifest.yaml` — 项目配置单一来源（repo/engine/branch/槽位 + **`game.active` 游戏切换**），**已入库**（P0，2026-07-31；游戏切换 2026-08-18）
+- 游戏切换：仓库容纳多个自包含 Godot 子项目，workflow 一次只做一个——改 `game.active` 即切换，全链路（SPAWN/CI/E2E/worktree）自动跟随。见 `framework/quickstart.md` §3
 
 ## Workflow 控制
 

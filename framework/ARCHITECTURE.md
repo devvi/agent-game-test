@@ -249,13 +249,59 @@ check-unblock 不再用 godot 逻辑测试判断（视觉 block 时逻辑测试�
 ```
 agent-game-test/
 ├── project.godot          ← 根 Godot 项目（旧实验, 保持）
-├── mini-pong/             ← 当前主游戏（自己的 project.godot + gdscripts/ + scenes/ + tests/）
-├── gdscripts/ scenes/     ← 根项目代码
-├── tests/                 ← 根项目测试 + tests/pipeline/（流水线 Python 测试）
+├── mini-pong/             ← 主游戏 #1 PONG://21（自包含: project.godot + gdscripts/ + scenes/ + tests/ + e2e_shots.json）
+├── gdscripts/ scenes/     ← 根项目代码（旧 mini-walker 残留, 无 workflow 引用）
+├── tests/                 ← tests/pipeline/（流水线 Python 测试）
 ├── docs/                  ← Issue 级 PRD/DESIGN/TASKS + GAME_DESIGN/ (GDD)
 ├── .github/workflows/     ← runtime CI (GitHub 要求位置)
-└── framework/             ← 本框架文档 (只读参考)
+├── framework/             ← 本框架文档 (只读参考)
+└── game-env/manifest.yaml ← 单一事实源（repo/engine/槽位 + game.active 游戏切换）
 ```
+
+## 游戏切换（2026-08-18, 一次一个游戏）
+
+**心智模型**：仓库同时容纳多个自包含 Godot 子项目（每个有自己的 project.godot），
+但 workflow **一次只做一个游戏**——`game-env/manifest.yaml` 的 `game.active` 是
+唯一切换开关，全链路自动跟随。
+
+```yaml
+game:
+  active: mini-pong          # ← 切换开关
+  subprojects:
+    mini-pong:
+      path: mini-pong/       # ← 各消费方读取路径
+      test_entry: tests/run_tests.gd
+      smoke_entry: tests/smoke_test.gd
+      compile_check: tests/check_compile.gd
+      e2e_plan: mini-pong/e2e_shots.json
+```
+
+**消费方（5 处，全部从 manifest 读，无硬编码）**：
+
+| 消费方 | 读取方式 | 位置 |
+|--------|---------|------|
+| event-processor | `ACTIVE_GAME` 常量（SPAWN 指令带 `game=` 参数） | `scripts/event-processor.py` |
+| E2E runner | `default_subproject()` 读 `game.active` | `scripts/run-e2e-review.sh` |
+| worktree-commit | 编译检查路径从 manifest 读 | `scripts/worktree-commit.sh` |
+| CI | `steps.active-game` 解析 manifest → GAME_DIR | `.github/workflows/opencode-review.yml` |
+| Skills | 待办 P2（加"先读 manifest game.active"指令） | `agents/skills/` |
+
+**切换操作**：
+
+```bash
+# 新游戏目录就绪后（含 project.godot/tests/e2e_shots.json）：
+# 1. manifest 注册 + 切换
+#    game.active: mini-pong → snow-blade
+#    game.subprojects.snow-blade: {path: snow-blade/, ...}
+# 2. 提交 → 下个 tick 起全链路跟随
+git commit -m "chore: switch active game → snow-blade"
+```
+
+**关键实现细节**：
+- `_load_manifest()` 不依赖 yaml 库（系统 python3 无 yaml）——yaml 优先 + 纯正则 fallback
+  （2026-08-18 实测发现旧实现 import yaml 抛异常 → 永远返回 default → 参数化静默失效）
+- 分支命名不加游戏前缀（`impl/xxx`）——issue 号全局唯一，`_pr_exists_for_issue` 按 issue 查 PR 不受影响
+- SPAWN 指令携带 `game=` 让 agent 明确为哪个游戏干活
 
 ## 已知限制
 
