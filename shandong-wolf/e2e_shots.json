@@ -1,0 +1,10 @@
+{
+  "_comment": "shandong-wolf 占位 shot plan — 骨架期无玩法，首个 E2E plan Issue 落地时填充真实剧本",
+  "game": "shandong-wolf",
+  "default_archetype": "loop",
+  "max_wall_seconds": 120,
+  "state_node": "",
+  "state_property": "",
+  "states": {},
+  "groups": {}
+}

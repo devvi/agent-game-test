@@ -30,6 +30,26 @@ assert _spec is not None and _spec.loader is not None
 _spec.loader.exec_module(ep)
 
 
+def _active_game() -> str:
+    """Read game.active from manifest (mirror of event-processor parsing).
+
+    SPAWN assertions depend on the active game; parameterizing keeps tests
+    green across game switches (2026-08-19: mini-pong → shandong-wolf).
+    """
+    mf = os.path.join(_REPO_ROOT, "game-env", "manifest.yaml")
+    try:
+        txt = open(mf, encoding="utf-8").read()
+    except OSError:
+        return "mini-pong"
+    m = re.search(r"^game:\s*$", txt, re.M)
+    if m:
+        am = re.search(r"active:\s*(\S+)", txt[m.end():m.end() + 200])
+        if am:
+            return am.group(1)
+    return "mini-pong"
+
+
+
 class TestParseDependencies(unittest.TestCase):
     def test_english_full_deps(self):
         body = "## Dependencies\nDepends on: #42\n"
@@ -811,8 +831,10 @@ class TestPreprocess(unittest.TestCase):
              mock.patch("subprocess.run", fake_run):
             first = ep.pick_next_issue()
             second = ep.pick_next_issue()
-        self.assertIn("SPAWN: research,issue=500,label=workflow/research,game=mini-pong", first,
-                      f"promote must directly spawn research: {first}")
+        self.assertIn(
+            f"SPAWN: research,issue=500,label=workflow/research,game={_active_game()}",
+            first,
+            f"promote must directly spawn research: {first}")
         self.assertNotIn("SPAWN: research,issue=500", second,
                          "gate must suppress re-spawn within TTL")
 
@@ -843,10 +865,14 @@ class TestPreprocess(unittest.TestCase):
                 second = ep.pick_next_issue()
             finally:
                 ep.time.time = old_time
-        self.assertIn("SPAWN: research,issue=501,label=workflow/research,game=mini-pong", first,
-                      f"available issue must spawn research: {first}")
-        self.assertIn("SPAWN: research,issue=501,label=workflow/research,game=mini-pong", second,
-                      "TTL expiry must re-spawn a stalled available issue")
+        self.assertIn(
+            f"SPAWN: research,issue=501,label=workflow/research,game={_active_game()}",
+            first,
+            f"available issue must spawn research: {first}")
+        self.assertIn(
+            f"SPAWN: research,issue=501,label=workflow/research,game={_active_game()}",
+            second,
+            "TTL expiry must re-spawn a stalled available issue")
 
     def test_picker_direct_and_webhook_echo_single_spawn(self):
         """Direct picker spawn and the webhook echo (preprocess label path)

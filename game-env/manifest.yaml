@@ -20,7 +20,7 @@ engine:
 # active 是唯一切换开关；subprojects 登记所有游戏及其路径约定。
 # 新游戏加入 = 加一个子项 + 改 active。
 game:
-  active: mini-pong
+  active: shandong-wolf
   subprojects:
     mini-pong:
       path: mini-pong/
@@ -28,12 +28,12 @@ game:
       smoke_entry: tests/smoke_test.gd
       compile_check: tests/check_compile.gd
       e2e_plan: mini-pong/e2e_shots.json
-    snow-blade:
-      path: snow-blade/
+    shandong-wolf:
+      path: shandong-wolf/
       test_entry: tests/run_tests.gd
       smoke_entry: tests/smoke_test.gd
       compile_check: tests/check_compile.gd
-      e2e_plan: snow-blade/e2e_shots.json
+      e2e_plan: shandong-wolf/e2e_shots.json
 
 source:
   dir: gdscripts/

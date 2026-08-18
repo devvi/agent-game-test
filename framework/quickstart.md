@@ -52,13 +52,13 @@ research agent → PRD → 自动合并 → plan agent → DESIGN → 自动合�
 ### Step A: 建目录骨架
 
 ```bash
-# 以 snow-blade 为例 — 复制 mini-pong 的成熟结构
-mkdir -p snow-blade/gdscripts snow-blade/tests snow-blade/scenes snow-blade/assets
+# 以 shandong-wolf 为例（《山东抗日之狼》）— 复制 mini-pong 的成熟结构
+mkdir -p shandong-wolf/gdscripts shandong-wolf/tests shandong-wolf/scenes shandong-wolf/assets
 # 最小 project.godot（显式 viewport 尺寸 + resizable=false）
-cat > snow-blade/project.godot << 'EOF'
+cat > shandong-wolf/project.godot << 'EOF'
 ; Engine configuration file.
 [application]
-config/name="Snow Blade"
+config/name="山东抗日之狼"
 run/main_scene=""
 [display]
 window/size/viewport_width=1280
@@ -66,7 +66,7 @@ window/size/viewport_height=720
 window/size/resizable=false
 EOF
 # E2E shot plan（游戏自持, runner 自动读 <game>/e2e_shots.json）
-echo '{"shots": []}' > snow-blade/e2e_shots.json
+echo '{"shots": []}' > shandong-wolf/e2e_shots.json
 ```
 
 ### Step B: manifest 注册 + 切换
@@ -74,7 +74,7 @@ echo '{"shots": []}' > snow-blade/e2e_shots.json
 ```yaml
 # game-env/manifest.yaml
 game:
-  active: snow-blade            # ← 从 mini-pong 切过来
+  active: shandong-wolf          # ← 从 mini-pong 切过来
   subprojects:
     mini-pong:
       path: mini-pong/
@@ -82,19 +82,19 @@ game:
       smoke_entry: tests/smoke_test.gd
       compile_check: tests/check_compile.gd
       e2e_plan: mini-pong/e2e_shots.json
-    snow-blade:                 # ← 新增注册
-      path: snow-blade/
+    shandong-wolf:               # ← 新增注册
+      path: shandong-wolf/
       test_entry: tests/run_tests.gd
       smoke_entry: tests/smoke_test.gd
       compile_check: tests/check_compile.gd
-      e2e_plan: snow-blade/e2e_shots.json
+      e2e_plan: shandong-wolf/e2e_shots.json
 ```
 
 ```bash
-git add game-env/manifest.yaml snow-blade/
-git commit -m "chore: switch active game → snow-blade"
+git add game-env/manifest.yaml shandong-wolf/
+git commit -m "chore: switch active game → shandong-wolf"
 git push
-# 下个 tick 起：SPAWN 带 game=snow-blade，CI/E2E/worktree 全部跑 snow-blade/
+# 下个 tick 起：SPAWN 带 game=shandong-wolf，CI/E2E/worktree 全部跑 shandong-wolf/
 ```
 
 ### Step C: 验证切换生效
