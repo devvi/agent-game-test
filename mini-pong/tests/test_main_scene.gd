@@ -311,6 +311,29 @@ func _test_tc19_version_label_in_start_menu() -> void:
 					"TC19-6: anchors match ui_start_menu.tscn")
 			ui_instance.queue_free()
 
+	# TC19-7..13: ModeSelect 区存在性 + 与 ui_start_menu.tscn R2 同步 (#551)
+	var mode_vbox = game.get_node_or_null("StartMenu/CenterContainer/VBoxContainer/ModeSelectVBox")
+	_assert(mode_vbox != null, "TC19-7: ModeSelectVBox exists in Main.tscn")
+	var option1 = game.get_node_or_null("StartMenu/CenterContainer/VBoxContainer/ModeSelectVBox/ModeOption1")
+	var option2 = game.get_node_or_null("StartMenu/CenterContainer/VBoxContainer/ModeSelectVBox/ModeOption2")
+	_assert(option1 != null and option1 is Label and option1.text == "单人模式（AI 对战）", "TC19-8: ModeOption1 Label with text 单人模式（AI 对战）")
+	_assert(option2 != null and option2 is Label and option2.text == "本地双人对战", "TC19-9: ModeOption2 Label with text 本地双人对战")
+	var vbox = game.get_node_or_null("StartMenu/CenterContainer/VBoxContainer")
+	if vbox and option1 and option2:
+		var children = vbox.get_children()
+		_assert(children.size() >= 3 and children[0].name == "TitleLabel" and children[1].name == "ModeSelectVBox" and children[2].name == "PromptLabel", "TC19-10: VBox child order TitleLabel < ModeSelectVBox < PromptLabel")
+	var packed = load("res://scenes/ui_start_menu.tscn")
+	if packed and mode_vbox and option1 and option2:
+		var ui_instance = packed.instantiate()
+		var ui_mv = ui_instance.get_node_or_null("CenterContainer/VBoxContainer/ModeSelectVBox")
+		var ui_o1 = ui_instance.get_node_or_null("CenterContainer/VBoxContainer/ModeSelectVBox/ModeOption1")
+		var ui_o2 = ui_instance.get_node_or_null("CenterContainer/VBoxContainer/ModeSelectVBox/ModeOption2")
+		if ui_mv and ui_o1 and ui_o2:
+			_assert(option1.get("theme_override_font_sizes/font_size") == 22 and option1.get("theme_override_font_sizes/font_size") == ui_o1.get("theme_override_font_sizes/font_size") and option2.get("theme_override_font_sizes/font_size") == 22 and option2.get("theme_override_font_sizes/font_size") == ui_o2.get("theme_override_font_sizes/font_size"), "TC19-11: ModeOption font_size == 22 matches ui_start_menu.tscn")
+			_assert(mode_vbox.get("theme_override_constants/separation") == 8 and mode_vbox.get("theme_override_constants/separation") == ui_mv.get("theme_override_constants/separation"), "TC19-12: ModeSelectVBox separation == 8 matches ui_start_menu.tscn")
+			_assert(option1.horizontal_alignment == 1 and option1.horizontal_alignment == ui_o1.horizontal_alignment and option2.horizontal_alignment == 1 and option2.horizontal_alignment == ui_o2.horizontal_alignment, "TC19-13: ModeOption horizontal_alignment == 1 matches ui_start_menu.tscn")
+		ui_instance.queue_free()
+
 	game.queue_free()
 
 
