@@ -1,0 +1,87 @@
+# Godot 程序化视觉实现路径（Visual Implementation Path）
+
+> 配套 game-to-issues §9.6：AI 没有绘画能力，视觉 Issue 必须用程序化手段落实。
+> 本文档是给 implement agent 的技术配方目录——分解时把适用配方名注入视觉 Issue 的 context。
+> 所有配方均已在 mini-pong（PONG://21）实弹验证：霓虹赛博视觉 100% 代码生成，零美术资产。
+
+## 0. 核心原则
+
+- **剪影 > 原画**：暗色剪影 + 轮廓线 + 氛围光，比高精度像素原画更容易成立，且更符合水墨/夜战美学
+- **参数集中**：颜色/密度/速度全部进 constants.gd（或主题资源），标注 # DRAFT + 候补值，人定稿
+- **环境低饱和 / 关键物高对比**：环境用低饱和色（黄土/墨色），关键交互物（刀光/敌人火把/血色）用高对比——玩家视线引导
+- **占位即最终形态的骨架**：占位几何的形状/比例就是正式原画的接入点（换 Sprite2D 层），不推翻重做
+
+## 1. 雪幕（Snow）— 山东雪夜核心
+
+**配方**：GPUParticles2D
+- 材质：ParticleProcessMaterial，gravity=Vector2(0, 30~60)（轻飘），initial_velocity_min/max=60~120
+- 粒子尺寸 2-4px，白色带 70-90% 透明度，密度 300-800（性能预算内）
+- 多层雪幕（近景快/远景慢，2-3 层 parallax）制造景深
+- 风速参数化（`snow_wind`），随关卡状态可调（Boss 战雪势加大）
+- 参考：`mini-pong/gdscripts/rain_curtain.gd`（雨幕同构，把雨滴换雪花 + 减速）
+
+## 2. 月光 / 冷色调（Moonlight）— 苍白月
+
+**配方**：CanvasModulate（全局色调）+ 背景月亮节点
+- CanvasModulate.color = 冷蓝灰（如 #2a3a4a），作为全局暗调基底
+- 月亮：Sprite2D 圆形 + 辉光（modulate 白偏蓝）+ 微弱光晕 shader（可参考 neon_glow.gdshader 改色）
+- 角色/关键物用自发光或 modulate 提亮，与环境形成对比（对比度规则写进 AC）
+- 参考：`mini-pong/gdscripts/neon_glow.gdshader`（辉光配方改色调）
+
+## 3. 水墨晕染（Ink-wash）— 风格灵魂
+
+**配方**：CanvasItem shader（gdshader，canvas_item 类型）
+- 背景色块边缘模糊：UV 边缘 alpha 渐变 + 噪声扰动（模拟墨渍扩散）
+- 实现：`float edge = smoothstep(0.0, u_edge, distance(UV, vec2(0.5)))` 类渐变 + `fract(sin(dot(...)))` 噪声扰动
+- 房舍/远山用深墨色（#1a1f26）低饱和色块，边缘水墨化
+- 性能：静态背景用一张 shader 覆盖（SubViewport 预渲染一次），动态对象不套
+
+## 4. 黄土环境（Loess）— 乡土底色
+
+**配方**：低饱和色块 + 雾
+- 地面/墙：黄土色（#8a7a5a 附近）低饱和 + 雪覆盖层（白色半透明 Polygon2D 随机分布）
+- 雾：ColorRect + gradient shader 或 GPUParticles2D 慢飘雾粒子（密度低，透明度 30-40%）
+- 环境对比度规则：环境饱和度 ≤ 20%，关键物饱和度 ≥ 60%（可断言：截图取色验证）
+
+## 5. 血色（Blood）— 处决美学
+
+**配方**：vignette 变化 + 红色粒子 + 屏幕闪
+- 处决瞬间：全屏 vignette 血色加深（参考 `mini-pong/gdscripts/vignette.gdshader`，血色版）+ 红闪 100-150ms
+- 血溅：GPUParticles2D 红色粒子（burst 模式，一次性）
+- 雪地血迹：Sprite2D 或 Polygon2D 深红色块（低饱和暗红 #5a1010，不刺眼）
+- 反例防护：血色必须克制——大面积高饱和红 = 页游感（用户反例）
+
+## 6. 剪影角色（Silhouette）— 无原画方案
+
+**配方**：Polygon2D / Sprite2D 单色 + AnimationPlayer 关键帧
+- 角色 = 暗色剪影（纯黑/深蓝灰 #0d1117 系，与月光冷色区分），大刀 = 高亮轮廓线（刀身 #c0c8d0 冷白 + 刀光）
+- 动画：AnimationPlayer 4-8 帧关键帧（移动摆动/挥砍弧线/受击顿帧/处决上撩）——关键帧摆姿势不是"画"
+- 敌兵区分：轮廓差异（军帽/刺刀/军刀剪影）+ 暖色点缀（火把/军旗），玩家视觉规则：**可控物冷/目标物暖**
+- 替换路径：正式原画 = 同尺寸 Sprite2D 动画帧，直接换节点内容，碰撞体/状态机不动
+
+## 7. 处决特写（Execution Cutscene）— 高潮时刻
+
+**配方**：hit-stop + 时间缩放 + 镜头顿帧 + 刀光
+- hit-stop：Engine.time_scale = 0.05 持续 100-150ms（处决瞬间）
+- 镜头：Camera2D zoom 瞬间拉近（1.0 → 1.3）+ 微抖动（幅度 2-4px 衰减）
+- 刀光：Polygon2D 弧线 + additive blend，随挥砍动画旋转
+- 白刃斩后接雪粒子静止帧（时间恢复后雪继续落 = 呼吸感）
+- 验收：特写帧可被 E2E 截图捕获（状态机有 execution 状态 + 可注入触发）
+
+## 8. UI 主题（克制 HUD）
+
+**配方**：Theme 资源 + 程序化字体
+- 字体：开源中文字体（如思源黑体/文泉驿，Asset Library 有）——禁止系统默认字体
+- 士气条：细长条 + 水墨边框（TextureProgressBar + 主题 stylebox），低饱和
+- 反例：发光按钮/红点/充值图标 = 页游感（用户反例），出现即 AC 失败
+
+## 9. 验收断言速查（写进视觉 Issue AC）
+
+| 断言 | 手段 |
+|------|------|
+| 色调一致 | E2E 截图取色：主色调在声明的色板 ±10% 内 |
+| 环境低饱和 | 截图背景区域饱和度 ≤ 阈值（analyze_bmp.py 扩展） |
+| 关键物可见 | 暗场景中刀光/敌兵轮廓对比度 ≥ 阈值 |
+| 粒子密度 | 雪幕粒子数在声明范围，帧率 ≥ 目标 |
+| 反例防护 | 截图无高饱和红闪滥用/发光按钮/默认字体 |
+| 人裁决项 | E2E 截图提交用户：构图/配色是否符合雪夜水墨黄土血色苍白 |

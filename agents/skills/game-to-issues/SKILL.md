@@ -475,6 +475,9 @@ flowchart LR
 >
 > 画面风格不是"做完功能再调"的事——它影响关卡设计、UI 布局、性能预算、资源管线。
 > 一个没有画面风格的游戏 Issue 集就像一部没有摄影风格的电影剧本——演员（功能）全了，但观众（玩家）什么也感受不到。
+>
+> **风格决策之外，必须落实实现路径（§9.6）**：AI 没有绘画能力，每个视觉 Issue 必须声明
+> 资产来源/技术路径/工程品味分离/可断言验收——不能想当然（2026-08-19 用户要求）。
 
 #### 9.1 画面风格的核心问题
 
@@ -500,13 +503,13 @@ Agent 必须基于以下维度自行推导，并在分解中包含画面风格�
 
 #### 9.3 画面风格必须包含的 Issue 类型
 
-无论什么风格，分解时必须有以下画面相关的 Issues：
+无论什么风格，分解时必须有以下画面相关的 Issues（每个都必须带 §9.6 实现路径声明）：
 
-| Issue 类型 | 说明 | 验收条件示例 |
-|:-----------|:-----|:-------------|
-| **[Feature] 渲染与氛围系统** | 场景整体视觉效果（光照、色调、粒子） | "画面有统一的色调风格；粒子系统的密度和颜色匹配氛围" |
-| **[Feature] UI 主题** | 字体、颜色、按钮样式、一致性 | "所有UI元素使用统一的颜色系统和字体；按钮状态（hover/active/disabled）有视觉反馈" |
-| **[Content] 场景视觉实现（每个场景）** | 每个场景的画面落实 | "场景光照/色调符合整体风格；场景内的视觉元素与叙事氛围一致" |
+| Issue 类型 | 说明 | 验收条件示例 | 实现路径声明 |
+|:-----------|:-----|:-------------|:------------|
+| **[Feature] 渲染与氛围系统** | 场景整体视觉效果（光照、色调、粒子） | "画面有统一的色调风格；粒子系统的密度和颜色匹配氛围" | 必须：资产来源（通常程序化生成）+ 技术路径（shader/粒子节点） |
+| **[Feature] UI 主题** | 字体、颜色、按钮样式、一致性 | "所有UI元素使用统一的颜色系统和字体；按钮状态（hover/active/disabled）有视觉反馈" | 必须：主题资源来源（程序化 theme/开源字体）+ 技术路径（Theme 资源） |
+| **[Content] 场景视觉实现（每个场景）** | 每个场景的画面落实 | "场景光照/色调符合整体风格；场景内的视觉元素与叙事氛围一致" | 必须：场景资产来源（程序化/开源/占位+替换）+ 技术路径 |
 
 #### 9.4 画面风格的验收标准（对所有视觉 Issue）
 
@@ -527,7 +530,40 @@ Agent 必须基于以下维度自行推导，并在分解中包含画面风格�
 - ❌ "好看就行" — 没有具体参考，implement agent 无法执行
 - ❌ "做完了再调颜色" — 颜色影响碰撞体可见性、UI 可读性
 - ❌ "用默认引擎渲染" — 默认渲染没有风格，玩家感受不到"这是游戏世界"
+- ❌ "实现雪夜水墨氛围系统" / "使用水墨风格素材" — **想当然**：没有资产来源、没有技术路径，implement agent 不知道素材从哪来、用什么手段做
+- ❌ "角色使用像素风格" — 像素动画帧 AI 画不出，除非资产来源 = 人工提供（见 §9.6）
 - ✅ "参考《Inside》的低多边形+雾效风格，暗色调为主，只有关键物体有高亮" — 有明确的执行方向
+- ✅ "雪幕 = GPUParticles2D（密度/速度/透明度参数化）+ 月光 = CanvasModulate 冷色调 + 剪影角色 Polygon2D 占位（正式原画接入时换 Sprite2D 层）" — 有明确的**实现路径**
+
+#### 9.6 画面实现路径（Visual Implementation Path）— 强制声明，禁止想当然
+
+> **为什么（2026-08-19 用户要求）：** 游戏画面是游戏体验的一半。AI 没有绘画能力——
+> "画面风格必须决策"（§9.1）只是第一步，**分解时必须落实画面到底怎么实现**，
+> 否则视觉 Issue 就是"做一个雪夜水墨氛围系统"这种想当然的空话：
+> implement agent 不知道资产从哪来、用什么技术手段、谁裁决好不好看，最后要么抄默认渲染，
+> 要么挂起等美术。画面不能想当然——**每个视觉 Issue 必须能在不依赖"AI 会画画"的前提下执行。**
+
+**每个视觉类 Issue（渲染/场景视觉/UI 主题/特效）的 context 必须声明以下四项：**
+
+| 声明项 | 必填 | 内容 |
+|--------|------|------|
+| **资产来源** | ✅ | 四选一：`程序化生成`（Godot 渲染能力代码生成，零美术资产）/ `开源素材复用`（Asset Library/GitHub 具体候选）/ `人工提供`（用户/美术交付物 + 格式约定）/ `占位+替换`（剪影/色块/几何占位跑通玩法，正式资产后补，标注替换成本与接入点） |
+| **技术路径** | ✅ | 具体 Godot 手段：哪个节点/shader/参数族。不接受"做出氛围感"式抽象描述。例：雪=GPUParticles2D、月光=CanvasModulate+调色、水墨晕染=CanvasItem shader、血色=vignette+粒子、剪影角色=Polygon2D/Sprite2D 单色+AnimationPlayer 关键帧 |
+| **工程/品味分离** | ✅ | 渲染系统/氛围实现 = mechanical（机器全责，有明确技术路径）；构图/配色/风格裁决 = taste-draft（人定稿，B3）。**一个 Issue 只能标一个 ownership**——两者都涉及则拆成两个 Issue，或在 AC 分列"机器断言"+"人裁决项" |
+| **验收可断言** | ✅ | AC 必须含可执行断言（色调范围/粒子密度/对比度规则/帧率）+ 人裁决项（E2E 截图提交用户定稿）。"画面好看"不算 AC |
+
+**强制声明格式（写进视觉 Issue 的 context 第一段）：**
+
+```text
+🎨 画面实现路径：
+- 资产来源：程序化生成（零美术资产）/ 开源素材复用（候选：xxx）/ 人工提供（交付物：xxx）/ 占位+替换（替换成本：xxx）
+- 技术路径：具体节点/shader/参数族（如 GPUParticles2D 雪幕 + CanvasModulate 冷月光 + CanvasItem shader 水墨晕染）
+- 工程/品味分离：渲染实现=mechanical；构图裁决=taste-draft（截图提交用户定稿）
+- 占位策略：剪影 Polygon2D 占位，正式原画接入点=换 Sprite2D 层（如适用）
+```
+
+**技术手段目录**（给 implement agent 的 Godot 程序化视觉配方）：
+`references/visual-implementation-path.md` — 雪/雨/月光/水墨/血色/剪影角色/处决特写的具体实现配方 + mini-pong 实证代码位置。分解时把适用配方名注入视觉 Issue 的 context。
 
 ---
 
@@ -763,6 +799,7 @@ cat game-env/manifest.yaml 2>/dev/null || echo "⚠️ 无 manifest — 用 git 
 | `source.dir` / `test.dir` | 分解时标注代码/测试落点 |
 | `git.default_branch` | 创建分支/PR 时的基准分支（当前项目为 `main`）|
 | `workflow.max_*_slots` | 分解粒度参考（并发有限 → Issue 不宜过碎）|
+| **`game.active`** | **当前活跃游戏（2026-08-18 起，一次一个游戏）——分解的目标游戏。** 新游戏分解时必须把 `game.subprojects.<name>.path` 注入每个 Issue 的代码落点；若目标游戏尚未注册，先加 manifest 子项（path/test_entry/e2e_plan）+ 切 `game.active` 再分解。详见 `workflow-pipeline-debugging/references/game-switching.md` |
 
 **0.8.3 确认 workflow 状态（可选但推荐）**
 
@@ -821,6 +858,20 @@ gh repo view "$REPO" --json nameWithOwner --jq .nameWithOwner 2>/dev/null || {
 
 ### Step 1.6: Obsidian 知识库搜索
 
+**⚠️ 挂载失败先读本段配方，不要从零探测（2026-08-18 实测教训）。** 用户报"obsidian 挂载有问题"时，
+本 agent 曾浪费多轮在：局域网 IP 探测（192.168.88.33 — 那是 VPN 网段内**别的设备**，不是 NAS）、
+SMB 挂载、猜 5006 端口（不通）——而正确入口**早已写在本段**：远程 QuickConnect 域名 +
+keychain 端口 1995 + 完整路径 `GuaGuaRan/Documents/Obsidian`。**先读配方再动手。**
+
+**用 keychain 恢复真实连接参数（比猜端口可靠）：**
+```bash
+security find-internet-password -s guaguastation.mycloudnas.com   # port=0x7CB=1995, ptcl=htps, acct=macmini-workflow
+```
+NAS 在**远程**（QuickConnect 域名），不在局域网。5006 等端口不通 = 路由器没转发；1995 是
+keychain 里记录的真实转发端口。完整挂载 URL 见下方配方（路径是 `GuaGuaRan/Documents/Obsidian`，
+不是 `/webdav` 也不是根 `/` —— 根目录枚举整个 NAS 会 Operation timed out；挂子路径才可用）。
+若 WebDAV 挂载超时，直接用 rclone（下方已配置）读笔记，不阻塞分解流程。
+
 在分解之前，先搜索 Obsidian 知识库中已有的设计笔记，避免重复设计或遗漏已有的架构决策。
 
 **⚠️ 路径解析（2026-07-31 实测修正）：** `OBSIDIAN_VAULT_PATH` 环境变量指向**挂载根**（`/Volumes/Obsidian`），不是 vault 本身。vault 实际在 `<OBSIDIAN_VAULT_PATH>/Knowledge Ocean/`。**必须先解析出完整路径**，且注意 `search_files` 的 content 搜索对**含空格的路径会静默返回 0**（Hermes 工具层 bug，已实测复现）——因此必须用 grep 作为兜底，不能只依赖 search_files。
@@ -854,6 +905,8 @@ ls "/Volumes/Obsidian/Knowledge Ocean/wiki" | head -5
 rclone lsf obsidian:"Knowledge Ocean/wiki/" 2>/dev/null | head -20   # 列表
 rclone cat obsidian:"Knowledge Ocean/wiki/<note>.md" 2>/dev/null     # 读笔记
 ```
+
+> 错误码语义 + 挂载恢复完整流程 + 分解脚本调用事实（API 290s 需 timeout≥300、系统 python3 无 yaml 用正则取 key、测试 issue 撤销用 git revert 而非 force push）→ `references/obsidian-mount-recovery-and-decompose-calls.md`
 
 ```bash
 # 解析 vault 路径（先探测，再搜索）
@@ -900,6 +953,18 @@ grep -rl "<关键词>" "$VAULT_RAW/" 2>/dev/null | head -5
 5. 需跳过的规则（如街机游戏跳过 §§5-6）
 6. 严格的 JSON 格式要求
 7. references/urban-night-walker-example.md 作为 few-shot 格式参考
+8. **开源优先调研（强制，2026-08-13 实战教训——PONG://21 首版 14 issues 全部漏注，人工补）**：
+   每个 Issue 的 context 必须包含：
+   "🔍 开源优先：开始实现前，先在 Godot Asset Library (assetlibrary.godotengine.org)、GitHub 和社区论坛
+   搜索现有插件/模板/开源 assets（粒子、shader、UI 主题、砖块生成等），有可用的成熟方案优先复用，
+   不重复造轮子；找不到合适方案再自行实现，并在 PR 中说明调研结果。"
+   （对应 Persona 2 Resourceful Open-Source Tinkerer + Step 1.5 引擎生态调研）
+9. **画面实现路径强制声明（2026-08-19 用户要求——画面不能想当然）**：
+   每个视觉类 Issue（渲染/场景视觉/UI/特效）的 context 必须按 §9.6 声明四项：
+   资产来源（程序化生成/开源素材复用/人工提供/占位+替换）+ 技术路径（具体 Godot 节点/shader/参数族）
+   + 工程/品味分离（渲染实现=mechanical，构图裁决=taste-draft）+ 可断言验收（色调/密度/对比度 + 人裁决项）。
+   技术配方参考 references/visual-implementation-path.md。**禁止**"实现 xxx 氛围系统"式无实现路径的描述；
+   **禁止**隐含依赖 AI 绘画能力（像素动画帧）除非资产来源=人工提供。
 ```
 
 **⚠️ 不要手写 JSON。** 构造完整 prompt → 调模型生成。手写会丢失模型对依赖关系和粒度的判断能力。2026-07-28 实战教训：手写 Mini Pong 的 12 个 Issue 看似合理，但依赖关系、版本切片、验收条件的一致性明显弱于模型生成的版本。
@@ -965,6 +1030,7 @@ mkdir -p docs/RAW/
 - [ ] **组装在依赖链末端**：组装 Issue 是 mvp 的最后一个依赖节点；验证 Issue 依赖组装
 - [ ] **没有孤儿组件**：每个 **mvp 功能组件** Issue 都出现在组装 Issue 的 dependencies 里（组件 → 组装 → 验证，一条链到底）
 - [ ] **基础设施 ≠ 组件**：Scaffold/CI/脚手架类 Issue 是组装的前置依赖（通过它们的依赖链间接连到组装），**不要求**直接出现在组装的 dependencies 里。判断标准：这个 Issue 是否被玩家直接体验？不被体验（脚手架、CI、数据模型）→ 基础设施；被体验（场景、顾客、对话 UI、结算）→ 组件
+- [ ] **taste-draft ≠ 组件**（2026-08-13 对齐 verify-plan.py）：品味内容 Issue（`content_ownership: taste-draft`）不进依赖链、不进组装 deps — verify-plan.py 的 C5.5 孤儿检查已豁免它们（与基础设施同类）。若 gate 报 taste-draft 为孤儿组件 → 是旧版脚本，先升级脚本再跑，不是真孤儿
 - [ ] 组装 Issue 的验收条件包含"主场景可加载 + 信号连接完整 + 全局常量统一"（参考 mini-pong #10 的写法）
 
 **C6. 依赖 DAG** — 依赖关系无环且拓扑可执行
@@ -986,8 +1052,10 @@ mkdir -p docs/RAW/
 - [ ] 命名类（B2）产出为候选清单（5 选 1 + 语境说明），不直接定名
 - [ ] 视觉类（B3）参数集中在 theme + 拟物/抽象方向标注，且 E2E 截图体系可作校准证据（run-e2e-review.sh）
 - [ ] 每处 taste-draft 值标注**情感断言**（体验引擎：它试图触发什么情感——校准有靶心，不是"感觉一下"）
+  - 情绪化设计手法（价值两极化/情感误归因/不可预测奖励/带代价选择 + 升级条目模板 + 动态雨量仪表盘）见 `references/emotional-upgrade-design.md`（2026-08-13 PONG://21 实战）
 - [ ] **review agent 定稿就绪检查**：草稿达标（结构完整 + taste 方向对齐）→ 通过；不达标 → 打回重写，**不 assign 给人**（不把烂活丢给人）
 - [ ] 草稿 merge 后：`gh issue edit <n> --add-label status/human-review --add-assignee <user>`，Issue **保持 open**（草稿 PR 不写 Closes 或 merge 后重新 open）
+- [ ] **定稿 PR merge 后任何 agent（含 review agent）不得 close、不得打 status/done**（2026-08-11 #378 第五断点：review agent 在 workflow-chain 防呆正确执行后 26s 越权 close）——close 是用户动作，定稿 PR 的收尾 = merge + 评论"请 close 完成定稿"
 - [ ] **依赖语义**：event-processor `_has_unresolved_dependencies` 对带 `status/human-review` 且草稿已 merge 的依赖 Issue 视为**依赖满足**（human Issue 不进依赖链）
 - [ ] 人定稿后差异记录进 `docs/TASTE.md`（| 日期 | Issue | 领域 | 草稿值 | 定稿值 | 方向 | 理由 |）→ 下次草稿自动朝该方向
 - [ ] 校准偏好（Grill Me 0.35 轮）已注入分解 prompt
@@ -1227,7 +1295,7 @@ GitHub Project Board 添加 `Version` 字段（single-select），与 `version/*
 
 ## 关键规则
 
-1. **deepseek-v4-pro** 专用于分解任务 — 通过 Hermes provider 调用
+1. **deepseek-v4-flash 可用于分解**（2026-08-13 用户确认："game to issues 也可以调用 deepseek-v4-flash"）。v4-pro 仍是复杂分解的质量首选，但 flash 单阶段完全可用（更快更省）。⚠️ flash 单阶段分解**必须 `max_tokens: 32000`**（它是 reasoning 模型，8192 会被推理耗尽 → `content` 空串 + `finish_reason: length`，JSON 实际在 `reasoning_content` 里但被截断无法可靠提取；32000 实测 14-Issue 分解正常输出）。另注意 flash 输出的 `meta`/`versions` 常为非标准格式（自定义字段 project/engine/language/path/resolution…；versions 是纯 id 数组而非 `{name, description, issues}` 对象）——保存前用 verify-plan.py C0/C5.5 兜底修正。
 2. JSON 文件保存后**必须展示给用户审阅**，不可自动创建
 3. 依赖关系必须 DAG（有向无环图），创建时按拓扑顺序
 4. 每个 Issue 的初始 label 必须包含 `workflow/backlog`
@@ -1251,8 +1319,15 @@ GitHub Project Board 添加 `Version` 字段（single-select），与 `version/*
 2. `python3 ~/.hermes/scripts/create-issues.py <plan>.json --repo devvi/agent-game-test` 真实创建测试 Issue（plan 里带 content_ownership 标注）
 3. `gh issue view <N> --json body --jq .body | grep -A2 所有权` 验证 content_ownership 标注真实落盘
 4. `gh issue view <N> --json body --jq .body | grep -A3 前置依赖` 验证依赖映射为真实 #N
-5. 集成测试依赖语义：mock `_ensure_issues_cache` 注入真实结构的 issue 数据，调用 `_has_unresolved_dependencies` 断言 human-review 依赖放行 / 普通 open 依赖仍 block
-6. `gh issue close <N> --comment "E2E 验证产物，清理关闭"` 清理测试 Issue，`rm` 临时 plan 文件
+5. 集成测试依赖语义（2026-08-11 实弹四场景）— 推荐直接跑本 skill 的 `scripts/verify-human-review-deps.py --parent <N> --dep <M>`（只读：mock 模拟 label 状态，不改 repo），或手写 heredoc 跑四场景：
+   - 场景 A: 依赖带 `status/human-review` → 放行（v4 核心语义：human Issue 不进依赖链）
+   - 场景 B: 依赖仅 `workflow/backlog`（无完成标签）→ 阻塞
+   - 场景 C: 依赖 `status/done` → 放行（回归）
+   - 场景 D: 依赖已 close（不在 open cache）→ 放行（回归）
+   ⚠️ 加载 event-processor.py 的坑：文件名是连字符 `event-processor.py`，`import event_processor` 直接 ModuleNotFoundError — 必须 `importlib.util.spec_from_file_location("ep", "scripts/event-processor.py")` 加载
+6. 清理：`gh issue close` 一次只收 **1 个参数**（`gh issue close 365 366` 报 "accepts 1 arg(s), received 2"）— 逐个 close 或 for 循环；`rm` 临时 plan 文件
+
+> **跑测试网用 unittest，不用 pytest：** `python3 -m unittest discover -s tests/pipeline`（系统 python3 无 pytest 模块）。commit 消息里的测试计数可能过期（08ebc1c 写 108，实际跑 111）— 以实际执行为准，别信 commit 自报。
 
 ⚠️ `status/human-review` 是 v4 新 label：repo 里不存在时先 `gh label create "status/human-review"`（setup-labels.sh 已包含，2026-08-11 补充），否则 `gh issue edit --add-label` 报 not found。
 
@@ -1271,15 +1346,29 @@ coconut proxy 对 v4-pro 的上游超时较短（约 30-60s）。当 prompt 长�
 **解决：draft + polish 两阶段法**
 ```json
 // 阶段1: v4-flash 起草（快速，输出完整 JSON）
-{"model": "deepseek/deepseek-v4-flash", "max_tokens": 8192}
+{"model": "deepseek/deepseek-v4-flash", "max_tokens": 32000}
 
 // 阶段2: v4-pro 精修（输入小，生成少，不易超时）
 {"model": "deepseek/deepseek-v4-pro", "temperature": 0.2, "max_tokens": 2048}
 ```
 阶段2 的 prompt 只包含「审查并修正这个 JSON」——输入是阶段1的输出，远小于完整规则文档。也可以只用 v4-flash 单阶段，质量接近手写但粒度偏粗，需人工调整。
 
+**⚠️ v4-flash 是 reasoning 模型 — max_tokens 陷阱（2026-08-13 实测）：** flash 的推理内容（reasoning_content）会先消耗 token，**默认 8192 max_tokens 会被推理耗尽**，表现为 `content` 返回**空串** + `finish_reason: "length"`，且完整 JSON 实际在 `reasoning_content` 里被截断（49K 推理只写到 issue 10）。**单阶段分解必须 `max_tokens: 32000`**（14-Issue 管线实测正常输出，finish_reason: stop）。失败症状速查：content 空 + finish=length → 加 max_tokens，不是重试 prompt。另外 flash 输出的 meta/versions 常偏离 schema（meta 用自定义字段、versions 是纯 id 数组）——用 verify-plan.py 的 C0 检查兜底，手动修正后再展示。
+
+**⚠️ flash 单阶段分解的客户端超时（2026-08-18 实测）：** 32000 tokens + 完整分解 prompt 下，flash 实测耗时 **290s**（17-Issue 分解，finish_reason=stop）。客户端 HTTP timeout **必须 ≥ 300s**（180s 会 `read operation timed out` 假死）。症状速查：调用挂起 >3min 且进程 CPU 0% = 在等 upstream，不是死循环——等足 300s；若 timeout=180 失败，**提高 timeout 重试，不是重写 prompt**。另：直接调 API 时 api_key 可从 `~/.hermes/config.yaml` 的 `custom_providers[].api_key` 用正则提取（系统 python3 无 yaml 模块，`import yaml` 会 ModuleNotFoundError）。
+
 ### 空依赖数组
 如果没有依赖，`dependencies` 必须为 `[]`，不要省略。
+
+### ⚠️ 模型生成的 labels 在 repo 里不存在 — create-issues.py 报错（2026-08-13 PONG://21 实测）
+
+**症状:** `create-issues.py` 创建失败: `could not add label: 'refactor' not found`。模型按自己的习惯生成 labels（refactor/p0/vertical/brick/breakout/procedural/copywriting…），而目标 repo 只有 setup-labels.sh 定义的固定 label 集。
+
+**解决:** 创建前把 labels 规范化为 repo 现有 label（`gh label list --limit 100 --json name --jq '.[].name'`）：
+- 必须含: `enhancement` + `workflow/backlog`（`version/<milestone>` 由脚本自动加）
+- 可选补 1-2 个现有分类: `content`（taste-draft）/ `ui` / `graphics` / `gameplay` / `testing` / `feature` / `bug` / `infrastructure` / `documentation` / `audio`
+- taste-draft issue 用 `content` label；**content_ownership 字段才是分流依据，label 不承担此职责**
+- 批量归一用 Python 按 issue id 映射到 repo label 集后再跑 create-issues.py（PONG://21 14 个 issue 全量归一实测通过）
 
 ### priority 数量平衡
 不要太集中在 `critical`，应该按金字塔分布：critical < high < medium < low
