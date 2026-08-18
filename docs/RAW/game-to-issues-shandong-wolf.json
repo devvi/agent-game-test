@@ -65,7 +65,7 @@
       "id": 3,
       "title": "[Feature] 火柴人剪影骨架与关键帧动画",
       "description": "用 Line2D/Polygon2D 程序化构建火柴人角色（头=圆，躯干/四肢=线，刀=长线）。实现基于 AnimationPlayer 的 6 个基础动画状态：idle / run / attack / heavy_attack / parry / stagger，以及后续预留 stance_break / execute 占位。形状与动画关键帧数值全部放入 constants.gd # DRAFT（帧节奏候补值）。参考《小小系列》动作表现力，靠关键帧摆姿而非贴图细节。",
-      "context": "审美坐标：火柴人单色剪影（墨色 #2b2b2b 或剪影黑），动作必须『有力度』——攻击前摇 8 帧、挥刀暴发 4 帧、收招 10 帧，参考小小系列打击帧节奏。雪夜背景下剪影与背景的反差是核心视觉语言。禁止页游光效堆砌；禁止日式武士道浮夸动作。\n🔍 开源优先: 开始实现前,先在 Godot Asset Library/GitHub/社区搜索开源 2D skeleton/animation 方案（如 Godot 自带 Skeleton2D 用法、火柴人模板）,成熟方案优先复用,不重复造轮子,找不到再自行实现,并在 PR 中说明调研结果。\n画面实现路径：程序化生成零美术资产；正式原画接入点=换 Sprite2D 层（保留现有 Line2D 骨架结构）。帧节奏参数集中 constants.gd # DRAFT，允许后续 taste-draft 裁决。\n本 Issue 为视觉核心，E2E 截图须提交用户裁决。",
+      "context": "审美坐标：火柴人单色剪影（墨色 #2b2b2b 或剪影黑），动作必须『有力度』——攻击前摇 8 帧、挥刀暴发 4 帧、收招 10 帧，参考小小系列打击帧节奏。雪夜背景下剪影与背景的反差是核心视觉语言。禁止页游光效堆砌；禁止日式武士道浮夸动作。\n🔍 开源优先: 开始实现前,先在 Godot Asset Library/GitHub/社区搜索开源 2D skeleton/animation 方案（如 Godot 自带 Skeleton2D 用法、火柴人模板）,成熟方案优先复用,不重复造轮子,找不到再自行实现,并在 PR 中说明调研结果。\n画面实现路径：程序化生成零美术资产；正式原画接入点=换 Sprite2D 层（保留现有 Line2D 骨架结构）。帧节奏参数集中 constants.gd # DRAFT，允许后续 taste-draft 裁决。\n本 Issue 为视觉核心，E2E 截图须提交用户裁决。\n输入驱动契约(2026-08-19): 动画**只消费状态,不直接读输入**——链路=#2 输入意图事件(attack_pressed/guard_held/parry_timed)→ #4 战斗状态机(状态: idle/move/attack/guard/parry_hit/stagger/execute/revive) → 本 Issue 播放对应关键帧动画。攻击前摇帧=输入后立即进入 attack 状态的动画(与 #2 输入缓冲衔接);格挡/弹反共用 guard 姿态动画(弹反成功播 parry_hit 硬直帧)。",
       "depth": "deep",
       "priority": "high",
       "dependencies": [
@@ -145,7 +145,7 @@
       "id": 6,
       "title": "[Feature] 拼刀 / 弹反 / 架势崩解判定系统",
       "description": "核心战斗判定：攻击碰撞帧（Hitbox）与弹反帧（Parry-box）的叠加窗口检测。实现规则：敌人攻击命中玩家时，若玩家处于 parry 帧且有正确方向判定 → 触发弹反（不受伤害 + 对敌人造成固定架势伤害）；若玩家普通攻击与敌人攻击同时发生 → 拼刀（clash，双方小架势伤害 + 特效触发）；非弹反受击 → 玩家掉血。架势条积满 → 敌人进入 stance_break。所有窗口帧数（弹反 6 帧、拼刀优先级等）集中 constants.gd # DRAFT。",
-      "context": "审美坐标：这是『我赢了一场艰难的仗』的核心手感引擎。弹反必须『难而公平』：窗口小（6-9 帧）、成功反馈强（火花 + 短暂慢动作）、失败代价明确。参考只狼的『打铁』音画节奏，本层负责判定，反馈由 SW-008 配合。\n🔍 开源优先: 开始实现前,先在 Godot Asset Library/GitHub/社区搜索 Godot hitbox/parry 开源实现,成熟方案优先复用,不重复造轮子,找不到再自行实现,并在 PR 中说明调研结果。\n画面实现路径：判定层不渲染；命中火花/刀光由 SW-008 的 GPUParticles2D 呈现。本 Issue 的数值手感属 taste-draft 候补，集中 constants.gd 供后续裁决。\n弹反窗口等数值基准：参考只狼体系（game-to-issues references/sekiro-tuning-reference.md），数值从 constants.gd 读取，判定逻辑与数值解耦。",
+      "context": "审美坐标：这是『我赢了一场艰难的仗』的核心手感引擎。弹反必须『难而公平』：窗口小（6-9 帧）、成功反馈强（火花 + 短暂慢动作）、失败代价明确。参考只狼的『打铁』音画节奏，本层负责判定，反馈由 SW-008 配合。\n🔍 开源优先: 开始实现前,先在 Godot Asset Library/GitHub/社区搜索 Godot hitbox/parry 开源实现,成熟方案优先复用,不重复造轮子,找不到再自行实现,并在 PR 中说明调研结果。\n画面实现路径：判定层不渲染；命中火花/刀光由 SW-008 的 GPUParticles2D 呈现。本 Issue 的数值手感属 taste-draft 候补，集中 constants.gd 供后续裁决。\n弹反窗口等数值基准：参考只狼体系（game-to-issues references/sekiro-tuning-reference.md），数值从 constants.gd 读取，判定逻辑与数值解耦。\n输入契约(2026-08-19): 消费 #2/#4 的 guard 输入事件——guard_held(按住)=格挡判定(扣自身架势),guard_pressed(按下时机,时间戳与敌人攻击帧对齐)=弹反窗口判定(窗口来自 constants.gd 只狼基准 10-14 帧);判定结果发射反馈信号给 #8(火花/hit-stop)与 #3(姿态动画)。",
       "depth": "deep",
       "priority": "critical",
       "dependencies": [
@@ -226,7 +226,7 @@
       "id": 9,
       "title": "[Feature] 处决系统（架势崩解 → 处决特写）",
       "description": "敌人架势崩解时，玩家靠近按执行键（execute）→ 触发处决：短促慢动作（time_scale 0.1 持续 0.6s）+ 处决动画（火柴人突刺/斩首关键帧）+ 刀光轨迹 + 敌人死亡。处决无敌。若玩家在崩解期未执行处决，敌人 3s 后恢复架势并疲惫起身（疲惫期更容易被再次崩解）。处决对 Boss/精英的演出强度由 SW-019 扩展，本系统提供通用接口。",
-      "context": "审美坐标：处决是情绪弧的最高点——『赢了一场艰难的仗』那一刻。必须克制而残酷：不是日式武士道的『介错』美学，而是抗战黑白电影里『该结束了』的短句感。处决动作 12 帧以内、快、准、结局明确。\n🔍 开源优先: 开始实现前,先在 Godot Asset Library/GitHub/社区搜索 Godot execution/finish-move 开源实现,成熟方案优先复用,不重复造轮子,找不到再自行实现,并在 PR 中说明调研结果。\n画面实现路径：刀光=Line2D additive 弧线（由 SW-003 骨架动画驱动）；慢动作+spark 由 SW-008 复用；处决结束时敌人淡出（modulate alpha 1→0 0.3s）如墨迹消散。",
+      "context": "审美坐标：处决是情绪弧的最高点——『赢了一场艰难的仗』那一刻。必须克制而残酷：不是日式武士道的『介错』美学，而是抗战黑白电影里『该结束了』的短句感。处决动作 12 帧以内、快、准、结局明确。\n🔍 开源优先: 开始实现前,先在 Godot Asset Library/GitHub/社区搜索 Godot execution/finish-move 开源实现,成熟方案优先复用,不重复造轮子,找不到再自行实现,并在 PR 中说明调研结果。\n画面实现路径：刀光=Line2D additive 弧线（由 SW-003 骨架动画驱动）；慢动作+spark 由 SW-008 复用；处决结束时敌人淡出（modulate alpha 1→0 0.3s）如墨迹消散。\n触发契约(2026-08-19): 处决触发=#6 架势崩解信号 + 玩家按攻击键(复用 #2 attack 键,靠近崩解敌人自动衔接,与 #2 输入哲学『攻击键=处决键』一致);触发后进入 execute 状态(#4),消费 #8 反馈(150ms hit-stop + 刀光)与 #3 处决动画。",
       "depth": "deep",
       "priority": "high",
       "dependencies": [
