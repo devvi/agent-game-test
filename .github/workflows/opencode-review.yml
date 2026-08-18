@@ -39,60 +39,47 @@ jobs:
       - name: Verify Godot
         run: godot --version
 
+      # ── 活跃游戏解析（2026-08-18, 一次一个游戏）──────────────────
+      # 从 game-env/manifest.yaml 读 game.active → GAME_DIR（如 mini-pong/）
+      - name: Resolve active game from manifest
+        id: active-game
+        run: |
+          GAME_ACTIVE=$(python3 -c "import re,sys; txt=open('game-env/manifest.yaml',encoding='utf-8').read(); m=re.search(r'^game:\s*$',txt,re.M); am=re.search(r'active:\s*(\S+)',txt[m.end():m.end()+200]) if m else None; print(am.group(1) if am else 'mini-pong')")
+          GAME_DIR=$(python3 -c "import re,sys; txt=open('game-env/manifest.yaml',encoding='utf-8').read(); active='$GAME_ACTIVE'; m=re.search(r'^game:\s*$',txt,re.M); sm=re.search(r'subprojects:\s*\n(.*?)(?=\n\S|\Z)',txt[m.end():],re.S) if m else None; pm=re.search(r'^\s*'+re.escape(active)+r':\s*\n(.*?)(?=\n\s{4}\S|\Z)',sm.group(1),re.S|re.M) if sm else None; pm2=re.search(r'path:\s*(\S+)',pm.group(1)) if pm else None; print(pm2.group(1).rstrip('/') if pm2 else active)")
+          echo "game_active=$GAME_ACTIVE" >> $GITHUB_OUTPUT
+          echo "game_dir=$GAME_DIR" >> $GITHUB_OUTPUT
+          echo "active game: $GAME_ACTIVE (dir: $GAME_DIR)"
+
       - name: Pre-flight compile check
         id: compile
         run: |
+          GAME_DIR="${{ steps.active-game.outputs.game_dir }}"
           exit_code=0
-          found=0
-          for script in $(find gdscripts/ tests/ -name '*.gd' 2>/dev/null); do
-            found=1
-            output=$(godot --headless --check-only "$script" 2>&1) || true
-            if echo "$output" | grep -q "SCRIPT ERROR"; then
-              echo "❌ COMPILE ERROR: $script"
-              echo "$output" | grep "SCRIPT ERROR"
-              exit_code=1
-            fi
-          done
-          if [ "$found" -eq 1 ]; then
+          if [ -f "$GAME_DIR/tests/check_compile.gd" ]; then
             echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-          fi
-          echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
-        continue-on-error: true
-
-      - name: Pre-flight compile check — Mini Pong
-        id: compile-mini-pong
-        run: |
-          exit_code=0
-          if [ -f mini-pong/tests/check_compile.gd ]; then
-            echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-            # 2026-08-17 (CI 修复): if 形式绕过 bash -e — godot exit 1 不会
-            # 终止脚本, exit_code 正常写入 GITHUB_OUTPUT (原: godot; exit_code=$?
-            # 在 bash -e 下提前终止 → outputs 缺失 → gate 假绿)
-            if godot --path mini-pong/ --headless --script tests/check_compile.gd > compile-mini-pong-output.log 2>&1; then
+            if godot --path "$GAME_DIR/" --headless --script tests/check_compile.gd > compile-output.log 2>&1; then
               exit_code=0
             else
               exit_code=$?
             fi
-            cat compile-mini-pong-output.log
-            # 退出码非0 或 输出含 FAIL/SCRIPT ERROR = 编译失败
-            if [ "$exit_code" -ne 0 ] || grep -qE "FAIL|SCRIPT ERROR" compile-mini-pong-output.log; then
-              echo "❌ COMPILE ERROR(s) in Mini Pong scripts"
+            cat compile-output.log
+            if [ "$exit_code" -ne 0 ] || grep -qE "FAIL|SCRIPT ERROR" compile-output.log; then
+              echo "❌ COMPILE ERROR(s) in $GAME_DIR scripts"
               exit_code=1
             fi
-          elif [ -d mini-pong ]; then
-            # Fallback: quick project validation if check_compile.gd missing
+          elif [ -d "$GAME_DIR" ]; then
             echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-            if godot --path mini-pong/ --headless --quit > compile-mini-pong-output.log 2>&1; then
+            if godot --path "$GAME_DIR/" --headless --quit > compile-output.log 2>&1; then
               exit_code=0
             else
               exit_code=$?
             fi
-            if [ "$exit_code" -ne 0 ] || grep -qE "FAIL|SCRIPT ERROR" compile-mini-pong-output.log; then
+            if [ "$exit_code" -ne 0 ] || grep -qE "FAIL|SCRIPT ERROR" compile-output.log; then
               echo "❌ COMPILE ERROR(s) detected"
               exit_code=1
             fi
           else
-            echo "SKIP: mini-pong/ not found"
+            echo "SKIP: $GAME_DIR/ not found"
           fi
           echo "exit_code=$exit_code" >> $GITHUB_OUTPUT
         continue-on-error: true
@@ -100,20 +87,16 @@ jobs:
       - name: Run GDScript tests
         id: test
         run: |
-          if [ -f tests/run_tests.gd ]; then
+          GAME_DIR="${{ steps.active-game.outputs.game_dir }}"
+          if [ -f "$GAME_DIR/tests/run_tests.gd" ]; then
             echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-            # 2026-08-17 (CI 修复): if 形式绕过 bash -e (同 mini-pong-test)
-            if godot --headless --script tests/run_tests.gd > test-output.log 2>&1; then
+            if godot --path "$GAME_DIR/" --headless --script tests/run_tests.gd > test-output.log 2>&1; then
               TEST_EXIT=0
             else
               TEST_EXIT=$?
             fi
             echo "Test output:"
             cat test-output.log
-            # 失败判定（2026-08-13 修复 critical 缺陷）: 任何一条命中即失败
-            #   1. 退出码非0（run_tests.gd quit(1) — 断言失败/脚本崩溃）
-            #   2. 输出含 SCRIPT ERROR（GDScript 运行时错误）
-            #   3. 输出含 failed 计数（"0 passed, N failed" / "❌ Failed: N"）
             if [ "$TEST_EXIT" -ne 0 ] || grep -qE "SCRIPT ERROR" test-output.log || grep -qE "[1-9][0-9]* failed|Failed[:：] *[1-9]" test-output.log; then
               echo "❌ Error(s) detected in test output — marking as failure"
               echo "exit_code=1" >> $GITHUB_OUTPUT
@@ -121,7 +104,7 @@ jobs:
               echo "exit_code=0" >> $GITHUB_OUTPUT
             fi
           else
-            echo "SKIP: tests/run_tests.gd not found"
+            echo "SKIP: $GAME_DIR/tests/run_tests.gd not found"
             echo "exit_code=0" >> $GITHUB_OUTPUT
           fi
         continue-on-error: true
@@ -129,88 +112,41 @@ jobs:
       - name: Run smoke test
         id: smoke
         run: |
-          if [ -f tests/smoke_test.gd ]; then
+          GAME_DIR="${{ steps.active-game.outputs.game_dir }}"
+          if [ -f "$GAME_DIR/tests/smoke_test.gd" ]; then
             echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-            # 2026-08-17 (CI 修复): if 形式绕过 bash -e (同 mini-pong-test)
-            if godot --headless --script tests/smoke_test.gd > smoke-output.log 2>&1; then
+            if godot --path "$GAME_DIR/" --headless --script tests/smoke_test.gd > smoke-output.log 2>&1; then
               echo "exit_code=0" >> $GITHUB_OUTPUT
             else
               echo "exit_code=$?" >> $GITHUB_OUTPUT
             fi
           else
-            echo "SKIP: tests/smoke_test.gd not found"
+            echo "SKIP: $GAME_DIR/tests/smoke_test.gd not found"
             echo "exit_code=0" >> $GITHUB_OUTPUT
           fi
         continue-on-error: true
 
-      - name: Validate sub-project scaffold
-        id: rnp
+      - name: Validate scaffold
+        id: scaffold
         run: |
-          if [ -d rainy-night-prometheus ]; then
-            # 2026-08-17 (CI 修复): if 形式绕过 bash -e
-            if godot --path rainy-night-prometheus/ --headless --quit > rnp-output.log 2>&1; then
+          GAME_DIR="${{ steps.active-game.outputs.game_dir }}"
+          if [ -d "$GAME_DIR" ]; then
+            if godot --path "$GAME_DIR/" --headless --quit > scaffold-output.log 2>&1; then
               echo "exit_code=0" >> $GITHUB_OUTPUT
             else
               echo "exit_code=$?" >> $GITHUB_OUTPUT
             fi
           else
-            echo "SKIP: rainy-night-prometheus/ not found"
-            echo "exit_code=0" >> $GITHUB_OUTPUT
-          fi
-        continue-on-error: true
-
-      - name: Validate Mini Pong scaffold
-        id: mini-pong
-        run: |
-          if [ -d mini-pong ]; then
-            # 2026-08-17 (CI 修复): if 形式绕过 bash -e
-            if godot --path mini-pong/ --headless --quit > mini-pong-output.log 2>&1; then
-              echo "exit_code=0" >> $GITHUB_OUTPUT
-            else
-              echo "exit_code=$?" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "SKIP: mini-pong/ not found"
-            echo "exit_code=0" >> $GITHUB_OUTPUT
-          fi
-        continue-on-error: true
-
-      - name: Run Mini Pong tests
-        id: mini-pong-test
-        run: |
-          if [ -f mini-pong/tests/run_tests.gd ]; then
-            echo "TEST_RAN=true" >> $GITHUB_OUTPUT
-            # 2026-08-17 (CI 修复): if 形式绕过 bash -e — godot exit 1 不会
-            # 终止脚本, TEST_EXIT 正常捕获, 判定块真实执行 (原: godot; TEST_EXIT=$?
-            # 在 bash -e 下提前终止 → exit_code 未写入 outputs → gate 假绿)
-            if godot --path mini-pong/ --headless --script tests/run_tests.gd > mini-pong-test-output.log 2>&1; then
-              TEST_EXIT=0
-            else
-              TEST_EXIT=$?
-            fi
-            echo "Test output:"
-            cat mini-pong-test-output.log
-            # 失败判定（2026-08-13 修复 critical 缺陷）: 任何一条命中即失败
-            #   1. 退出码非0（run_tests.gd quit(1) — 断言失败/脚本崩溃）
-            #   2. 输出含 SCRIPT ERROR（GDScript 运行时错误）
-            #   3. 输出含 failed 计数（"0 passed, N failed" / "❌ Failed: N"）
-            if [ "$TEST_EXIT" -ne 0 ] || grep -qE "SCRIPT ERROR" mini-pong-test-output.log || grep -qE "[1-9][0-9]* failed|Failed[:：] *[1-9]" mini-pong-test-output.log; then
-              echo "❌ Error(s) detected in test output — marking as failure"
-              echo "exit_code=1" >> $GITHUB_OUTPUT
-            else
-              echo "exit_code=0" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "SKIP: mini-pong/tests/run_tests.gd not found"
+            echo "SKIP: $GAME_DIR/ not found"
             echo "exit_code=0" >> $GITHUB_OUTPUT
           fi
         continue-on-error: true
 
       - name: Test gate — block merge on failure
-        if: steps.compile.outputs.exit_code != '0' || steps.compile-mini-pong.outputs.exit_code != '0' || steps.test.outputs.exit_code != '0' || steps.smoke.outputs.exit_code != '0' || steps.rnp.outputs.exit_code != '0' || steps.mini-pong.outputs.exit_code != '0' || steps.mini-pong-test.outputs.exit_code != '0' || (steps.compile.outputs.TEST_RAN != 'true' && steps.compile-mini-pong.outputs.TEST_RAN != 'true' && steps.test.outputs.TEST_RAN != 'true' && steps.smoke.outputs.TEST_RAN != 'true' && steps.mini-pong-test.outputs.TEST_RAN != 'true')
+        if: steps.compile.outputs.exit_code != '0' || steps.test.outputs.exit_code != '0' || steps.smoke.outputs.exit_code != '0' || steps.scaffold.outputs.exit_code != '0' || (steps.compile.outputs.TEST_RAN != 'true' && steps.test.outputs.TEST_RAN != 'true' && steps.smoke.outputs.TEST_RAN != 'true')
         run: |
-          echo "❌ Tests FAILED (compile: ${{ steps.compile.outputs.exit_code }}, compile-mini-pong: ${{ steps.compile-mini-pong.outputs.exit_code }}, unit: ${{ steps.test.outputs.exit_code }}, smoke: ${{ steps.smoke.outputs.exit_code }}, scaffold: ${{ steps.rnp.outputs.exit_code }}, mini-pong: ${{ steps.mini-pong.outputs.exit_code }}, mini-pong-tests: ${{ steps.mini-pong-test.outputs.exit_code }}). Blocking merge."
-          echo "TEST_RAN flags — compile: ${{ steps.compile.outputs.TEST_RAN }}, compile-mini-pong: ${{ steps.compile-mini-pong.outputs.TEST_RAN }}, unit: ${{ steps.test.outputs.TEST_RAN }}, smoke: ${{ steps.smoke.outputs.TEST_RAN }}, mini-pong-tests: ${{ steps.mini-pong-test.outputs.TEST_RAN }}"
+          echo "❌ Tests FAILED (compile: ${{ steps.compile.outputs.exit_code }}, unit: ${{ steps.test.outputs.exit_code }}, smoke: ${{ steps.smoke.outputs.exit_code }}, scaffold: ${{ steps.scaffold.outputs.exit_code }}). Blocking merge."
+          echo "TEST_RAN flags — compile: ${{ steps.compile.outputs.TEST_RAN }}, unit: ${{ steps.test.outputs.TEST_RAN }}, smoke: ${{ steps.smoke.outputs.TEST_RAN }}"
           exit 1
 
       - name: Upload test output artifacts
@@ -219,11 +155,10 @@ jobs:
         with:
           name: test-outputs-${{ github.event.pull_request.number }}
           path: |
+            compile-output.log
             test-output.log
             smoke-output.log
-            rnp-output.log
-            mini-pong-output.log
-            mini-pong-test-output.log
+            scaffold-output.log
           retention-days: 3
           if-no-files-found: ignore
 

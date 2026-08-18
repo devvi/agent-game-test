@@ -1,6 +1,10 @@
 # Project manifest — single source of truth for project-specific config.
 # Consumed by event-processor.py, stage-gate.py, and future scaffold tooling.
 # (P3 parameterization, 2026-07-31)
+#
+# 游戏切换（2026-08-18）: 一次只做一个游戏。切换 = 改 game.active 一个字段:
+#   sed -i '' 's/active: mini-pong/active: snow-blade/' game-env/manifest.yaml
+# 全链路（CI / E2E / worktree-commit / SPAWN）自动跟随。
 
 project:
   name: agent-game-test
@@ -12,9 +16,22 @@ engine:
   runner: godot
   version: 4.7.1
 
+# ── 游戏注册表（2026-08-18）────────────────────────────────────
+# active 是唯一切换开关；subprojects 登记所有游戏及其路径约定。
+# 新游戏加入 = 加一个子项 + 改 active。
+game:
+  active: mini-pong
+  subprojects:
+    mini-pong:
+      path: mini-pong/
+      test_entry: tests/run_tests.gd
+      smoke_entry: tests/smoke_test.gd
+      compile_check: tests/check_compile.gd
+      e2e_plan: mini-pong/e2e_shots.json
+
 source:
   dir: gdscripts/
-  # Sub-projects with their own project.godot (validated by CI):
+  # 兼容字段：游戏代码实际位置以 game.subprojects.<active>.path 为准
   subprojects:
     - mini-pong
 

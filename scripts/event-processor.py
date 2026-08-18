@@ -662,6 +662,19 @@ WEBHOOK_BASE = f"https://api.github.com/repos/{PROJECT_REPO}/hooks"
 # gh invocation (gh() helper AND direct subprocess.run(["gh", ...])) works.
 os.environ.setdefault("GH_REPO", PROJECT_REPO)
 
+# ── 活跃游戏（2026-08-18, 一次一个游戏）──────────────────────────
+# 读 manifest game.active；SPAWN 指令携带 game= 让 agent 明确为哪个游戏干活。
+ACTIVE_GAME = (
+    MANIFEST.get("game", {}).get("active")
+    or MANIFEST.get("source", {}).get("subprojects", [""])[0]
+    or "mini-pong"
+)
+ACTIVE_GAME_PATH = (
+    MANIFEST.get("game", {}).get("subprojects", {})
+    .get(ACTIVE_GAME, {}).get("path")
+    or f"{ACTIVE_GAME}/"
+)
+
 # ── Issue Picker ─────────────────────────────────────────────────
 # Reads backlog, picks candidate, adds workflow/available label.
 
@@ -991,7 +1004,7 @@ def pick_next_issue() -> list:
             # relying on the webhook echo round-trip. The shared gate dedups
             # against the webhook/reconcile label path.
             if _spawn_gate(n, "research") or _dead_spawn_recovery(n, "research"):
-                spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
+                spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research,game={ACTIVE_GAME}")
                 _devlog("spawn", issue=n, stage="research", source="backlog-promotion")
     
     # Also emit SPAWN for issues at plan/implement/available with no PR yet
@@ -1006,7 +1019,7 @@ def pick_next_issue() -> list:
                           "--jq", "length")
             if existing is None or int(existing) == 0:
                 if _spawn_gate(n, "plan") or _dead_spawn_recovery(n, "plan"):
-                    spawn_lines.append(f"SPAWN: plan,issue={n},label=workflow/plan")
+                    spawn_lines.append(f"SPAWN: plan,issue={n},label=workflow/plan,game={ACTIVE_GAME}")
                     _devlog("spawn", issue=n, stage="plan", source="picker")
         elif "workflow/implement" in labels:
             existing = gh("pr", "list", "--state", "all",
@@ -1027,7 +1040,7 @@ def pick_next_issue() -> list:
                         _devlog("blocked", issue=n, stage="implement", reason="opencode-down", level="warn")
                         spawn_lines.append(f"BLOCKED: implement,issue={n},reason=opencode-down — workflow auto-paused, fix OpenCode Serve and `/workflow resume`")
                     else:
-                        spawn_lines.append(f"SPAWN: implement,issue={n},label=workflow/implement")
+                        spawn_lines.append(f"SPAWN: implement,issue={n},label=workflow/implement,game={ACTIVE_GAME}")
                         _devlog("spawn", issue=n, stage="implement", source="picker")
         elif "workflow/available" in labels:
             # Available rescan (2026-08-13): deterministic dead-agent recovery.
@@ -1045,7 +1058,7 @@ def pick_next_issue() -> list:
             if not _pr_exists_for_issue("research", n):
                 if (_spawn_gate(n, "research")
                         or _dead_spawn_recovery(n, "research")):
-                    spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research")
+                    spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research,game={ACTIVE_GAME}")
                     _devlog("spawn", issue=n, stage="research", source="available-rescan")
 
     return spawn_lines

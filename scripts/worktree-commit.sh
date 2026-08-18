@@ -83,9 +83,24 @@ log "add files: ${FILES[*]}"
 git add "${FILES[@]}"
 
 # ── 3. 验证: 含 .gd 则编译检查 ────────────────────────────────
-if [[ "${FILES[*]}" == *".gd"* ]] && [ -f mini-pong/project.godot ]; then
-  log "compile check (mini-pong)"
-  if ! godot --path mini-pong/ --headless --quit >/dev/null 2>&1; then
+# 2026-08-18: 游戏路径从 manifest game.active 读取（一次一个游戏）。
+GAME_ACTIVE=$(python3 - "$(dirname "$0")/../game-env/manifest.yaml" <<'PY' 2>/dev/null || echo mini-pong
+import re, sys
+try:
+    txt = open(sys.argv[1], encoding="utf-8").read()
+    m = re.search(r"^game:\s*$", txt, re.M)
+    if m:
+        am = re.search(r"active:\s*(\S+)", txt[m.end():m.end()+200])
+        if am:
+            print(am.group(1))
+except Exception:
+    pass
+PY
+)
+GAME_DIR="${GAME_ACTIVE:-mini-pong}"
+if [[ "${FILES[*]}" == *".gd"* ]] && [ -f "$GAME_DIR/project.godot" ]; then
+  log "compile check ($GAME_DIR)"
+  if ! godot --path "$GAME_DIR/" --headless --quit >/dev/null 2>&1; then
     echo "❌ 编译失败 — 修复后再提交"
     exit 3
   fi

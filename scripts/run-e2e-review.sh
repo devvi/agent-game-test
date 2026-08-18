@@ -85,13 +85,22 @@ trap cleanup EXIT
 
 # ── Manifest helpers ───────────────────────────────────────────────────────
 default_subproject() {
+  # 2026-08-18: 读 game.active（一次一个游戏的切换开关），而非列表第一个。
   python3 - "$REPO_ROOT/game-env/manifest.yaml" <<'PY' 2>/dev/null || true
 import re, sys
 try:
     txt = open(sys.argv[1], encoding="utf-8").read()
-    m = re.search(r"^  subprojects:\s*$", txt, re.M)
+    m = re.search(r"^game:\s*$", txt, re.M)
     if m:
-        for line in txt[m.end():].splitlines():
+        block = txt[m.end():]
+        am = re.search(r"active:\s*(\S+)", block[:200])
+        if am:
+            print(am.group(1))
+            raise SystemExit
+    # 回退: 旧格式 source.subprojects 第一个
+    m2 = re.search(r"^  subprojects:\s*$", txt, re.M)
+    if m2:
+        for line in txt[m2.end():].splitlines():
             s = line.strip()
             if s.startswith("- "):
                 print(s[2:].strip())

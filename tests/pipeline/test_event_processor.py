@@ -811,7 +811,7 @@ class TestPreprocess(unittest.TestCase):
              mock.patch("subprocess.run", fake_run):
             first = ep.pick_next_issue()
             second = ep.pick_next_issue()
-        self.assertIn("SPAWN: research,issue=500,label=workflow/research", first,
+        self.assertIn("SPAWN: research,issue=500,label=workflow/research,game=mini-pong", first,
                       f"promote must directly spawn research: {first}")
         self.assertNotIn("SPAWN: research,issue=500", second,
                          "gate must suppress re-spawn within TTL")
@@ -843,9 +843,9 @@ class TestPreprocess(unittest.TestCase):
                 second = ep.pick_next_issue()
             finally:
                 ep.time.time = old_time
-        self.assertIn("SPAWN: research,issue=501,label=workflow/research", first,
+        self.assertIn("SPAWN: research,issue=501,label=workflow/research,game=mini-pong", first,
                       f"available issue must spawn research: {first}")
-        self.assertIn("SPAWN: research,issue=501,label=workflow/research", second,
+        self.assertIn("SPAWN: research,issue=501,label=workflow/research,game=mini-pong", second,
                       "TTL expiry must re-spawn a stalled available issue")
 
     def test_picker_direct_and_webhook_echo_single_spawn(self):
