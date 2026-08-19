@@ -188,7 +188,7 @@ func _test_t6_low_hp_below_threshold() -> void:
 	_low_hp_log = []
 	hud.low_health_changed.connect(_on_low_health)
 	hud.set_debug_hp(29.9, 50, 1)
-	_assert(_low_hp_log.size() == 1 and _low_hp_log[0] == true, "T6: 29.9% (< 30%-0.001) → exactly one low_health_changed(true) (got %s)" % [str(_low_hp_log)])
+	_assert(_low_hp_log.size() == 1 and _low_hp_log[0] == true, "T6: 29.9%% (< 30%%-0.001) → exactly one low_health_changed(true) (got %s)" % [str(_low_hp_log)])
 	_cleanup_hud(hud)
 
 
@@ -198,7 +198,7 @@ func _test_t7_low_hp_at_threshold() -> void:
 	_low_hp_log = []
 	hud.low_health_changed.connect(_on_low_health)
 	hud.set_debug_hp(30.0, 50, 1)
-	_assert(_low_hp_log.is_empty(), "T7: 30.0% (≥ 30%-0.001) → zero emissions (got %s)" % [str(_low_hp_log)])
+	_assert(_low_hp_log.is_empty(), "T7: 30.0%% (≥ 30%%-0.001) → zero emissions (got %s)" % [str(_low_hp_log)])
 	_cleanup_hud(hud)
 
 
@@ -434,6 +434,9 @@ func _test_t23_player_death_revive() -> void:
 	if hud == null: return
 	var player = _spawn_entity({is_player=true, life_total=2})
 	hud.bind_player(player)
+	# die() 不清零 hp_1（#575 契约）→ 先 take_damage 归零；真实死亡路径 =
+	# take_damage 归零 → die() → revive() → hp_changed(0,50,2)
+	player.take_damage(100.0)
 	player.die()
 	_assert(hud.KillPromptLabel.visible == false, "T23: player died(final=false) → no kill prompt, no crash")
 	player.revive()
