@@ -2,7 +2,9 @@ extends SceneTree
 ## Test runner for shandong-wolf headless tests.
 ## Usage: godot --path shandong-wolf/ --headless --script tests/run_tests.gd
 ##
-## Skeleton 期无真实测试；首个 implement Issue 落地后在此挂载套件。
+## #572 起挂载真实套件（StateMachine / Constants）；新增套件按 mini-pong 模式追加 _run()。
+## Uses call_deferred to defer test execution until autoload singletons are
+## initialized, so scripts that reference autoload names can resolve identifiers.
 
 var _pass: int = 0
 var _fail: int = 0
@@ -13,7 +15,25 @@ func _init() -> void:
 
 
 func _run_tests() -> void:
-	# 占位：骨架无测试。后续实现按 mini-pong 模式追加 _run("res://tests/test_x.gd", "X")
-	print("shandong-wolf: skeleton — no tests yet")
+	_run("res://tests/test_state_machine.gd", "StateMachine")
+	_run("res://tests/test_constants.gd", "Constants")
 	print("TESTS: %d passed, %d failed" % [_pass, _fail])
 	quit(1 if _fail > 0 else 0)
+
+
+func _run(path: String, name: String) -> void:
+	print("=== %s Tests ===" % name)
+	var script = load(path)
+	if script == null:
+		print("  SKIP: %s not found" % path)
+		_fail += 1
+		return
+	if not script.can_instantiate():
+		print("  FAIL: %s does not compile (parse error)" % path)
+		_fail += 1
+		return
+	var tester = script.new()
+	tester.run()
+	_pass += tester.passed
+	_fail += tester.failed
+	print("  %s: %d passed, %d failed" % [name, tester.passed, tester.failed])
