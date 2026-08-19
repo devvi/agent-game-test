@@ -162,3 +162,30 @@ const EXECUTE_RANGE: float = 1.2             # # DRAFT
 #   候选集: [0.1, 0.2, 0.3]（默认 0.2；0.1 = 最戏剧化，0.3 = 轻量演出）
 #   偏离理由: 无（消费方 #577 处决演出在 Engine.time_scale 应用，clamp 下限 0.1 防冻结）
 const SLOWMO_COEFF: float = 0.2              # # DRAFT
+
+# ── 战斗时序（# DRAFT 候补值，待 #584 定稿）──
+# STAGGER_FRAMES
+#   候补值: [8, 12, 16]（默认 12）
+#   该值影响什么: 受击硬直时长——太短无受击感，太长卡操作
+#   情感断言: 硬直是「被打断」的代价，不是「罚站」
+const STAGGER_FRAMES: int = 12               # # DRAFT
+# PARRY_SUCCESS_FRAMES
+#   候补值: [8, 10, 12]（默认 10）
+#   该值影响什么: 弹反成功瞬间帧（硬直窗口，#577 驱动进入）
+#   情感断言: 弹反成功必须比格挡爽（只狼铁律 1）
+const PARRY_SUCCESS_FRAMES: int = 10         # # DRAFT
+# STANCE_BREAK_RECOVERY_SEC
+#   候补值: 3.0（#580 同值互引）
+#   该值影响什么: 崩解后敌人起身恢复时间
+#   情感断言: 崩解 = 可从容处决的窗口（只狼铁律 2）
+const STANCE_BREAK_RECOVERY_SEC: float = 3.0 # # DRAFT
+# REVIVE_SECONDS
+#   候补值: 1.0（#578 同值互引）
+#   该值影响什么: 倒地→复活的演出时长
+#   情感断言: 「还没打完这一仗」，不是神迹
+const REVIVE_SECONDS: float = 1.0            # # DRAFT
+# INVINCIBLE_SECONDS
+#   候补值: 1.0（#578 同值互引）
+#   该值影响什么: 复活后无敌时长
+#   情感断言: 硬汉的第二次机会，不是耍赖
+const INVINCIBLE_SECONDS: float = 1.0        # # DRAFT
