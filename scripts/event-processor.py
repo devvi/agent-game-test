@@ -2497,6 +2497,12 @@ def review_followup() -> list:
     for fn, data in _read_review_conclusions():
         try:
             pr = int(data.get("pr", 0))
+            # 2026-08-19 (P2 骨架, 3738e82): verdict=null = 骨架预生成待 review
+            # agent 填值 — 合法瞬态, 不归一化不告警不消费 (watchdog 对滞留骨架
+            # 单独告警)。实测 #567/#570: 骨架 13:46 生成 → review agent 13:52
+            # 填值消费, 旧逻辑每 tick devlog review-verdict-unknown 刷屏。
+            if data.get("verdict") is None:
+                continue
             # 2026-08-19 (#562 死锁修复): review agent 可能写复合值
             # ("approve / merge"、"approved, with notes") → 取第一段再匹配。
             # 旧实现只 strip+lower → "approve / merge" 落 else → 提前终态死锁。

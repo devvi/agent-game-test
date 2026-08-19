@@ -1486,6 +1486,24 @@ class TestReviewFollowup(unittest.TestCase):
             self.assertEqual(json.load(open(path))["verdict"], "approved",
                              "已存在的结论不得被骨架覆盖")
 
+    def test_review_followup_skips_skeleton_verdict_null(self):
+        """2026-08-19 (P2 骨架, #567 实测): verdict=null 骨架 = 待 review agent
+        填值 — review_followup 不得消费 (删除)、不得 devlog review-verdict-unknown
+        (每 tick 刷屏), 文件必须保留等 review agent 覆盖。"""
+        with tempfile.TemporaryDirectory() as td:
+            d = os.path.join(td, "concl")
+            os.makedirs(d)
+            path = os.path.join(d, "570.json")
+            with open(path, "w") as f:
+                json.dump({"pr": 570, "verdict": None, "evidence": ""}, f)
+            with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR", d), \
+                 mock.patch.object(ep, "gh", return_value=""), \
+                 mock.patch.object(ep, "_devlog") as mock_devlog:
+                lines = ep.review_followup()
+            self.assertEqual(lines, [], "骨架不得触发任何 FOLLOWUP")
+            self.assertTrue(os.path.exists(path), "骨架文件必须保留待填")
+            mock_devlog.assert_not_called()
+
     def test_read_review_conclusions_invalid_json_alerts(self):
         """2026-08-19 (#562 根治): 非法 JSON 结论文件 → devlog 告警
         review-verdict-invalid (不静默跳过, 防滞留不被发现)。"""

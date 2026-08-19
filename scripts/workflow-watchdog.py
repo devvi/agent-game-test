@@ -33,6 +33,7 @@ LOOKBACK_TICKS = 6  # ~6 minutes of 1m ticks
 ALERT_COOLDOWN = 3600  # seconds
 REVIEW_SENT_TIMEOUT = 1800  # 30 min: review 派发后应有结论文件
 CONCLUSION_STALE_TIMEOUT = 3600  # 60 min: followup 应消费结论文件
+SKELETON_FILL_TIMEOUT = 1200  # 20 min: P2 骨架 (verdict=null) 生成后 review agent 应填值
 # 2026-08-19 (post-merge 阶段): emitted 后应有 docs PR 创建并 merge。
 # agent 轮询上限 ~10min + stalled scan merge 往返 ~几分钟 → 45min 合理。
 POST_MERGE_STATE_DIR = os.path.join(HOME, ".hermes", "post-merge-state")
@@ -124,6 +125,22 @@ def check_conclusion_stale(now):
             try:
                 with open(path) as f:
                     data = json.load(f)
+                if data.get("verdict") is None:
+                    # P2 骨架 (3738e82): verdict=null = 预生成待 review agent 填值
+                    # — 合法瞬态, 立即告警是误报 (#567 实测: 骨架 13:46 生成 →
+                    # review agent 13:52 填值消费, 旧逻辑对用户刷 Feishu 告警)。
+                    # 只对滞留骨架 (>SKELETON_FILL_TIMEOUT 仍未填) 告警 — 那才
+                    # 是 review agent 没跑/没写的真问题。
+                    try:
+                        age = now - os.path.getmtime(path)
+                    except OSError:
+                        continue
+                    if age <= SKELETON_FILL_TIMEOUT:
+                        continue
+                    alerts.append(
+                        f"⚠️ 结论骨架未填: {fn} 存在 {int(age / 60)} 分钟 "
+                        f"verdict 仍为 null (review agent 未写结论 / 会话失败)。")
+                    continue
                 verdict = str(data.get("verdict", "")).strip().lower()
                 verdict = re.split(r"[/|,，;；]", verdict)[0].strip()
                 valid = verdict in ("approved", "approve", "blocked",

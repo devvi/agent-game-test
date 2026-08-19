@@ -204,6 +204,38 @@ class WatchdogTestCase(unittest.TestCase):
         self._write_state(0)
         self.assertNotIn("post-merge 卡住", self._run())
 
+    # ── 2026-08-19 (P2 骨架瞬态 — #567 实测误报修复) ──────────────
+
+    def test_conclusion_skeleton_fresh_no_alert(self):
+        """骨架 verdict=null + 新鲜 → 静默 (review agent 填值中, 不误报)。"""
+        os.makedirs(wd.REVIEW_CONCLUSIONS_DIR, exist_ok=True)
+        p = os.path.join(wd.REVIEW_CONCLUSIONS_DIR, "570.json")
+        with open(p, "w") as f:
+            json.dump({"pr": 570, "verdict": None}, f)  # 骨架
+        self._write_state(0)
+        out = self._run()
+        self.assertNotIn("verdict 非法", out)
+        self.assertNotIn("骨架未填", out)
+
+    def test_conclusion_skeleton_stale_alerts(self):
+        """骨架 verdict=null 滞留超时 (review agent 未填) → 告警 (真问题)。"""
+        os.makedirs(wd.REVIEW_CONCLUSIONS_DIR, exist_ok=True)
+        p = os.path.join(wd.REVIEW_CONCLUSIONS_DIR, "570.json")
+        with open(p, "w") as f:
+            json.dump({"pr": 570, "verdict": None}, f)
+        os.utime(p, (time.time() - 3600, time.time() - 3600))  # 1h 前
+        self._write_state(0)
+        self.assertIn("骨架未填", self._run())
+
+    def test_conclusion_freetext_still_alerts_immediately(self):
+        """真自由文本 (非 null) 仍立即告警 (#562 场景不变)。"""
+        os.makedirs(wd.REVIEW_CONCLUSIONS_DIR, exist_ok=True)
+        p = os.path.join(wd.REVIEW_CONCLUSIONS_DIR, "999.json")
+        with open(p, "w") as f:
+            json.dump({"pr": 999, "verdict": "looks good to me"}, f)
+        self._write_state(0)
+        self.assertIn("verdict 非法", self._run())
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
