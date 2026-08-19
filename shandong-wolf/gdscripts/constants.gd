@@ -191,6 +191,15 @@ const MOONLIGHT_COLOR_TARGET: Color = Color("#b8c4d9")   # # DRAFT（AC2 字面�
 const MOONLIGHT_COLOR_APPLIED: Color = Color("#6e7684")  # # DRAFT（= TARGET × 0.6 换算）
 const MOONLIGHT_BRIGHTNESS: float = 0.6                  # # DRAFT（语义 = 色值换算系数）
 
+# ── 夜色世界背景（# DRAFT 候补值，待 #582 用户裁决；#624 新增）──
+#   作用: layer 0 世界垫底，供唯一 Moonlight（#6e7684）染色成冷蓝灰夜色（AC2 载体）
+#   约束: 染后（× MOONLIGHT_COLOR_APPLIED）背景 luma ≥ 30 —— 不得回到 #613 近黑态（F3）
+#   候选集: #d8dce4（浅月光灰，染后 ≈ #66686b 接近 AC2 目标 #6e7684，theme 断言可命中）——
+#           #4e5464（中蓝灰，染后 ≈ #222734，luma ~39，需 A/B 亮度比断言）——
+#           #0d1520（PRD §8 建议的深夜色，染后 ≈ #060a0f luma ~10，近黑，**否决候选**）
+#   情感断言: 苍白、清冷——月光下的雪夜大地是亮冷灰蓝，不是无月黑夜
+const NIGHT_BG_COLOR: Color = Color("#d8dce4")   # # DRAFT（首选候选；染后 ≈ #66686b）
+
 # ── 水墨晕染（# DRAFT 候补值，待 #582 用户裁决）──
 #   候补值: 边缘暗角 alpha ≤ 0.3（AC3 硬约束）；墨色 #1a1f26
 #   该值影响什么: 全屏水墨质感
@@ -235,6 +244,39 @@ const REVIVE_SECONDS: float = 1.0            # # DRAFT
 #   情感断言: 硬汉的第二次机会，不是耍赖
 const INVINCIBLE_SECONDS: float = 1.0        # # DRAFT
 
+# ── 判定层（# DRAFT 候补值，待 #584 定稿；#577 消费方，禁止实现期定稿）──
+# PARRY_STANCE_DAMAGE
+#   只狼基准: 弹反成功大幅涨敌架势（精准格挡的奖励——成功 0 伤害+敌架势大涨）
+#   候选集: [20, 25, 30]（默认 25 = 区间中位；AC1 硬约束 ≥20）
+#   该值影响什么: 弹反的「爽感」——太小=弹反无价值，太大=几下弹反直接崩解
+#   情感断言: 弹反成功必须比格挡爽（只狼铁律 1）
+const PARRY_STANCE_DAMAGE: float = 25.0      # # DRAFT
+# CLASH_STANCE_COST
+#   只狼基准: 拼刀（打铁）双方各扣小架势（互格=节奏博弈，代价低于受击）
+#   候选集: [8, 10, 12]（默认 10 = 区间中位）
+#   该值影响什么: 拼刀频率与架势续航——太小=无限拼刀，太大=拼刀=慢性自杀
+#   情感断言: 打铁的代价是「势均力敌」，不是单方面惩罚
+const CLASH_STANCE_COST: float = 10.0        # # DRAFT
+# CLASH_PRIORITY
+#   只狼基准: 弹反优先于拼刀（玩家精准按出弹反窗口却被拼刀顶掉 = 高操作被低操作覆盖）
+#   候选集: [0=弹反优先, 1=拼刀优先]（默认 0；用户实机裁决，改此常量+冲突矩阵断言翻转）
+#   该值影响什么: 同帧三重叠时的裁决结果——手感基调的决定性开关
+const CLASH_PRIORITY: int = 0                # # DRAFT
+# HITBOX_ACTIVE_FRAMES
+#   只狼基准: 攻击暴发帧数（挥刀命中判定持续帧；#574 FRAME_ANIM_ATTACK_BURST=4 对齐）
+#   候选集: [4, 6, 8]（默认 4 = #574 挥刀暴发帧）
+#   该值影响什么: 命中宽容度——窗口越长越容易命中，同时拼刀/弹反判定窗口随之变宽
+const HITBOX_ACTIVE_FRAMES: int = 4          # # DRAFT
+# HITBOX_RANGE
+#   只狼基准: 刀长近身判定（横板一维：攻击者 x 与防御者 x 的水平距离阈值，px）
+#   候选集: [60, 80, 100]（默认 80 = SWORD_LENGTH=88 派生近似）
+#   该值影响什么: 挥空语义——距离外攻击不命中（AC 未覆盖，挥空=不发射事件）
+const HITBOX_RANGE: float = 80.0             # # DRAFT
+# PARRY_DIRECTION_TOLERANCE
+#   只狼基准: 弹反必须面向攻击（背对挨打=受击）
+#   候选集: [1=仅同侧（defender 朝向攻击者）, 2=宽容（前后均可）]（默认 1）
+#   该值影响什么: 弹反方向判定的严格度——1 防背身无脑弹反
+const PARRY_DIRECTION_TOLERANCE: int = 1     # # DRAFT
 # ── HUD (#576) ──
 # HUD_LOW_HP_RATIO
 #   候补值: [0.25, 0.30, 0.35]（默认 0.30）

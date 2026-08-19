@@ -5,6 +5,15 @@
 [node name="Main" type="Node2D"]
 uid = "uid://c2p0n1g4s5t6"
 
+[node name="WorldBackdrop" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.847, 0.863, 0.894, 1)
+
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 uid = "uid://c3r0b2m7k8j9"
 layer = 1
@@ -64,8 +73,5 @@ grow_vertical = 0
 text = "post-merge probe"
 theme_override_font_sizes/font_size = 16
 modulate = Color(1, 1, 1, 0.6)
-
-[node name="Moonlight" type="CanvasModulate" parent="CanvasLayer"]
-color = Color(0.431, 0.463, 0.518, 1)
 
 [node name="Atmosphere" parent="." instance=ExtResource("1_atmosphere")]
