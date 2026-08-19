@@ -65,7 +65,10 @@ func _on_entity_revived(ent: Object) -> void:
 func _process(delta: float) -> void:
 	## 自管理计时（PRD 方案 A「SceneTreeTimer/自管理计时器」二选一，裁决取后者:
 	## headless 确定性——测试经 _process(delta) 同步推进，零树依赖）
-	if not _armed or _player == null:
+	## 注意: 不判 _player == null —— Godot 4 中已 free 的对象 == null 为 true，
+	## 会提前 return 导致 pending 永不结算；_armed 只在绑定时置位，unbind/revived 已清除，
+	## 实体销毁守卫由到期分支的 is_instance_valid 承担（§5 边界 9）
+	if not _armed:
 		return
 	_elapsed += delta
 	if _elapsed >= float(C.REVIVE_SECONDS):

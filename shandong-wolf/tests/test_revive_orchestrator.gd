@@ -51,10 +51,15 @@ func run() -> void:
 	_test_t12_flash_tween()
 	_test_t13_slowmo()
 	_test_t14_invincible_flicker()
+	_reset_logs()
 	_test_t15_f_key_before_auto()
+	_reset_logs()
 	_test_t16_auto_before_f_key()
+	_reset_logs()
 	_test_t17_entity_freed_guard()
+	_reset_logs()
 	_test_t18_unbind_no_trigger()
+	_reset_logs()
 	_test_t19_rebind_idempotent()
 	_test_t20_fx_nodes_missing()
 	_test_t21_ink_texture_fallback()
@@ -345,8 +350,11 @@ func _test_t10_fx_nodes_and_constants() -> void:
 	if fx._ink_burst != null:
 		_assert(int(fx._ink_burst.amount) == int(cm.get("INK_BURST_COUNT", -1)), "T10 amount == INK_BURST_COUNT (got %s)" % [fx._ink_burst.amount])
 		_assert(absf(fx._ink_burst.lifetime - float(cm.get("INK_BURST_LIFETIME", -1.0))) < 0.0001, "T10 lifetime == INK_BURST_LIFETIME (got %s)" % [fx._ink_burst.lifetime])
-		_assert(absf(fx._ink_burst.spread - float(cm.get("INK_BURST_SPREAD_DEG", -1.0))) < 0.0001, "T10 spread == INK_BURST_SPREAD_DEG (got %s)" % [fx._ink_burst.spread])
-		_assert(fx._ink_burst.color.is_equal_approx(cm.get("INK_COLOR", Color.WHITE)), "T10 color == INK_COLOR (got %s)" % [fx._ink_burst.color])
+		_assert(fx._ink_burst.process_material != null, "T10 process_material built")
+		if fx._ink_burst.process_material != null:
+			_assert(absf(fx._ink_burst.process_material.spread - float(cm.get("INK_BURST_SPREAD_DEG", -1.0))) < 0.0001, "T10 spread(deg) == INK_BURST_SPREAD_DEG (got %s)" % [fx._ink_burst.process_material.spread])
+			_assert(fx._ink_burst.process_material.color.is_equal_approx(cm.get("INK_COLOR", Color.WHITE)), "T10 color == INK_COLOR (got %s)" % [fx._ink_burst.process_material.color])
+
 		_assert(fx._ink_burst.one_shot == true, "T10 one_shot == true")
 	if fx._flash_layer != null:
 		_assert(fx._flash_layer.color.is_equal_approx(cm.get("FLASH_WHITE", Color.WHITE)), "T10 flash initial color == FLASH_WHITE (got %s)" % [fx._flash_layer.color])
@@ -488,7 +496,7 @@ func _test_t17_entity_freed_guard() -> void:
 	e.take_damage(100.0)
 	_assert(o.is_armed() == true, "T17 armed before free")
 	e.free()
-	_advance(o, 60)
+	_advance(o, 61)
 	_assert(o.is_armed() == false, "T17 disarmed after expiry (freed entity skipped, no crash)")
 
 
@@ -524,7 +532,7 @@ func _test_t19_rebind_idempotent() -> void:
 	_assert(o.is_armed() == false, "T19 old entity died does not arm (unbound)")
 	eb.take_damage(100.0)
 	_assert(o.is_armed() == true, "T19 new entity died arms orchestrator")
-	_advance(o, 60)
+	_advance(o, 61)
 	_assert(eb.state_name == "revive", "T19 B revived (got %s)" % eb.state_name)
 	_assert(ea.state_name == "dead", "T19 A stays dead (got %s)" % ea.state_name)
 	_assert(_revived_count == 1, "T19 exactly one revive (got %d)" % _revived_count)

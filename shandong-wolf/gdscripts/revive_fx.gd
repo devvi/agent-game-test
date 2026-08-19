@@ -41,12 +41,16 @@ func _build_nodes() -> void:
 	_ink_burst.emitting = false
 	_ink_burst.amount = int(C.INK_BURST_COUNT)
 	_ink_burst.lifetime = float(C.INK_BURST_LIFETIME)
-	_ink_burst.spread = float(C.INK_BURST_SPREAD_DEG)
-	_ink_burst.color = C.INK_COLOR
-	_ink_burst.direction = Vector2(0, -1)  # 朝上半球——墨点从脚底/刀尖向上爆开（结构语义）
-	_ink_burst.initial_velocity_min = float(C.INK_BURST_SPEED)
-	_ink_burst.initial_velocity_max = float(C.INK_BURST_SPEED)
-	_ink_burst.gravity = Vector2.ZERO  # 墨点向外爆开、不受重力下落（结构语义）
+	# 发射参数在 ParticleProcessMaterial（4.x GPUParticles2D 无 direction/spread/color 直属属性）:
+	# direction/spread 决定锥形发射方向，初始速度/重力/颜色全部参数化自 constants
+	var mat = ParticleProcessMaterial.new()
+	mat.direction = Vector3(0, -1, 0)  # 朝上半球——墨点从脚底/刀尖向上爆开（结构语义）
+	mat.spread = float(C.INK_BURST_SPREAD_DEG)
+	mat.initial_velocity_min = float(C.INK_BURST_SPEED)
+	mat.initial_velocity_max = float(C.INK_BURST_SPEED)
+	mat.gravity = Vector3.ZERO  # 墨点向外爆开、不受重力下落（结构语义）
+	mat.color = C.INK_COLOR
+	_ink_burst.process_material = mat
 	_ink_burst.texture = _build_ink_texture()
 	add_child(_ink_burst)
 
@@ -132,7 +136,13 @@ func _build_ink_texture() -> Texture2D:
 	if img == null:
 		return null
 	img.fill(Color(0, 0, 0, 0))
-	img.draw_circle(Vector2(3.5, 3.5), 3.0, Color.WHITE)
+	# 4.7 Image 无 draw_circle/fill_circle —— set_pixel 距离判定画实心圆点
+	var center: Vector2 = Vector2(3.5, 3.5)
+	var radius: float = 3.0
+	for y in range(8):
+		for x in range(8):
+			if Vector2(float(x) + 0.5, float(y) + 0.5).distance_to(center) <= radius:
+				img.set_pixel(x, y, Color.WHITE)
 	var tex = ImageTexture.create_from_image(img)
 	if tex == null:
 		return null
