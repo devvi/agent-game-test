@@ -17,6 +17,7 @@ func _init() -> void:
 func _run_tests() -> void:
 	_run("res://tests/test_state_machine.gd", "StateMachine")
 	_run("res://tests/test_constants.gd", "Constants")
+	_run("res://tests/test_stick_figure_animation.gd", "StickFigureAnimation")
 	print("TESTS: %d passed, %d failed" % [_pass, _fail])
 	quit(1 if _fail > 0 else 0)
 

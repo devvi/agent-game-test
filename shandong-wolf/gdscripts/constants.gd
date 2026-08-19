@@ -49,3 +49,35 @@ const SWORD_DAMAGE_EXECUTE: float = 999.0    # # DRAFT（处决 = 架势崩解�
 const FRAME_ATTACK_WINDUP: int = 8           # # DRAFT
 const FRAME_ATTACK_RECOVERY: int = 14        # # DRAFT
 const FRAME_RHYTHM_BASE: int = 60            # # DRAFT（基准帧率参考）
+
+# ── 动画帧节奏与骨骼几何（# DRAFT 候补值，待 #584 定稿）──
+#   候补值: 攻击前摇 8 / 暴发 4 / 收招 10；过渡上限 2 帧；步态循环 4 帧；处决 5 帧；刀光衰减 4 帧；
+#           墨色剪影 #2b2b2b（issue body 指定）/ 冷白刀身 #c0c8d0（雪夜反差）；头:躯干:臂:腿 ≈ 1:2.5:1.9:2.2
+#   该值影响什么: 《小小系列》式「起势慢→爆发快→收招滞」的力度感全由这三段帧数承载；过渡上限是 AC1 硬约束
+#                （2 帧 @60fps = 0.033s）；骨骼几何决定剪影可读性（角色总高 ≈150px @720p 画布）
+#   情感断言: 干净力量感——前摇可读蓄力、暴发瞬间爆发、收招滞刀有余韵；单色剪影无贴图细节，靠摆姿与比例说话（禁止页游光效堆砌）
+const FRAME_ANIM_ATTACK_WINDUP: int = 8    # # DRAFT（与 FRAME_ATTACK_WINDUP=8 对齐互引）
+const FRAME_ANIM_ATTACK_BURST: int = 4     # # DRAFT（新值；挥刀暴发，刀光在此段触发）
+const FRAME_ANIM_ATTACK_RECOVERY: int = 10 # # DRAFT（⚠️ 与 FRAME_ATTACK_RECOVERY=14 冲突，双值共存互引，禁止实现期二选一，定稿归 #584）
+const FRAME_ANIM_TRANSITION_MAX: int = 2   # # DRAFT（AC1 过渡上限；2 帧 @60fps = 0.033s）
+const FRAME_ANIM_MOVE_STEP: int = 4        # # DRAFT（步态摆臂循环 4 帧，配方 §6.5）
+const FRAME_ANIM_EXECUTE_TOTAL: int = 5    # # DRAFT（处决上撩→斩落 5 帧，配方 §7）
+const FRAME_ANIM_SWORD_ARC_FADE: int = 4   # # DRAFT（刀光存在/衰减帧数，PRD 实验 2 预期值）
+const BODY_COLOR: Color = Color("#2b2b2b")      # # DRAFT（issue body 墨色剪影）
+const SWORD_COLOR: Color = Color("#c0c8d0")     # # DRAFT（冷白刀身，雪夜反差点）
+const BODY_HEAD_RADIUS: float = 16.0            # # DRAFT
+const BODY_TORSO_LENGTH: float = 44.0           # # DRAFT
+const BODY_ARM_LENGTH: float = 34.0             # # DRAFT
+const BODY_LEG_LENGTH: float = 40.0             # # DRAFT
+const BODY_LIMB_WIDTH: float = 6.0              # # DRAFT（Line2D width）
+const SWORD_LENGTH: float = 88.0                # # DRAFT（长刀，视觉焦点）
+const SWORD_WIDTH: float = 5.0                  # # DRAFT
+
+# ── 刀光弧线参数（# DRAFT 候补值，待 #584 定稿）──
+#   候补值: 张角 120°（PRD 实验 2 预期）/ 半径 70 / 4 环透明度衰减 / 起始 alpha 0.6
+#   该值影响什么: 挥砍轨迹的可读性——张角过大刺眼（反页游光效）、过小看不清轨迹
+#   情感断言: 一刀见痕的爽快——轨迹醒目但不喧宾夺主（角色退后、刀是视觉焦点，配方 §6.5）
+const SWORD_ARC_SWEEP_DEG: float = 120.0        # # DRAFT（实验 2 预期最佳值）
+const SWORD_ARC_RADIUS: float = 70.0            # # DRAFT
+const SWORD_ARC_RINGS: int = 4                  # # DRAFT（径向透明度衰减环数）
+const SWORD_ARC_ALPHA_START: float = 0.6        # # DRAFT
