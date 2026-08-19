@@ -21,6 +21,8 @@ const CombatStatesScript = preload("res://gdscripts/combat_states.gd")
 @export var life_1_max: float = 100.0  # 默认 WolfConstants.LIFE_1_MAX
 @export var life_2_abs: float = 50.0   # 默认 WolfConstants.LIFE_2_ABS
 @export var stance_max: float = 100.0  # 默认 WolfConstants.POSTURE_BREAK_THRESHOLD
+@export var attack_hp_damage: float = -1.0      # 敌人命中 HP 伤害（EnemyAI._ready 注入 ENEMY_HP_DAMAGE；-1=玩家常量兜底）
+@export var attack_stance_damage: float = -1.0  # 敌人命中架势伤害（EnemyAI._ready 注入 POSTURE_HIT_COST；-1=玩家常量兜底）
 
 ## 运行期数据
 var hp_1: float

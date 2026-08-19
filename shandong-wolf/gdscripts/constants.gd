@@ -149,9 +149,10 @@ const POSTURE_HIT_COST: float = 35.0         # # DRAFT
 const PARRY_COST: float = 1.0                # # DRAFT
 # ENEMY_ATTACK_WINDUP
 #   只狼基准: 危攻击前摇 14-18 帧（刺刀突刺=可识破的危攻击）；普通攻击前摇可读
-#   候选集: [12, 15, 18]（默认 15 = 区间中位；12 = 快刀精英备选）
+#   候选集: [12, 15, 18]（默认 12 = 区间下位；15 = 区间中位备选；18 = 慢刀兜底）
+#   偏离理由: ⚠️ 2026-08-20 #581 实现期改值 12 对齐 AC1（前摇 12 帧可弹反），偏差记录交 #584 定稿
 #   偏离理由: 无（issue body 指定 12-18 帧，与只狼 14-18 基本重合，取宽 12 下限）
-const ENEMY_ATTACK_WINDUP: int = 15          # # DRAFT
+const ENEMY_ATTACK_WINDUP: int = 12          # # DRAFT
 # EXECUTE_RANGE
 #   只狼基准: 忍杀触发 = 近身（架势崩解后玩家靠近即可处决）
 #   候选集: [1.0, 1.2, 1.5]（默认 1.2 = issue body 指定）
@@ -290,3 +291,93 @@ const HUD_BLOOD_RED: Color = Color("#8c2f2f")  # # DRAFT
 #   情感断言: 克制的可读
 const HUD_HINT_FONT_SIZE: int = 16             # # DRAFT
 # > 处决提示窗口不新增常量——复用 STANCE_BREAK_RECOVERY_SEC=3.0（#584 只读，PRD §4.4 字面）。
+
+# ── AI 分区（# DRAFT 候补值，待 #584 定稿；#581 消费方，禁止实现期定稿）──
+# ENEMY_SENSE_RANGE_PX
+#   issue body: 视线范围 6m@100px/m
+#   候选集: [400, 500, 600]（默认 600 = issue 指定）
+#   该值影响什么: 感知水平距离上限——太大=全图索敌，太小=贴脸才发现
+#   情感断言: 压迫感来自「被你发现」，不是「满屏都是你」
+const ENEMY_SENSE_RANGE_PX: float = 600.0       # # DRAFT
+# ENEMY_SENSE_ANGLE_DEG
+#   issue body: 视线 120°（半角 60° → cos60°=0.5 点积阈值，派生不重复定义）
+#   候选集: [90, 120, 180]（默认 120 = issue 指定）
+#   该值影响什么: 视野锥张角——越大越容易发现玩家
+#   情感断言: 背对敌人是安全感的来源
+const ENEMY_SENSE_ANGLE_DEG: float = 120.0      # # DRAFT
+# ENEMY_SENSE_HEIGHT_TOLERANCE
+#   候选集: [100, 150, 200]（默认 150 = 平台制高度容忍，MVP 无 raycast）
+#   该值影响什么: 高度差容忍——超出则不发现/不追击
+#   情感断言: 高低差是走位资源，不是 bug
+const ENEMY_SENSE_HEIGHT_TOLERANCE: float = 150.0  # # DRAFT
+# ENEMY_PATROL_SPEED
+#   候选集: [60, 80, 100]（默认 80 = 火柴人 move 动画节奏）
+#   该值影响什么: 巡逻步态速度——太慢无聊，太快不像巡逻
+#   情感断言: 雪夜村口的踱步，不急不慢
+const ENEMY_PATROL_SPEED: float = 80.0          # # DRAFT
+# ENEMY_CHASE_SPEED
+#   候选集: [150, 180, 220]（默认 180 = 低于玩家 300 但足够逼近）
+#   该值影响什么: 追击压迫感——太快无解，太慢无压迫
+#   情感断言: 追得上你的恐惧，追不上的喘息
+const ENEMY_CHASE_SPEED: float = 180.0          # # DRAFT
+# ENEMY_TURN_DELAY_SEC
+#   候选集: [0.1, 0.2, 0.3]（默认 0.2 = 防瞬移转身穿帮）
+#   该值影响什么: 转向延迟——转身有过程，不是瞬移
+#   情感断言: 敌人也是人，转身需要时间
+const ENEMY_TURN_DELAY_SEC: float = 0.2         # # DRAFT
+# ENEMY_ATTACK_RANGE
+#   候选集: [70, 80, 100]（默认 80 = HITBOX_RANGE 对齐，停距=可命中）
+#   该值影响什么: 攻击停距——<= 此距离才出刀
+#   情感断言: 贴脸是危险的
+const ENEMY_ATTACK_RANGE: float = 80.0          # # DRAFT
+# ENEMY_ATTACK_COOLDOWN_SEC
+#   候选集: [1.2, 1.5, 2.0]（默认 1.5 = 攻击节奏阀，压迫但不无脑）
+#   该值影响什么: 攻击冷却——太快无脑，太慢木桩
+#   情感断言: 有呼吸的攻击节奏
+const ENEMY_ATTACK_COOLDOWN_SEC: float = 1.5    # # DRAFT
+# ENEMY_HP_DAMAGE
+#   候选集: [10, 15, 20]（默认 15 = sekiro 敌小兵对玩家伤害基准，100/15≈7 刀击杀）
+#   该值影响什么: 敌人命中玩家 HP 伤害
+#   情感断言: 七刀之内是紧张，一刀半血是恐惧
+const ENEMY_HP_DAMAGE: float = 15.0             # # DRAFT
+# ENEMY_HP_MAX
+#   候选集: [30, 40, 50]（默认 40 = sekiro 敌小兵 HP 30-50）
+#   该值影响什么: 敌人血条上限（life_1_max 注入）
+#   情感断言: 小兵是消耗品，不是城墙
+const ENEMY_HP_MAX: float = 40.0                # # DRAFT
+# ENEMY_THRUST_CHANCE
+#   候选集: [0.2, 0.3, 0.5]（默认 0.3 = 突刺 vs 三连砍 决策概率）
+#   该值影响什么: 出招风格概率——突刺单发 vs 三连砍连段
+#   情感断言: 敌人也会变招，但不多
+const ENEMY_THRUST_CHANCE: float = 0.3          # # DRAFT
+# ENEMY_RETREAT_CHANCE
+#   issue body: 5% 后退回避（AC3 硬约束）
+#   候选集: [0.03, 0.05, 0.10]（默认 0.05 = issue 指定）
+#   该值影响什么: 玩家出刀时敌人后退概率——反页游木桩的关键
+#   情感断言: 敌人会怕，但很少
+const ENEMY_RETREAT_CHANCE: float = 0.05        # # DRAFT
+# ENEMY_RETREAT_SECONDS
+#   候选集: [0.3, 0.5, 0.8]（默认 0.5 = 回避位移时长）
+#   该值影响什么: 后退回避持续时间
+#   情感断言: 退一步海阔天空，退太久是逃跑
+const ENEMY_RETREAT_SECONDS: float = 0.5        # # DRAFT
+# ENEMY_RETREAT_TRIGGER_RANGE
+#   候选集: [150, 200, 250]（默认 200 = 玩家攻击前摇触发回避的距离）
+#   该值影响什么: 回避触发距离
+#   情感断言: 刀够得着才会怕
+const ENEMY_RETREAT_TRIGGER_RANGE: float = 200.0  # # DRAFT
+# ENEMY_PARRY_STUN_SECONDS
+#   候选集: [0.4, 0.5, 0.6]（默认 0.5 = AC2 硬直 0.5s，AI 层补足）
+#   该值影响什么: 被弹反后 AI 抑制窗时长——不追击不攻击
+#   情感断言: 弹反是打断，不是暂停
+const ENEMY_PARRY_STUN_SECONDS: float = 0.5     # # DRAFT
+# ENEMY_LOSE_SIGHT_RANGE
+#   候选集倍数: [1.3, 1.5, 2.0]（默认 1.5× = ENEMY_SENSE_RANGE_PX 派生）
+#   该值影响什么: 追击丢失距离——超出回巡逻
+#   情感断言: 追丢是战术，不是 bug
+const ENEMY_LOSE_SIGHT_RANGE: float = 900.0     # # DRAFT（= ENEMY_SENSE_RANGE_PX × 1.5 派生）
+# ENEMY_PATROL_PAUSE_SEC
+#   候选集: [0.5, 1.0, 1.5]（默认 1.0 = waypoint 到达停顿）
+#   该值影响什么: 巡逻到达停顿时长
+#   情感断言: 踱步要有节奏
+const ENEMY_PATROL_PAUSE_SEC: float = 1.0       # # DRAFT
