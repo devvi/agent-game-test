@@ -177,7 +177,14 @@ shandong-wolf 骨架期（#559-#570）`gdscripts/` 为空，后续 #573-#578 的
 | `HITBOX_RANGE` | `80.0` | [60, 80, 100] | 横板一维命中距离阈值 px | resolve_attack 距离校验 |
 | `PARRY_DIRECTION_TOLERANCE` | `1` | [1=仅同侧, 2=宽容] | 弹反必须面向攻击 | resolve_attack facing 校验 |
 
-## 7. 相关 Issue 记录
+## 7. 氛围分区指针（#582/#624，载体 impl/582 分支）
+
+> 雪幕/冷月光/夜色背景/水墨/血色 五分区常量（MOONLIGHT_*/NIGHT_BG_COLOR/INK_*/BLOOD_*）随
+> #582 氛围实现落地于 **impl/582-snow-night-atmosphere 分支**（main 上无氛围代码），常量表、
+> 层契约与 C3 守卫详见 [12-ATMOSPHERE-SNOW-NIGHT](12-ATMOSPHERE-SNOW-NIGHT.md)。
+> 全部 `# DRAFT` 候补值，定稿归 #582 用户裁决（#624 修复只定约束不定值）。
+
+## 8. 相关 Issue 记录
 
 | Issue | 内容 | 状态 |
 |-------|------|------|
