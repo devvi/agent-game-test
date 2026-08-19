@@ -626,7 +626,19 @@ def _pr_exists_for_issue(stage: str, issue: int) -> bool:
 WORKDIR = os.path.expanduser("~/workspace/agent-game-test")
 
 # ── Game Environment ─────────────────────────────────────────
+# 2026-08-19 (CI 修复): manifest 查找不再依赖 macOS 硬编码路径 — CI (ubuntu)
+# 上 ~/workspace/agent-game-test 不存在 → _load_manifest() 走 fallback →
+# ACTIVE_GAME 永远 mini-pong → picker 的 game= 断言全红 (pipeline-tests 自
+# 08-18 16:27 连续红, E2E_RUNNER 同类 bug 2026-08-17 已修, 此处同样处理)。
+# 推导顺序: __file__ (repo scripts/ 或 ~/.hermes/scripts/) → cwd → 硬编码兜底。
 MANIFEST_PATH = os.path.join(WORKDIR, "game-env", "manifest.yaml")
+for _cand in (
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "game-env", "manifest.yaml")),
+    os.path.abspath(os.path.join(os.getcwd(), "game-env", "manifest.yaml")),
+):
+    if os.path.exists(_cand):
+        MANIFEST_PATH = _cand
+        break
 
 def _load_manifest() -> dict:
     """Load game environment manifest. Falls back to project defaults.
