@@ -14,8 +14,6 @@ extends Object
 ##   - 慢动作测试强制复原 Engine.time_scale = 1.0（全局状态，防跨用例污染）
 ##   - Tween 用 custom_step() 同步推进闪屏色值断言
 
-const ConstantsScript = preload("res://gdscripts/constants.gd")
-
 var passed: int = 0
 var failed: int = 0
 
@@ -328,7 +326,12 @@ func _test_t9_contract_table_branches() -> void:
 # ── Scenario D: FX (AC4) ────────────────────────────────────────────────
 
 func _constants_map() -> Dictionary:
-	return ConstantsScript.get_script_constant_map()
+	## 经 load() 取脚本资源再查常量表（对齐 test_constants.gd 模式: preload const 会解析为
+	## WolfConstants 类本身，调用资源方法 get_script_constant_map() 触发 parse error）
+	var s = load("res://gdscripts/constants.gd")
+	if s == null:
+		return {}
+	return s.get_script_constant_map()
 
 
 func _test_t10_fx_nodes_and_constants() -> void:
