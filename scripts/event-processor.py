@@ -2164,6 +2164,9 @@ def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False) -> list:
         _write_e2e_state(pr, state)
         lines.append(f"E2E: pr={pr} {verdict} (summary {summary})")
         if verdict in ("done", "failed"):
+            # 2026-08-19 (P2 骨架): SPAWN review 前预生成结论骨架 —
+            # review agent 只填受控字段, 不自由写 JSON (#562 根治)。
+            _ensure_conclusion_skeleton(pr)
             lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={summary}")
         return lines
 
@@ -2187,6 +2190,7 @@ def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False) -> list:
             return lines  # 已派发过 → one-shot, 静默
         # 防御性补发: harvest 路径已写 emitted_at, 这里只覆盖历史残留
         # 状态 (08-17 之前的 e2e-state 无 emitted_at 字段)。
+        _ensure_conclusion_skeleton(pr)
         lines.append(f"SPAWN: review,issue={pr},pr={pr},branch={branch},e2e_summary={state.get('summary', '')}")
         state["emitted_at"] = time.time()
         _write_e2e_state(pr, state)
@@ -2270,6 +2274,37 @@ def _read_review_conclusions_file(pr: int) -> bool:
         return False
 
 
+# 2026-08-19 (P2 骨架): 结论文件 verdict 规范枚举 — 骨架注释与校验共用。
+# 脚本完整接受集含历史变体 (approve/changes_requested/reject/no_merge),
+# 骨架只引导 agent 写规范四值。
+REVIEW_VERDICTS = ("approved", "blocked", "self_correct", "request_changes")
+
+
+def _ensure_conclusion_skeleton(pr: int) -> None:
+    """2026-08-19 (P2 骨架生成): SPAWN review 时预生成结论文件骨架。
+
+    根治 #516/#562 自由文本契约: review agent 不再从零写 JSON,
+    只填受控字段 (verdict/class/evidence)。骨架已存在的 (重审) 不覆盖。
+    """
+    try:
+        os.makedirs(REVIEW_CONCLUSIONS_DIR, exist_ok=True)
+        path = os.path.join(REVIEW_CONCLUSIONS_DIR, f"{pr}.json")
+        if os.path.exists(path):
+            return
+        with open(path, "w") as f:
+            json.dump({
+                "pr": pr,
+                "verdict": None,   # 填: approved | blocked | self_correct | request_changes
+                "class": None,     # 填: A | B | C | D (failure class)
+                "parent_issue": None,
+                "fix_issue": None,
+                "evidence": "",
+            }, f, indent=2)
+        _devlog("conclusion-skeleton", pr=pr, path=path)
+    except OSError:
+        pass
+
+
 def _mark_reviewed(pr: int) -> None:
     """2026-08-17 (方案 X): 结论已消费 → e2e-state 标记 reviewed.
 
@@ -2312,7 +2347,11 @@ def _try_merge(pr: int) -> bool:
 
 
 def _read_review_conclusions() -> list:
-    """Read all pending review-conclusion JSON files."""
+    """Read all pending review-conclusion JSON files.
+
+    2026-08-19 (#562 根治): JSON 解析失败的文件不再静默跳过 —
+    devlog 告警 review-verdict-invalid (校验器层, 防非法文件滞留不被发现)。
+    """
     out = []
     try:
         os.makedirs(REVIEW_CONCLUSIONS_DIR, exist_ok=True)
@@ -2324,10 +2363,12 @@ def _read_review_conclusions() -> list:
                 with open(path) as f:
                     data = json.load(f)
                 out.append((fn, data))
-            except (json.JSONDecodeError, OSError):
+            except (json.JSONDecodeError, OSError) as e:
+                _devlog("review-verdict-invalid", file=fn, reason=str(e),
+                        level="warning")
                 continue
     except OSError:
-        pass
+        return out
     return out
 
 

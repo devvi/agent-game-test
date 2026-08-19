@@ -1415,6 +1415,44 @@ class TestReviewFollowup(unittest.TestCase):
             json.dump(data, f)
         return d
 
+    def test_ensure_conclusion_skeleton_creates_valid_json(self):
+        """2026-08-19 (P2 骨架): SPAWN review 预生成结论骨架 — 合法 JSON、
+        verdict=null、已存在不覆盖 (重审场景)。"""
+        with tempfile.TemporaryDirectory() as td:
+            d = os.path.join(td, "concl")
+            with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR", d), \
+                 mock.patch.object(ep, "_devlog"):
+                ep._ensure_conclusion_skeleton(777)
+                ep._ensure_conclusion_skeleton(777)  # 幂等: 不覆盖
+            path = os.path.join(d, "777.json")
+            data = json.load(open(path))
+            self.assertIsNone(data["verdict"], "骨架 verdict 必须为空待填")
+            self.assertEqual(data["pr"], 777)
+            self.assertIn("evidence", data)
+            # 覆盖尝试不生效: 写入不同内容再调, 应保持原样
+            data["verdict"] = "approved"
+            json.dump(data, open(path, "w"))
+            with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR", d), \
+                 mock.patch.object(ep, "_devlog"):
+                ep._ensure_conclusion_skeleton(777)
+            self.assertEqual(json.load(open(path))["verdict"], "approved",
+                             "已存在的结论不得被骨架覆盖")
+
+    def test_read_review_conclusions_invalid_json_alerts(self):
+        """2026-08-19 (#562 根治): 非法 JSON 结论文件 → devlog 告警
+        review-verdict-invalid (不静默跳过, 防滞留不被发现)。"""
+        with tempfile.TemporaryDirectory() as td:
+            d = os.path.join(td, "concl")
+            os.makedirs(d)
+            with open(os.path.join(d, "999.json"), "w") as f:
+                f.write('{"pr": 999, "verdict": "approve / merge"  # 非法: 注释+缺逗号')
+            with mock.patch.object(ep, "REVIEW_CONCLUSIONS_DIR", d), \
+                 mock.patch.object(ep, "_devlog") as mock_devlog:
+                out = ep._read_review_conclusions()
+            self.assertEqual(out, [], "非法文件不得被消费")
+            mock_devlog.assert_called_once()
+            self.assertEqual(mock_devlog.call_args[0][0], "review-verdict-invalid")
+
     def test_blocked_adds_labels_and_comment(self):
         with tempfile.TemporaryDirectory() as td:
             d = self._write_conclusion(td, 475, fix=None)

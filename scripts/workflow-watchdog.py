@@ -18,6 +18,7 @@ Detection logic:
 """
 import json
 import os
+import re
 import time
 import urllib.request
 
@@ -100,10 +101,12 @@ def check_review_stuck(now):
 
 
 def check_conclusion_stale(now):
-    """2026-08-17 (方案 X 兜底): 结论文件滞留 → 告警.
+    """2026-08-19 (#562 根治): 结论文件滞留 + verdict 非法 → 告警.
 
-    review_followup 未消费 (通常 approve 后 merge 失败卡住, 幂等重试中;
-    也可能是 followup 自身故障)。60 分钟还没消费说明需要人看。
+    - verdict 非法 (不在规范枚举 / JSON 解析失败): 立即告警, 不等 60min —
+      review_followup 不消费非法文件 (校验器保留 + devlog), 这类文件
+      滞留说明 review agent 写了自由文本 (#562: "approve / merge")。
+    - 滞留 60 分钟: review_followup 未消费 (approve 后 merge 失败卡住等)。
     """
     alerts = []
     try:
@@ -113,6 +116,27 @@ def check_conclusion_stale(now):
             if not fn.endswith(".json"):
                 continue
             path = os.path.join(REVIEW_CONCLUSIONS_DIR, fn)
+            # ── verdict 合法性快速检测 (2026-08-19) ──
+            try:
+                with open(path) as f:
+                    data = json.load(f)
+                verdict = str(data.get("verdict", "")).strip().lower()
+                verdict = re.split(r"[/|,，;；]", verdict)[0].strip()
+                valid = verdict in ("approved", "approve", "blocked",
+                                    "self_correct", "request_changes",
+                                    "changes_requested", "reject", "no_merge")
+                if not valid:
+                    alerts.append(
+                        f"⚠️ 结论文件 verdict 非法: {fn} verdict={data.get('verdict')!r} "
+                        f"(规范四值: approved | blocked | self_correct | request_changes) — "
+                        f"review agent 自由文本, 需人工修正或重写。")
+                    continue  # 已告警, 不重复报滞留
+            except (json.JSONDecodeError, OSError):
+                alerts.append(
+                    f"⚠️ 结论文件 JSON 非法: {fn} — 解析失败, review_followup "
+                    f"不会消费, 需人工修正。")
+                continue
+            # ── 滞留检测 (原有) ──
             try:
                 age = now - os.path.getmtime(path)
             except OSError:

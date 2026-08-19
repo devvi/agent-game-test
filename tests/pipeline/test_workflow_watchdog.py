@@ -141,6 +141,29 @@ class WatchdogTestCase(unittest.TestCase):
         self._write_state(0)
         self.assertIn("结论文件滞留", self._run())
 
+    def test_conclusion_invalid_verdict_alerts_immediately(self):
+        """2026-08-19 (#562 根治): verdict 归一化后仍非法 (自由文本如
+        "pending") → 立即告警, 不等 60min 滞留 (review_followup 不消费
+        非法文件)。注意 "approve / merge" 归一化后 = "approve" 已合法
+        (修复效果), 不会被此检查命中。"""
+        os.makedirs(wd.REVIEW_CONCLUSIONS_DIR, exist_ok=True)
+        p = os.path.join(wd.REVIEW_CONCLUSIONS_DIR, "562.json")
+        with open(p, "w") as f:
+            json.dump({"pr": 562, "verdict": "pending"}, f)  # 新鲜文件
+        self._write_state(0)
+        out = self._run()
+        self.assertIn("verdict 非法", out)
+        self.assertNotIn("结论文件滞留", out, "非法 verdict 已告警, 不重复报滞留")
+
+    def test_conclusion_invalid_json_alerts_immediately(self):
+        """2026-08-19 (#562 根治): JSON 解析失败 → 立即告警。"""
+        os.makedirs(wd.REVIEW_CONCLUSIONS_DIR, exist_ok=True)
+        p = os.path.join(wd.REVIEW_CONCLUSIONS_DIR, "999.json")
+        with open(p, "w") as f:
+            f.write("{not valid json")
+        self._write_state(0)
+        self.assertIn("JSON 非法", self._run())
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

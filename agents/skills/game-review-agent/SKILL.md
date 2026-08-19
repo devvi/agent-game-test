@@ -713,22 +713,34 @@ comment) from this file, so even if you exhaust the 50-call budget right
 after, the block is never left dangling (this is what happened 2×: #466 then
 #475 — agent ran out of calls before labeling/commenting).
 
+**结论文件写入（2026-08-19 起: 骨架生成, 不再从零写 JSON）** — event-processor 在 SPAWN review 时已预生成骨架 `~/.hermes/review-conclusions/<PR_NUM>.json`（verdict/class/evidence 为 null/空）。你的动作：
+
 ```bash
-mkdir -p ~/.hermes/review-conclusions
-cat > ~/.hermes/review-conclusions/<PR_NUM>.json <<'JSONEOF'
-{
-  "pr": <PR_NUM>,
-  "verdict": "blocked",                    # blocked | approved | request_changes | self_correct
-  "class": "A",                            # A | B | C | D (failure class)
-  "parent_issue": <PARENT_NUM>,
-  "fix_issue": {                           # null if none
-    "title": "Fix ... pre-existing failures on main",
-    "failures": ["TC6.1", "TC8.1", "..."]
-  },
-  "evidence": "L3 visual fail: paddle/brick/bg dist 0.0 < 60 ..."
-}
-JSONEOF
+# 1. 读骨架（必须存在; 若意外缺失, 按下方字段补写一个合法 JSON）
+cat ~/.hermes/review-conclusions/<PR_NUM>.json
+# 2. 填字段 — 只改 verdict/class/evidence/parent_issue/fix_issue, 不删其他键
+python3 - <<'PYEOF'
+import json, os
+p = os.path.expanduser("~/.hermes/review-conclusions/<PR_NUM>.json")
+d = json.load(open(p))
+d["verdict"] = "approved"        # 只允许: approved | blocked | self_correct | request_changes
+d["class"] = "A"                 # A | B | C | D (failure class); approved 时可 "OK"
+d["parent_issue"] = <PARENT_NUM>
+d["fix_issue"] = None            # blocked 时填 {"title": "...", "failures": [...]}
+d["evidence"] = "L3 visual fail: paddle/brick/bg dist 0.0 < 60 ..."
+json.dump(d, open(p, "w"), indent=2)
+PYEOF
+# 3. 自检（必须通过才继续; 失败 = 改文件, 不是改测试）
+python3 -c "import json; json.load(open('$HOME/.hermes/review-conclusions/<PR_NUM>.json')); print('OK')"
 ```
+
+**verdict 四值语义**（骨架注释 + 脚本校验共用，禁自造值/复合值如 "approve / merge"）:
+| verdict | 脚本层动作 |
+|---------|-----------|
+| `approved` | review_followup 执行 merge（LLM 不 merge） |
+| `blocked` | +status/blocked（PR+issue）+ fix issue 创建/去重 |
+| `self_correct` | 结论记录（D 类: agent 已打 workflow/self-correct label, 触发修复循环） |
+| `request_changes` | 结论记录（C 类审美/规格 → 人工） |
 
 Rules:
 - **Write this file FIRST among the block-checklist steps** (right after you
