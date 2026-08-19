@@ -6,8 +6,8 @@
 |------|:----:|
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
-| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D)、失败屏(win/fail双分支+run数据+软冻结)、球速 HUD 实时显示；🟡 shandong-wolf（当前活跃游戏）: 逻辑地基就绪（WolfConstants 数值集中地 + StateMachineBase 状态机基类 + Game autoload）+ 战斗数值 DRAFT 集中表（#584 只狼基准 14 参数候补值）+ DebugCanvas F1 调参面板（#609，仅 debug build）+ 输入层就绪（Input Map 9 动作 + InputController 意图事件/时间戳缓冲 + PlayerController 加速度移动，#611）+ 战斗实体与状态机就绪（CombatEntity 数据容器/两段血/输入桥 + 11 态战斗状态机 + 战斗时序 DRAFT 分区，#618）+ 火柴人剪影骨架与关键帧动画（Line2D 程序化骨架 7 pivot + 11 态关键帧 + consume_state 契约 + additive 刀光，#612）+ 血条与架势条极简 HUD（两段式血条/双架势条/击杀与处决提示，程序化绘制零贴图，草稿已合并待用户 E2E 截图定稿，#627）+ 拼刀/弹反/架势崩解判定层（CombatJudge 逻辑帧窗口判定 + AttackWindow 窗口契约 + 弹反/拼刀/格挡/受击五结果事件 + 6 判定常量 # DRAFT，#626）+ 雪夜氛围层（#582/#624 单 CanvasModulate 冷月光契约：唯一 moon 挂 layer 0 + 雪幕/水墨/血色/UI 禁染 + C3 ==1 守卫 + NIGHT_BG_COLOR # DRAFT，修复 #629 已合并，载体 impl/582 分支——main 落地待 #613 re-review 与 #582 定稿）+ 两条命原地复活系统（ReviveOrchestrator 自动复活编排：died(final=false)→1s 计时→revive()，与 F 键手动路径双路径幂等收敛 + ReviveFX 演出四件套：墨点 burst/瞬态闪屏/慢动作/无敌闪烁，12 演出常量 # DRAFT 归 #584，SW-015 终态契约固化，#637） |
-| 最近构建 | 2026-08-19（shandong-wolf 两条命原地复活系统 #637） |
+| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D)、失败屏(win/fail双分支+run数据+软冻结)、球速 HUD 实时显示；🟡 shandong-wolf（当前活跃游戏）: 逻辑地基就绪（WolfConstants 数值集中地 + StateMachineBase 状态机基类 + Game autoload）+ 战斗数值 DRAFT 集中表（#584 只狼基准 14 参数候补值）+ DebugCanvas F1 调参面板（#609，仅 debug build）+ 输入层就绪（Input Map 9 动作 + InputController 意图事件/时间戳缓冲 + PlayerController 加速度移动，#611）+ 战斗实体与状态机就绪（CombatEntity 数据容器/两段血/输入桥 + 11 态战斗状态机 + 战斗时序 DRAFT 分区，#618）+ 火柴人剪影骨架与关键帧动画（Line2D 程序化骨架 7 pivot + 11 态关键帧 + consume_state 契约 + additive 刀光，#612）+ 血条与架势条极简 HUD（两段式血条/双架势条/击杀与处决提示，程序化绘制零贴图，草稿已合并待用户 E2E 截图定稿，#627）+ 拼刀/弹反/架势崩解判定层（CombatJudge 逻辑帧窗口判定 + AttackWindow 窗口契约 + 弹反/拼刀/格挡/受击五结果事件 + 6 判定常量 # DRAFT，#626）+ 雪夜氛围层（#582/#624 单 CanvasModulate 冷月光契约：唯一 moon 挂 layer 0 + 雪幕/水墨/血色/UI 禁染 + C3 ==1 守卫 + NIGHT_BG_COLOR # DRAFT，修复 #629 已合并，载体 impl/582 分支——main 落地待 #613 re-review 与 #582 定稿）+ 两条命原地复活系统（ReviveOrchestrator 自动复活编排：died(final=false)→1s 计时→revive()，与 F 键手动路径双路径幂等收敛 + ReviveFX 演出四件套：墨点 burst/瞬态闪屏/慢动作/无敌闪烁，12 演出常量 # DRAFT 归 #584，SW-015 终态契约固化，#637） + 基础日本兵 AI（EnemyAI 行为状态机：巡逻/追击/攻击/被弹反 4 行为态 + 120° 视线 6m 几何感知（无 raycast/Area2D）+ 决策门控 + 弹反抑制窗 0.5s；判定层 3 处 additive 参数化 + AI 分区 18 常量 # DRAFT，AC1-AC5 全过，#638） |
+| 最近构建 | 2026-08-19（shandong-wolf 基础日本兵 AI #638） |
 | 开放 Issues | 1 |
 
 ## 模块地图
@@ -51,6 +51,9 @@
 | Shandong Wolf — 氛围场景 | `shandong-wolf/scenes/atmosphere/atmosphere_layer.tscn`（Atmosphere 根 + 唯一 Moonlight(layer0) + 雪幕3-5/水墨2/血色10 层零 moon；载体 impl/582 分支） | ✅ | GDD |
 | Shandong Wolf — 夜色世界背景 | `shandong-wolf/scenes/Main.tscn` WorldBackdrop（layer 0 ColorRect，NIGHT_BG_COLOR 单一事实源；载体 impl/582 分支） | ✅ | GDD |
 | Shandong Wolf — 氛围测试套件 | `shandong-wolf/tests/test_atmosphere.gd`（C3-1~C3-5 单 moon 守卫：总数==1/层归属/颜色/Main.tscn 文本无 CanvasModulate/层内无 moon + A/B/D/E 回归；载体 impl/582 分支） | ✅ | GDD |
+| Shandong Wolf — EnemyAI 行为层 | `shandong-wolf/gdscripts/enemy_ai.gd`（CharacterBody2D 行为 FSM 持有：patrol/chase/attack/retreat + 120° 视线 6m 几何感知（无 raycast/Area2D）+ 决策门控（实体非 idle/move 不决策）+ 弹反抑制窗 0.5s + decide/_physics_process 分离） | ✅ | GDD |
+| Shandong Wolf — EnemyAI 行为状态对象 | `shandong-wolf/gdscripts/enemy_ai_states.gd`（Patrol/Chase/Attack/Retreat 4 态，combat_states.gd 范式派生；绝不直接改 entity.state_name——AI 行为态与战斗 11 态双命名空间） | ✅ | GDD |
+| Shandong Wolf — EnemyAI 测试套件 | `shandong-wolf/tests/test_enemy_ai.gd`（36 用例 Scenario A-G：主路径/感知边界/弹反硬直与崩解/5% 回避/常量驱动/边界失败/回归，run_tests.gd 第 10 套件） | ✅ | GDD |
 | Shandong Wolf — ReviveOrchestrator 复活编排器 | `shandong-wolf/gdscripts/revive_orchestrator.gd`（Node 信号订阅：died(final=false)→REVIVE_SECONDS 计时→revive() 自动复活，与 F 键手动路径双路径幂等收敛 + is_armed 可观测，headless 确定性 _process 累加） | ✅ | GDD |
 | Shandong Wolf — ReviveFX 复活演出 | `shandong-wolf/gdscripts/revive_fx.gd`（Node2D _ready 代码构建零资产：墨点 GPUParticles2D one_shot + 瞬态 CanvasModulate 闪屏 Tween + Engine.time_scale 慢动作 + 父节点 modulate 无敌闪烁，参数全读 constants 复活 FX 分区零字面量） | ✅ | GDD |
 | Shandong Wolf — 复活测试套件 | `shandong-wolf/tests/test_revive_orchestrator.gd`（24 用例 7 场景：编排主路径/无敌+架势/终态契约/FX 零字面量/双路径竞争/边界失败/回归，run_tests.gd 第 10 套件） | ✅ | GDD |
@@ -111,6 +114,7 @@
 | 576 | Shandong Wolf 血条与架势条极简 HUD (两段式血条 + 玩家/敌人架势条 + 击杀/处决提示 + 低血 vignette 信号源, 程序化绘制零贴图 AC4, 草稿已合并待用户 E2E 截图定稿) | 🧪 草稿已合并，待用户定稿 | DESIGN / GDD |
 | 577 | Shandong Wolf 拼刀/弹反/架势崩解判定系统 (CombatJudge 判定协调器 + AttackWindow 窗口契约 + 弹反/拼刀/格挡/受击五结果事件, 裁决顺序走 CLASH_PRIORITY 常量零字面量, AC1-AC5 全过) | ✅ 已合并 | DESIGN / GDD |
 | 624 | Shandong Wolf 雪夜氛围回归修复 (单 CanvasModulate 层契约: 7 moon → 1 moon 挂 layer 0 + 雪幕/水墨/血色/UI 禁染 + C3 ==1 守卫, 修复 #613 雪幕粒子不可见/血色 vignette 无效果回归; 修复落 impl/582 分支, main 落地待 #613 re-review + #582 定稿) | ✅ 已合并 | DESIGN / GDD |
+| 581 | Shandong Wolf 基础日本兵 AI (EnemyAI 行为状态机: 巡逻→追击→攻击→被弹反, 120° 视线 6m 几何感知 + 决策门控 + 弹反抑制窗 0.5s; 判定层 3 处 additive 参数化 windup_frames/伤害 @export/judge 读实体参数; AI 分区 18 常量 # DRAFT 归 #584, AC1-AC5 全过) | ✅ 已合并 | DESIGN / GDD |
 | 578 | Shandong Wolf 两条命原地复活系统 (ReviveOrchestrator 自动复活编排: died(final=false)→1s 计时→revive(), 与 F 键手动路径双路径幂等收敛; ReviveFX 演出四件套: 墨点 burst/瞬态闪屏/慢动作/无敌闪烁, 12 演出常量 # DRAFT 归 #584, SW-015 终态契约固化, AC1-AC5 全过) | ✅ 已合并 | DESIGN / GDD |
 ## 已知问题
 
@@ -121,3 +125,4 @@ title 界面混杂游戏世界（#508）已在 #511 修复并合并（2026-08-17
 #627 附带框架层注意点：e2e hud group shots 用数字 state（0-3），e2e_capture.gd 驱动以顶层 states 命名 dict 为主——review 截图若报 state 解析问题属框架 gap（resolve_plan.py group 级 main_scene 提升机制已支持）。
 #613 雪夜氛围回归（雪幕粒子不可见/血色 vignette 无效果，7 CanvasModulate 乘法链压暗）已由 #629 修复合并（单 CanvasModulate 层契约：7 moon → 1 moon 挂 layer 0 + 四层禁染 + C3 ==1 守卫）；修复载体为 impl/582-snow-night-atmosphere 分支，main 上氛围代码落地待 #613 re-review + #582 taste-draft 定稿（NIGHT_BG_COLOR 候选 #d8dce4 亦待定稿）。
 #578 复活演出参数（constants.gd「复活 FX 分区」12 常量：墨点/闪屏/慢动作/闪烁四件套）为 # DRAFT 候选值，定稿归 #584 调参；AC5 复活瞬间 E2E 截图情绪裁决（「硬汉再起」vs「日式中二觉醒」）待用户定稿 → docs/TASTE.md。
+#581/#638 敌人 AI 数值全量 # DRAFT（AI 分区 18 常量 + ENEMY_ATTACK_WINDUP 15→12 实现期 AC1 对齐偏离）定稿归 #584 调参面板；#585 组装前敌人由测试直接装配，场景出生点/巡逻路径 waypoints 待 #583 配置。
