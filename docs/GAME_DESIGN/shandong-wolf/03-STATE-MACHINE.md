@@ -59,11 +59,11 @@ func update(delta: float) -> void               # 转发给 current_state.update
 
 | Integration | Target Issue | How | Status |
 |-------------|:---:|-----|:---:|
-| 战斗状态机派生 | #575 | `class BattleStateMachine extends StateMachineBase` + 状态对象三接口 | ⬜ pending |
+| 战斗状态机派生 | #575 | `combat_states.gd` 11 个战斗状态对象派生本基类（CombatStateBase + make_state 工厂，转移表见 09 章） | ✅ 已合并（#618） |
 
 ## 7. 相关 Issue 记录
 
 | Issue | 内容 | 状态 |
 |-------|------|------|
 | #572 | 逻辑地基（本文件所属） | 已合并（#599） |
-| #575 | 战斗实体状态机（派生本基类） | 待实现 |
+| #575 | 战斗实体状态机（派生本基类） | 已合并（#618） |

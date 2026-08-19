@@ -6,7 +6,7 @@
 |------|:----:|
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
-| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D)、失败屏(win/fail双分支+run数据+软冻结)、球速 HUD 实时显示；🟡 shandong-wolf（当前活跃游戏）: 逻辑地基就绪（WolfConstants 数值集中地 + StateMachineBase 状态机基类 + Game autoload）+ 战斗数值 DRAFT 集中表（#584 只狼基准 14 参数候补值）+ DebugCanvas F1 调参面板（#609，仅 debug build）+ 输入层就绪（Input Map 9 动作 + InputController 意图事件/时间戳缓冲 + PlayerController 加速度移动，#611）+ 火柴人剪影骨架与关键帧动画（Line2D 程序化骨架 7 pivot + 11 态关键帧 + consume_state 契约 + additive 刀光，#612） |
+| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D)、失败屏(win/fail双分支+run数据+软冻结)、球速 HUD 实时显示；🟡 shandong-wolf（当前活跃游戏）: 逻辑地基就绪（WolfConstants 数值集中地 + StateMachineBase 状态机基类 + Game autoload）+ 战斗数值 DRAFT 集中表（#584 只狼基准 14 参数候补值）+ DebugCanvas F1 调参面板（#609，仅 debug build）+ 输入层就绪（Input Map 9 动作 + InputController 意图事件/时间戳缓冲 + PlayerController 加速度移动，#611）+ 战斗实体与状态机就绪（CombatEntity 数据容器/两段血/输入桥 + 11 态战斗状态机 + 战斗时序 DRAFT 分区，#618）+ 火柴人剪影骨架与关键帧动画（Line2D 程序化骨架 7 pivot + 11 态关键帧 + consume_state 契约 + additive 刀光，#612） |
 | 最近构建 | 2026-08-19（shandong-wolf 火柴人剪影骨架与关键帧动画 #612） |
 | 开放 Issues | 1 |
 
@@ -33,6 +33,10 @@
 | Shandong Wolf — DebugCanvas | `shandong-wolf/gdscripts/debug_canvas.gd`（CanvasLayer 调参面板，F1 开关） | ✅ | GDD |
 | Shandong Wolf — InputController | `shandong-wolf/gdscripts/input_controller.gd`（autoload 输入意图层：8 信号 + 时间戳缓冲队列） | ✅ | GDD |
 | Shandong Wolf — PlayerController | `shandong-wolf/gdscripts/player_controller.gd`（CharacterBody2D 加速度移动，group "player"） | ✅ | GDD |
+| Shandong Wolf — CombatEntity | `shandong-wolf/gdscripts/combat_entity.gd`（Node2D 战斗数据容器：两段血/架势/facing + request_transition 唯一转移入口 + 6 信号 + _StateInputBridge 输入桥） | ✅ | GDD |
+| Shandong Wolf — CombatStateTable | `shandong-wolf/gdscripts/combat_state_table.gd`（11 态转移合法性表 CANONICAL_STATES/TRANSITIONS/is_legal） | ✅ | GDD |
+| Shandong Wolf — CombatStates | `shandong-wolf/gdscripts/combat_states.gd`（CombatStateBase + 11 状态对象 + make_state 工厂，帧/秒常量自动退出） | ✅ | GDD |
+| Shandong Wolf — Combat Test Suite | `shandong-wolf/tests/test_combat_entity.gd`（30 用例：121 对转移遍历/受击/架势/两段血复活流/输入桥 mock） | ✅ | GDD |
 | Shandong Wolf — StickFigure | `shandong-wolf/gdscripts/stick_figure.gd`（Node2D 程序化骨架：7 pivot + Line2D 肢体 + Polygon2D 头圆 + sprite_slot 原画预留） | ✅ | GDD |
 | Shandong Wolf — 动画控制器 | `shandong-wolf/gdscripts/stick_figure_controller.gd`（consume_state 契约 + 11 态→clip 镜像映射 + 过渡 ≤2 帧 + 动画资源运行时动态生成） | ✅ | GDD |
 | Shandong Wolf — SwordArc 刀光 | `shandong-wolf/gdscripts/sword_arc.gd`（Polygon2D additive 弧光，无碰撞，判定归 #577） | ✅ | GDD |
@@ -88,6 +92,7 @@
 | 572 | Shandong Wolf 逻辑地基 (constants.gd # DRAFT 数值集中地 + StateMachineBase 通用状态机基类 + Game autoload 锚点 + 状态机/常量单测) | ✅ 已合并 | DESIGN / GDD |
 | 584 | Shandong Wolf 战斗数值 DRAFT 集中表 (只狼基准 14 参数候补值三行注释 + DebugCanvas F1 调参面板, 草稿已合并) | 🧪 草稿已合并，待用户定稿 | DESIGN / TASTE |
 | 573 | Shandong Wolf 输入映射与玩家控制器 (Input Map 9 动作 + InputController 意图事件/时间戳缓冲 + PlayerController 加速度移动, AC1-AC6 全过) | ✅ 已合并 | DESIGN / GDD |
+| 575 | Shandong Wolf 战斗实体基类与状态机 (CombatEntity 玩家/敌人变体 + 两段血 + 11 态战斗状态机 + 战斗时序 DRAFT 分区, AC1-AC5 全过) | ✅ 已合并 | DESIGN / GDD |
 | 574 | Shandong Wolf 火柴人剪影骨架与关键帧动画 (Line2D 程序化骨架 + 11 态 AnimationPlayer 关键帧 + consume_state 契约 + additive 刀光, 零美术资产 AC5) | ✅ 已合并 | DESIGN / GDD |
 ## 已知问题
 
