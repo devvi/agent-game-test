@@ -407,6 +407,51 @@ class TestPreprocess(unittest.TestCase):
         output = "".join(str(c.args[0]) for c in out.write.call_args_list)
         self.assertIn("[SILENT]", output)
 
+    def test_stalled_scan_runs_when_pending_nonempty(self):
+        """#572 deadlock (2026-08-19): stalled scan 必须在 pending 非空时也执行。
+
+        缺陷 B 实证: P2 issues.labeled (workflow/backlog) 事件设计保留滞留
+        pending → pending 恒非空 → 旧代码 stalled scan 只在 pending==0 的
+        else 分支跑 → 收割器饿死 → E2E 僵尸态 (status=running + pid 已死)
+        无人收割 → SPAWN: review 永不发出 → pipeline 冻结 (#572/#599)。
+        修复: stalled scan 移入统一 pipeline, 每 tick 无条件执行。
+        """
+        # 6 个 P2 backlog labeled 事件 (573-578) — 设计保留, 永不消费
+        events = [
+            {"_key": f"issues.labeled#{n}:workflow/backlog",
+             "type": "issues.labeled", "issue": n, "label": "workflow/backlog"}
+            for n in range(573, 579)
+        ]
+        # preprocess 对 P2 事件输出 P2: 行但不消费 → lines 非空 → 旧代码
+        # 走 `if lines:` 分支, stalled scan 被跳过。新代码必须照常执行。
+        with mock.patch.object(ep, "read_pending", return_value=events), \
+             mock.patch.object(ep, "write_pending"), \
+             mock.patch.object(ep, "_ensure_issues_cache", return_value=[]), \
+             mock.patch.object(ep, "is_paused", return_value=False), \
+             mock.patch.object(ep, "_time_in_window", return_value=True), \
+             mock.patch.object(ep, "health_check", return_value="ok"), \
+             mock.patch.object(ep, "pick_next_issue", return_value=[]), \
+             mock.patch.object(ep, "reconcile_check_runs"), \
+             mock.patch.object(ep, "_read_reconcile_state", return_value={}), \
+             mock.patch.object(ep, "_write_reconcile_state"), \
+             mock.patch.object(ep, "preprocess", return_value=[
+                 "P2: issues.labeled,issue=573,label=workflow/backlog"]), \
+             mock.patch.object(ep, "_quick_stalled_scan",
+                               return_value=[
+                                   "E2E: pr=599 done (summary /tmp/e2e-599/summary.json)",
+                                   "SPAWN: review,issue=599,pr=599,branch=impl/572-scaffold-main-entry,e2e_summary=/tmp/e2e-599/summary.json",
+                               ]) as scan, \
+             mock.patch.object(ep, "_count_active_phase_agents", return_value=0), \
+             mock.patch.object(ep, "_audit"), \
+             mock.patch.object(ep, "review_followup", return_value=[]), \
+             mock.patch.object(ep, "post_merge_emitter", return_value=[]), \
+             mock.patch("sys.stdout") as out:
+            ep.main()
+        scan.assert_called()  # 修复核心: pending 非空时 stalled scan 也必须跑
+        output = "".join(str(c.args[0]) for c in out.write.call_args_list)
+        self.assertIn("SPAWN: review,issue=599", output,
+                      "stalled scan 的输出必须进入统一 pipeline 打印")
+
     def test_spawn_consumes_event_from_pending(self):
         """One-shot SPAWN: after emitting SPAWN, the event must be removed
         from pending — otherwise the next tick re-emits and the cron LLM

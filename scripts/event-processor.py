@@ -1933,6 +1933,16 @@ def main():
         
         lines = preprocess()
         lines = lines + picker_lines
+        # 2026-08-19 (#572 deadlock 修复): stalled scan 无条件每 tick 执行。
+        # 原实现只在 pending==0 (无事件分支) 跑 — 但 P2 issues.labeled
+        # (workflow/backlog) 事件设计保留滞留 pending → pending 恒非空 →
+        # stalled scan 饿死 → E2E 僵尸态 (status=running + pid 已死, e.g.
+        # fresh_ci 重放误启 runner 即死) 无人收割 → SPAWN review 永不发出
+        # → pipeline 冻结 (#572/#599 实证, 2026-08-19)。
+        # 安全性: _quick_stalled_scan 内部所有 SPAWN/STALLED 均过 _spawn_gate
+        # 去重 (test_stalled_scan_gated) — 每 tick 跑不会重复派发。
+        if in_window and not is_paused():
+            lines = lines + (_quick_stalled_scan() or [])
         # SPAWN lines must come first — LLM reads top-to-bottom
         lines.sort(key=_output_sort_key)
         
@@ -2024,14 +2034,13 @@ def main():
                 if extra_lines:
                     print("\n".join(extra_lines))
         else:
-            # No pending events → run quick stalled scan + picker
-            # Both produce lines; merged output, empty → [SILENT]
+            # No pending events → fallback picker only.
+            # 2026-08-19 (#572): stalled scan 已在上方统一 pipeline 无条件
+            # 执行, 这里不再重复调用 (否则 pending==0 时每 tick 跑两次)。
             if in_window and not is_paused():
                 picker_lines2 = pick_next_issue() or []
-                stalled = _quick_stalled_scan()
-                combined = picker_lines2 + stalled
-                if combined:
-                    print("\n".join(combined))
+                if picker_lines2:
+                    print("\n".join(picker_lines2))
                 else:
                     print("[SILENT]")
             else:
