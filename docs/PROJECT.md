@@ -6,8 +6,8 @@
 |------|:----:|
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
-| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D)、失败屏(win/fail双分支+run数据+软冻结)、球速 HUD 实时显示；🟡 shandong-wolf（当前活跃游戏）: 逻辑地基就绪（WolfConstants 数值集中地 + StateMachineBase 状态机基类 + Game autoload）+ 战斗数值 DRAFT 集中表（#584 只狼基准 14 参数候补值）+ DebugCanvas F1 调参面板（#609，仅 debug build） |
-| 最近构建 | 2026-08-19（shandong-wolf 战斗数值 DRAFT 表 + DebugCanvas 调参面板 #609） |
+| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D)、失败屏(win/fail双分支+run数据+软冻结)、球速 HUD 实时显示；🟡 shandong-wolf（当前活跃游戏）: 逻辑地基就绪（WolfConstants 数值集中地 + StateMachineBase 状态机基类 + Game autoload）+ 战斗数值 DRAFT 集中表（#584 只狼基准 14 参数候补值）+ DebugCanvas F1 调参面板（#609，仅 debug build）+ 输入层就绪（Input Map 9 动作 + InputController 意图事件/时间戳缓冲 + PlayerController 加速度移动，#611） |
+| 最近构建 | 2026-08-19（shandong-wolf 输入映射与玩家控制器 #611） |
 | 开放 Issues | 1 |
 
 ## 模块地图
@@ -31,6 +31,8 @@
 | Shandong Wolf — State Machine | `shandong-wolf/gdscripts/state_machine.gd` | ✅ | GDD |
 | Shandong Wolf — Game Autoload | `shandong-wolf/gdscripts/game.gd` | ✅ | GDD |
 | Shandong Wolf — DebugCanvas | `shandong-wolf/gdscripts/debug_canvas.gd`（CanvasLayer 调参面板，F1 开关） | ✅ | GDD |
+| Shandong Wolf — InputController | `shandong-wolf/gdscripts/input_controller.gd`（autoload 输入意图层：8 信号 + 时间戳缓冲队列） | ✅ | GDD |
+| Shandong Wolf — PlayerController | `shandong-wolf/gdscripts/player_controller.gd`（CharacterBody2D 加速度移动，group "player"） | ✅ | GDD |
 | Mini Pong — Arena | `mini-pong/scenes/Main.tscn` | ✅ | GDD |
 | Mini Pong — Constants | `mini-pong/gdscripts/constants.gd` | ✅ | GDD |
 | Mini Pong — ScoreFlash | `mini-pong/gdscripts/score_flash.gd` | ✅ | GDD |
@@ -81,6 +83,7 @@
 | 567 | Shandong Wolf post-merge 探针 (Main.tscn 右下角 PostMergeProbeLabel, 驱动 post-merge 管线回归) | ✅ 已合并 | DESIGN / GDD |
 | 572 | Shandong Wolf 逻辑地基 (constants.gd # DRAFT 数值集中地 + StateMachineBase 通用状态机基类 + Game autoload 锚点 + 状态机/常量单测) | ✅ 已合并 | DESIGN / GDD |
 | 584 | Shandong Wolf 战斗数值 DRAFT 集中表 (只狼基准 14 参数候补值三行注释 + DebugCanvas F1 调参面板, 草稿已合并) | 🧪 草稿已合并，待用户定稿 | DESIGN / TASTE |
+| 573 | Shandong Wolf 输入映射与玩家控制器 (Input Map 9 动作 + InputController 意图事件/时间戳缓冲 + PlayerController 加速度移动, AC1-AC6 全过) | ✅ 已合并 | DESIGN / GDD |
 ## 已知问题
 
 7项预存测试失败已在 #353 (暂停) 和 #355 (UI字体) 中全部修复并合并。
