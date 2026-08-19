@@ -44,34 +44,63 @@ var _revived_count: int = 0
 
 func run() -> void:
 	print("\n=== CombatEntity Tests ===")
+	_reset_logs()
 	_test_a0_timing_constants()
+	_reset_logs()
 	_test_a1_player_variant_init()
+	_reset_logs()
 	_test_a2_enemy_variant_init()
+	_reset_logs()
 	_test_a3_attr_read_write()
+	_reset_logs()
 	_test_b1_transition_table_121()
+	_reset_logs()
 	_test_b2_red_line_stance_break()
+	_reset_logs()
 	_test_b3_dead_lockdown()
+	_reset_logs()
 	_test_b4_legal_transitions_execute()
+	_reset_logs()
 	_test_b5_same_state_ignored()
+	_reset_logs()
 	_test_b6_combo_restart()
+	_reset_logs()
 	_test_c1_damage_stagger()
+	_reset_logs()
 	_test_c2_stagger_auto_exit()
+	_reset_logs()
 	_test_c3_guard_no_stagger()
+	_reset_logs()
 	_test_c4_invincible_window()
+	_reset_logs()
 	_test_c5_negative_clamp()
+	_reset_logs()
 	_test_d1_stance_drain()
+	_reset_logs()
 	_test_d2_break_broadcast()
+	_reset_logs()
 	_test_d3_break_idempotent()
+	_reset_logs()
 	_test_d4_guard_break()
+	_reset_logs()
 	_test_d5_break_recovery_execute()
+	_reset_logs()
 	_test_e1_first_life_depleted()
+	_reset_logs()
 	_test_e2_revive_flow()
+	_reset_logs()
 	_test_e3_second_life_depleted()
+	_reset_logs()
 	_test_e4_life_total1_final()
+	_reset_logs()
 	_test_e5_final_dead_no_revive()
+	_reset_logs()
 	_test_e6_state_sequence()
+	_reset_logs()
 	_test_f1_dead_no_op()
+	_reset_logs()
 	_test_f2_canonical_contract_alignment()
+	_reset_logs()
 	_test_f3_input_bridge_mock()
 	print("Passed: %d, Failed: %d" % [passed, failed])
 
@@ -82,6 +111,16 @@ func _assert(condition: bool, msg: String) -> void:
 	else:
 		print("  FAIL: %s" % msg)
 		failed += 1
+
+
+func _reset_logs() -> void:
+	## 用例间重置信号日志（信号 handler 写成员变量，跨用例累积会污染 size 断言）
+	_hp_log = []
+	_stance_log = []
+	_broken_log = []
+	_state_log = []
+	_died_log = []
+	_revived_count = 0
 
 
 # ── helpers ─────────────────────────────────────────────────────────────
@@ -187,7 +226,7 @@ func _test_b1_transition_table_121() -> void:
 			var expected: bool = EXPECTED_TRANSITIONS[f].has(t)
 			if impl != expected:
 				mismatches.append("%s→%s (impl=%s exp=%s)" % [f, t, impl, expected])
-	_assert(mismatches.is_empty(), "121-pair table 100% agreement (mismatches: %s)" % [str(mismatches)])
+	_assert(mismatches.is_empty(), "121-pair table fully agrees (mismatches: %s)" % [str(mismatches)])
 
 
 func _test_b2_red_line_stance_break() -> void:

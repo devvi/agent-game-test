@@ -73,11 +73,11 @@ func _process(delta: float) -> void:
 
 func request_transition(to: String) -> bool:
 	## 唯一转移入口（表 = 拓扑合法性 + 守卫 = 条件合法性，两层设计）。
-	## 守卫序: ① 终态拒（_is_final_dead）② dead 停摆拒（仅 revive 可出）
+	## 守卫序: ① 终态拒（_is_final_dead，仅允许进入 dead 展示态）② dead 停摆拒（仅 revive 可出）
 	##          ③ 同态重入（restart 钩子，静默返回 true，不广播 state_changed）
 	##          ④ 查表非法拒（状态不漂移 + push_warning）
 	##          ⑤ 合法执行: fsm.transition_to + state_name 更新 + state_changed 广播
-	if _is_final_dead:
+	if _is_final_dead and to != "dead":
 		push_warning("CombatEntity: final dead — transition rejected: %s" % to)
 		return false
 	if state_name == "dead" and to != "revive":
