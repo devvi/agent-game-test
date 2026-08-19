@@ -8,7 +8,7 @@
 script = ExtResource("1_rig")
 
 [node name="Backdrop" type="ColorRect" parent="."]
-color = Color(0.1, 0.14, 0.18, 1)
+color = Color(0.847, 0.863, 0.894, 1) ; # 值随 constants.gd NIGHT_BG_COLOR 候选定稿（#624）
 size = Vector2(1280, 720)
 
 [node name="Player" parent="." instance=ExtResource("2_player")]

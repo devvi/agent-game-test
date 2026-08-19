@@ -27,7 +27,7 @@ func run() -> void:
 	_test_b4_emitting_state()
 	_test_c1_moonlight()
 	_test_c2_moonlight_convert_comment()
-	_test_c3_moonlight_covers_visible_layers()
+	_test_c3_single_moonlight_guard()
 	_test_d1_ink_shader_range()
 	_test_d2_ink_wash_rect()
 	_test_e1_blood_vignette_standby()
@@ -275,20 +275,54 @@ func _test_c2_moonlight_convert_comment() -> void:
 	_assert(line.contains("× 0.6") or line.contains("* 0.6"), "C2: MOONLIGHT_COLOR_APPLIED line carries '× 0.6'/'* 0.6' conversion comment (got: %s)" % line)
 
 
-func _test_c3_moonlight_covers_visible_layers() -> void:
-	# self-correct #613（review D 类缺陷）: CanvasModulate 只调制其所在 canvas layer，
-	# 根节点 Moonlight（layer 0）对可见内容无效。每个可见 CanvasLayer（2 水墨 / 3-5 雪幕 /
-	# 10 血色）下必须各有一份 Moonlight CanvasModulate 且颜色 == MOONLIGHT_COLOR_APPLIED
-	# （UI layer 1 的调制由 Main.tscn 自带，本测试只覆盖 atmosphere 场景内的 5 层）。
+func _test_c3_single_moonlight_guard() -> void:
+	# #624 修复（#613 回归）: CanvasModulate 只调制其所在 canvas layer，多 moon 逐层
+	# 相乘会把雪幕粒子/血色/夜色背景压没（PRD #624 §1.3 实测根因）。
+	# 守卫: 全组件仅 1 个 Moonlight（Atmosphere 根，layer 0 世界层）；雪幕(3-5)/
+	# 水墨(2)/血色(10) 层禁放 moon；Main.tscn 不得再声明 CanvasModulate。
 	var inst: Node = _instantiate_scene()
 	if inst == null:
 		_assert(false, "C3: atmosphere_layer.tscn loads and instantiates")
 		return
+	# C3-1 总数守卫: 全场景 CanvasModulate 恰好 1 个
+	var moons: Array[Node] = inst.find_children("*", "CanvasModulate", true, false)
+	_assert(moons.size() == 1, "C3-1: exactly 1 CanvasModulate in scene (found %d)" % moons.size())
+	var moon: Node = moons[0] if moons.size() == 1 else null
+	# C3-2 层归属守卫: 唯一 moon 的祖先链上不得有 CanvasLayer（即位于 layer 0 默认画布）
+	var ancestor_ok: bool = true
+	if moon != null:
+		var parent: Node = moon.get_parent()
+		while parent != null:
+			if parent is CanvasLayer:
+				ancestor_ok = false
+				break
+			parent = parent.get_parent()
+	_assert(ancestor_ok, "C3-2: sole Moonlight has no CanvasLayer ancestor (sits on layer 0 world)")
+	# C3-3 颜色守卫: 唯一 moon 色 == MOONLIGHT_COLOR_APPLIED（沿用 C1 取值方式）
 	var consts: Dictionary = _const_map()
 	var applied_v: Variant = consts.get("MOONLIGHT_COLOR_APPLIED")
 	var expected: Color = Color(0.431, 0.463, 0.518, 1)
 	if typeof(applied_v) == TYPE_COLOR:
 		expected = applied_v
+	var rgb_ok: bool = false
+	var got_color: String = "n/a"
+	if moon != null:
+		var cm: CanvasModulate = moon as CanvasModulate
+		if cm != null:
+			rgb_ok = is_equal_approx(cm.color.r, expected.r) \
+				and is_equal_approx(cm.color.g, expected.g) \
+				and is_equal_approx(cm.color.b, expected.b)
+			got_color = str(cm.color)
+	_assert(rgb_ok, "C3-3: sole Moonlight color == MOONLIGHT_COLOR_APPLIED (got %s, expected %s)" % [got_color, str(expected)])
+	# C3-4 Main.tscn 文本守卫: 不得含 CanvasModulate 字样（UI 层禁 moon）
+	var f: FileAccess = FileAccess.open("res://scenes/Main.tscn", FileAccess.READ)
+	if f == null:
+		_assert(false, "C3-4: Main.tscn opens for reading")
+	else:
+		var text: String = f.get_as_text()
+		f.close()
+		_assert(text.find("CanvasModulate") == -1, "C3-4: Main.tscn contains no 'CanvasModulate' (UI layer 1 moon removed by #624)")
+	# C3-5 层内无 moon 守卫: 各可见 CanvasLayer（2/3/4/5/10）直接子节点无 CanvasModulate
 	var layer_nums: Array = [2, 3, 4, 5, 10]
 	var canvas_layers: Array[Node] = inst.find_children("*", "CanvasLayer", true, false)
 	var found: Dictionary = {}
@@ -296,25 +330,17 @@ func _test_c3_moonlight_covers_visible_layers() -> void:
 		var canvas: CanvasLayer = cl as CanvasLayer
 		if canvas != null:
 			found[canvas.layer] = canvas
-	var any_fail: bool = false
+	var any_moon_in_layer: bool = false
 	for ln in layer_nums:
 		if not found.has(ln):
-			_assert(false, "C3: CanvasLayer %d exists in atmosphere scene" % ln)
-			any_fail = true
+			_assert(false, "C3-5: CanvasLayer %d exists in atmosphere scene" % ln)
 			continue
 		var canvas: CanvasLayer = found[ln]
-		var cm: CanvasModulate = canvas.find_child("Moonlight", false, false) as CanvasModulate
-		if cm == null:
-			_assert(false, "C3: CanvasLayer %d has a Moonlight CanvasModulate child" % ln)
-			any_fail = true
-		else:
-			var rgb_ok: bool = is_equal_approx(cm.color.r, expected.r) \
-				and is_equal_approx(cm.color.g, expected.g) \
-				and is_equal_approx(cm.color.b, expected.b)
-			_assert(rgb_ok, "C3: CanvasLayer %d Moonlight color == MOONLIGHT_COLOR_APPLIED (got %s, expected %s)" % [ln, str(cm.color), str(expected)])
-			if not rgb_ok:
-				any_fail = true
-	_assert(not any_fail, "C3: all visible CanvasLayers covered by cold moonlight (composite)")
+		for child in canvas.get_children():
+			if child is CanvasModulate:
+				any_moon_in_layer = true
+				_assert(false, "C3-5: CanvasLayer %d has a CanvasModulate direct child" % ln)
+	_assert(not any_moon_in_layer, "C3-5: no CanvasLayer (2/3/4/5/10) holds a Moonlight child")
 
 
 # ── Scenario D: ink wash ──

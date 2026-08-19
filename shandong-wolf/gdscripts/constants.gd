@@ -191,6 +191,15 @@ const MOONLIGHT_COLOR_TARGET: Color = Color("#b8c4d9")   # # DRAFT（AC2 字面�
 const MOONLIGHT_COLOR_APPLIED: Color = Color("#6e7684")  # # DRAFT（= TARGET × 0.6 换算）
 const MOONLIGHT_BRIGHTNESS: float = 0.6                  # # DRAFT（语义 = 色值换算系数）
 
+# ── 夜色世界背景（# DRAFT 候补值，待 #582 用户裁决；#624 新增）──
+#   作用: layer 0 世界垫底，供唯一 Moonlight（#6e7684）染色成冷蓝灰夜色（AC2 载体）
+#   约束: 染后（× MOONLIGHT_COLOR_APPLIED）背景 luma ≥ 30 —— 不得回到 #613 近黑态（F3）
+#   候选集: #d8dce4（浅月光灰，染后 ≈ #66686b 接近 AC2 目标 #6e7684，theme 断言可命中）——
+#           #4e5464（中蓝灰，染后 ≈ #222734，luma ~39，需 A/B 亮度比断言）——
+#           #0d1520（PRD §8 建议的深夜色，染后 ≈ #060a0f luma ~10，近黑，**否决候选**）
+#   情感断言: 苍白、清冷——月光下的雪夜大地是亮冷灰蓝，不是无月黑夜
+const NIGHT_BG_COLOR: Color = Color("#d8dce4")   # # DRAFT（首选候选；染后 ≈ #66686b）
+
 # ── 水墨晕染（# DRAFT 候补值，待 #582 用户裁决）──
 #   候补值: 边缘暗角 alpha ≤ 0.3（AC3 硬约束）；墨色 #1a1f26
 #   该值影响什么: 全屏水墨质感
