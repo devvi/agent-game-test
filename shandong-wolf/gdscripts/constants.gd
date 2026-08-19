@@ -243,3 +243,104 @@ const REVIVE_SECONDS: float = 1.0            # # DRAFT
 #   该值影响什么: 复活后无敌时长
 #   情感断言: 硬汉的第二次机会，不是耍赖
 const INVINCIBLE_SECONDS: float = 1.0        # # DRAFT
+
+# ── 判定层（# DRAFT 候补值，待 #584 定稿；#577 消费方，禁止实现期定稿）──
+# PARRY_STANCE_DAMAGE
+#   只狼基准: 弹反成功大幅涨敌架势（精准格挡的奖励——成功 0 伤害+敌架势大涨）
+#   候选集: [20, 25, 30]（默认 25 = 区间中位；AC1 硬约束 ≥20）
+#   该值影响什么: 弹反的「爽感」——太小=弹反无价值，太大=几下弹反直接崩解
+#   情感断言: 弹反成功必须比格挡爽（只狼铁律 1）
+const PARRY_STANCE_DAMAGE: float = 25.0      # # DRAFT
+# CLASH_STANCE_COST
+#   只狼基准: 拼刀（打铁）双方各扣小架势（互格=节奏博弈，代价低于受击）
+#   候选集: [8, 10, 12]（默认 10 = 区间中位）
+#   该值影响什么: 拼刀频率与架势续航——太小=无限拼刀，太大=拼刀=慢性自杀
+#   情感断言: 打铁的代价是「势均力敌」，不是单方面惩罚
+const CLASH_STANCE_COST: float = 10.0        # # DRAFT
+# CLASH_PRIORITY
+#   只狼基准: 弹反优先于拼刀（玩家精准按出弹反窗口却被拼刀顶掉 = 高操作被低操作覆盖）
+#   候选集: [0=弹反优先, 1=拼刀优先]（默认 0；用户实机裁决，改此常量+冲突矩阵断言翻转）
+#   该值影响什么: 同帧三重叠时的裁决结果——手感基调的决定性开关
+const CLASH_PRIORITY: int = 0                # # DRAFT
+# HITBOX_ACTIVE_FRAMES
+#   只狼基准: 攻击暴发帧数（挥刀命中判定持续帧；#574 FRAME_ANIM_ATTACK_BURST=4 对齐）
+#   候选集: [4, 6, 8]（默认 4 = #574 挥刀暴发帧）
+#   该值影响什么: 命中宽容度——窗口越长越容易命中，同时拼刀/弹反判定窗口随之变宽
+const HITBOX_ACTIVE_FRAMES: int = 4          # # DRAFT
+# HITBOX_RANGE
+#   只狼基准: 刀长近身判定（横板一维：攻击者 x 与防御者 x 的水平距离阈值，px）
+#   候选集: [60, 80, 100]（默认 80 = SWORD_LENGTH=88 派生近似）
+#   该值影响什么: 挥空语义——距离外攻击不命中（AC 未覆盖，挥空=不发射事件）
+const HITBOX_RANGE: float = 80.0             # # DRAFT
+# PARRY_DIRECTION_TOLERANCE
+#   只狼基准: 弹反必须面向攻击（背对挨打=受击）
+#   候选集: [1=仅同侧（defender 朝向攻击者）, 2=宽容（前后均可）]（默认 1）
+#   该值影响什么: 弹反方向判定的严格度——1 防背身无脑弹反
+const PARRY_DIRECTION_TOLERANCE: int = 1     # # DRAFT
+# ── HUD (#576) ──
+# HUD_LOW_HP_RATIO
+#   候补值: [0.25, 0.30, 0.35]（默认 0.30）
+#   该值影响什么: 低血 vignette 触发阈值（活性条占比，严格小于 + 0.001 容差）
+#   情感断言: 命悬一线才见血色——过早是焦虑，过晚是欺骗
+const HUD_LOW_HP_RATIO: float = 0.30           # # DRAFT
+# HUD_KILL_HINT_SECONDS
+#   候补值: [1.0, 1.5, 2.0]（默认 1.5）
+#   该值影响什么: 击杀提示停留时长（含淡出）
+#   情感断言: 足够读完，不留恋
+const HUD_KILL_HINT_SECONDS: float = 1.5       # # DRAFT
+# HUD_PLAYER_MARGIN
+#   候补值: Vector2(16, 16)
+#   该值影响什么: 玩家区块左上角边距
+#   情感断言: 贴边不贴屏（细线呼吸感）
+const HUD_PLAYER_MARGIN: Vector2 = Vector2(16, 16)  # # DRAFT
+# HUD_STANCE_GAP
+#   候补值: 6.0
+#   该值影响什么: 血条与玩家架势条间距
+#   情感断言: 同组相关，不粘连
+const HUD_STANCE_GAP: float = 6.0             # # DRAFT
+# HUD_BAR_WIDTH
+#   候补值: 240.0
+#   该值影响什么: 血条/玩家架势条宽度
+#   情感断言: 一条线的克制
+const HUD_BAR_WIDTH: float = 240.0            # # DRAFT
+# HUD_BAR_HEIGHT
+#   候补值: 10.0
+#   该值影响什么: 血条高
+#   情感断言: 细线不抢戏
+const HUD_BAR_HEIGHT: float = 10.0            # # DRAFT
+# HUD_STANCE_HEIGHT
+#   候补值: 6.0
+#   该值影响什么: 架势条高（玩家/敌人）
+#   情感断言: 比血条更细 = 次级信息
+const HUD_STANCE_HEIGHT: float = 6.0          # # DRAFT
+# HUD_ENEMY_BAR_WIDTH
+#   候补值: 240.0
+#   该值影响什么: 敌人架势条宽
+#   情感断言: 顶部中央细条（只狼首领条语义）
+const HUD_ENEMY_BAR_WIDTH: float = 240.0      # # DRAFT
+# HUD_ENEMY_BAR_TOP
+#   候补值: 12.0
+#   该值影响什么: 敌人架势条顶边距
+#   情感断言: 贴顶不悬浮
+const HUD_ENEMY_BAR_TOP: float = 12.0         # # DRAFT
+# HUD_MOON_WHITE
+#   候补值: Color("#e8e6e3")
+#   该值影响什么: 常态描边/活性段填充
+#   情感断言: 苍白月白（issue body 指定）
+const HUD_MOON_WHITE: Color = Color("#e8e6e3") # # DRAFT
+# HUD_INK_BLACK
+#   候补值: Color("#141414")
+#   该值影响什么: 背景/非活性段填充
+#   情感断言: 墨黑（issue body 指定）
+const HUD_INK_BLACK: Color = Color("#141414")  # # DRAFT
+# HUD_BLOOD_RED
+#   候补值: Color("#8c2f2f")
+#   该值影响什么: 低血点缀（活性段填充+描边）
+#   情感断言: 血色只在该出现时出现
+const HUD_BLOOD_RED: Color = Color("#8c2f2f")  # # DRAFT
+# HUD_HINT_FONT_SIZE
+#   候补值: 16
+#   该值影响什么: 提示文字字号
+#   情感断言: 克制的可读
+const HUD_HINT_FONT_SIZE: int = 16             # # DRAFT
+# > 处决提示窗口不新增常量——复用 STANCE_BREAK_RECOVERY_SEC=3.0（#584 只读，PRD §4.4 字面）。

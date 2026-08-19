@@ -62,6 +62,19 @@
           "_comment": "#582 单帧氛围截图供用户 ≥70% 裁决，完整剧本归 #586；at_frame 保证框架 runner 下可 ready（原 state={} 在 #574 states 映射下永不 ready）。像素断言口径（#624）: theme 6e7684（唯一 Moonlight 染后 WorldBackdrop 背景 ≈ #66686b 命中）/ 雪白 ≥200 lum 像素存在性 review 侧计数 / 血触发红像素 review 手动 A/B"
         }
       ]
+    },
+    "hud": {
+      "_comment": "#576 极简 HUD 观感裁决 4 帧（normal/low_hp/execute_hint/kill_hint）；驱动走 Hud 公有 debug API（set_debug_* / show_debug_hint），零战斗场景依赖；settle_frames 覆盖 Tween 淡入时长。",
+      "main_scene": "res://scenes/e2e_hud_capture.tscn",
+      "state_node": "/root/CaptureRig",
+      "state_property": "current_state",
+      "match": ["gdscripts/hud\\.gd", "gdscripts/e2e_hud_capture\\.gd", "scenes/e2e_hud_capture\\.tscn"],
+      "shots": [
+        { "name": "01_hud_normal", "state": 0, "settle_frames": 10 },
+        { "name": "02_hud_low_hp", "state": 1, "settle_frames": 10 },
+        { "name": "03_hud_execute_hint", "state": 2, "settle_frames": 10 },
+        { "name": "04_hud_kill_hint", "state": 3, "settle_frames": 10 }
+      ]
     }
   }
 }
