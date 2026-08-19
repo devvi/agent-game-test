@@ -50,6 +50,19 @@
         { "name": "11_revive", "state": "REVIVE", "settle_frames": 6 },
         { "name": "12_dead", "state": "DEAD", "settle_frames": 6 }
       ]
+    },
+    "hud": {
+      "_comment": "#576 极简 HUD 观感裁决 4 帧（normal/low_hp/execute_hint/kill_hint）；驱动走 Hud 公有 debug API（set_debug_* / show_debug_hint），零战斗场景依赖；settle_frames 覆盖 Tween 淡入时长。",
+      "main_scene": "res://scenes/e2e_hud_capture.tscn",
+      "state_node": "/root/CaptureRig",
+      "state_property": "current_state",
+      "match": ["gdscripts/hud\\.gd", "gdscripts/e2e_hud_capture\\.gd", "scenes/e2e_hud_capture\\.tscn"],
+      "shots": [
+        { "name": "01_hud_normal", "state": 0, "settle_frames": 10 },
+        { "name": "02_hud_low_hp", "state": 1, "settle_frames": 10 },
+        { "name": "03_hud_execute_hint", "state": 2, "settle_frames": 10 },
+        { "name": "04_hud_kill_hint", "state": 3, "settle_frames": 10 }
+      ]
     }
   }
 }
