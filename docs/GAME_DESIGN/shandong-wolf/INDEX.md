@@ -13,3 +13,4 @@
 | [03-STATE-MACHINE](03-STATE-MACHINE.md) | StateMachineBase 通用状态机基类 — 三接口契约 + 同态/防重入守卫（#572/#599） |
 | [04-GAME-AUTOLOAD](04-GAME-AUTOLOAD.md) | Game autoload 锚点 — 版本号 + constants 预加载，单例注册约定（#572/#599） |
 | [05-DEBUG-CANVAS](05-DEBUG-CANVAS.md) | DebugCanvas 战斗数值调参面板 — F1 热更新 + 14 参数 PARAMS 表 + 静态读值链路 + JSON dump（#584/#609） |
+| [06-INPUT-CONTROLLER](06-INPUT-CONTROLLER.md) | 输入层 — Input Map 9 动作 + InputController 意图事件/时间戳缓冲 + PlayerController 加速度移动 + 输入层 # DRAFT 分区（#573/#611） |
