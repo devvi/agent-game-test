@@ -344,3 +344,78 @@ const HUD_BLOOD_RED: Color = Color("#8c2f2f")  # # DRAFT
 #   情感断言: 克制的可读
 const HUD_HINT_FONT_SIZE: int = 16             # # DRAFT
 # > 处决提示窗口不新增常量——复用 STANCE_BREAK_RECOVERY_SEC=3.0（#584 只读，PRD §4.4 字面）。
+
+# ── 复活 FX 分区（# DRAFT 候补值，待 #584 定稿；#578 消费方，禁止实现期定稿）──
+# INK_BURST_COUNT
+#   只狼基准: issue body「30-50 黑点」
+#   候选集: [30, 40, 50]（默认 40）
+#   该值影响什么: 墨点密度——太少无爆开感，太多粘连成雾（实验 1）
+#   情感断言: 硬汉再起的干脆爆散，不是雾
+const INK_BURST_COUNT: int = 40              # # DRAFT
+# INK_BURST_SPEED
+#   只狼基准: 实验 1 候选（径向 px/s）
+#   候选集: [120, 180, 240]（默认 180）
+#   该值影响什么: 扩散速度——太慢成黑雾，太快成烟火（实验 1）
+#   情感断言: 有爆散力道又不散架
+const INK_BURST_SPEED: float = 180.0         # # DRAFT
+# INK_BURST_LIFETIME
+#   只狼基准: PRD §4.2「0.3-0.5s」
+#   候选集: [0.3, 0.4, 0.5]（默认 0.4）
+#   该值影响什么: 粒子存活——0.4s 内淡出，快速衰减不粘连（实验 1）
+#   情感断言: 一击即逝的墨迹
+const INK_BURST_LIFETIME: float = 0.4        # # DRAFT
+# INK_BURST_COLOR
+#   只狼基准: = HUD_INK_BLACK（同值互引，零新色相）
+#   候选集: —（墨黑固定）
+#   该值影响什么: 墨点色——墨黑，禁止彩色粒子（反页游）
+#   情感断言: 水墨的克制
+#   命名: INK_BURST_* 前缀（#578 复活 FX），与 #582 氛围 INK_COLOR（墨色 #1a1f26）区分——冲突解决重命名（PR #613 merge main）
+const INK_BURST_COLOR: Color = Color("#141414")  # # DRAFT
+# INK_BURST_SPREAD_DEG
+#   只狼基准: 径向爆开语义
+#   候选集: [120, 180, 360]（默认 180）
+#   该值影响什么: 发射张角——180° 半球爆开（脚底发射），360° 全向（实验 1）
+#   情感断言: 从身体迸出，不是四处乱溅
+const INK_BURST_SPREAD_DEG: float = 180.0     # # DRAFT
+# FLASH_WHITE
+#   只狼基准: = HUD_MOON_WHITE（同值互引，零新色相）
+#   候选集: —（苍白月白固定）
+#   该值影响什么: 闪屏起始色——苍白月白（复用 HUD 色值，零新色相）
+#   情感断言: 月光炸开的一瞬
+const FLASH_WHITE: Color = Color("#e8e6e3")   # # DRAFT
+# FLASH_BLOOD
+#   只狼基准: issue body「血 #5a1e1e」
+#   候选集: —（issue body 指定）
+#   该值影响什么: 闪屏目标色——偏暗红不发亮（禁警报红，实验 2）
+#   情感断言: 血色短暂浸染，不是警报
+const FLASH_BLOOD: Color = Color("#5a1e1e")   # # DRAFT
+# FLASH_SECONDS
+#   只狼基准: issue body「0.2s 内」
+#   候选集: [0.1, 0.2, 0.3]（默认 0.2）
+#   该值影响什么: 闪白→血色时长——≤0.2s 短促（实验 2）
+#   情感断言: 一秒都不用就醒过来
+const FLASH_SECONDS: float = 0.2              # # DRAFT
+# FLASH_HOLD_SECONDS
+#   只狼基准: 实验 2 候选
+#   候选集: [0.2, 0.3]（默认 0.2）
+#   该值影响什么: 血色停留——克制停留 0.2-0.3s，不拖沓（实验 2）
+#   情感断言: 足够看清一瞬，不留恋
+const FLASH_HOLD_SECONDS: float = 0.2         # # DRAFT
+# SLOWMO_HOLD_SECONDS
+#   只狼基准: 实验 3 候选（复用 SLOWMO_COEFF=0.2）
+#   候选集: [0.3, 0.4, 0.5]（默认 0.4）
+#   该值影响什么: 全局降速时长——0.4s 足够读清「刀尖点地」帧（实验 3）
+#   情感断言: 世界停一瞬，然后继续
+const SLOWMO_HOLD_SECONDS: float = 0.4        # # DRAFT
+# INVINCIBLE_FLICKER_HZ
+#   只狼基准: 实验 4 候选
+#   候选集: [6, 8, 10]（默认 8）
+#   该值影响什么: 闪烁频率——8Hz 呼吸感可读，<10Hz 安全区（实验 4）
+#   情感断言: 呼吸般的闪烁，不是故障屏闪
+const INVINCIBLE_FLICKER_HZ: float = 8.0      # # DRAFT
+# INVINCIBLE_FLICKER_ALPHA_MIN
+#   只狼基准: 实验 4 候选
+#   候选集: [0.2, 0.3, 0.4]（默认 0.3）
+#   该值影响什么: 闪烁谷值——0.3 可读不刺眼（实验 4）
+#   情感断言: 半透明但从不消失
+const INVINCIBLE_FLICKER_ALPHA_MIN: float = 0.3 # # DRAFT

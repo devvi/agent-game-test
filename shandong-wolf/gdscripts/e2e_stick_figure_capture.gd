@@ -72,6 +72,7 @@ var current_state: int = IDLE
 @export var auto_cycle_frames: int = 30
 
 var _player: Node2D = null
+var _fx: Node2D = null
 var _attack_seq_active: bool = false
 var _cycle_index: int = 0
 var _cycle_frames_left: int = 0
@@ -81,6 +82,9 @@ func _ready() -> void:
 	_player = get_node_or_null("Player")
 	if _player == null:
 		push_warning("E2EStickFigureCapture: missing child 'Player'")
+	_fx = get_node_or_null("ReviveFX")
+	if _fx != null and _fx.has_method("bind_player_visual"):
+		_fx.bind_player_visual(_player)
 	_cycle_frames_left = auto_cycle_frames
 	_drive_state("idle")
 
@@ -112,6 +116,8 @@ func _drive_state(canonical: String) -> void:
 		return
 	_attack_seq_active = false
 	current_state = CANONICAL_TO_STATE.get(canonical, IDLE)
+	if current_state == REVIVE and _fx != null and _fx.has_method("trigger"):
+		_fx.trigger()
 	_player.consume_state(canonical)
 
 

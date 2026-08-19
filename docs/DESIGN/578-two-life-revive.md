@@ -413,16 +413,16 @@ d) 墨点 texture 生成失败: _build_ink_texture() 返回 null → GPUParticle
 
 | 集成 | 本组件 | 目标 | 方式 | 状态 |
 |------|:---:|:---:|------|:---:|
-| `entity.died(final=false)` → 编排器计时 | ReviveOrchestrator | #575 | 信号订阅（bind_player 内 connect） | ⬜ |
-| `entity.revived` → FX 演出 | ReviveFX | #575 | 信号订阅（bind_player 内 connect） | ⬜ |
-| `entity.revived` → 编排器取消 pending | ReviveOrchestrator | #575 | 信号订阅（双路径幂等） | ⬜ |
+| `entity.died(final=false)` → 编排器计时 | ReviveOrchestrator | #575 | 信号订阅（bind_player 内 connect） | ✅（本 issue 交付） |
+| `entity.revived` → FX 演出 | ReviveFX | #575 | 信号订阅（bind_player 内 connect） | ✅（本 issue 交付） |
+| `entity.revived` → 编排器取消 pending | ReviveOrchestrator | #575 | 信号订阅（双路径幂等） | ✅（本 issue 交付） |
 | F 键手动复活路径 | 输入桥 `revive_pressed` → entity.revive() | #573/#575 | 已交付（本 issue 不改，回归） | ✅ |
 | 无敌期判定 no-op 双保险 | CombatEntity take_damage + CombatJudge | #575/#577 | 已交付（回归测试） | ✅ |
-| 无敌闪烁 modulate | FX → StickFigure 根节点 | #574 | `bind_player_visual` 节点引用（父 modulate 传播） | ⬜ |
-| 闪屏与 #582 常驻色温共存 | FX FlashLayer ↔ #582 CanvasModulate | #582 | 节点分离 + Tween 复原 + 挂载层级（§6） | ⬜ |
-| 战斗场景挂载接线 | Orchestrator/FX → 战斗场景 | #585 | #585 组装期（new + bind 三行接线） | ⬜ |
-| `died(final=true)` 契约消费 | entity → SW-015 | SW-015 | 事件契约（§2.1 契约表） | ⬜ |
-| E2E REVIVE shot（AC5） | e2e_shots.json + capture rig + FX | 用户裁决 | 截图 + docs/TASTE.md 记录 | ⬜ |
+| 无敌闪烁 modulate | FX → StickFigure 根节点 | #574 | `bind_player_visual` 节点引用（父 modulate 传播） | ✅（本 issue 交付） |
+| 闪屏与 #582 常驻色温共存 | FX FlashLayer ↔ #582 CanvasModulate | #582 | 节点分离 + Tween 复原 + 挂载层级（§6） | ⬜（显式延期 #582，未合并） |
+| 战斗场景挂载接线 | Orchestrator/FX → 战斗场景 | #585 | #585 组装期（new + bind 三行接线） | ⬜（显式延期 #585） |
+| `died(final=true)` 契约消费 | entity → SW-015 | SW-015 | 事件契约（§2.1 契约表） | ✅（契约固化于编排器注释 + T8/T9；消费归 SW-015） |
+| E2E REVIVE shot（AC5） | e2e_shots.json + capture rig + FX | 用户裁决 | 截图 + docs/TASTE.md 记录 | ✅（capture rig 已接线；用户裁决待 review 阶段） |
 
 ---
 
