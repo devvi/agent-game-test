@@ -25,6 +25,13 @@ theme_override_font_sizes/font_size = 64
 text = "山东抗日之狼"
 horizontal_alignment = 1
 
+[node name="SubtitleLabel" type="Label" parent="CanvasLayer/CenterContainer/VBoxContainer"]
+uid = "uid://c8v0d3m6k5n7"
+text = "雪夜 · 大刀 · 山东村"
+theme_override_font_sizes/font_size = 28
+horizontal_alignment = 1
+modulate = Color(1, 1, 1, 0.8)
+
 [node name="VersionLabel" type="Label" parent="CanvasLayer"]
 uid = "uid://c7u0f9g2h8v3"
 anchors_preset = 2
