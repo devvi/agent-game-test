@@ -20,4 +20,4 @@
 | [10-HUD-STANCE-BARS](10-HUD-STANCE-BARS.md) | 极简 HUD 层 — CanvasLayer layer=1 纯消费方：两段式血条/玩家与敌人架势条/击杀与处决提示 + low_health_changed 边沿信号 + 13 个 HUD # DRAFT 常量 + 4 帧 E2E 截图剧本（#576/#627） |
 | [11-PARRY-CLASH-STANCE-BREAK](11-PARRY-CLASH-STANCE-BREAK.md) | 拼刀/弹反/架势崩解判定层 — CombatJudge 判定协调器（逻辑帧窗口裁决：弹反>拼刀>格挡>受击，CLASH_PRIORITY 常量驱动）+ AttackWindow 窗口契约 + 五结果事件（parry_success/block_held/hit_landed/clash/stance_broken）+ 6 判定 # DRAFT 常量（#577/#626） |
 | [12-ATMOSPHERE-SNOW-NIGHT](12-ATMOSPHERE-SNOW-NIGHT.md) | 雪夜氛围层 — 单 CanvasModulate 冷月光契约（唯一 moon 挂 layer 0 世界层 + 雪幕3-5/水墨2/血色10/UI1 禁染 + C3 ==1 守卫 + NIGHT_BG_COLOR # DRAFT，#582/#624，修复 #629 已合并，载体 impl/582 分支） |
-| [13-REVIVE-SYSTEM](13-REVIVE-SYSTEM.md) | 两条命原地复活系统 — ReviveOrchestrator 编排器（died(final=false)→REVIVE_SECONDS 计时→revive() 自动复活，与 F 键手动路径双路径幂等收敛）+ ReviveFX 演出四件套（墨点 burst/瞬态闪屏/慢动作/无敌闪烁，12 常量 # DRAFT 归 #584）+ SW-015 终态契约（#578/#637） |
+| [13-ENEMY-AI](13-ENEMY-AI.md) | 基础日本兵 AI — EnemyAI 行为状态机（第二个 StateMachineBase：patrol/chase/attack/retreat 4 行为态 + 120° 视线 6m 几何感知 + 决策门控 + 弹反抑制窗 0.5s）+ 判定层 3 处 additive 参数化（windup_frames/伤害 @export/judge 读实体参数）+ AI 分区 18 个 # DRAFT 常量 + 36 用例测试套件（#581/#638） |
