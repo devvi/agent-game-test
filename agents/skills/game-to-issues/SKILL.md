@@ -1263,8 +1263,12 @@ PYEOF
 ### Picker 版本优先级
 
 在 `event-processor.py` 的 `pick_next_issue()` 中，排序键优先考虑：
-1. 优先级（priority/critical > high > medium > low）
-2. 版本（version/mvp > v1 > v2 > full）
+1. **版本目标门控（2026-08-19 起，最高优先级）**：`workflow-config.json` 的
+   `version_target`（mvp/v1/v2）指定当前版本——picker 只拣该版本的 Issue；
+   无目标 → 不拣（停止）；目标版本全 CLOSED → 停止（等切换）；版本依赖链
+   v1 需 mvp / v2 需 mvp+v1 全 CLOSED。分解时把 milestone 正确标到
+   `version/<milestone>` label，门控才生效。
+2. 优先级（priority/critical > high > medium > low）
 3. 依赖数（依赖少的优先）
 
 ### Dashboard 版本分组

@@ -73,7 +73,7 @@ review agent:     merge 前删 worktree (open worktree blocks branch delete)
 | `framework/templates/e2e_shots.json` | 模板 | shot plan 模板（游戏自持 `mini-pong/e2e_shots.json`）|
 | `new-game-scaffold.sh` | `scripts/` | 新游戏项目脚手架（P4a）|
 | `sync-to-hermes.sh` | `scripts/` | 同步脚本到 `~/.hermes/scripts/`（改脚本后必跑）|
-| `workflow-config.json` | `~/.hermes/` | 启停 + 工作时段 + preset |
+| `workflow-config.json` | `~/.hermes/` | 启停 + 工作时段 + preset + **`version_target`（版本目标，2026-08-19：用户指定当前版本 mvp/v1/v2，该版本做完 workflow 自动停止，切换才继续）** |
 | `game-env/manifest.yaml` | 项目根 | 项目配置单一来源：repo/engine/branch/槽位（P3）|
 | cron `godot-workflow-poller` | Hermes cron | every 1m, deliver=local, 脚本阶段 + LLM 执行 SPAWN/STALLED 指令 |
 | cron `workflow-silent-spawn-watchdog` | Hermes cron | every 5m, no-agent, 沉默 SPAWN → Feishu |
@@ -89,6 +89,17 @@ review agent:     merge 前删 worktree (open worktree blocks branch delete)
 - **Review/self-correct 不计入槽位（reserved slots），始终放行**
 - **分布式锁 (workflow/lock-*) 已于 2026-07-29 删除** —— 并发由槽位 + pre-spawn 重复检查控制。任何 skill/代码不得重新引入 label 锁。
 - 池满 → `[SKIP: pool full, retry next tick]`，绝不回退同步执行
+
+## 版本目标（2026-08-19 用户拍板）
+
+> 用户原话："我可以指定当前做哪个版本，这个版本做完后，就停止不再做其他版本，直到我切换了要做的版本"——**"我要做的版本"依赖于已经完成的版本**。
+
+- `~/.hermes/workflow-config.json` 的 `version_target` 字段指定当前版本（`mvp` / `v1` / `v2`；缺失 = 停止，安全默认）
+- **picker 门控**（`_pick_candidates`）：只拣 `version/<target>` 的 backlog issue；v1/v2 即使依赖满足也不拣
+- **版本依赖链**：v1 需 mvp 全 CLOSED，v2 需 mvp+v1 全 CLOSED（`_version_target_satisfied`，前置版本 open 数 >0 → 不拣 + devlog 告警）
+- **做完即停**：目标版本 open issue 数 = 0 → picker 返回空（workflow 停止）；watchdog `check_version_target_completed` → Feishu 一次性通知"🎉 版本目标完成"，提示用户切换
+- **切换**：用户说"做 v1" → 改 `version_target` → 下个 tick 自动放行（依赖校验通过才有效）
+- 不依赖 taste-draft 存在与否（门控只看版本 label）——mvp 全是 mechanical 也成立
 
 ## Label 状态机
 

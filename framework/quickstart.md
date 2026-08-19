@@ -46,6 +46,12 @@ research agent → PRD → 自动合并 → plan agent → DESIGN → 自动合�
 | `/workflow pause` / `resume` | 暂停（事件累积）/ 恢复 |
 | `/workflow hours always` | 全天无限制 |
 
+**版本推进（2026-08-19 起）**：workflow 一次只做一个版本。`~/.hermes/workflow-config.json` 的
+`version_target` 字段指定当前版本（`mvp`/`v1`/`v2`）——picker 只拣该版本的 Issue，
+该版本全部完成后 **workflow 自动停止**（Feishu 收到"🎉 版本目标完成"通知），
+你切换版本（改 `version_target`）才继续下一版本；切换受版本依赖链约束
+（v1 需 mvp 全完成，v2 需 v1 全完成）。改完配置下个 tick 自动生效，不用重启。
+
 ## 3. 新建游戏（切换 active game）
 
 **架构**：每个游戏 = 一个自包含 Godot 子项目（自己的 `project.godot` + `gdscripts/` + `tests/` + `e2e_shots.json`）。workflow 一次只做一个，`game-env/manifest.yaml` 的 `game.active` 是唯一切换开关。
