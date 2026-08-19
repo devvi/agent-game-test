@@ -13,8 +13,16 @@
 │  plan agent → 架构设计 + 测试描述 → PR → 自动合并                │
 │  implement agent → OpenCode 分层实现 → PR → CI → review → merge  │
 │  review agent → 本地 E2E (worktree + 真实渲染截图) → 证据上贴     │
+│  post-merge agent → merge 后 GDD/PROJECT.md → docs/ PR → 自动合并 │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+> **post-merge 阶段（2026-08-19 落地，#562/#566 缺口修复）：** 方案 X（merge
+> 脚本化）后 review 会话在写结论文件即结束，post-merge GDD 更新曾成无主责任。
+> 现在 merge 事件 → `SPAWN: post-merge`（one-shot）→ post-merge agent 在
+> worktree 中写 GDD/PROJECT.md → 创建 `docs/gdd-<N>` 分支 PR → stalled scan
+> 自动 merge（`docs/` 前缀）。**绝不直接 push main**。watchdog 兜底
+> post-merge-stuck 告警。详见 `game-post-merge-agent` skill。
 
 详见：
 - `framework/ARCHITECTURE.md` — 系统架构、设计决策、已知限制（**单一事实源**）
@@ -43,7 +51,7 @@
 | `status/blocked` | Blocked | review 发现 pre-existing 失败，阻塞 |
 | `status/human-review` | Awaiting calibration | taste-draft 草稿已 merge，等待人定稿（v4 队列） |
 
-**Review 不在 label 链中。** Review agent 在 `check_run.completed` (CI 成功) 后、merge 前被调用。审核通过则 agent 直接 merge PR。详见 `game-review-agent` skill。
+**Review 不在 label 链中。** Review agent 在 `check_run.completed` (CI 成功) 后、merge 前被调用。agent 只做判定（写结论文件），merge 由脚本层 `review_followup` 执行；merge 后 post-merge agent 更新 GDD。详见 `game-review-agent` + `game-post-merge-agent` skill。
 
 **人机共做 v4（2026-08-11）：** taste-draft Issue（`content_ownership: taste-draft`，品味内容：
 数值/剧情/命名/失败文本/视觉）草稿达标即 merge（PR 用 Parent #N 不写 Closes），
@@ -116,7 +124,8 @@ PR → run-e2e-review.sh <PR_NUM>
 | `game-research-agent` | Issue → PRD（含 Obsidian 搜索） | `agents/skills/game-research-agent/` |
 | `game-plan-agent` | PRD → DESIGN（含测试用例描述，不写可运行测试文件） | `agents/skills/game-plan-agent/` |
 | `game-implement-agent` | DESIGN → 代码 + 测试文件（OpenCode 分层实现） | `agents/skills/game-implement-agent/` |
-| `game-review-agent` | 代码审查 + 本地 E2E + 合并决策 + post-merge GDD 更新 | `agents/skills/game-review-agent/` |
+| `game-review-agent` | 代码审查 + 本地 E2E + 合并决策（只判定，merge 归脚本） | `agents/skills/game-review-agent/` |
+| `game-post-merge-agent` | merge 后 GDD/PROJECT.md 更新 → docs/ PR（触发归脚本） | `agents/skills/game-post-merge-agent/` |
 | `dev-workflow-dispatcher` | 事件调度 + 规则 | `agents/skills/dev-workflow-dispatcher/` |
 
 ### 确定性脚本 (`scripts/`)

@@ -33,6 +33,10 @@ LOOKBACK_TICKS = 6  # ~6 minutes of 1m ticks
 ALERT_COOLDOWN = 3600  # seconds
 REVIEW_SENT_TIMEOUT = 1800  # 30 min: review 派发后应有结论文件
 CONCLUSION_STALE_TIMEOUT = 3600  # 60 min: followup 应消费结论文件
+# 2026-08-19 (post-merge 阶段): emitted 后应有 docs PR 创建并 merge。
+# agent 轮询上限 ~10min + stalled scan merge 往返 ~几分钟 → 45min 合理。
+POST_MERGE_STATE_DIR = os.path.join(HOME, ".hermes", "post-merge-state")
+POST_MERGE_TIMEOUT = 2700  # 45 min
 
 
 def read_json(path, default):
@@ -150,6 +154,47 @@ def check_conclusion_stale(now):
     return alerts
 
 
+def check_post_merge_stuck(now):
+    """2026-08-19 (post-merge 阶段兜底): post-merge 任务派发后超时未完成 → 告警.
+
+    状态机 (~/.hermes/post-merge-state/<pr>.json): pending → (emitted_at 标记)
+    → post-merge agent 建 docs PR → 脚本层 merge → agent 写 status=done。
+    任何一环断裂 (SPAWN 被吞 / agent 失败 / docs PR conflict 挂住) 都会让
+    状态停在 pending+emitted_at —— 这是 GDD 无主责任 (#562/#566) 的终局兜底,
+    不能静默。
+    """
+    alerts = []
+    try:
+        if not os.path.isdir(POST_MERGE_STATE_DIR):
+            return alerts
+        for fn in sorted(os.listdir(POST_MERGE_STATE_DIR)):
+            if not fn.endswith(".json"):
+                continue
+            path = os.path.join(POST_MERGE_STATE_DIR, fn)
+            try:
+                with open(path) as f:
+                    st = json.load(f)
+            except (OSError, json.JSONDecodeError):
+                continue
+            pr = fn[:-5]
+            if st.get("status") == "done":
+                continue
+            emitted = st.get("emitted_at") or 0
+            if not emitted:
+                continue  # 尚未派发, 正常瞬态
+            if now - emitted < POST_MERGE_TIMEOUT:
+                continue
+            docs_pr = st.get("docs_pr") or "?"
+            alerts.append(
+                f"⚠️ post-merge 卡住: PR #{pr} 的 post-merge 已派发 "
+                f"{int((now - emitted) / 60)} 分钟仍未完成 "
+                f"(docs PR {docs_pr} 未 merge / agent 失败)。"
+                f"GDD 更新悬空, 需人工介入。")
+    except OSError:
+        pass
+    return alerts
+
+
 def main():
     now = time.time()
     state = read_json(STATE_FILE, {})
@@ -161,9 +206,11 @@ def main():
 
     # 2026-08-17 (方案 X 兜底): review 卡住 / 结论滞留检测 — 独立于 pending,
     # 无条件跑 (one-shot 派发后不自动重发, 这类故障只能靠告警暴露)。
+    # 2026-08-19: + post-merge 卡住检测 (GDD 无主责任的终局兜底)。
     for cls, alerts in (
         ("review-stuck", check_review_stuck(now)),
         ("conclusion-stale", check_conclusion_stale(now)),
+        ("post-merge-stuck", check_post_merge_stuck(now)),
     ):
         if not alerts:
             continue

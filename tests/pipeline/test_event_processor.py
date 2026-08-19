@@ -799,6 +799,41 @@ class TestPreprocess(unittest.TestCase):
         self.assertTrue(any("STALLED: merge-pr,pr=450" in c for c in cmds),
                         f"stalled scan must merge mergeable research PR: {cmds}")
 
+    def test_stalled_scan_merges_docs_pr(self):
+        """2026-08-19 (post-merge 阶段落地): post-merge agent 创建的 docs/gdd-<N>
+        GDD 更新 PR 必须被 stalled scan 自动 merge (merge 归脚本层) — 否则
+        GDD 内容永远停在分支上。"""
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "pr" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 570, "headRefName": "docs/gdd-566",
+                     "mergeable": "MERGEABLE", "labels": [], "body": "docs: GDD after #566",
+                     "title": "docs", "state": "OPEN"}
+                ])
+            return ""
+        with mock.patch.object(ep, "gh", side_effect=fake_gh):
+            cmds = ep._quick_stalled_scan()
+        self.assertTrue(any("STALLED: merge-pr,pr=570" in c for c in cmds),
+                        f"stalled scan must merge mergeable docs PR: {cmds}")
+
+    def test_stalled_scan_skips_conflicting_docs_pr(self):
+        """CONFLICTING docs PR 不 merge (等 post-merge agent 或人工处理),
+        不能静默吞掉。"""
+        def fake_gh(*args):
+            joined = " ".join(args)
+            if "pr" in joined and "list" in joined:
+                return json.dumps([
+                    {"number": 571, "headRefName": "docs/gdd-567",
+                     "mergeable": "CONFLICTING", "labels": [], "body": "docs",
+                     "title": "docs", "state": "OPEN"}
+                ])
+            return ""
+        with mock.patch.object(ep, "gh", side_effect=fake_gh):
+            cmds = ep._quick_stalled_scan()
+        self.assertFalse(any("STALLED: merge-pr,pr=571" in c for c in cmds),
+                        f"conflicting docs PR must NOT auto-merge: {cmds}")
+
     # ── 2026-08-13 event-driven restore (方案4 v2) ──────────────────
     # Delete reconcile() synthetic event injection; the scheduler now emits
     # research SPAWNs directly (picker promote + available rescan), all

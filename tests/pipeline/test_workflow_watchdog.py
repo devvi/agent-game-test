@@ -27,6 +27,7 @@ class WatchdogTestCase(unittest.TestCase):
         wd.AUDIT_FILE = os.path.join(self.base, "workflow-audit.jsonl")
         wd.E2E_STATE_DIR = os.path.join(self.base, "e2e-state")
         wd.REVIEW_CONCLUSIONS_DIR = os.path.join(self.base, "review-conclusions")
+        wd.POST_MERGE_STATE_DIR = os.path.join(self.base, "post-merge-state")
         wd.FEISHU_WEBHOOK = "http://127.0.0.1:1/x"  # unreachable → POST fails, print path runs
 
         # Real machine config is enabled:false; force enabled for these tests.
@@ -163,6 +164,45 @@ class WatchdogTestCase(unittest.TestCase):
             f.write("{not valid json")
         self._write_state(0)
         self.assertIn("JSON 非法", self._run())
+
+    # ── 2026-08-19 (post-merge 阶段兜底) ──────────────────────────
+
+    def test_post_merge_stuck_alerts(self):
+        """post-merge 派发后超时未完成 (docs PR 未 merge / agent 失败) → 告警。"""
+        os.makedirs(wd.POST_MERGE_STATE_DIR, exist_ok=True)
+        p = os.path.join(wd.POST_MERGE_STATE_DIR, "566.json")
+        with open(p, "w") as f:
+            json.dump({"pr": 566, "issue": 563, "status": "pending",
+                       "emitted_at": time.time() - 4000}, f)  # 超时
+        self._write_state(0)
+        self.assertIn("post-merge 卡住", self._run())
+
+    def test_post_merge_stuck_skips_done(self):
+        """status=done → 静默 (已完成的任务不误报)。"""
+        os.makedirs(wd.POST_MERGE_STATE_DIR, exist_ok=True)
+        p = os.path.join(wd.POST_MERGE_STATE_DIR, "566.json")
+        with open(p, "w") as f:
+            json.dump({"pr": 566, "status": "done", "emitted_at": time.time() - 4000}, f)
+        self._write_state(0)
+        self.assertNotIn("post-merge 卡住", self._run())
+
+    def test_post_merge_stuck_skips_recent(self):
+        """刚派发 (<45min) → 静默 (正常处理中)。"""
+        os.makedirs(wd.POST_MERGE_STATE_DIR, exist_ok=True)
+        p = os.path.join(wd.POST_MERGE_STATE_DIR, "566.json")
+        with open(p, "w") as f:
+            json.dump({"pr": 566, "status": "pending", "emitted_at": time.time()}, f)
+        self._write_state(0)
+        self.assertNotIn("post-merge 卡住", self._run())
+
+    def test_post_merge_stuck_skips_not_emitted(self):
+        """pending + 无 emitted_at (尚未派发) → 静默。"""
+        os.makedirs(wd.POST_MERGE_STATE_DIR, exist_ok=True)
+        p = os.path.join(wd.POST_MERGE_STATE_DIR, "566.json")
+        with open(p, "w") as f:
+            json.dump({"pr": 566, "status": "pending"}, f)
+        self._write_state(0)
+        self.assertNotIn("post-merge 卡住", self._run())
 
 
 if __name__ == "__main__":

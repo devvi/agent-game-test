@@ -46,7 +46,7 @@ The review agent is NOT label-driven — it has no workflow label. It is trigger
 **A. PR is merged** (state=MERGED): Detectable via `gh pr view <N> --json state --jq '.state'`.
 1. Report "PR already merged, review skipped" in the session log
 2. **Skip the review and pre-merge checklist** — the merge already happened, these are moot
-3. **Do NOT skip post-merge tasks** — GDD update, Feishu notification, and project board sync are about keeping project state consistent regardless of who merged. Run them as usual
+3. **Do NOT skip post-merge tasks** — GDD update, Feishu notification, and project board sync are about keeping project state consistent regardless of who merged. They are now handled by the **game-post-merge-agent** (SPAWN: post-merge fires regardless of who merged — verdict=approved on an already-merged PR still triggers `_try_merge` → True → post-merge state created). Do not attempt them in this session
 4. **⚠️ GDD/PROJECT.md may already be updated.** The merge commit may have included GDD and PROJECT.md changes (the implement agent often bundles them). Always **read the files first** before editing — if they already describe the merged feature, skip the GDD/PROJECT.md update step and move to notification + board sync. The goal is consistency, not redundant edits.
 
 **B. Content on main, but PR still shows OPEN with CONFLICTING merge status**: The operator force-merged the squashed commit directly, bypassing `gh pr merge`. The impl branch (local + remote) and PR all still exist, but `gh pr merge` fails with "Base branch was modified" or "Pull Request has merge conflicts".
@@ -64,7 +64,7 @@ If yes (the design doc, e.g., docs/DESIGN/154-*.md, appears in `git log --onelin
    ```bash
    gh pr close <N> --comment "PR already merged to main by operator. Content verified: tests pass. Closing."
    ```
-4. **Do NOT skip post-merge tasks** (GDD update, Feishu notification, project board sync).
+4. **Do NOT skip post-merge tasks** — handled by game-post-merge-agent (SPAWN: post-merge). (GDD update, Feishu notification, project board sync) — handled by game-post-merge-agent, not this session.
 5. **Delete the impl branch** to keep the repo clean:
    ```bash
    git branch -D impl/<branch-name> 2>/dev/null
@@ -86,7 +86,7 @@ Handle it:
 1. Run tests on main (baseline) and on PR branch (verify new tests)
 2. **Merge normally** via `gh pr merge <N> --squash --delete-branch` — the squash adds test files cleanly
 3. **Do NOT close the PR** — unlike variant B, the PR is MERGEABLE and adds value
-4. **Do NOT skip post-merge tasks**
+4. **Do NOT skip post-merge tasks** — handled by game-post-merge-agent (SPAWN: post-merge).
 
 See `references/race-condition-variant-c.md` for detection patterns and verification checklist.
 
@@ -818,18 +818,17 @@ This discards the stash-pop pollution and aligns the working tree with the merge
    - **taste 对齐**: 对照审美坐标 (issue body / clarified_brief) + 项目 `docs/TASTE.md` 品味档案逐项比对 —
      草稿是否朝用户 taste 方向生成（数值=表达、失败即叙事、文本密度、拟物/抽象方向）
    - Not aligned → REQUEST_CHANGES / 打回重写, **do NOT assign to human** — 不把烂活丢给人
-2. **Merge WITHOUT closing the issue** (草稿结构可用即 merge, 结构先行):
-   - Preferred: taste-draft PR body uses `Parent #N` (NOT `Closes #N`) so merge does not auto-close the issue
-   - Fallback if already auto-closed: `gh issue reopen <N>` after merge
-3. **Hand off to human queue** — issue stays OPEN, user batch-processes from "Assigned to me", closes when 定稿:
-   ```bash
-   gh issue edit <N> --add-label status/human-review --add-assignee <user>
-   ```
-4. **Notify Feishu** (same channel as merge notifications):
-   `🧪 #N → 等待定稿（A1/B1…）→ https://github.com/<owner>/<repo>/issues/N`
-5. **Human finalization loop**: user pushes 定稿 changes → closes issue → **差异记录进 `docs/TASTE.md`**
-   (| 日期 | Issue | 领域 | 草稿值 | 定稿值 | 方向 | 理由 |) — 定稿即反馈，下次草稿自动朝该方向生成.
-6. **Dependency semantics**: `status/human-review` issues do NOT block downstream —
+2. **Merge（2026-08-19 起由脚本层执行）** — review agent 只写 verdict=approved；
+   review_followup 负责 merge。taste-draft PR body 用 `Parent #N`（非 `Closes #N`），
+   merge 不自动 close issue。Fallback if already auto-closed: `gh issue reopen <N>`。
+3. **Hand off to human queue（2026-08-19 起归 game-post-merge-agent）** — merge 后
+   post-merge agent 执行：`gh issue edit <N> --add-label status/human-review
+   --add-assignee <user>` + Feishu `🧪 #N → 等待定稿` + board "In review"。issue 保持
+   OPEN，用户从 "Assigned to me" 批处理，close 即定稿。
+4. **Human finalization loop**: user pushes 定稿 changes → closes issue → post-merge
+   agent 把差异记录进 `docs/TASTE.md`（| 日期 | Issue | 领域 | 草稿值 | 定稿值 |
+   方向 | 理由 |）— 定稿即反馈，下次草稿自动朝该方向生成.
+5. **Dependency semantics**: `status/human-review` issues do NOT block downstream —
    草稿 merge 即依赖满足, 机械下游不等定稿（定稿后增量替换）.
 
 **Implementation status (2026-08-11):** design agreed; code changes pending user confirmation —
@@ -838,277 +837,30 @@ This discards the stash-pop pollution and aligns the working tree with the merge
 (c) `tests/pipeline/` new cases for the label branch.
 Do NOT assume these exist until verified — check the code before relying on the label semantics.
 
-## Post-Merge: GDD Update
-
-After the PR merges, update the Game Design Document (GDD) in `docs/GAME_DESIGN/`. The review agent is the ONLY agent that updates the GDD — it happens AFTER merge, not before.
-
-**⚠️ 多游戏分目录（2026-08-19, P3 参数化收尾）:** 当前游戏的 GDD 写到 `docs/GAME_DESIGN/<GAME_DIR>/` 子目录（如 `docs/GAME_DESIGN/shandong-wolf/`），每个游戏自己的 `INDEX.md` 与编号（01-09+ 按功能域）。GAME_DIR 从 manifest 读（见 §2 的指令块）。mini-pong 遗留 GDD 在根目录（历史单游戏时期），**新游戏一律分目录**；INDEX.md 表内路径使用子目录内相对路径。
-
-```bash
-GDD_DIR="docs/GAME_DESIGN/$GAME_DIR"   # 例如 docs/GAME_DESIGN/shandong-wolf/
-mkdir -p "$GDD_DIR"
-```
-
-### Which GDD Files to Update
-
-Read the DESIGN doc (`docs/DESIGN/<N>-*.md`) for the specific feature. It mentions which GDD files need updating. Common targets:
-
-| GDD File | Covers | Check When |
-|----------|--------|------------|
-| `01-OVERVIEW.md` | Game overview, elevator pitch | Any major feature |
-| `02-WORKFLOW.md` | Agent workflow — development pipeline | Workflow or pipeline changes |
-| `03-GODOT-SETUP.md` | Godot engine config, scene management, code style | Engine config or project setup changes |
-| `04-RENDERING.md` | Visual rendering — shaders, Label3D, pixel fonts | Visual changes |
-| `05-DIALOGUE.md` | Dialogue engine — data model, branching, runtime | Dialogue, NPC features |
-| `06-NARRATIVE.md` | Narrative architecture — scene sequence, echoes, endings | Story scenes, NPC interactions |
-| `07-AUDIO.md` | Audio system — ambient loops, state modulation, transitions | Audio changes |
-| `08-PLAYER-CONTROLLER.md` | Player controller — WASD, mouse look, E-key, persistence | Player movement or input changes |
-| `09-TESTING.md` | Testing system — headless runner, integration test suite | Test infrastructure changes |
-| `INDEX.md` | Table of contents | Any GDD file change |
-
-**Decision: patch existing vs. create new**:
-- **GDD file already exists** for this feature (e.g. `08-PLAYER-CONTROLLER.md` from a prior implement PR that built the base system): read the existing file, then use `patch` to add new sections describing what the current PR adds. Do NOT overwrite the whole file.
-- **GDD file does not exist yet**: create a new numbered file (see below).
-
-**New section needed?** If the feature doesn't cleanly fit any existing file above (e.g. a player controller, an inventory system, a map system), create a new numbered GDD file. Determine the next available number (read INDEX.md's table, find the highest `NN-` prefix, add 1). Name it `NN-FEATURE-NAME.md` in `SCREAMING-KEBAB-CASE` and add a row to INDEX.md's table. Match the existing table's pipe formatting exactly (`| [NN-NAME](NN-NAME.md) | description |`).
-
-### GDD Writing Style
-
-- **Narrative, not code-dump** — Describe the system at the design level, not the implementation level
-- **Tables for parameters** — Constants, limits, ranges
-- **Code blocks only for definitions** — Signal signatures, enum values, method signatures
-- **Paragraphs for intent** — Explain WHY the system works this way
-- **Human-readable, LLM-searchable** — Structure for both readers
-
-### GDD Commit Convention
-
-```bash
-git add docs/GAME_DESIGN/
-git commit -m "docs: update GDD for <feature name> (#N)"
-git push origin <default-branch>
-```
-
-**⚠️ Pitfall: GDD update branches from master.** The GDD update commit is based on the default branch (which now includes the merged PR). This is safe because the review agent merges first, THEN commits the GDD update on top.
-
-**⚠️ Pitfall: GDD-only commits can accidentally revert** the implement PR's code if the review agent does the merge within the same script session without updating the working tree. Fix:
-```bash
-# After merging, update the working tree to match origin
-git checkout <default-branch>
-git pull origin <default-branch>
-# NOW make GDD changes
-```
-
-### ⚠️ GDD Pipe-Table Corruption with `patch`
-
-The `patch` tool's fuzzy matching can produce `|||` (triple pipes) instead of `||` (double pipes) when editing GDD files that contain markdown pipe tables. This affects:
-
-- **INDEX.md** — When adding a new row to the table of contents, use `write_file` to rewrite the entire file (INDEX.md is small, ~25 lines). When editing an existing row (e.g. updating a description), `patch` works but ALWAYS verify afterward — the fuzzy matcher can add an extra `|` prefix to the row. After patching INDEX.md, run:
-  ```bash
-  grep -n '|||' docs/GAME_DESIGN/INDEX.md
-  ```
-  If triple-pipes appear, fix with a second `patch` replacing `|||` with `||`.
-- **Any GDD file with pipe tables** — When adding a new section that contains a pipe table (e.g. adding a parameter table to `08-PLAYER-CONTROLLER.md`), fuzzy matching can corrupt existing table rows by adding an extra `|`. After using `patch`, ALWAYS verify GDD tables by scanning for `|||` in the edited file:
-
-```bash
-grep -n '|||' docs/GAME_DESIGN/*.md
-```
-
-If triple-pipes appear, fix with a second `patch` that replaces `|||` with `||` for the affected rows.
-
-## Post-Merge: PROJECT.md Update
-
-After GDD update, also update `docs/PROJECT.md` — the living project overview document readable by both humans and agents. This is a **hierarchical project document** with four layers:
-
-### L1: Project Status
-
-Update the status table at the top:
-
-```markdown
-## 项目状态
-
-| 指标 | 状态 |
-|------|:----:|
-| 编译 | ✅ 通过 |
-| 可运行 | ✅ 能启动 |
-| 可玩 | ⚠️ 有标题画面和移动控制 |
-| 最近构建 | `{date}` |
-| 开放 Issues | {N} |
-```
-
-### L2: Module Map
-
-If the PR added a new module/script, add a row to the module map table:
-
-```markdown
-| 模块 | 文件 | 状态 | 设计文档 |
-|------|------|:----:|:--------:|
-| NewSystem | `gdscripts/new_system.gd` | ✅ | GDD |
-```
-
-### L3: Features
-
-If the PR implemented a new feature, add a row to the features table:
-
-```markdown
-| # | 功能 | 状态 | 文档 |
-|:-:|------|:----:|:----:|
-| 12 | 新功能 | ✅ 已合并 | GDD |
-```
-
-### L4: Known Issues
-
-If the PR fixed or introduced a known issue, update the known issues table.
-
-### Commit Convention
-
-```bash
-git add docs/PROJECT.md
-git commit -m "docs: update PROJECT.md for <feature name> (#N)"
-git push origin <default-branch>
-```
-
-**⚠️ Pitfall:** Same as GDD — always `git pull origin <default-branch>` before editing PROJECT.md to avoid reverting content from parallel PRs.
-
-**⚠️ Pitfall: PROJECT.md pipe-table corruption.** The PROJECT.md module map and features tables use markdown pipe tables. Using `patch` to add rows or edit content can produce `|||` (triple pipes) instead of `||` (double pipes). Same root cause as the GDD pipe-table corruption. After editing PROJECT.md, always verify:
-```bash
-grep -n '|||' docs/PROJECT.md
-```
-If triple-pipes appear, fix with `patch` replacing `|||` with `||` for the affected rows. Consider using `write_file` to rewrite PROJECT.md entirely if the changes touch multiple table rows — the file is small (~100 lines) and `write_file` avoids pipe-table corruption entirely.
-
-## Notification
-
-After merging and GDD update, POST a Feishu notification:
-
-```bash
-curl -s -X POST -H "Content-Type: application/json" \
-  -d '{"msg_type":"text","content":{"text":"✅ #N → <feature name> merged → 🚀"}}' \
-  https://open.feishu.cn/open-apis/bot/v2/hook/76101281-b359-49ab-ae2f-fc486bf65958
-```
-
-Format: One line, emoji prefix, no explanations.
-
-## Post-Merge: Issue Label Cleanup
-
-After merging, remove stale workflow labels from the parent issue and PR that no longer apply. Common stale labels to check:
-
-- `workflow/self-correct` — remove (the self-correct cycle has completed with merge)
-- `status/blocked` — remove (the block has been resolved by fix-issue merging to main)
-- `status/review` — remove if present (review is complete)
-
-```bash
-# Remove individual labels via REST API
-gh api repos/<owner>/<repo>/issues/<ISSUE_NUM>/labels/workflow%2Fself-correct -X DELETE
-gh api repos/<owner>/<repo>/issues/<ISSUE_NUM>/labels/status%2Fblocked -X DELETE
-
-# Verify remaining labels
-gh issue view <N> --json labels --jq '.labels[].name'
-```
-
-**Do NOT remove `status/done`** — that label should remain (or be added if missing) to indicate the issue is complete.
-
-## Project Board Sync
-
-After merging and GDD update, sync the GitHub Project board to reflect the completed state:
-
-**⚠️ v4 语义判定（2026-08-13 实测教训 — #450 被 project automation 反复 close）:**
-Project #5 "mini pong" 启用了 **"Auto-close issue" automation workflow**:当 item 的
-**Status** 字段设为 **"Done"** 时,automation 自动关闭关联 issue（`state_reason: completed`,
-不产生 timeline 事件,难以排查）。
-
-**所以 Status 只对机械 Issue 设 "Done";taste-draft / human-review 的 Issue 设 "In review"**
-（保持 open 等用户定稿,避免被 automation 误关）。判定方法与 Taste-Draft 分流相同:
-父 Issue body 是否 `content_ownership: taste-draft`,或父 Issue 是否带 `status/human-review` label。
-
-```bash
-# 判定: 父 Issue 是否 taste-draft / human-review
-PARENT=$(gh pr view <N> --json body --jq '.body' | grep -oP '(?<=Parent )#\d+|(?<=parent )#\d+|(?<=Closes )#\d+' | grep -oP '\d+')
-IS_TASTE=$(gh issue view $PARENT --json body --jq '.body' | grep -cE 'content_ownership: taste-draft')
-IS_HUMAN=$(gh issue view $PARENT --json labels --jq '.labels[].name' | grep -c 'status/human-review')
-# IS_TASTE>0 或 IS_HUMAN>0 → Status="In review"; 否则 Status="Done"
-```
-
-### 1. Check if the Issue Exists on the Board
-
-**⚠️ Pitfall: project number ≠ GraphQL node ID.** `gh project list` returns a project number (e.g., `5`), but GraphQL mutations require the project's opaque global node ID (e.g., `PVT_kwHOABFv7s4Bd7mL`). Resolve it with:
-
-```bash
-gh api graphql -f query='
-  query($owner:String!,$number:Int!) {
-    user(login:$owner) {
-      projectV2(number:$number) { id title }
-    }
-  }' -f owner="devvi" -F number=5 --jq '.data.user.projectV2.id'
-```
-
-See `references/project-board-graphql-id-discovery.md` for the full discovery workflow.
-
-```bash
-gh project item-list <project-number> --owner "@me" --format json \
-  | python3 -c "import json,sys; data=json.load(sys.stdin); [print(f'Item: {i[\"id\"]}') for i in data['items'] if i.get('content',{}).get('number')==<N>]"
-```
-If no output, the issue is not on the board — add it first:
-
-```bash
-ISSUE_NODE=$(gh issue view <N> --json id --jq '.id')
-gh api graphql -f query='
-  mutation($project:ID!,$content:ID!) {
-    addProjectV2ItemById(input:{projectId:$project,contentId:$content}) { item { id } }
-  }' -f project="<project-id>" -f content="$ISSUE_NODE"
-```
-
-### 2. Set Status to "Done"
-
-**⚠️ Pitfall: field name is not always `Status`.** Project boards created by different templates use different field names: `Status`, `Stage`, `State`, or custom labels. Always discover the field name dynamically:
-
-```bash
-# List all single-select fields and their names
-gh project field-list <project-number> --owner "@me" --format json \
-  | python3 -c "import json,sys; data=json.load(sys.stdin); [print(f\"{f['name']}: {f['id']}\") for f in data['fields'] if f.get('type')=='ProjectV2SingleSelectField']"
-```
-
-Then use the discovered field name in subsequent commands. The `Stage` name in the examples below is a placeholder — substitute the actual field name.
-
-```bash
-# First, find the field options (replace 'Status' with the discovered name):
-gh project field-list <project-number> --owner "@me" --format json \
-  | python3 -c "import json,sys; data=json.load(sys.stdin); field=next(f for f in data['fields'] if f['name']=='Status'); [print(f'{o[\"name\"]}: {o[\"id\"]}') for o in field['options']]"
-
-# Then set it to "Done" (replace 'Status' with the discovered field name):
-gh project item-edit --project-id "<project-id>" \
-  --id "<item-id>" \
-  --field Status --single-select "Done"
-```
-
-**⚠️ Pitfall: `gh project item-edit --field Status --single-select "Done"` may fail** if the project uses a GraphQL-based field ID. Fall back to raw GraphQL:
-```bash
-ITEM_NODE=$(gh project item-list <number> --owner "@me" --format json \
-  | python3 -c "import json,sys; data=json.load(sys.stdin); items=[i for i in data['items'] if i.get('content',{}).get('number')==<N>]; print(items[0]['id'] if items else '')")
-gh api graphql -f query='
-  mutation($project:ID!,$item:ID!,$field:ID!,$value:String!) {
-    updateProjectV2ItemFieldValue(input:{
-      projectId:$project,itemId:$item,fieldId:$field,
-      value:{singleSelectOptionId:$value}
-    }) { projectV2Item { id } }
-  }' \
-  -f project="<project-id>" \
-  -f item="$ITEM_NODE" \
-  -f field="<stage-field-id>" \
-  -f value="<done-option-id>"
-```
-
-### 3. Set Progress to 100% (if the Progress field exists)
-
-**⚠️ Pitfall: Progress is a Float field, not String.** The GraphQL mutation for a number field rejects string values like `"100"` with *"Could not coerce value to Float"*. Use `-F` (raw field, no quotes) instead of `-f`:
-
-```bash
-# ❌ Wrong — string coercion error:
-gh api graphql -f value="100" ...
-
-# ✅ Correct — raw float:
-gh api graphql -F value=100 ...
-```
-
-Omit this step if the project board does not have a Progress or percentage field.
+## Post-Merge（2026-08-19 起归 game-post-merge-agent，本 skill 不再执行）
+
+**⚠️ 方案 X 结构性缺口（2026-08-19, #562/#566 实测）：post-merge 步骤在 review 会话内已不可达。**
+方案 X（merge 脚本化, 2026-08-17）把 merge 从本会话移到脚本层（`review_followup`/`_try_merge`
+在下一个 cron tick 执行）→ review 会话在写结论文件后即结束，PR 尚未 merge → 本 skill 的
+post-merge GDD 步骤物理上无法执行 → GDD 更新曾成无主责任（#562 把 post-merge handoff 给
+"operator/父代理" 实测落空；#566 review agent 清单止于结论文件 → PR comment，无 GDD）。
+
+**2026-08-19 修复（用户拍板走 docs PR）：**
+
+- `review_followup` 在 approved→merged 后创建 `~/.hermes/post-merge-state/<N>.json`（pending）
+- event-processor 发射 `SPAWN: post-merge,pr=N,issue=M`（one-shot, emitted_at 标记）
+- **`game-post-merge-agent`**（新 skill）执行全部 post-merge 职责：GDD 更新
+  （`docs/GAME_DESIGN/<GAME_DIR>/`）+ PROJECT.md + Feishu 通知 + board sync +
+  taste-draft handoff（assign + status/human-review）
+- **GDD 更新走 `docs/gdd-<N>` 分支 + PR**，merge 由 stalled scan 的 `STALLED: merge-pr`
+  自动执行（`docs/` 前缀, 脚本层）——绝不直接 push main（用户红线）
+
+review agent 对 post-merge 的唯一要求：**不要在结论文件里写"由 operator/父代理执行
+post-merge"**（#562 实测 handoff 掉进空洞）。写完 verdict 本会话即结束，后续全部由
+post-merge 阶段接管。
+
+完整协议、GDD 写作风格、管道表陷阱、board sync v4 语义：见 `game-post-merge-agent` skill。
+证据链（时间线、两个 review 会话行为、诊断方法）：`references/gdd-orphan-post-merge-gap.md`。
 
 ## Known Pitfalls
 

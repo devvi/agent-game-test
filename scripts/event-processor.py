@@ -1608,8 +1608,13 @@ def _quick_stalled_scan():
         labels = [l["name"] for l in pr.get("labels", [])]
         pr_num = pr["number"]
 
-        if branch.startswith("research/") or branch.startswith("plan/"):
-            # Stalled research/plan PR — merge if mergeable
+        if branch.startswith("research/") or branch.startswith("plan/") \
+                or branch.startswith("docs/"):
+            # Stalled research/plan PR — merge if mergeable.
+            # 2026-08-19 (post-merge 阶段落地): docs/ 前缀 = post-merge agent
+            # 创建的 GDD 更新 PR (docs/gdd-<N>) — 同样自动 merge (merge 归脚本
+            # 层, post-merge agent 绝不自己 merge)。GDD 是纯 docs, 不进 CI,
+            # 不触碰"可运行游戏"红线; PR 形态保证 main 只进 PR + 可追溯。
             if pr.get("mergeable") == "MERGEABLE":
                 cmds.append(
                     f"STALLED: merge-pr,pr={pr_num},"
@@ -1933,6 +1938,12 @@ def main():
             followup_lines = review_followup()
             if followup_lines:
                 print("\n".join(followup_lines))
+            # 2026-08-19 (post-merge 阶段落地): approved merge 的同 tick 发射
+            # SPAWN: post-merge — review_followup 刚创建的 pending 状态在这里
+            # 被扫描到, 下个 cron tick 的 LLM delegate post-merge agent。
+            post_merge_lines = post_merge_emitter()
+            if post_merge_lines:
+                print("\n".join(post_merge_lines))
     except Exception as e:
         _audit(tick="end", in_window=False, error=str(e)[:200], output="[ERROR]")
         print(f"[event-processor error: {e}]", file=sys.stderr)
@@ -1977,6 +1988,11 @@ OPENCODE_CRITICAL_FILE = os.path.expanduser("~/.hermes/.opencode-critical")
 # label / fix issue / comment (happened 2×: #466 then #475).
 REVIEW_CONCLUSIONS_DIR = os.path.expanduser("~/.hermes/review-conclusions")
 E2E_STATE_DIR = os.path.expanduser("~/.hermes/e2e-state")
+# 2026-08-19 (post-merge 阶段落地): approved merge 后的 post-merge 任务状态。
+# review_followup 在 _try_merge 成功后创建 {status: pending}; post_merge_emitter
+# 每 tick 扫描, pending+无 emitted_at → SPAWN: post-merge (one-shot); post-merge
+# agent 完成后写 status=done; 超时未 done → workflow-watchdog post-merge-stuck 告警。
+POST_MERGE_STATE_DIR = os.path.expanduser("~/.hermes/post-merge-state")
 # Runner lives in the project scripts/ dir. When event-processor runs from the
 # cron copy (~/.hermes/scripts/), __file__ points there — the runner may not
 # be synced (2026-08-14: `bash: .../run-e2e-review.sh: No such file or
@@ -2018,6 +2034,81 @@ def _write_e2e_state(pr: int, data: dict) -> None:
             json.dump(data, f, indent=1)
     except OSError:
         pass
+
+
+# ── Post-merge state (2026-08-19) ─────────────────────────────────
+# 方案 X (merge 脚本化) 后, review agent 会话在写结论文件后即结束, merge 由
+# review_followup/_try_merge 在下一个 cron tick 执行 → skill 的 post-merge
+# GDD 步骤在 review 会话内不可达 (#562/#566 实测, GDD 成无主责任)。
+# 修复: merge 事件 → post-merge 任务状态 → SPAWN: post-merge (one-shot) →
+# post-merge agent (game-post-merge-agent skill) 执行 GDD/PROJECT.md/通知/board。
+# 触发归脚本 (确定性), 写作归 LLM —— 符合"LLM 只做判定, 机械归脚本"铁律。
+def _post_merge_state_path(pr: int) -> str:
+    return os.path.join(POST_MERGE_STATE_DIR, f"{pr}.json")
+
+
+def _read_post_merge_state(pr: int) -> dict:
+    try:
+        with open(_post_merge_state_path(pr)) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+
+
+def _write_post_merge_state(pr: int, data: dict) -> None:
+    try:
+        os.makedirs(POST_MERGE_STATE_DIR, exist_ok=True)
+        tmp = _post_merge_state_path(pr) + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(data, f, indent=1)
+        os.replace(tmp, _post_merge_state_path(pr))
+    except OSError:
+        pass
+
+
+def _ensure_post_merge_state(pr: int, issue) -> None:
+    """review_followup 在 approved→merged 成功后调用。幂等: 已存在不覆盖。"""
+    if _read_post_merge_state(pr).get("status") == "done":
+        return
+    _write_post_merge_state(pr, {
+        "pr": pr,
+        "issue": int(issue) if issue else 0,
+        "status": "pending",
+        "created_at": time.time(),
+    })
+
+
+def post_merge_emitter() -> list:
+    """Emit `SPAWN: post-merge,pr=N,issue=M` ONCE per merged PR.
+
+    One-shot semantics mirror the review SPAWN (e2e-state emitted_at marker):
+    pending + no emitted_at → emit + stamp; emitted_at → silent; done → silent.
+    A dropped delegation is surfaced by workflow-watchdog's post-merge-stuck
+    check (告警, 不自动重发), same as review-stuck.
+    """
+    lines = []
+    try:
+        entries = sorted(os.listdir(POST_MERGE_STATE_DIR))
+    except OSError:
+        return lines
+    for fn in entries:
+        if not fn.endswith(".json"):
+            continue
+        try:
+            pr = int(fn[:-5])
+        except ValueError:
+            continue
+        state = _read_post_merge_state(pr)
+        if state.get("status") == "done":
+            continue
+        if state.get("emitted_at"):
+            continue  # one-shot
+        issue = state.get("issue") or 0
+        lines.append(f"SPAWN: post-merge,pr={pr},issue={issue}")
+        state["emitted_at"] = time.time()
+        _write_post_merge_state(pr, state)
+        _devlog("post-merge-spawn", pr=pr, issue=issue)
+    return lines
 
 
 def _pid_alive(pid: int) -> bool:
@@ -2461,6 +2552,10 @@ def review_followup() -> list:
                 if _try_merge(pr):
                     lines.append(f"FOLLOWUP: pr={pr} approved → merged")
                     _mark_reviewed(pr)
+                    # 2026-08-19 (post-merge 阶段落地): merge 事件绑定 post-merge
+                    # 任务 — 脚本层创建 pending 状态, post_merge_emitter 同 tick
+                    # 发射 SPAWN: post-merge (one-shot) → post-merge agent 写 GDD。
+                    _ensure_post_merge_state(pr, parent)
                 else:
                     lines.append(f"FOLLOWUP: pr={pr} approved but merge FAILED — file kept, retry next tick")
                     continue  # 不消费, 重试

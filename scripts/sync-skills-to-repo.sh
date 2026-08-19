@@ -17,6 +17,7 @@ SKILLS=(
   "game-plan-agent"
   "game-implement-agent"
   "game-review-agent"
+  "game-post-merge-agent"
 )
 
 for skill in "${SKILLS[@]}"; do
