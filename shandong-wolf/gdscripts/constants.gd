@@ -93,6 +93,18 @@ const FRAME_ATTACK_WINDUP: int = 8           # # DRAFT
 const FRAME_ATTACK_RECOVERY: int = 14        # # DRAFT
 const FRAME_RHYTHM_BASE: int = 60            # # DRAFT（基准帧率参考，机械常量语义）
 
+# ── 输入层（# DRAFT 候补值，待 #584 定稿）──
+#   候补值: 缓冲窗口 150ms ∈ [100,200]（AC4）；队列上限 8；垫步长按阈值 200ms；
+#   移动加速度 1200 px/s² / 最高速度 300 px/s（起步 2 帧达标，冷冽干脆）
+#   该值影响什么: 输入缓冲窗口=连招衔接手感（越大越宽容）；垫步阈值=轻按/按住双义分界；
+#   移动参数=横板位移手感（AC6 位移 ≥100px 的达标基础）
+#   情感断言: 输入零吞噬的"指哪打哪"——快速连按全生效，操作意图不丢失
+const INPUT_BUFFER_WINDOW_MS: int = 150       # # DRAFT（AC4：∈ [100,200]）
+const INPUT_BUFFER_MAX: int = 8               # # DRAFT（队列上限，拒新不丢旧）
+const DASH_HOLD_THRESHOLD_MS: int = 200       # # DRAFT（轻按=垫步 / 按住≥此值=冲刺）
+const MOVE_ACCELERATION: float = 1200.0       # # DRAFT（px/s²，起步 2 帧达标）
+const MOVE_MAX_SPEED: float = 300.0           # # DRAFT（px/s）
+
 # ── 受击/敌人/处决（# DRAFT 候补值，待 #584 用户定稿，本分区为 #584 新增）──
 # POSTURE_HIT_COST
 #   只狼基准: 受击扣架势大（30-40/次）——血+架势双重惩罚，纯防御会崩架势，逼玩家进攻（只狼核心哲学）
