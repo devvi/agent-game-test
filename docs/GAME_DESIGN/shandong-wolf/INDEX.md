@@ -9,6 +9,7 @@
 |------|-------------|
 | [INDEX](INDEX.md) | Table of contents |
 | [01-OVERVIEW](01-OVERVIEW.md) | Game overview — 场景骨架（Main.tscn 节点树）、post-merge 探针 Label（#567） |
-| [02-CONSTANTS](02-CONSTANTS.md) | WolfConstants 数值集中地 — 机械常量 + 5 个 # DRAFT 手感分区（#572/#599） |
+| [02-CONSTANTS](02-CONSTANTS.md) | WolfConstants 数值集中地 — 机械常量 + 6 个 # DRAFT 手感分区（只狼基准 14 参数三行注释，#572/#584/#599/#609） |
 | [03-STATE-MACHINE](03-STATE-MACHINE.md) | StateMachineBase 通用状态机基类 — 三接口契约 + 同态/防重入守卫（#572/#599） |
 | [04-GAME-AUTOLOAD](04-GAME-AUTOLOAD.md) | Game autoload 锚点 — 版本号 + constants 预加载，单例注册约定（#572/#599） |
+| [05-DEBUG-CANVAS](05-DEBUG-CANVAS.md) | DebugCanvas 战斗数值调参面板 — F1 热更新 + 14 参数 PARAMS 表 + 静态读值链路 + JSON dump（#584/#609） |
