@@ -372,7 +372,7 @@ func _on_stance_broken(entity: CombatEntity) -> void
 | 反馈消费 | parry_success/clash/hit_landed/block_held/stance_broken 信号 | #579 反馈（未开始） | #579 订阅五事件 → 反馈矩阵（火花/hit-stop/屏震） | ⬜ 事件契约已定，订阅待 #579 |
 | 音效消费 | parry_success ding / clash 金属声 | #593 音效（未开始） | 经 #579 反馈事件联动 | ⬜ 待 #593 |
 | 处决通道 | stance_broken 转发事件 | #580 处决（未开始） | #580 订阅 stance_broken → 处决驱动 | ⬜ 待 #580 |
-| 敌AI 窗口 | register_attack_window(AttackWindow) | #581 敌AI（未开始） | #581 攻击前摇期间构造窗口登记；MVP 测试构造驱动 | ⬜ 契约已定，实现待 #581 |
+| 敌AI 窗口 | register_attack_window(AttackWindow) | #581 敌AI（未开始） | #581 攻击前摇期间构造窗口登记；MVP 测试构造驱动 | ✅ 已接线（#581 impl：judge 登记自动参数化，EnemyAI 攻击态触发） |
 | 组装 | CombatJudge 实例化 + bind_entities ×2 + bind_input | #585 组装（未开始） | #585 场景实例化 + 信号桥接 | ⬜ 待 #585 |
 
 ---
