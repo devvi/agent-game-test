@@ -1288,42 +1288,98 @@ class TestPickCandidates(unittest.TestCase):
         return {"number": n, "labels": [{"name": l} for l in labels],
                 "title": f"Issue {n}", "body": body}
 
-    def test_picks_backlog_with_resolved_deps(self):
-        issues = [
-            self._issue(1, ["workflow/backlog"]),
-            self._issue(2, ["workflow/backlog", "priority/high"]),
-            self._issue(3, ["workflow/available"]),  # not backlog → skip
-        ]
+    def setUp(self):
+        # 2026-08-19 (版本目标): picker 现在读 version_target — 统一 mock
+        # 到临时 config, 默认 target=mvp (现有测试的 issue 都带 version/mvp)
+        self._td = tempfile.TemporaryDirectory()
+        self._cfg = os.path.join(self._td.name, "cfg.json")
+        with open(self._cfg, "w") as f:
+            json.dump({"version_target": "mvp"}, f)
+        self._cfg_patch = mock.patch.object(ep, "WORKFLOW_CONFIG", self._cfg)
+        self._cfg_patch.start()
+
+    def tearDown(self):
+        self._cfg_patch.stop()
+        self._td.cleanup()
+
+    def _pick(self, issues, limit=4):
         with mock.patch.object(ep, "_ensure_issues_cache", return_value=issues), \
              mock.patch.object(ep, "_get_active_issue_target_files", return_value=set()), \
              mock.patch.object(ep, "_has_unresolved_dependencies", return_value=[]), \
              mock.patch.object(ep, "_has_file_conflict", return_value=False):
-            picked = ep._pick_candidates(4)
+            return ep._pick_candidates(limit)
+
+    def test_picks_backlog_with_resolved_deps(self):
+        issues = [
+            self._issue(1, ["workflow/backlog", "version/mvp"]),
+            self._issue(2, ["workflow/backlog", "version/mvp", "priority/high"]),
+            self._issue(3, ["workflow/available", "version/mvp"]),  # not backlog → skip
+        ]
+        picked = self._pick(issues)
         self.assertEqual(picked, [2, 1])  # priority/high sorts first
 
     def test_skips_unresolved_deps_and_conflicts(self):
         issues = [
-            self._issue(10, ["workflow/backlog"]),
-            self._issue(11, ["workflow/backlog"]),
+            self._issue(10, ["workflow/backlog", "version/mvp"]),
+            self._issue(11, ["workflow/backlog", "version/mvp"]),
         ]
         with mock.patch.object(ep, "_ensure_issues_cache", return_value=issues), \
              mock.patch.object(ep, "_get_active_issue_target_files", return_value=set()):
             with mock.patch.object(ep, "_has_unresolved_dependencies",
                                    side_effect=[[{"issue": 5, "type": "full"}], []]):
-                # Conflict check only runs for candidates that PASS the dep
-                # check (issue 11). Issue 10 never reaches it.
                 with mock.patch.object(ep, "_has_file_conflict", return_value=False):
                     picked = ep._pick_candidates(4)
         self.assertEqual(picked, [11])
 
     def test_respects_limit(self):
-        issues = [self._issue(n, ["workflow/backlog"]) for n in range(20, 26)]
-        with mock.patch.object(ep, "_ensure_issues_cache", return_value=issues), \
-             mock.patch.object(ep, "_get_active_issue_target_files", return_value=set()), \
-             mock.patch.object(ep, "_has_unresolved_dependencies", return_value=[]), \
-             mock.patch.object(ep, "_has_file_conflict", return_value=False):
-            picked = ep._pick_candidates(2)
+        issues = [self._issue(n, ["workflow/backlog", "version/mvp"])
+                  for n in range(20, 26)]
+        picked = self._pick(issues, limit=2)
         self.assertEqual(len(picked), 2)
+
+    # ── 2026-08-19 版本目标 (用户拍板) ─────────────────────────────
+    def test_version_target_filters_to_target(self):
+        """target=mvp → 只拣 version/mvp; v1/v2 backlog 一律不拣."""
+        issues = [
+            self._issue(1, ["workflow/backlog", "version/mvp"]),
+            self._issue(2, ["workflow/backlog", "version/v1"]),
+            self._issue(3, ["workflow/backlog", "version/v2"]),
+        ]
+        picked = self._pick(issues)
+        self.assertEqual(picked, [1], f"v1/v2 不得被拣: {picked}")
+
+    def test_version_target_none_stops(self):
+        """无 version_target → 停止 (安全默认, 不拣任何 issue)."""
+        with open(self._cfg, "w") as f:
+            json.dump({}, f)
+        issues = [self._issue(1, ["workflow/backlog", "version/mvp"])]
+        picked = self._pick(issues)
+        self.assertEqual(picked, [])
+
+    def test_version_target_dependency_gate(self):
+        """target=v1 但 mvp 有 open issue → 不拣 (版本依赖链门控)."""
+        with open(self._cfg, "w") as f:
+            json.dump({"version_target": "v1"}, f)
+        issues = [
+            self._issue(10, ["workflow/backlog", "version/mvp"]),  # mvp 未完成
+            self._issue(20, ["workflow/backlog", "version/v1"]),
+        ]
+        picked = self._pick(issues)
+        self.assertEqual(picked, [], f"mvp 未全 CLOSED 时 v1 不得拣: {picked}")
+
+    def test_version_target_dependency_gate_passes_when_prev_done(self):
+        """target=v1 且 mvp 全 CLOSED (open=0) → 放行 v1."""
+        with open(self._cfg, "w") as f:
+            json.dump({"version_target": "v1"}, f)
+        issues = [self._issue(20, ["workflow/backlog", "version/v1"])]
+        picked = self._pick(issues)
+        self.assertEqual(picked, [20])
+
+    def test_version_target_completed_stops(self):
+        """target=mvp 且 mvp open=0 (全 CLOSED) → 停止, 不再拣."""
+        issues = [self._issue(20, ["workflow/backlog", "version/v1"])]
+        picked = self._pick(issues)
+        self.assertEqual(picked, [], "目标版本已完成 → 停止拣选")
 
 
 class TestOpenCodeHealthGate(unittest.TestCase):

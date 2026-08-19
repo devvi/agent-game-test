@@ -19,6 +19,7 @@ Detection logic:
 import json
 import os
 import re
+import subprocess
 import time
 import urllib.request
 
@@ -171,6 +172,38 @@ def check_conclusion_stale(now):
     return alerts
 
 
+def check_version_target_completed(now):
+    """2026-08-19 (版本目标, 用户拍板): 目标版本全 CLOSED → 通知用户切换.
+
+    workflow-config.json `version_target` = 当前版本; 该版本全部 issue
+    CLOSED 后 picker 停止拣选 — 这里补一个一次性 Feishu 通知,
+    提醒用户: mvp 完成, 确认后切换 version_target 继续下一版本。
+    """
+    alerts = []
+    try:
+        with open(os.path.join(HOME, ".hermes", "workflow-config.json")) as f:
+            cfg = json.load(f)
+        target = cfg.get("version_target")
+    except (OSError, ValueError):
+        return alerts
+    if not target:
+        return alerts
+    try:
+        raw = subprocess.run(
+            ["gh", "issue", "list", "--state", "open", "--json", "labels",
+             "--jq", f"[.[] | select(any(.labels[]; .name == \"version/{target}\"))] | length"],
+            capture_output=True, text=True, timeout=15).stdout.strip()
+        open_count = int(raw)
+    except (ValueError, OSError):
+        return alerts
+    if open_count == 0:
+        alerts.append(
+            f"🎉 版本目标 {target} 已完成 — workflow 已停止 (picker 不拣选)。"
+            f"确认 MVP 后, 修改 workflow-config.json 的 version_target "
+            f"(v1/v2) 继续下一版本。")
+    return alerts
+
+
 def check_post_merge_stuck(now):
     """2026-08-19 (post-merge 阶段兜底): post-merge 任务派发后超时未完成 → 告警.
 
@@ -228,6 +261,7 @@ def main():
         ("review-stuck", check_review_stuck(now)),
         ("conclusion-stale", check_conclusion_stale(now)),
         ("post-merge-stuck", check_post_merge_stuck(now)),
+        ("version-target-completed", check_version_target_completed(now)),
     ):
         if not alerts:
             continue

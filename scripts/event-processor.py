@@ -851,6 +851,38 @@ def _has_file_conflict(issue_num: int, active_files: set) -> bool:
     return bool(target & active_files)
 
 
+# ── 版本目标 (2026-08-19 用户拍板): 用户指定当前版本, 做完即停 ─────
+# workflow-config.json `version_target`: "mvp" | "v1" | "v2" | 缺失
+# - 无目标 → 不拣 (停止, 安全默认)
+# - 目标版本全 CLOSED → 停止 (等用户切换)
+# - 版本依赖链: v1 需 mvp 全 CLOSED, v2 需 mvp+v1 全 CLOSED
+_VERSION_ORDER = ["mvp", "v1", "v2"]
+
+def _version_target() -> Optional[str]:
+    """Read version_target from workflow-config.json (null = 停止)."""
+    try:
+        with open(WORKFLOW_CONFIG) as f:
+            cfg = json.load(f)
+        t = cfg.get("version_target")
+        return t if t in _VERSION_ORDER else None
+    except (OSError, ValueError):
+        return None
+
+def _version_open_count(version: str, issues: list) -> int:
+    """Count open issues carrying version/<version> label (cache = open only)."""
+    return sum(
+        1 for i in issues
+        if f"version/{version}" in [l.get("name", "") for l in i.get("labels", [])]
+    )
+
+def _version_target_satisfied(target: str, issues: list) -> bool:
+    """前置版本全 CLOSED 才允许拣选 target (缓存只含 open → open 数为 0)."""
+    for prev in _VERSION_ORDER[:_VERSION_ORDER.index(target)]:
+        if _version_open_count(prev, issues) > 0:
+            return False
+    return True
+
+
 def _pick_candidates(limit: int) -> list[int]:
     """Scan backlog and pick up to `limit` best candidates (from cache).
 
@@ -860,12 +892,31 @@ def _pick_candidates(limit: int) -> list[int]:
     3. Dependencies resolved
     4. No file conflict with current implement-stage issues
 
-    Returns list of issue numbers ready for workflow/available.
+    5. **版本目标 (2026-08-19 用户拍板)**: 用户指定当前版本 (workflow-config.json
+       `version_target`) → 只拣目标版本 issue; 无目标 → 不拣 (停止);
+       目标版本全 CLOSED → 停止 (等用户切换); 目标依赖版本未完成 (v1 需 mvp,
+       v2 需 mvp+v1 全 CLOSED) → 不拣 + 告警。
     """
     active_files = _get_active_issue_target_files()
 
     issues = _ensure_issues_cache()
     if not issues:
+        return []
+
+    # ── 版本目标门控 (2026-08-19) ──────────────────────────────
+    target = _version_target()
+    if target is None:
+        _devlog("version-target-none",
+                detail="无 version_target — 停止拣选 (安全默认)")
+        return []
+    if _version_open_count(target, issues) == 0:
+        # 目标版本全 CLOSED → 完成, 停止 (等用户切换 version_target)
+        _devlog("version-target-completed", target=target,
+                detail="目标版本全部完成 — workflow 停止, 切换后继续")
+        return []
+    if not _version_target_satisfied(target, issues):
+        _devlog("version-target-blocked", target=target,
+                detail="前置版本未全部完成 — 依赖版本全 CLOSED 才可拣选")
         return []
 
     # Collect all backlog candidates
@@ -875,6 +926,9 @@ def _pick_candidates(limit: int) -> list[int]:
         if "workflow/backlog" not in label_names:
             continue
         if "workflow/available" in label_names:
+            continue
+        # 版本目标过滤: 只拣目标版本
+        if f"version/{target}" not in label_names:
             continue
         backlog_candidates.append(iss)
 
