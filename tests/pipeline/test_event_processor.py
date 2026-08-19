@@ -1398,8 +1398,14 @@ class TestReviewFollowup(unittest.TestCase):
         self._e2e_patch = mock.patch.object(
             ep, "E2E_STATE_DIR", os.path.join(self._td.name, "e2e-state"))
         self._e2e_patch.start()
+        # 2026-08-19 (P2 骨架): 结论目录统一隔离 — 各测试显式 mock 覆盖之,
+        # 漏 mock 时 (如骨架生成) 不再写真实 ~/.hermes/review-conclusions/
+        self._concl_patch = mock.patch.object(
+            ep, "REVIEW_CONCLUSIONS_DIR", os.path.join(self._td.name, "concl"))
+        self._concl_patch.start()
 
     def tearDown(self):
+        self._concl_patch.stop()
         self._e2e_patch.stop()
         self._td.cleanup()
 
@@ -1685,6 +1691,19 @@ class TestE2EOrchestrator(unittest.TestCase):
     stall) and hands the review agent a ready summary instead of burning its
     call budget on the harness.
     """
+
+    def setUp(self):
+        # 2026-08-19 (P2 骨架): e2e_orchestrator 内部 _ensure_conclusion_skeleton
+        # 会写结论目录 — 统一隔离, 防测试污染真实 ~/.hermes/review-conclusions/
+        # (实测: e2e_orchestrator(475,...) 泄漏 475.json 到真实目录)
+        self._td = tempfile.TemporaryDirectory()
+        self._concl_patch = mock.patch.object(
+            ep, "REVIEW_CONCLUSIONS_DIR", os.path.join(self._td.name, "concl"))
+        self._concl_patch.start()
+
+    def tearDown(self):
+        self._concl_patch.stop()
+        self._td.cleanup()
 
     def test_absent_launches_runner(self):
         with tempfile.TemporaryDirectory() as td:
