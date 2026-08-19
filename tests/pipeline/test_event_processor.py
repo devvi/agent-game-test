@@ -2008,6 +2008,36 @@ class TestE2EOrchestrator(unittest.TestCase):
             self.assertTrue(any("SPAWN: review" in l and "e2e_summary" in l for l in lines),
                             f"must spawn review with summary: {lines}")
 
+    def test_render_e2e_layers_decodes_codes(self):
+        """2026-08-19 (通知编码 bug #572 附带): 层编码必须由脚本渲染成可读
+        文本 — 旧通知把 0/2 读反 (谎报 "L0/L1 skip, L2 pass") 的根因是 LLM
+        自行解读 summary。此测试锁定正确语义: 0=pass ✅, 2=unavailable ⏭,
+        L3 skip ⏭。"""
+        with tempfile.TemporaryDirectory() as td:
+            summary = os.path.join(td, "summary.json")
+            # 真实 #599 summary: L0=0(pass), L1=0(pass), L2=2(unavailable), L3=skip
+            with open(summary, "w") as f:
+                json.dump({"layers": {"L0_compile": "0", "L1_logic": "0",
+                                      "L2_runtime": "2", "L3_visual": "skip"}}, f)
+            txt = ep._render_e2e_layers(summary)
+        self.assertIn("L0 编译 ✅", txt, f"0 must render as pass: {txt}")
+        self.assertIn("L1 逻辑 ✅", txt, f"0 must render as pass: {txt}")
+        self.assertIn("L2 运行时 ⏭ 不可用", txt, f"2 must render as unavailable: {txt}")
+        self.assertIn("L3 视觉 ⏭ skip", txt, f"skip must render as skip: {txt}")
+        self.assertNotIn("L0 编译 ⏭", txt, f"0 is pass, never skip: {txt}")
+        self.assertNotIn("L2 运行时 ✅", txt, f"2 is unavailable, never pass: {txt}")
+
+    def test_render_e2e_layers_missing_file_empty(self):
+        """渲染函数对缺失/损坏的 summary 返回空串 — tick 输出不带 layers
+        后缀, 不崩溃。"""
+        with tempfile.TemporaryDirectory() as td:
+            missing = os.path.join(td, "nope.json")
+            self.assertEqual(ep._render_e2e_layers(missing), "")
+            bad = os.path.join(td, "bad.json")
+            with open(bad, "w") as f:
+                f.write("not json")
+            self.assertEqual(ep._render_e2e_layers(bad), "")
+
     def test_running_dead_rejects_stale_summary(self):
         """2026-08-14: a STALE summary.json from a previous review round
         (mtime < runner start) must NOT be accepted as evidence — otherwise

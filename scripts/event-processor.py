@@ -2281,6 +2281,49 @@ def _kill_runner(pid: int) -> None:
             pass
 
 
+def _render_e2e_layers(summary: str) -> str:
+    """2026-08-19 (通知编码 bug #572 附带): 把 summary.json 的层编码渲染成
+    人读得懂的可读文本, 供 tick 输出 / Feishu 转发直接使用。
+
+    编码语义 (commit e1684ee 实测): L0-L2 是 exit code (0=pass, 1=fail,
+    2=unavailable), L3_visual 是 "pass"/"fail"/"skip"。旧通知把 0/2 读成
+    skip/pass (0 是 pass 不是 skip, 2 是 unavailable 不是 pass) — 谎报
+    "L0/L1 skip, L2 pass" 的根因是 LLM 自行解读编码, 这里由脚本层定死。
+    """
+    try:
+        with open(summary) as f:
+            sd = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return ""
+    layers = sd.get("layers", {})
+    if not isinstance(layers, dict) or not layers:
+        return ""
+    labels = {
+        "L0_compile": "L0 编译",
+        "L1_logic": "L1 逻辑",
+        "L2_runtime": "L2 运行时",
+        "L3_visual": "L3 视觉",
+    }
+    out = []
+    for k, v in layers.items():
+        s = str(v).strip().lower()
+        name = labels.get(k, k)
+        if k == "L3_visual":
+            if s == "pass":
+                out.append(f"{name} ✅")
+            elif s == "fail":
+                out.append(f"{name} ❌")
+            else:
+                out.append(f"{name} ⏭ skip")
+        elif s == "0":
+            out.append(f"{name} ✅")
+        elif s == "1":
+            out.append(f"{name} ❌")
+        else:
+            out.append(f"{name} ⏭ 不可用")
+    return ", ".join(out)
+
+
 def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False,
                      sha: str = "") -> list:
     """E2E scripted front-load (2026-08-14, plan ②).
@@ -2397,7 +2440,15 @@ def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False,
             # → 死锁 (#516 实证: E2E failed + CI 假绿 = 永久卡 workflow/implement)。
             state["emitted_at"] = time.time()
         _write_e2e_state(pr, state)
-        lines.append(f"E2E: pr={pr} {verdict} (summary {summary})")
+        # 2026-08-19 (通知编码 bug #572 附带): 层状态由脚本渲染成可读文本,
+        # 直接进 tick 输出 — cron LLM 转发 Feishu 时复制即用, 不再自行解读
+        # summary 编码 (0=pass/1=fail/2=unavailable 被读反 → Feishu 谎报
+        # "L0/L1 skip, L2 pass" 的根因)。LLM 零解读空间。
+        layer_txt = _render_e2e_layers(summary)
+        lines.append(
+            f"E2E: pr={pr} {verdict} (summary {summary})"
+            + (f" — layers: {layer_txt}" if layer_txt else "")
+        )
         if verdict in ("done", "failed"):
             # 2026-08-19 (P2 骨架): SPAWN review 前预生成结论骨架 —
             # review agent 只填受控字段, 不自由写 JSON (#562 根治)。
