@@ -1322,6 +1322,9 @@ def reconcile_check_runs():
             "ts": time.time(),
             "branch": branch,
             "conclusion": conclusion,
+            # 2026-08-19 (#572 缺陷 A): sha 幂等键 — 与 webhook 路径一致,
+            # fresh_ci 靠它区分重放 (同 sha) 与真新 commit (不同 sha)。
+            "sha": sha,
         })
         existing_keys.add(key)
         state[str(pr_num)] = {"sha": sha, "conclusion": conclusion}
@@ -1500,7 +1503,10 @@ def preprocess():
                 # summary is harvested.
                 # 2026-08-17 (方案 X): fresh_ci=True — 这是 check_run.completed
                 # 事件路径, 新 CI 完成 = 新轮次 (重置状态, kill 旧 runner)。
-                e2e_lines = e2e_orchestrator(pr_num, branch, fresh_ci=True)
+                # 2026-08-19 (#572 缺陷 A): 事件带 sha — e2e_orchestrator 用
+                # 它区分"重放 (同 sha)"与"真新 commit (不同 sha)"。
+                e2e_lines = e2e_orchestrator(pr_num, branch, fresh_ci=True,
+                                             sha=event.get("sha", ""))
                 if e2e_lines:
                     output_lines.extend(e2e_lines)
                 # One-shot consumption (see self-correct SPAWN note above).
@@ -2275,7 +2281,8 @@ def _kill_runner(pid: int) -> None:
             pass
 
 
-def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False) -> list:
+def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False,
+                     sha: str = "") -> list:
     """E2E scripted front-load (2026-08-14, plan ②).
 
     Instead of spawning the review agent and letting IT run the E2E runner
@@ -2302,6 +2309,13 @@ def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False) -> list:
     This is the ONLY reset path: without it, done+emitted_at would silently
     swallow re-review of new commits.
 
+    2026-08-19 (#572 缺陷 A): sha 幂等 — GitHub webhook 投递失败会重试
+    (指数退避, 最多 8 次), 同一 check_run.completed 事件可能被投递两次。
+    fresh_ci + 同 sha + 上次已终态 → 这是重放, 跳过重置 (否则误 kill
+    已完成轮次、误启第二个 runner — #599 实证: E2E #2 启动即死, 状态卡
+    running)。真新 commit (sha 不同) 才重置。sha 为空 (旧事件/无 sha)
+    → 保持原行为 (重置), 不破坏向后兼容。
+
     Returns output lines for the tick.
     """
     lines = []
@@ -2311,7 +2325,14 @@ def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False) -> list:
     # 2026-08-17 (方案 X): fresh CI event → fresh round. Kill any runner
     # still alive from the previous round (concurrent worktrees = the #511
     # conflict source), reset state, fall through to the absent launch path.
+    # 2026-08-19 (#572 缺陷 A): 同 sha 重放 → 不重置, 走正常状态机
+    # (running+dead → 收割; done → one-shot 静默)。
     if fresh_ci:
+        prev_sha = state.get("sha", "")
+        if sha and prev_sha and sha == prev_sha \
+                and status in ("done", "failed", "reviewed"):
+            lines.append(f"E2E: pr={pr} duplicate check_run (same sha {sha[:8]}) — skip reset")
+            return lines
         old_pid = int(state.get("pid") or 0)
         if old_pid and _pid_alive(old_pid):
             _kill_runner(old_pid)
@@ -2470,6 +2491,9 @@ def e2e_orchestrator(pr: int, branch: str, fresh_ci: bool = False) -> list:
             "branch": branch,
             "summary": f"/tmp/e2e-{pr}/summary.json",
             "log": log_path,
+            # 2026-08-19 (#572 缺陷 A): 记录本次轮次的 commit sha —
+            # fresh_ci 重放检测靠它 (同 sha + 已终态 → 跳过重置)。
+            "sha": sha,
         })
         lines.append(f"E2E: pr={pr} started (pid {proc.pid}) — {branch} (log {log_path})")
     except Exception as e:

@@ -42,6 +42,12 @@ def build_event(event_type, issue_number, repo, payload, head_branch="", conclus
     if event_type == "check_run":
         event["branch"] = head_branch
         event["conclusion"] = conclusion
+        # 2026-08-19 (#572 缺陷 A): 携带 commit sha 作为幂等键。
+        # GitHub webhook 投递失败会指数退避重试 (最多 8 次) — 同一
+        # check_run.completed 事件可能被投递两次, 而 _key 只有
+        # (pr, conclusion) 无法区分。sha 让 e2e_orchestrator 识别重放,
+        # fresh_ci 不再误重置已完成的 E2E 轮次。
+        event["sha"] = payload.get("check_run", {}).get("head_sha", "")
 
     return event
 

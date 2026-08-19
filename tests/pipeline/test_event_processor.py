@@ -2163,6 +2163,73 @@ class TestE2EOrchestrator(unittest.TestCase):
             self.assertIsNone(state.get("emitted_at"),
                               "fresh round must clear the emitted_at marker")
 
+    def test_same_sha_fresh_ci_skips_reset(self):
+        """2026-08-19 (#572 缺陷 A): GitHub webhook 重试会投递两次同一
+        check_run.completed 事件 (指数退避, 最多 8 次)。第二次 fresh_ci 带
+        同 sha + 上次已终态 → 重放, 必须跳过重置 — 否则误 kill 已完成轮次
+        并启动第二个 runner (#599 实证: E2E #2 启动即死, 状态卡 running,
+        stalled scan 又被 P2 滞留事件饿死 → 全 pipeline 冻结)。"""
+        with tempfile.TemporaryDirectory() as td:
+            state_dir = os.path.join(td, "state")
+            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir), \
+                 mock.patch.object(ep, "E2E_RUNNER", "/fake/runner.sh"), \
+                 mock.patch("subprocess.Popen") as m_popen:
+                ep._write_e2e_state(475, {"status": "done",
+                                          "emitted_at": time.time() - 100,
+                                          "summary": "/tmp/e2e-475/summary.json",
+                                          "sha": "abc123def456"})
+                lines = ep.e2e_orchestrator(475, "impl/x", fresh_ci=True,
+                                            sha="abc123def456")
+                state = ep._read_e2e_state(475)
+            self.assertTrue(any("duplicate check_run" in l for l in lines),
+                            f"same-sha replay must be detected: {lines}")
+            self.assertEqual(state.get("status"), "done",
+                             "replay must NOT reset terminal state")
+            self.assertIsNotNone(state.get("emitted_at"),
+                                 "terminal state must be preserved")
+            m_popen.assert_not_called()
+            self.assertIsNone(state.get("pid"),
+                              "replay must not launch a second runner")
+
+    def test_new_sha_fresh_ci_still_restarts(self):
+        """2026-08-19 (#572 缺陷 A): 真新 commit (sha 不同) 的 fresh_ci
+        必须照常重置 — 这是方案 X 唯一的重审路径, sha 幂等不能破坏它。"""
+        with tempfile.TemporaryDirectory() as td:
+            state_dir = os.path.join(td, "state")
+            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir), \
+                 mock.patch.object(ep, "E2E_RUNNER", "/fake/runner.sh"), \
+                 mock.patch("subprocess.Popen", return_value=mock.Mock(pid=888)):
+                ep._write_e2e_state(475, {"status": "done",
+                                          "emitted_at": time.time() - 100,
+                                          "summary": "/tmp/e2e-475/summary.json",
+                                          "sha": "oldsha123456"})
+                lines = ep.e2e_orchestrator(475, "impl/x", fresh_ci=True,
+                                            sha="newsha999999")
+                state = ep._read_e2e_state(475)
+            self.assertTrue(any("E2E: pr=475 started" in l for l in lines),
+                            f"new sha must start a fresh round: {lines}")
+            self.assertEqual(state.get("status"), "running")
+            self.assertEqual(state.get("sha"), "newsha999999",
+                             "state must record the new round's sha")
+
+    def test_no_sha_fresh_ci_backward_compatible(self):
+        """2026-08-19 (#572 缺陷 A): sha 为空 (旧事件格式 / 测试直接调用)
+        → 保持原行为 (重置)。幂等检查只在 sha 存在时生效, 不破坏向后兼容。"""
+        with tempfile.TemporaryDirectory() as td:
+            state_dir = os.path.join(td, "state")
+            with mock.patch.object(ep, "E2E_STATE_DIR", state_dir), \
+                 mock.patch.object(ep, "E2E_RUNNER", "/fake/runner.sh"), \
+                 mock.patch("subprocess.Popen", return_value=mock.Mock(pid=999)):
+                ep._write_e2e_state(475, {"status": "done",
+                                          "emitted_at": time.time() - 100,
+                                          "summary": "/tmp/e2e-475/summary.json",
+                                          "sha": "abc123def456"})
+                lines = ep.e2e_orchestrator(475, "impl/x", fresh_ci=True)
+                state = ep._read_e2e_state(475)
+            self.assertTrue(any("E2E: pr=475 started" in l for l in lines),
+                            f"no-sha fresh_ci must keep legacy reset: {lines}")
+            self.assertEqual(state.get("status"), "running")
+
     def test_running_fresh_ci_kills_old_runner(self):
         """2026-08-17 (方案 X): fresh CI event while the previous round's
         runner is still alive must KILL it (two runners concurrently building
