@@ -1,0 +1,122 @@
+[gd_scene format=3 uid="uid://b7x9y2z4a1c8e2"]
+
+[ext_resource type="Script" path="res://gdscripts/snow_curtain.gd" id="1_snow"]
+[ext_resource type="Script" path="res://gdscripts/atmosphere_controller.gd" id="2_controller"]
+[ext_resource type="Shader" path="res://gdscripts/ink_wash.gdshader" id="3_ink_shader"]
+[ext_resource type="Shader" path="res://gdscripts/blood_vignette.gdshader" id="4_blood_shader"]
+[ext_resource type="Script" path="res://gdscripts/blood_vignette.gd" id="5_blood"]
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_far"]
+emission_shape = 3
+emission_box_extents = Vector3(900, 600, 0)
+gravity = Vector3(0, 60, 0)
+direction = Vector3(0, 1, 0)
+spread = 0.0
+initial_velocity_min = 20.0
+initial_velocity_max = 40.0
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_mid"]
+emission_shape = 3
+emission_box_extents = Vector3(900, 600, 0)
+gravity = Vector3(0, 60, 0)
+direction = Vector3(0, 1, 0)
+spread = 0.0
+initial_velocity_min = 20.0
+initial_velocity_max = 40.0
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_near"]
+emission_shape = 3
+emission_box_extents = Vector3(900, 600, 0)
+gravity = Vector3(0, 60, 0)
+direction = Vector3(0, 1, 0)
+spread = 0.0
+initial_velocity_min = 20.0
+initial_velocity_max = 40.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_ink"]
+shader = ExtResource("3_ink_shader")
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_blood"]
+shader = ExtResource("4_blood_shader")
+
+[node name="Atmosphere" type="Node2D"]
+script = ExtResource("2_controller")
+
+[node name="SnowCurtain" type="Node2D" parent="."]
+script = ExtResource("1_snow")
+
+[node name="LayerFar" type="CanvasLayer" parent="SnowCurtain"]
+layer = 3
+
+[node name="Parallax" type="Parallax2D" parent="SnowCurtain/LayerFar"]
+scroll_scale = Vector2(0.2, 0.2)
+
+[node name="Particles" type="GPUParticles2D" parent="SnowCurtain/LayerFar/Parallax"]
+process_material = SubResource("ParticleProcessMaterial_far")
+position = Vector2(640, 360)
+visibility_rect = Rect2(-900, -600, 1800, 1200)
+amount = 60
+emitting = true
+one_shot = false
+lifetime = 15.0
+
+[node name="LayerMid" type="CanvasLayer" parent="SnowCurtain"]
+layer = 4
+
+[node name="Parallax" type="Parallax2D" parent="SnowCurtain/LayerMid"]
+scroll_scale = Vector2(0.5, 0.5)
+
+[node name="Particles" type="GPUParticles2D" parent="SnowCurtain/LayerMid/Parallax"]
+process_material = SubResource("ParticleProcessMaterial_mid")
+position = Vector2(640, 360)
+visibility_rect = Rect2(-900, -600, 1800, 1200)
+amount = 60
+emitting = true
+one_shot = false
+lifetime = 12.0
+
+[node name="LayerNear" type="CanvasLayer" parent="SnowCurtain"]
+layer = 5
+
+[node name="Parallax" type="Parallax2D" parent="SnowCurtain/LayerNear"]
+scroll_scale = Vector2(1.0, 1.0)
+
+[node name="Particles" type="GPUParticles2D" parent="SnowCurtain/LayerNear/Parallax"]
+process_material = SubResource("ParticleProcessMaterial_near")
+position = Vector2(640, 360)
+visibility_rect = Rect2(-900, -600, 1800, 1200)
+amount = 80
+emitting = true
+one_shot = false
+lifetime = 8.0
+
+[node name="Moonlight" type="CanvasModulate" parent="."]
+color = Color(0.431, 0.463, 0.518, 1)
+
+[node name="InkWashLayer" type="CanvasLayer" parent="."]
+layer = 2
+
+[node name="InkWash" type="ColorRect" parent="InkWashLayer"]
+material = SubResource("ShaderMaterial_ink")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(1, 1, 1, 0)
+
+[node name="BloodVignette" type="CanvasLayer" parent="."]
+layer = 10
+script = ExtResource("5_blood")
+
+[node name="BloodRect" type="ColorRect" parent="BloodVignette"]
+material = SubResource("ShaderMaterial_blood")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+modulate = Color(1, 1, 1, 0)
+color = Color(1, 1, 1, 0)

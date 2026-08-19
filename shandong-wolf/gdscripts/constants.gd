@@ -49,3 +49,48 @@ const SWORD_DAMAGE_EXECUTE: float = 999.0    # # DRAFT（处决 = 架势崩解�
 const FRAME_ATTACK_WINDUP: int = 8           # # DRAFT
 const FRAME_ATTACK_RECOVERY: int = 14        # # DRAFT
 const FRAME_RHYTHM_BASE: int = 60            # # DRAFT（基准帧率参考）
+
+# ── 氛围参数（# DRAFT 候补值，定稿 = #582 E2E 用户裁决）──
+# ── 雪幕（# DRAFT 候补值，待 #582 用户裁决）──
+#   候补值: 远 60 / 中 60 / 近 80 = 200 粒子（AC1 中心值）；视差 0.2x/0.5x/1.0x；scale 近 1.5x 远 0.5x；飘落 20-40px/s；白色 α70-90%
+#   该值影响什么: 雪夜纵深与密度——三层视差营造空间，粒子密度决定氛围浓度；amount 只在 .tscn 静态声明，运行时禁改（rain_curtain 教训）
+#   情感断言: 苍白、清冷——雪是安静的背景呼吸，不是注意力主角
+const SNOW_PARTICLES_FAR: int = 60              # # DRAFT
+const SNOW_PARTICLES_MID: int = 60              # # DRAFT
+const SNOW_PARTICLES_NEAR: int = 80             # # DRAFT（合计 200）
+const SNOW_PARALLAX_FAR: float = 0.2            # # DRAFT
+const SNOW_PARALLAX_MID: float = 0.5            # # DRAFT
+const SNOW_PARALLAX_NEAR: float = 1.0           # # DRAFT
+const SNOW_SCALE_FAR: float = 0.5               # # DRAFT
+const SNOW_SCALE_NEAR: float = 1.5              # # DRAFT
+const SNOW_VELOCITY_MIN: float = 20.0           # # DRAFT（px/s 下界）
+const SNOW_VELOCITY_MAX: float = 40.0           # # DRAFT（px/s 上界）
+const SNOW_ALPHA_MIN: float = 0.7               # # DRAFT
+const SNOW_ALPHA_MAX: float = 0.9               # # DRAFT
+const SNOW_WIND_DEFAULT: float = 0.0            # # DRAFT（风向，Boss 战可加大）
+
+# ── 冷月光（# DRAFT 候补值，待 #582 用户裁决）──
+#   候补值: 目标色温 #b8c4d9（issue AC2 字面值）；CanvasModulate 无独立 brightness，「亮度 0.6」经色值换算 ≈ #6e7684（PRD §4.2 方案 B）
+#   该值影响什么: 全场景色温基调
+#   情感断言: 苍白、清冷——只狼苇名城雪夜 + 抗战黑白电影月光；禁止阳光明媚/星光点缀
+const MOONLIGHT_COLOR_TARGET: Color = Color("#b8c4d9")   # # DRAFT（AC2 字面色值）
+const MOONLIGHT_COLOR_APPLIED: Color = Color("#6e7684")  # # DRAFT（= TARGET × 0.6 换算）
+const MOONLIGHT_BRIGHTNESS: float = 0.6                  # # DRAFT（语义 = 色值换算系数）
+
+# ── 水墨晕染（# DRAFT 候补值，待 #582 用户裁决）──
+#   候补值: 边缘暗角 alpha ≤ 0.3（AC3 硬约束）；墨色 #1a1f26
+#   该值影响什么: 全屏水墨质感
+#   情感断言: 大地如墨——暗角是氛围不是遮挡，中央读图区必须通透
+const INK_EDGE_ALPHA_MAX: float = 0.3            # # DRAFT（硬上限）
+const INK_COLOR: Color = Color("#1a1f26")        # # DRAFT（墨色）
+const INK_INNER_RADIUS: float = 0.62             # # DRAFT
+const INK_SOFTNESS: float = 0.35                 # # DRAFT
+const INK_NOISE_AMOUNT: float = 0.06             # # DRAFT
+
+# ── 血色 vignette（# DRAFT 候补值，待 #582 用户裁决）──
+#   候补值: 低血触发 alpha 0→0.35（AC4 硬上限），0.5s 平滑渐变；CanvasLayer layer=10
+#   该值影响什么: 玩家低血时的生死压迫感——红色只在危险时出现
+#   情感断言: 刀刀见血不拖沓——血色是唯一允许打破冷色调的高饱和元素
+const BLOOD_VIGNETTE_ALPHA_MAX: float = 0.35     # # DRAFT（硬上限）
+const BLOOD_VIGNETTE_FADE_SECONDS: float = 0.5   # # DRAFT（Tween 时长）
+const BLOOD_VIGNETTE_LAYER: int = 10             # 机械常量（层级约定，定稿）
