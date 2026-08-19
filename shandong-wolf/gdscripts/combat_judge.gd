@@ -186,15 +186,20 @@ func _resolve_clash(attacker, defender, key: String, reversed_key: String) -> bo
 
 func _on_entity_state_changed(_from: String, to: String, entity) -> void:
 	## state_changed 订阅（.bind 追加 → Godot 实参顺序 from, to, entity）。
-	## to ∈ {attack, heavy_attack} → 自动构造 AttackWindow 登记（玩家；敌人 MVP 由 #581/测试登记）
+	## to ∈ {attack, heavy_attack} → 自动构造 AttackWindow 登记（玩家；敌人 #581 参数化接入）
 	if to != "attack" and to != "heavy_attack":
 		return
 	var w = AttackWindowScript.new()
 	w.attacker = entity
 	w.start_frame = _frame
 	w.active_frames = int(C.HITBOX_ACTIVE_FRAMES)
-	w.hp_damage = float(C.SWORD_DAMAGE_HEAVY if to == "heavy_attack" else C.SWORD_DAMAGE_LIGHT)
-	w.stance_damage = float(C.POSTURE_HIT_COST)
+	var is_enemy: bool = entity != null and entity.get("is_player") != null and not entity.is_player
+	w.hp_damage = float(entity.attack_hp_damage) if (entity != null and entity.attack_hp_damage >= 0.0) \
+		else float(C.SWORD_DAMAGE_HEAVY if to == "heavy_attack" else C.SWORD_DAMAGE_LIGHT)
+	w.stance_damage = float(entity.attack_stance_damage) if (entity != null and entity.attack_stance_damage >= 0.0) \
+		else float(C.POSTURE_HIT_COST)
+	if is_enemy:
+		w.windup_frames = int(C.ENEMY_ATTACK_WINDUP)   # 敌人前摇（AC1: 12 帧可弹反）
 	w.direction = entity.facing
 	register_attack_window(w)
 

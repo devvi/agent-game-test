@@ -438,9 +438,9 @@ d. 实体受击/崩解中（stagger/stance_break/attack 等非 idle/move 态）�
 
 | 集成 | 本组件 | 目标 Issue | 方式 | Status |
 |------|:---:|:---:|------|:---:|
-| 敌人攻击窗口登记 | EnemyAI → CombatEntity(attack 态) → CombatJudge 自动登记 | #577 | state_changed 信号（#577 既有，additive 参数化后敌人窗口生效） | ⬜ |
-| 弹反硬直抑制窗 | EnemyAI 订阅 judge.parry_success / player.state_changed→parry_success | #577/#581 | 信号订阅 → _parry_stun_until_sec | ⬜ |
-| 5% 回避触发 | EnemyAI 订阅 player.state_changed → attack/heavy_attack | #573/#581 | 信号订阅 + RNG 掷骰 | ⬜ |
+| 敌人攻击窗口登记 | EnemyAI → CombatEntity(attack 态) → CombatJudge 自动登记 | #577 | state_changed 信号（#577 既有，additive 参数化后敌人窗口生效） | ✅（#581 impl 接线：judge 登记读实体参数 + windup=12） |
+| 弹反硬直抑制窗 | EnemyAI 订阅 judge.parry_success / player.state_changed→parry_success | #577/#581 | 信号订阅 → _parry_stun_until_sec | ✅（#581 impl 接线：judge.parry_success → 0.5s 抑制窗） |
+| 5% 回避触发 | EnemyAI 订阅 player.state_changed → attack/heavy_attack | #573/#581 | 信号订阅 + RNG 掷骰 | ✅（#581 impl 接线：player.state_changed → RNG seed 注入掷骰） |
 | 打击反馈消费 | judge.hit_landed/parry_success/clash/block_held/stance_broken | #579 | 事件订阅（#577 已发射，本 issue 不实现） | ⬜（下游） |
 | 处决接管 | entity.stance_broken + stance_break 态 3s 窗口 | #580 | stance_broken 信号（#575 已发射） | ⬜（下游） |
 | 场景出生点/巡逻路径 | EnemyAI.waypoints @export | #583 | 场景配置数据 | ⬜（下游） |
