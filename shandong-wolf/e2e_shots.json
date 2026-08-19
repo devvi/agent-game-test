@@ -1,20 +1,64 @@
 {
-  "_comment": "shandong-wolf 占位 shot plan — 骨架期无玩法，首个 E2E plan Issue 落地时填充真实剧本",
+  "_comment": "shandong-wolf shot plan — merge of #574 stick-figure + #582 snow-night (self-correct #613 conflict resolution). main_scene = e2e_stick_figure_capture.tscn 已 instance Atmosphere 供 snow_night 截图；snow_night shot 用 at_frame（state={} 在统一 states 映射下永不 ready，deadline 失败）。",
   "game": "shandong-wolf",
   "default_archetype": "loop",
+  "main_scene": "res://scenes/e2e_stick_figure_capture.tscn",
   "max_wall_seconds": 120,
-  "state_node": "",
-  "state_property": "",
-  "states": {},
+  "state_node": "/root/CaptureRig",
+  "state_property": "current_state",
+  "states": {
+    "IDLE": 0,
+    "MOVE": 1,
+    "ATTACK_WINDUP": 2,
+    "ATTACK_BURST": 3,
+    "ATTACK_RECOVERY": 4,
+    "GUARD": 5,
+    "PARRY_SUCCESS": 6,
+    "STAGGER": 7,
+    "STANCE_BREAK": 8,
+    "EXECUTE": 9,
+    "REVIVE": 10,
+    "DEAD": 11
+  },
+  "theme_color": "c0c8d0",
+  "autoplay": {
+    "mode": "capture",
+    "tweaks": [
+      { "node": "/root/CaptureRig", "prop": "auto_cycle", "value": true },
+      { "node": "/root/CaptureRig", "prop": "auto_cycle_frames", "value": 30 }
+    ]
+  },
   "groups": {
+    "stick_figure": {
+      "_comment": "#574 火柴人剪影骨架与关键帧动画：12 态 shot（attack 三段独立 shot，settle_frames 匹配各自动画时长）。",
+      "match": [
+        "gdscripts/stick_figure.*\\.gd",
+        "gdscripts/sword_arc\\.gd",
+        "scenes/player_stick_figure.*\\.tscn"
+      ],
+      "shots": [
+        { "name": "01_idle", "state": "IDLE", "settle_frames": 6 },
+        { "name": "02_move", "state": "MOVE", "settle_frames": 6 },
+        { "name": "03_attack_windup", "state": "ATTACK_WINDUP", "settle_frames": 5 },
+        { "name": "04_attack_burst", "state": "ATTACK_BURST", "settle_frames": 1 },
+        { "name": "05_attack_recovery", "state": "ATTACK_RECOVERY", "settle_frames": 4 },
+        { "name": "06_guard", "state": "GUARD", "settle_frames": 6 },
+        { "name": "07_parry_success", "state": "PARRY_SUCCESS", "settle_frames": 6 },
+        { "name": "08_stagger", "state": "STAGGER", "settle_frames": 6 },
+        { "name": "09_stance_break", "state": "STANCE_BREAK", "settle_frames": 6 },
+        { "name": "10_execute", "state": "EXECUTE", "settle_frames": 2 },
+        { "name": "11_revive", "state": "REVIVE", "settle_frames": 6 },
+        { "name": "12_dead", "state": "DEAD", "settle_frames": 6 }
+      ]
+    },
     "snow_night": {
       "match": ["gdscripts/.*\\.gd", "scenes/.*\\.tscn"],
       "shots": [
         {
           "name": "01_snow_night_atmosphere",
-          "state": {},
+          "at_frame": 30,
           "settle_frames": 30,
-          "_comment": "#582 单帧氛围截图供用户 ≥70% 裁决，完整剧本归 #586"
+          "_comment": "#582 单帧氛围截图供用户 ≥70% 裁决，完整剧本归 #586；at_frame 保证框架 runner 下可 ready（原 state={} 在 #574 states 映射下永不 ready）"
         }
       ]
     }

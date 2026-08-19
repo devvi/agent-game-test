@@ -428,8 +428,8 @@ CI/本地: run-e2e-review.sh --with-visual
 | 数值定稿 | `FRAME_ANIM_*` # DRAFT 分区 | #584 | 候补值 → 用户定稿（替换值 + 去 # DRAFT 标记，走 #584 PR）；冲突值 10vs14 由 #584 裁决 | ⬜ pending |
 | 原画接入点 | `StickFigure.set_sprite_slot()` | 后续原画 | 换 Sprite2D 层，保留骨架结构（PRD §4.1） | ⬜ pending |
 | 单测挂载 | run_tests.gd | 本 issue | `_run("res://tests/test_stick_figure_animation.gd", ...)` | ✅ done |
-| E2E 截图 | capture 场景 + e2e_shots.json | 本 issue | --with-visual 跑 shot plan → docs/e2e-evidence/ → 用户裁决 | ⬜ pending |
-| 动画状态对象 | stick_figure_anim_states.gd | 本 issue | 最小调度驱动（#575 落地前可独立运行） | ⬜ pending |
+| E2E 截图 | capture 场景 + e2e_shots.json | 本 issue | --with-visual 跑 shot plan → docs/e2e-evidence/ → 用户裁决（场景/plan 已落地，截图由 CI 执行） | ✅ done |
+| 动画状态对象 | stick_figure_anim_states.gd | 本 issue | 最小调度驱动（#575 落地前可独立运行） | ✅ done |
 
 ---
 

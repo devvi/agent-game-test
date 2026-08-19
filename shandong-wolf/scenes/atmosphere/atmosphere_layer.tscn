@@ -60,6 +60,9 @@ emitting = true
 one_shot = false
 lifetime = 15.0
 
+[node name="Moonlight" type="CanvasModulate" parent="SnowCurtain/LayerFar"]
+color = Color(0.431, 0.463, 0.518, 1)
+
 [node name="LayerMid" type="CanvasLayer" parent="SnowCurtain"]
 layer = 4
 
@@ -75,6 +78,9 @@ emitting = true
 one_shot = false
 lifetime = 12.0
 
+[node name="Moonlight" type="CanvasModulate" parent="SnowCurtain/LayerMid"]
+color = Color(0.431, 0.463, 0.518, 1)
+
 [node name="LayerNear" type="CanvasLayer" parent="SnowCurtain"]
 layer = 5
 
@@ -89,6 +95,9 @@ amount = 80
 emitting = true
 one_shot = false
 lifetime = 8.0
+
+[node name="Moonlight" type="CanvasModulate" parent="SnowCurtain/LayerNear"]
+color = Color(0.431, 0.463, 0.518, 1)
 
 [node name="Moonlight" type="CanvasModulate" parent="."]
 color = Color(0.431, 0.463, 0.518, 1)
@@ -106,6 +115,9 @@ grow_vertical = 2
 mouse_filter = 2
 color = Color(1, 1, 1, 0)
 
+[node name="Moonlight" type="CanvasModulate" parent="InkWashLayer"]
+color = Color(0.431, 0.463, 0.518, 1)
+
 [node name="BloodVignette" type="CanvasLayer" parent="."]
 layer = 10
 script = ExtResource("5_blood")
@@ -120,3 +132,6 @@ grow_vertical = 2
 mouse_filter = 2
 modulate = Color(1, 1, 1, 0)
 color = Color(1, 1, 1, 0)
+
+[node name="Moonlight" type="CanvasModulate" parent="BloodVignette"]
+color = Color(0.431, 0.463, 0.518, 1)

@@ -65,4 +65,7 @@ text = "post-merge probe"
 theme_override_font_sizes/font_size = 16
 modulate = Color(1, 1, 1, 0.6)
 
+[node name="Moonlight" type="CanvasModulate" parent="CanvasLayer"]
+color = Color(0.431, 0.463, 0.518, 1)
+
 [node name="Atmosphere" parent="." instance=ExtResource("1_atmosphere")]

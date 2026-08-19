@@ -1,0 +1,17 @@
+[gd_scene format=3 uid="uid://d2c0p4r6a8w0m"]
+
+[ext_resource type="Script" path="res://gdscripts/e2e_stick_figure_capture.gd" id="1_rig"]
+[ext_resource type="PackedScene" path="res://scenes/player_stick_figure.tscn" id="2_player"]
+[ext_resource type="PackedScene" path="res://scenes/atmosphere/atmosphere_layer.tscn" id="3_atmosphere"]
+
+[node name="CaptureRig" type="Node2D"]
+script = ExtResource("1_rig")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+color = Color(0.1, 0.14, 0.18, 1)
+size = Vector2(1280, 720)
+
+[node name="Player" parent="." instance=ExtResource("2_player")]
+position = Vector2(640, 400)
+
+[node name="Atmosphere" parent="." instance=ExtResource("3_atmosphere")]
