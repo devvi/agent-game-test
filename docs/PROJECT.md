@@ -6,8 +6,8 @@
 |------|:----:|
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
-| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D)、失败屏(win/fail双分支+run数据+软冻结)、球速 HUD 实时显示 |
-| 最近构建 | 2026-08-14 |
+| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D)、失败屏(win/fail双分支+run数据+软冻结)、球速 HUD 实时显示；🟡 shandong-wolf（当前活跃游戏）: 场景骨架冒烟（标题/副标题/版本/探针 Label，零脚本） |
+| 最近构建 | 2026-08-19（shandong-wolf 探针 #570） |
 | 开放 Issues | 1 |
 
 ## 模块地图
@@ -25,6 +25,8 @@
 | Mini Pong — Upgrade Pick UI | `mini-pong/gdscripts/upgrade_pick_ui.gd` + `scenes/ui_upgrade_pick.tscn` | ✅ | GDD |
 | Mini Pong — Scoring | `mini-pong/gdscripts/scoring_manager.gd` | ✅ | GDD |
 | Mini Pong — GameManager | `mini-pong/gdscripts/game_manager.gd` | ✅ | GDD |
+| Shandong Wolf — Main Scene | `shandong-wolf/scenes/Main.tscn` | ✅ | GDD |
+| Shandong Wolf — Post-Merge Probe | `shandong-wolf/scenes/Main.tscn`（PostMergeProbeLabel） | ✅ | GDD |
 | Mini Pong — Arena | `mini-pong/scenes/Main.tscn` | ✅ | GDD |
 | Mini Pong — Constants | `mini-pong/gdscripts/constants.gd` | ✅ | GDD |
 | Mini Pong — ScoreFlash | `mini-pong/gdscripts/score_flash.gd` | ✅ | GDD |
@@ -72,6 +74,7 @@
 | 449 | Mini Pong 背景霓虹呼吸 (L0 背景光晕正弦呼吸, ColorRect + 纯函数公式, BG_PULSE 常量区) | ✅ 已合并 | DESIGN / GDD |
 | 465 | Mini Pong 雨幕粒子修复 (全屏均匀雨滴分布 — visibility_rect 剔除修复 + 全屏发射区 + 基值对齐) | ✅ 已合并 | DESIGN / GDD |
 
+| 567 | Shandong Wolf post-merge 探针 (Main.tscn 右下角 PostMergeProbeLabel, 驱动 post-merge 管线回归) | ✅ 已合并 | DESIGN / GDD |
 ## 已知问题
 
 7项预存测试失败已在 #353 (暂停) 和 #355 (UI字体) 中全部修复并合并。
