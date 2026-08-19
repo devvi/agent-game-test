@@ -96,6 +96,51 @@ shandong-wolf 骨架期（#559-#570）`gdscripts/` 为空，后续 #573-#578 的
 | `EXECUTE_RANGE` | 忍杀触发 = 近身 | [1.0, 1.2, 1.5] | `1.2` | 处决触发距离 |
 | `SLOWMO_COEFF` | 处决 hit-stop 慢动作 | [0.1, 0.2, 0.3] | `0.2` | 处决慢动作系数（消费方 #577 在 Engine.time_scale 应用，clamp 下限 0.1 防冻结） |
 
+### 3.3 动画帧节奏 / 骨骼几何配色 / 刀光弧线参数（#574 追加分区，全部 `# DRAFT` 候补值）
+
+#574（PR #612，已 merge 2026-08-19）在 §3.2 帧节奏分区内追加 `FRAME_ANIM_*` 动画帧节奏 7 常量 +
+`BODY_*`/`SWORD_*` 骨骼几何配色 9 常量，并新增独立「刀光弧线参数」分区 4 常量——全部 `# DRAFT`
+候补值（候补值+影响+情感断言三行注释），**定稿仍归 #584**。⚠️ 双值冲突：
+`FRAME_ANIM_ATTACK_RECOVERY=10` 与 `FRAME_ATTACK_RECOVERY=14` 并存互引，禁止实现期二选一偷定。
+
+**动画帧节奏**（《小小系列》式「起势慢→爆发快→收招滞」力度感，消费方 07-STICK-FIGURE-ANIMATION.md）
+
+| 常量 | 值 | 说明 |
+|------|----|------|
+| `FRAME_ANIM_ATTACK_WINDUP` | `8` | 攻击前摇（与 FRAME_ATTACK_WINDUP=8 对齐互引） |
+| `FRAME_ANIM_ATTACK_BURST` | `4` | 挥刀暴发（刀光在此段触发） |
+| `FRAME_ANIM_ATTACK_RECOVERY` | `10` | ⚠️ 与 FRAME_ATTACK_RECOVERY=14 冲突，双值共存互引 |
+| `FRAME_ANIM_TRANSITION_MAX` | `2` | AC1 过渡上限（2 帧 @60fps = 0.033s） |
+| `FRAME_ANIM_MOVE_STEP` | `4` | 步态摆臂循环 4 帧 |
+| `FRAME_ANIM_EXECUTE_TOTAL` | `5` | 处决上撩→斩落 5 帧 |
+| `FRAME_ANIM_SWORD_ARC_FADE` | `4` | 刀光存在/衰减帧数 |
+
+**骨骼几何与配色**（剪影可读性：角色总高 ≈150px @720p 画布，头:躯干:臂:腿 ≈ 1:2.5:1.9:2.2）
+
+| 常量 | 值 | 说明 |
+|------|----|------|
+| `BODY_COLOR` | `#2b2b2b` | issue body 指定墨色剪影 |
+| `SWORD_COLOR` | `#c0c8d0` | 冷白刀身，雪夜反差点 |
+| `BODY_HEAD_RADIUS` | `16.0` | 头圆半径 |
+| `BODY_TORSO_LENGTH` | `44.0` | 躯干长 |
+| `BODY_ARM_LENGTH` | `34.0` | 臂长 |
+| `BODY_LEG_LENGTH` | `40.0` | 腿长 |
+| `BODY_LIMB_WIDTH` | `6.0` | Line2D width |
+| `SWORD_LENGTH` | `88.0` | 长刀，视觉焦点 |
+| `SWORD_WIDTH` | `5.0` | 刀宽 |
+
+**刀光弧线参数**（挥砍轨迹可读性——张角过大刺眼、过小看不清轨迹）
+
+| 常量 | 值 | 说明 |
+|------|----|------|
+| `SWORD_ARC_SWEEP_DEG` | `120.0` | 张角（PRD 实验 2 预期最佳值） |
+| `SWORD_ARC_RADIUS` | `70.0` | 弧半径 |
+| `SWORD_ARC_RINGS` | `4` | 径向透明度衰减环数 |
+| `SWORD_ARC_ALPHA_START` | `0.6` | 起始 alpha |
+
+> 上述分区均可用 DebugCanvas 运行时 override（仅进程内生效），消费与调参链路见 05-DEBUG-CANVAS.md §4、
+> 动画消费契约见 07-STICK-FIGURE-ANIMATION.md。
+
 ## 4. # DRAFT 纪律与回归保护
 
 - 实现期删除 `# DRAFT` 标记或改值定稿 = `test_constants.gd` FAIL（E2 断言：文件含 ≥5 处 `# DRAFT`、不含「# 定稿」字样；#584 扩展为 14 参数存在性 + 三行注释格式 + 候选集断言）。
@@ -109,3 +154,4 @@ shandong-wolf 骨架期（#559-#570）`gdscripts/` 为空，后续 #573-#578 的
 |-------|------|------|
 | #572 | 逻辑地基（本文件所属，5 分区骨架） | 已合并（#599） |
 | #584 | 数值 DRAFT 集中表（只狼基准 14 参数 + 三行注释 + 新增分区） | 草稿已合并（#609），待用户定稿 |
+| #574 | 动画帧节奏/骨骼几何/刀光弧线参数 # DRAFT 分区追加（7+9+4 常量，双值冲突 10vs14） | 已合并（#612） |
