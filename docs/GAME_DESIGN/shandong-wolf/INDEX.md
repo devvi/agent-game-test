@@ -18,3 +18,4 @@
 | [08-COMBAT-ENTITY](08-COMBAT-ENTITY.md) | CombatEntity 战斗实体基类 — 两段血 hp_1/hp_2 + stance/facing 数据容器 + request_transition 唯一转移入口 + 6 信号契约 + _StateInputBridge 输入桥 + 玩家/敌人变体参数（#575/#618） |
 | [09-COMBAT-STATE-MACHINE](09-COMBAT-STATE-MACHINE.md) | 11 态战斗状态机 — CANONICAL_STATES 权威集 + TRANSITIONS 转移表 + CombatStateBase/11 状态对象 + 战斗时序 5 常量 + 数据流（#575/#618） |
 | [10-HUD-STANCE-BARS](10-HUD-STANCE-BARS.md) | 极简 HUD 层 — CanvasLayer layer=1 纯消费方：两段式血条/玩家与敌人架势条/击杀与处决提示 + low_health_changed 边沿信号 + 13 个 HUD # DRAFT 常量 + 4 帧 E2E 截图剧本（#576/#627） |
+| [11-PARRY-CLASH-STANCE-BREAK](11-PARRY-CLASH-STANCE-BREAK.md) | 拼刀/弹反/架势崩解判定层 — CombatJudge 判定协调器（逻辑帧窗口裁决：弹反>拼刀>格挡>受击，CLASH_PRIORITY 常量驱动）+ AttackWindow 窗口契约 + 五结果事件（parry_success/block_held/hit_landed/clash/stance_broken）+ 6 判定 # DRAFT 常量（#577/#626） |
