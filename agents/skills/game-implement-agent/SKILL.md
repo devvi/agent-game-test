@@ -323,7 +323,7 @@ gh pr checks <PR_NUMBER> --watch
 
 **If CI fails:** fix the issues on the branch, `git push`, wait for CI rerun. Do NOT close the PR and create a new one.
 
-**If CI passes:** Your job is done. The `check_run.completed` event will trigger the review agent, which handles merge + GDD update.
+**If CI passes:** Your job is done. The `check_run.completed` event will trigger the review agent (verdict only — writes the conclusion file); merge is executed by the script layer (`review_followup`), and GDD updates by the post-merge agent (`SPAWN: post-merge`, 2026-08-19 onwards). Do NOT attempt merge or GDD yourself.
 
 ### 6. Notify
 

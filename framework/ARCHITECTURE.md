@@ -222,6 +222,31 @@ event-processor 每 tick: review_followup()
 
 即使 agent 只写出文件就超额度, 收尾也必然执行。手动补 label 从此不需要。
 
+### Post-Merge 阶段（2026-08-19: merge 事件绑定 GDD 更新, 方案 X 缺口修复）
+
+**背景（#562/#566 实测）**: 方案 X（2026-08-17）把 merge 从 review 会话移到脚本层后,
+review 会话在写结论文件即结束、merge 在下个 cron tick 才发生 → review skill 的
+post-merge GDD 步骤在会话内物理不可达 → **GDD 更新成无主责任**（#562 把 post-merge
+handoff 给父代理落空；#566 review 清单止于结论文件）。用户拍板：**GDD 走 docs/ PR，
+绝不直接 push main**。
+
+```
+review_followup approved→merged 成功
+  → _ensure_post_merge_state(pr, parent) 写 ~/.hermes/post-merge-state/<pr>.json (pending)
+  → 同 tick post_merge_emitter() 发射 SPAWN: post-merge,pr=N,issue=M（one-shot, emitted_at）
+  → cron LLM delegate game-post-merge-agent
+  → agent 在 worktree 写 docs/GAME_DESIGN/<GAME_DIR>/ + docs/PROJECT.md（白名单 add）
+  → 创建 docs/gdd-<N> 分支 + PR
+  → _quick_stalled_scan（docs/ 前缀分支, MERGEABLE）→ STALLED: merge-pr → 脚本层自动 merge
+  → agent 轮询 PR 至 MERGED → 状态文件 status=done
+```
+
+- **兜底**: workflow-watchdog `post-merge-stuck`（pending+emitted_at 超 45min → Feishu 告警）
+- **实测**: #567 全链路验证通过（research#568→plan#569→impl#570→merge→SPAWN→docs#571→
+  GDD 落盘→done→issue 自动关闭, 2026-08-19）
+- **竞态**: 两个 post-merge agent 并发写同一 GDD 文件 → docs PR CONFLICTING 不自动 merge
+  → post-merge-stuck 告警 → 人工介入（罕见, 章节按功能域分开）
+
 ### Dead-Spawn Recovery（2026-08-14）
 
 SPAWN 指令发出后若 cron LLM 执行时超时（`TimeoutError: idle >90s`, #476 实测）, gate 会锁死 1 小时。`_dead_spawn_recovery()`: gate 记录超过 TTL/2 且 issue 仍无 PR → 允许绕过 gate 重发（PR-exists 是真去重）。plan/implement 两阶段接入。
@@ -234,7 +259,7 @@ SPAWN 指令发出后若 cron LLM 执行时超时（`TimeoutError: idle >90s`, #
 
 check-unblock 不再用 godot 逻辑测试判断（视觉 block 时逻辑测试全绿会误解锁）——改为: 找 fix issue（`gh issue list "pre-existing"`）→ 未合并则 ⏳ 等待; 已合并 → 删 PR+parent 的 blocked → update-branch。
 
-**流水线自身测试（D3）:** `tests/pipeline/`（157 用例）覆盖 event-processor 纯函数 + e2e 断言/runner/resolve/manifest。CI job `pipeline-tests.yml` 在 `scripts/` 或 `.github/workflows/` 变更时强制运行。**改流水线代码必须先过这个套件。**
+**流水线自身测试（D3）:** `tests/pipeline/`（220 用例）覆盖 event-processor 纯函数 + e2e 断言/runner/resolve/manifest + post-merge 状态机/watchdog。CI job `pipeline-tests.yml` 在 `scripts/` 或 `.github/workflows/` 变更时强制运行。**改流水线代码必须先过这个套件。**
 
 ## Git 约定
 
@@ -242,7 +267,7 @@ check-unblock 不再用 godot 逻辑测试判断（视觉 block 时逻辑测试�
 - phase 分支前缀: `research/` `plan/` `impl/`（不是 implement/）
 - 每个 phase PR 必须从 `main` 分支，body 必须含 `Parent #N`（无冒号）或 `Closes #N`
 - 分支隔离: 绝不从其他 issue 的分支分支
-- 合并策略: research/plan 自动 merge；**impl/ 必须 review agent 批准后 merge**（implement agent 的 SKILL.md 不含任何 merge 指令）
+- 合并策略: research/plan 自动 merge；**impl/ 必须 review agent 批准后 merge**（implement agent 的 SKILL.md 不含任何 merge 指令）；**docs/ 分支 PR（post-merge agent 的 GDD 更新, 2026-08-19 起）由 stalled scan 自动 merge**
 
 ## 游戏项目结构
 
@@ -323,6 +348,7 @@ git commit -m "chore: switch active game → shandong-wolf"
 | `dev-pipeline-automation`（框架级）| 通用流水线模式参考（与 dispatcher 部分重叠）|
 | `godot-headless-testing` | **headless 测试唯一入口**（absorbed patterns+runner）|
 | `game-research/plan/implement/review-agent` | 各阶段 agent 技能 |
+| `game-post-merge-agent` | merge 后 GDD/PROJECT.md 更新（2026-08-19 起, docs/ PR） |
 | `game-to-issues` | Issue 分解（upstream）|
 | `workflow-lock-label-handling` | **已删除机制的史档**（历史参考）|
 | `dev-workflow-dispatcher-patches` | **已归档**（2026-07-31 全部应用）|

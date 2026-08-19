@@ -35,6 +35,21 @@ for skill in "${SKILLS[@]}"; do
   else
     echo "  ⚠️  $skill SKILL.md not found at $src (skip)"
   fi
+
+  # 2026-08-19: references/ 也同步 (gdd-orphan-post-merge-gap.md 等证据文档
+  # 入库版本控制, 不再只活在 hermes runtime)
+  src_refs="$HERMES_SKILLS/$skill/references"
+  dst_refs="$REPO_ROOT/agents/skills/$skill/references"
+  if [ -d "$src_refs" ]; then
+    mkdir -p "$dst_refs"
+    for f in "$src_refs"/*; do
+      [ -f "$f" ] || continue
+      if ! diff -q "$f" "$dst_refs/$(basename "$f")" 2>/dev/null; then
+        cp "$f" "$dst_refs/"
+        echo "  ✅ $skill/references/$(basename "$f") (updated)"
+      fi
+    done
+  fi
 done
 
 echo "Done. Run 'git add agents/skills/ && git commit && git push' to save."

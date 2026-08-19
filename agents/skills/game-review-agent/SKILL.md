@@ -1162,9 +1162,12 @@ PR_FILES=$(gh pr diff <N> --name-only)
 | Unauthorized CI changes | PR rewrites deploy.yml from Godot export to Vite build |
 | Unjustified deps | PR adds 1100-line package-lock.json for a scaffold |
 
-When two implement PRs merge close together, their GDD updates can conflict. Each review agent should read the current GDD before writing, not the version at the time their PR was created. Use `git pull origin <default-branch>` before editing GDD files.
+When two implement PRs merge close together, their GDD updates can conflict. Since 2026-08-19 the GDD update is handled by the **game-post-merge-agent** (not this session): it creates a `docs/gdd-<N>` branch from the latest `origin/main` in a worktree, so the stale-base race is largely gone. If a docs PR still ends up CONFLICTING, it won't auto-merge — the `post-merge-stuck` watchdog alert fires and a human resolves it.
 
 ### Post-Merge Working Tree
+
+> **2026-08-19 起本 skill 不再执行 post-merge**（归 game-post-merge-agent，见上）。
+> 以下 git 状态知识保留作诊断参考。
 
 After `gh pr merge --squash --delete-branch`, the local git state has:
 - Default branch checked out

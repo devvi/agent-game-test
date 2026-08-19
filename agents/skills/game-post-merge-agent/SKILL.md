@@ -22,6 +22,14 @@ post-merge GDD 步骤在会话内物理不可达 → GDD 更新成无主责任�
 **触发归脚本（确定性），写作归 LLM** —— 符合"LLM 只做判定，机械归脚本"铁律。
 完整证据链：`game-review-agent` skill 的 references/gdd-orphan-post-merge-gap.md。
 
+## 实测验证（2026-08-19 #567, 首次端到端 100% 通过）
+
+测试 issue #567 全链路零人工介入成功：impl #570 merge → SPAWN: post-merge
+(one-shot) → 本 agent 写 GDD → docs/gdd-570 PR #571 → stalled scan 自动 merge
+→ status=done → #567 自动 CLOSED。终态证据 + 过程中发现修复的 3 个跨阶段问题
+(P2 骨架误报 / 测试泄漏 / MANIFEST_PATH 硬编码) + 可复用的 no_agent 监控模式:
+**`references/post-merge-verification-567.md`**。
+
 ## ⛔ 核心红线：GDD 走 docs/ PR，绝不直接 push main（用户拍板 2026-08-19）
 
 - 更新写进 **`docs/gdd-<N>` 分支**（worktree 隔离）+ 创建 PR
@@ -105,7 +113,7 @@ for i in $(seq 1 20); do
   [ "$S" = "MERGED" ] && break
   sleep 30
 done
-# 无论结果, 更新状态文件:
+# 无论结果, 更新状态文件 (实测 #567: 记录 gdd_chapters 供审计):
 python3 - <<'PYEOF'
 import json, os
 p = os.path.expanduser("~/.hermes/post-merge-state/<N>.json")
@@ -113,6 +121,9 @@ if os.path.exists(p):
     d = json.load(open(p))
     d["status"] = "done"
     d["docs_pr"] = <DOCS_PR_NUM>
+    d["docs_pr_url"] = "https://github.com/<owner>/<repo>/pull/<DOCS_PR_NUM>"
+    d["gdd_chapters"] = ["docs/GAME_DESIGN/<GAME_DIR>/<NN-FILE>.md (说明)",
+                         "docs/GAME_DESIGN/<GAME_DIR>/INDEX.md (填充)"]
     d["finished_at"] = __import__("time").time()
     json.dump(d, open(p, "w"), indent=1)
 PYEOF

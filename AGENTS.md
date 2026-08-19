@@ -87,7 +87,7 @@ docs/GAME_DESIGN/
 ```
 
 - **初版：** 手动从代码提取一次写完
-- **增量更新：** Review agent 在每个 implement PR merge 后，读取 DESIGN doc 的架构决策/常量/数据流，写入对应 GDD 章节
+- **增量更新：** post-merge agent 在每个 implement PR merge 后（`SPAWN: post-merge`，2026-08-19 起，见上），读取 DESIGN doc 的架构决策/常量/数据流，写入对应 GDD 章节，走 `docs/gdd-<N>` PR 自动合并
 - **不写入 GDD 的：** 代码 diff、测试用例、实施阶段——留在 PRD/DESIGN 中
 - **约定文件：** `framework/templates/GDD_TEMPLATE.md`
 

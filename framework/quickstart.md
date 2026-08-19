@@ -34,7 +34,8 @@ scripts/run-e2e-review.sh <PR_NUM>       # worktree + L0-L3 + 截图 + 证据 co
 
 ```
 research agent → PRD → 自动合并 → plan agent → DESIGN → 自动合并
-→ implement agent → 代码 + 测试 → CI → review agent（本地 E2E + 截图）→ merge → issue 关闭
+→ implement agent → 代码 + 测试 → CI → review agent（本地 E2E + 截图 + 结论）
+→ 脚本层自动 merge → post-merge agent（GDD/PROJECT.md → docs/ PR → 自动合并）→ issue 关闭
 ```
 
 控制命令：

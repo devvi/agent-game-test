@@ -42,7 +42,7 @@ The `framework/` directory is reference material only. All runtime paths point t
 
 ### GDD Lifecycle
 
-Starting a new game project? The GDD (`docs/GAME_DESIGN/`) starts empty. Write a first draft manually from your code (the review agent can only update existing chapters, not create from scratch). After that, the review agent auto-updates it on every implement PR merge. See `framework/templates/GDD_TEMPLATE.md` for the convention.
+Starting a new game project? The GDD (`docs/GAME_DESIGN/`) starts empty. Write a first draft manually from your code (the post-merge agent can only update existing chapters, not create from scratch). After that, the post-merge agent auto-updates it on every implement PR merge (2026-08-19 onwards, `SPAWN: post-merge` → docs/ PR). See `framework/templates/GDD_TEMPLATE.md` for the convention.
 
 ## Why Three Layers?
 
@@ -145,7 +145,7 @@ Before spawning a phase agent from the cron poller, validate the event against a
    - Read the core files that govern the affected feature area (main state machine, collision, world, rendering, AI, etc.)
    - Look for obvious bugs: coordinate mismatches, undefined behavior, null references, logic inversions
    - Check recently merged PRs that may have introduced the bug (use `git log --oneline -10` on affected files)
-   - **Check for reverted features** — The bug may be caused by a feature that was implemented and then accidentally reverted by a later commit. Use `git log --all --oneline -- <affected-files>` and look for both an implementation commit AND a subsequent commit that modified the same code area. A common cause is the post-merge GDD update race: the review agent's docs-only commit branches from an older main and its squash merge overwrites the implement PR's code. **2026-07-14 trace:** Issue #163 — bounce food feature was added by PR #157 (commit `6ee7b57`) then reverted by GDD update commit `c7176a7` which was based on pre-feature main.
+   - **Check for reverted features** — The bug may be caused by a feature that was implemented and then accidentally reverted by a later commit. Use `git log --all --oneline -- <affected-files>` and look for both an implementation commit AND a subsequent commit that modified the same code area. A common cause is the post-merge GDD update race: the review agent's docs-only commit branches from an older main and its squash merge overwrites the implement PR's code. **2026-07-14 trace:** Issue #163 — bounce food feature was added by PR #157 (commit `6ee7b57`) then reverted by GDD update commit `c7176a7` which was based on pre-feature main. **形态已变（2026-08-19 起）：** GDD 更新不再由 review agent 直接 commit main，改走 post-merge agent 的 `docs/gdd-<N>` 分支 + PR（worktree 从最新 origin/main 建），竞态面大幅缩小；若仍复现 revert 症状，检查 docs PR 是否基于过期 main 合并。
    - **⚠️ Check if the bug is already fixed by another issue's PR.** Run `npx vitest run 2>&1 | tail -5` on main first — if all tests pass with 0 failures, the bug may be stale. Check `git log --oneline -15` for recent fix commits matching the issue symptoms (same test names, same error messages, same referenced issue numbers). If a matching fix commit is on main, close the issue as resolved instead of spawning a research agent. See `references/stale-bug-issue-detection.md` for the full protocol and clean-up procedure.
    - Document the suspected root cause in the delegate_task `context` field
    - **This saves the research agent 5-15 tool calls** by giving it a head start; the research agent still validates and expands on the findings
