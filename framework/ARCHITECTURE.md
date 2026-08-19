@@ -305,6 +305,7 @@ git commit -m "chore: switch active game → shandong-wolf"
 
 ## 已知限制
 
+- **API 超时吞 SPAWN（R1，2026-08-19）**: cron LLM API 超时（>300s idle）→ 会话强杀 → SPAWN 收到未执行 → 管线静默卡死需人工删 gate。**专项队列见 `docs/WORKFLOW-ROADMAP.md` R1（待设计）**
 - Godot headless 不支持所有渲染功能
 - 需要手动配置 export preset
 - OpenCode 生成 GDScript 质量取决于模型能力
