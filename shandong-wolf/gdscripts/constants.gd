@@ -234,3 +234,71 @@ const REVIVE_SECONDS: float = 1.0            # # DRAFT
 #   该值影响什么: 复活后无敌时长
 #   情感断言: 硬汉的第二次机会，不是耍赖
 const INVINCIBLE_SECONDS: float = 1.0        # # DRAFT
+
+# ── HUD (#576) ──
+# HUD_LOW_HP_RATIO
+#   候补值: [0.25, 0.30, 0.35]（默认 0.30）
+#   该值影响什么: 低血 vignette 触发阈值（活性条占比，严格小于 + 0.001 容差）
+#   情感断言: 命悬一线才见血色——过早是焦虑，过晚是欺骗
+const HUD_LOW_HP_RATIO: float = 0.30           # # DRAFT
+# HUD_KILL_HINT_SECONDS
+#   候补值: [1.0, 1.5, 2.0]（默认 1.5）
+#   该值影响什么: 击杀提示停留时长（含淡出）
+#   情感断言: 足够读完，不留恋
+const HUD_KILL_HINT_SECONDS: float = 1.5       # # DRAFT
+# HUD_PLAYER_MARGIN
+#   候补值: Vector2(16, 16)
+#   该值影响什么: 玩家区块左上角边距
+#   情感断言: 贴边不贴屏（细线呼吸感）
+const HUD_PLAYER_MARGIN: Vector2 = Vector2(16, 16)  # # DRAFT
+# HUD_STANCE_GAP
+#   候补值: 6.0
+#   该值影响什么: 血条与玩家架势条间距
+#   情感断言: 同组相关，不粘连
+const HUD_STANCE_GAP: float = 6.0             # # DRAFT
+# HUD_BAR_WIDTH
+#   候补值: 240.0
+#   该值影响什么: 血条/玩家架势条宽度
+#   情感断言: 一条线的克制
+const HUD_BAR_WIDTH: float = 240.0            # # DRAFT
+# HUD_BAR_HEIGHT
+#   候补值: 10.0
+#   该值影响什么: 血条高
+#   情感断言: 细线不抢戏
+const HUD_BAR_HEIGHT: float = 10.0            # # DRAFT
+# HUD_STANCE_HEIGHT
+#   候补值: 6.0
+#   该值影响什么: 架势条高（玩家/敌人）
+#   情感断言: 比血条更细 = 次级信息
+const HUD_STANCE_HEIGHT: float = 6.0          # # DRAFT
+# HUD_ENEMY_BAR_WIDTH
+#   候补值: 240.0
+#   该值影响什么: 敌人架势条宽
+#   情感断言: 顶部中央细条（只狼首领条语义）
+const HUD_ENEMY_BAR_WIDTH: float = 240.0      # # DRAFT
+# HUD_ENEMY_BAR_TOP
+#   候补值: 12.0
+#   该值影响什么: 敌人架势条顶边距
+#   情感断言: 贴顶不悬浮
+const HUD_ENEMY_BAR_TOP: float = 12.0         # # DRAFT
+# HUD_MOON_WHITE
+#   候补值: Color("#e8e6e3")
+#   该值影响什么: 常态描边/活性段填充
+#   情感断言: 苍白月白（issue body 指定）
+const HUD_MOON_WHITE: Color = Color("#e8e6e3") # # DRAFT
+# HUD_INK_BLACK
+#   候补值: Color("#141414")
+#   该值影响什么: 背景/非活性段填充
+#   情感断言: 墨黑（issue body 指定）
+const HUD_INK_BLACK: Color = Color("#141414")  # # DRAFT
+# HUD_BLOOD_RED
+#   候补值: Color("#8c2f2f")
+#   该值影响什么: 低血点缀（活性段填充+描边）
+#   情感断言: 血色只在该出现时出现
+const HUD_BLOOD_RED: Color = Color("#8c2f2f")  # # DRAFT
+# HUD_HINT_FONT_SIZE
+#   候补值: 16
+#   该值影响什么: 提示文字字号
+#   情感断言: 克制的可读
+const HUD_HINT_FONT_SIZE: int = 16             # # DRAFT
+# > 处决提示窗口不新增常量——复用 STANCE_BREAK_RECOVERY_SEC=3.0（#584 只读，PRD §4.4 字面）。
