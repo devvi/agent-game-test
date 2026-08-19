@@ -1035,6 +1035,50 @@ def _write_spawn_state(state: dict) -> None:
         pass  # state file is best-effort; never block spawning on write failure
 
 
+# ── Stage → issue lifecycle label (2026-08-19: 恢复脚本化推进) ────────────
+# 历史: ebc0897 (08-14) 加 _advance_issue_label — kanban task 创建时确定性
+# 推进 label (available → research → plan → implement), 用户靠 label 管理
+# issue 生命周期。c5f8d03 (08-15) kanban 重构失败回滚时丢失, 标注"后续增量
+# 重做"却未做 → 回到依赖 cron LLM 自觉推进 (SPAWN label= 字段), v4-flash
+# 实测不执行 → #559/#572 停在 workflow/available (#572 实测, 2026-08-19)。
+# 修复: SPAWN 发出时 (spawn gate 通过后) 由脚本层确定性推进, 不依赖 LLM。
+# 安全: label 写失败 best-effort 吞掉, 绝不阻塞 SPAWN 发出 (workflow 红线)。
+# 与 workflow-chain.yml 不冲突: chain 在 PR merge 时推进 (research→plan→
+# implement→done), 本函数在 SPAWN 时推进 (available→research 等), 时刻不同。
+_STAGE_LABEL = {
+    "research": "workflow/research",
+    "plan": "workflow/plan",
+    "implement": "workflow/implement",
+    # self-correct/review/conflict: None — 不推进 (同 ebc0897 原实现)
+}
+
+_STAGE_LABEL_PREV = {
+    "research": "workflow/available",
+    "plan": "workflow/research",
+    "implement": "workflow/plan",
+}
+
+
+def _advance_issue_label(stage: str, issue: int) -> None:
+    """Advance the issue's workflow lifecycle label at SPAWN time.
+
+    Deterministic: adds the stage label, removes the previous stage label.
+    Best-effort: any gh failure is swallowed — SPAWN emission proceeds
+    regardless (never block the workflow on a label write).
+    """
+    add = _STAGE_LABEL.get(stage)
+    if not add:
+        return
+    try:
+        gh("issue", "edit", str(issue), "--add-label", add)
+        prev = _STAGE_LABEL_PREV.get(stage)
+        if prev:
+            gh("issue", "edit", str(issue), "--remove-label", prev)
+        _invalidate_issues_cache_for(issue)
+    except Exception:
+        pass  # label advance is best-effort; spawn proceeds
+
+
 def _spawn_gate(issue: int, stage: str) -> bool:
     """Return True if issue+stage may emit SPAWN now (dedup within TTL).
 
@@ -1122,6 +1166,7 @@ def pick_next_issue() -> list:
             # relying on the webhook echo round-trip. The shared gate dedups
             # against the webhook/reconcile label path.
             if _spawn_gate(n, "research") or _dead_spawn_recovery(n, "research"):
+                _advance_issue_label("research", n)
                 spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research,game={ACTIVE_GAME}")
                 _devlog("spawn", issue=n, stage="research", source="backlog-promotion")
     
@@ -1137,6 +1182,7 @@ def pick_next_issue() -> list:
                           "--jq", "length")
             if existing is None or int(existing) == 0:
                 if _spawn_gate(n, "plan") or _dead_spawn_recovery(n, "plan"):
+                    _advance_issue_label("plan", n)
                     spawn_lines.append(f"SPAWN: plan,issue={n},label=workflow/plan,game={ACTIVE_GAME}")
                     _devlog("spawn", issue=n, stage="plan", source="picker")
         elif "workflow/implement" in labels:
@@ -1158,6 +1204,7 @@ def pick_next_issue() -> list:
                         _devlog("blocked", issue=n, stage="implement", reason="opencode-down", level="warn")
                         spawn_lines.append(f"BLOCKED: implement,issue={n},reason=opencode-down — workflow auto-paused, fix OpenCode Serve and `/workflow resume`")
                     else:
+                        _advance_issue_label("implement", n)
                         spawn_lines.append(f"SPAWN: implement,issue={n},label=workflow/implement,game={ACTIVE_GAME}")
                         _devlog("spawn", issue=n, stage="implement", source="picker")
         elif "workflow/available" in labels:
@@ -1176,6 +1223,7 @@ def pick_next_issue() -> list:
             if not _pr_exists_for_issue("research", n):
                 if (_spawn_gate(n, "research")
                         or _dead_spawn_recovery(n, "research")):
+                    _advance_issue_label("research", n)
                     spawn_lines.append(f"SPAWN: research,issue={n},label=workflow/research,game={ACTIVE_GAME}")
                     _devlog("spawn", issue=n, stage="research", source="available-rescan")
 

@@ -527,6 +527,76 @@ class TestPreprocess(unittest.TestCase):
         self.assertEqual(len(spawns2), 0,
                          f"second rescan within TTL must NOT re-spawn: {spawns2}")
 
+    def test_spawn_advances_issue_label_research(self):
+        """SPAWN 发出时必须确定性推进 issue lifecycle label
+        (available → research)。
+
+        Regression 2026-08-19: c5f8d03 (08-15) 回滚丢失 _advance_issue_label
+        后, #559/#572 停在 workflow/available (#572 实测) — 用户靠 label 管理
+        issue 生命周期, research 阶段在 label 上不可见。脚本层在 SPAWN 时
+        推进, 不依赖 cron LLM 自觉 (v4-flash 实测不执行)。
+        """
+        issue = {"number": 400, "labels": [{"name": "workflow/available"}]}
+        label_calls = []
+
+        def fake_run(cmd, *a, **kw):
+            joined = " ".join(str(c) for c in cmd)
+            if "head:research/" in joined or "head:plan/" in joined \
+                    or "head:impl/" in joined:
+                return mock.Mock(stdout="0", returncode=0)
+            if "issue" in joined and "edit" in joined:
+                label_calls.append(joined)
+            return mock.Mock(stdout="", returncode=0)
+
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "is_paused", return_value=False), \
+             mock.patch.object(ep, "current_workflow_count", return_value=9), \
+             mock.patch.object(ep, "_pick_candidates", return_value=[]), \
+             mock.patch.object(ep, "_ensure_issues_cache",
+                               return_value=[issue]), \
+             mock.patch("subprocess.run", fake_run):
+            out = ep.pick_next_issue()
+        self.assertTrue(any("SPAWN: research,issue=400" in l for l in out),
+                        f"must emit research SPAWN: {out}")
+        adds = [c for c in label_calls if "--add-label" in c]
+        self.assertTrue(any("workflow/research" in c for c in adds),
+                        f"must add workflow/research: {label_calls}")
+        rems = [c for c in label_calls if "--remove-label" in c]
+        self.assertTrue(any("workflow/available" in c for c in rems),
+                        f"must remove workflow/available: {label_calls}")
+
+    def test_spawn_label_advance_failure_does_not_block_spawn(self):
+        """label 推进失败 (gh 报错) 时 SPAWN 必须照常发出。
+
+        红线 (用户 2026-08-19): 修改绝不能影响 workflow 正常运行 —
+        label 写失败是 best-effort, 绝不阻塞 SPAWN 发出。
+        """
+        issue = {"number": 401, "labels": [{"name": "workflow/available"}]}
+
+        def fake_run(cmd, *a, **kw):
+            joined = " ".join(str(c) for c in cmd)
+            if "head:research/" in joined or "head:plan/" in joined \
+                    or "head:impl/" in joined:
+                return mock.Mock(stdout="0", returncode=0)
+            if "edit" in joined:  # gh issue edit 失败
+                return mock.Mock(stdout="", returncode=1)
+            return mock.Mock(stdout="", returncode=0)
+
+        with tempfile.TemporaryDirectory() as td, \
+             mock.patch.object(ep, "_SPAWN_STATE_FILE",
+                               os.path.join(td, "spawned.json")), \
+             mock.patch.object(ep, "is_paused", return_value=False), \
+             mock.patch.object(ep, "current_workflow_count", return_value=9), \
+             mock.patch.object(ep, "_pick_candidates", return_value=[]), \
+             mock.patch.object(ep, "_ensure_issues_cache",
+                               return_value=[issue]), \
+             mock.patch("subprocess.run", fake_run):
+            out = ep.pick_next_issue()
+        self.assertTrue(any("SPAWN: research,issue=401" in l for l in out),
+                        f"SPAWN must emit even when label advance fails: {out}")
+
     def test_active_phase_counts_db_running_not_labels(self):
         """active_phase must reflect ACTUAL running delegates, not labels.
 
