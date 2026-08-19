@@ -1,7 +1,7 @@
 # GAME DESIGN DOCUMENT — shandong-wolf（山东抗日之狼）
 
 > 本目录为《山东抗日之狼》的 GDD（分游戏目录，2026-08-19 起）。
-> 章节由 post-merge agent 在 implement PR merge 后按功能域填充（01-OVERVIEW → 09+），
+> 章节由 post-merge agent 在 implement PR merge 后按功能域填充（01-OVERVIEW → 10+），
 > 规则见 game-post-merge-agent skill + AGENTS.md「游戏设计文档（GDD）」。
 > 章节结构与 mini-pong（docs/GAME_DESIGN/ 根目录）一致：叙事体、层次编号、代码块放定义、表格放参数、段落讲意图。
 
@@ -17,3 +17,4 @@
 | [07-STICK-FIGURE-ANIMATION](07-STICK-FIGURE-ANIMATION.md) | 火柴人剪影骨架与关键帧动画 — Line2D 程序化骨架 7 pivot + 11 态→clip 镜像映射 + consume_state 契约 + 过渡 ≤2 帧 + additive 刀光 + E2E 截图像具（#574/#612） |
 | [08-COMBAT-ENTITY](08-COMBAT-ENTITY.md) | CombatEntity 战斗实体基类 — 两段血 hp_1/hp_2 + stance/facing 数据容器 + request_transition 唯一转移入口 + 6 信号契约 + _StateInputBridge 输入桥 + 玩家/敌人变体参数（#575/#618） |
 | [09-COMBAT-STATE-MACHINE](09-COMBAT-STATE-MACHINE.md) | 11 态战斗状态机 — CANONICAL_STATES 权威集 + TRANSITIONS 转移表 + CombatStateBase/11 状态对象 + 战斗时序 5 常量 + 数据流（#575/#618） |
+| [10-HUD-STANCE-BARS](10-HUD-STANCE-BARS.md) | 极简 HUD 层 — CanvasLayer layer=1 纯消费方：两段式血条/玩家与敌人架势条/击杀与处决提示 + low_health_changed 边沿信号 + 13 个 HUD # DRAFT 常量 + 4 帧 E2E 截图剧本（#576/#627） |
