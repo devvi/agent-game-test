@@ -1438,8 +1438,15 @@ class TestReviewFollowup(unittest.TestCase):
         self._concl_patch = mock.patch.object(
             ep, "REVIEW_CONCLUSIONS_DIR", os.path.join(self._td.name, "concl"))
         self._concl_patch.start()
+        # 2026-08-19 (post-merge 阶段): approved→merged 会写 post-merge 状态 —
+        # 必须隔离, 否则测试泄漏假状态到真实 ~/.hermes/post-merge-state/
+        # (实测: test_approved_verdict_merges 泄漏 475.json, #562 泄漏 562.json)
+        self._pm_patch = mock.patch.object(
+            ep, "POST_MERGE_STATE_DIR", os.path.join(self._td.name, "post-merge-state"))
+        self._pm_patch.start()
 
     def tearDown(self):
+        self._pm_patch.stop()
         self._concl_patch.stop()
         self._e2e_patch.stop()
         self._td.cleanup()
