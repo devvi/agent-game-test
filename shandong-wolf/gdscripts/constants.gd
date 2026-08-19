@@ -11,46 +11,88 @@ const SCREEN_WIDTH: int = 1280               # project.godot viewport_width（AC
 const SCREEN_HEIGHT: int = 720               # project.godot viewport_height（AC1）
 const STATE_MACHINE_MAX_TRANSITIONS: int = 1 # 状态机单次 update 允许的最大 transition 数（防重入，§2.2）
 
-# ── 弹反窗口（# DRAFT 候补值，待 #584 定稿）──
-#   候补值: 12 帧 @60fps = 0.2s（只狼系参考: 弹反判定极短，成功即架势重创）
-#   该值影响什么: 弹反判定时间窗——越短越硬核，越长越宽容；帧节奏候补值联动（§帧节奏）
-#   情感断言: 生死一瞬的"叮"——成功弹反是最高潮时刻，窗口必须短到值得炫耀
+# ── 弹反窗口（# DRAFT 候补值，待 #584 用户定稿）──
+# PARRY_WINDOW_FRAMES
+#   只狼基准: ~12 帧（0.2s @60fps，偏宽松=容错手感来源）
+#   候选集: [8, 10, 12, 14]（默认 12 = 只狼基准；8/14 为容错两极备选）
+#   偏离理由: 无——只狼基准直接采纳
 const PARRY_WINDOW_FRAMES: int = 12          # # DRAFT
-const PARRY_WINDOW_SECONDS: float = 0.2      # # DRAFT（= FRAME_RHYTHM 的派生展示，不重复定义来源）
+const PARRY_WINDOW_SECONDS: float = 0.2      # # DRAFT（派生展示 = FRAME_RHYTHM_BASE 换算，不重复定义来源）
 
-# ── 架势回复（# DRAFT 候补值，待 #584 定稿）──
-#   候补值: 0.8 架势/秒 自然回复；格挡消耗 10；弹反成功不消耗反而崩解敌方
-#   该值影响什么: 架势（士气）条 = 格挡/弹反资源；崩解 → 处决（brief 核心机制 #5）
-#   情感断言: 攻防节奏的呼吸感——防守方靠回复喘息，进攻方靠持续压制崩解
-const POSTURE_RECOVERY_PER_SEC: float = 0.8  # # DRAFT
+# ── 架势回复（# DRAFT 候补值，待 #584 用户定稿）──
+# POSTURE_RECOVERY_PER_SEC
+#   只狼基准: 20-35/s（脱战/停防 1.5s 延迟后快速回复；回复太快=无脑弹反，太慢=龟缩——节奏阀）
+#   候选集: [20, 25, 30, 35]（默认 25 = 区间中位；宽容 35 / 严苛 20）
+#   偏离理由: 无——只狼基准区间直接采纳
+const POSTURE_RECOVERY_PER_SEC: float = 25.0 # # DRAFT
+# POSTURE_RECOVERY_DELAY
+#   只狼基准: 脱战 1.5s 延迟后开始回复（原地喘息=只狼的停防）
+#   候选集: [1.0, 1.5, 2.0]（默认 1.5 = 只狼基准）
+#   偏离理由: 无
+const POSTURE_RECOVERY_DELAY: float = 1.5    # # DRAFT
+# POSTURE_BLOCK_COST
+#   只狼基准: 中（8-12/次，长按格挡的代价）
+#   候选集: [8, 10, 12]（默认 10 = 区间中位）
+#   偏离理由: 无
 const POSTURE_BLOCK_COST: float = 10.0       # # DRAFT
-const POSTURE_BREAK_THRESHOLD: float = 100.0 # # DRAFT（满则崩解）
+# POSTURE_BREAK_THRESHOLD
+#   只狼基准: = 当前 HP 上限（满则架势崩解 → 可处决；血越多越扛架势——只狼铁律）
+#   候选集: [100, 150]（派生=恒等于 LIFE_1_MAX，此处为 LIFE_1_MAX 候选映射）
+#   偏离理由: 无（联动规则见 DESIGN §2.1）
+const POSTURE_BREAK_THRESHOLD: float = 100.0 # # DRAFT
 
-# ── 两条命数值（# DRAFT 候补值，待 #584 定稿）──
-#   候补值: 第 1 条满血 100；归零 → 原地复活（第 2 条半管血 50）
-#   该值影响什么: 只狼式两条命（brief 核心机制 #4）——第 1 条是容错，第 2 条是决心
-#   情感断言: 复活仪式感 + 半管血的紧迫——第二次倒下就是真的输了
-const LIFE_TOTAL: int = 2                    # # DRAFT（两条命，机械语义可定稿）
+# ── 两条命数值（# DRAFT 候补值，待 #584 用户定稿）──
+# LIFE_TOTAL
+#   只狼基准: 回生机制（HP 归零 → 消耗回生机会原地复活；第 2 条 = 最后一搏）
+#   候选集: [2]（两条命结构，机械语义，骨架期定稿）
+#   偏离理由: 无
+const LIFE_TOTAL: int = 2                    # # DRAFT
+# LIFE_1_MAX
+#   只狼基准: 100%（20 格）——第一条命是容错，允许失误
+#   候选集: [100, 120]（基准 100；120 为高容错实验候选，面板 range 50-200 开放）
+#   偏离理由: 无（只狼基准 100 直接采纳）
 const LIFE_1_MAX: float = 100.0              # # DRAFT
-const LIFE_2_MAX_RATIO: float = 0.5          # # DRAFT（第 2 条 = 半管血）
+# LIFE_2_ABS
+#   只狼基准: 回生后约半血（40-60 绝对血量 = 命悬一线）
+#   候选集: [40, 50, 60]（默认 50 = 半血基准）
+#   偏离理由: 无（绝对血量替代 ratio 作为面板参数；LIFE_2_MAX_RATIO 保留为派生展示）
+const LIFE_2_ABS: float = 50.0               # # DRAFT
+# LIFE_2_MAX_RATIO
+#   只狼基准: 回生后约半血（ratio 语义，派生展示）
+#   候选集: [0.4, 0.5, 0.6]
+#   偏离理由: 派生展示 = LIFE_2_ABS / LIFE_1_MAX，消费方经 get_value 读派生值
+const LIFE_2_MAX_RATIO: float = 0.5          # # DRAFT
 
-# ── 刀伤害（# DRAFT 候补值，待 #584 定稿）──
-#   候补值: 轻击 10 / 重击 25；处决 999（无视架势直接击杀）
-#   该值影响什么: 击杀节奏（普通兵 3-4 刀 vs 精英 8-10 刀）；刀来自尸体（brief 剧情起点）
-#   情感断言: 刀刀见血不拖沓——每刀都有明确的"砍中了"反馈
-const SWORD_DAMAGE_LIGHT: float = 10.0       # # DRAFT
-const SWORD_DAMAGE_HEAVY: float = 25.0       # # DRAFT
-const SWORD_DAMAGE_EXECUTE: float = 999.0    # # DRAFT（处决 = 架势崩解后终结）
+# ── 刀伤害（# DRAFT 候补值，待 #584 用户定稿）──
+# SWORD_DAMAGE_LIGHT
+#   只狼基准: 轻击连段 10-15 架势伤害（处决导向，架势伤害为主）
+#   候选集: [10, 12, 15]（默认 12 = 区间中位）
+#   偏离理由: 无
+const SWORD_DAMAGE_LIGHT: float = 12.0       # # DRAFT
+# SWORD_DAMAGE_HEAVY
+#   只狼基准: 重击 25-40 架势伤害
+#   候选集: [25, 30, 40]（默认 30 = 区间中位）
+#   偏离理由: 无
+const SWORD_DAMAGE_HEAVY: float = 30.0       # # DRAFT
+# SWORD_DAMAGE_EXECUTE
+#   只狼基准: 忍杀 = 一击必杀（架势崩解或 HP 归零后处决，无视架势）
+#   候选集: [999.0]（机械语义：处决 = 无视架势终结，骨架期可定稿）
+#   偏离理由: 无（数值本身无手感意义，语义即值）
+const SWORD_DAMAGE_EXECUTE: float = 999.0    # # DRAFT
 
-# ── 帧节奏（# DRAFT 候补值，待 #584 定稿）──
-#   候补值: 攻击前摇 8 帧 / 攻击后摇 14 帧 / 弹反窗口 12 帧（与 PARRY_WINDOW 联动）
-#   该值影响什么: 攻防节奏的"帧感"（只狼系动作游戏的核心手感）；所有动画关键帧规划基准
-#   情感断言: 干脆利落——前摇可读、后摇可惩罚，拼刀节奏像呼吸
+# ── 帧节奏（# DRAFT 候补值，待 #584 用户定稿）──
+# FRAME_ATTACK_WINDUP
+#   只狼基准: 玩家攻击前摇可读、收招滞（轻击连段节奏）
+#   候选集: [6, 8, 10]（默认 8 = #572 占位延续，玩家侧手感）
+#   偏离理由: 无（玩家侧前摇偏短=操作响应优先）
 const FRAME_ATTACK_WINDUP: int = 8           # # DRAFT
+# FRAME_ATTACK_RECOVERY
+#   只狼基准: 攻击后摇可惩罚（后摇长 = 进攻有风险）
+#   候选集: [12, 14, 16]（默认 14 = #572 占位延续）
+#   偏离理由: 无
 const FRAME_ATTACK_RECOVERY: int = 14        # # DRAFT
 const FRAME_RHYTHM_BASE: int = 60            # # DRAFT（基准帧率参考）
 
-# ── 动画帧节奏与骨骼几何（# DRAFT 候补值，待 #584 定稿）──
 #   候补值: 攻击前摇 8 / 暴发 4 / 收招 10；过渡上限 2 帧；步态循环 4 帧；处决 5 帧；刀光衰减 4 帧；
 #           墨色剪影 #2b2b2b（issue body 指定）/ 冷白刀身 #c0c8d0（雪夜反差）；头:躯干:臂:腿 ≈ 1:2.5:1.9:2.2
 #   该值影响什么: 《小小系列》式「起势慢→爆发快→收招滞」的力度感全由这三段帧数承载；过渡上限是 AC1 硬约束
@@ -81,3 +123,30 @@ const SWORD_ARC_SWEEP_DEG: float = 120.0        # # DRAFT（实验 2 预期最�
 const SWORD_ARC_RADIUS: float = 70.0            # # DRAFT
 const SWORD_ARC_RINGS: int = 4                  # # DRAFT（径向透明度衰减环数）
 const SWORD_ARC_ALPHA_START: float = 0.6        # # DRAFT
+
+# ── 受击/敌人/处决（# DRAFT 候补值，待 #584 用户定稿，本分区为 #584 新增）──
+# POSTURE_HIT_COST
+#   只狼基准: 受击扣架势大（30-40/次）——血+架势双重惩罚，纯防御会崩架势，逼玩家进攻（只狼核心哲学）
+#   候选集: [30, 35, 40]（默认 35 = 区间中位；宽容 30 / 严苛 40）
+#   偏离理由: 无
+const POSTURE_HIT_COST: float = 35.0         # # DRAFT
+# PARRY_COST
+#   只狼基准: 弹反成功扣 0（精准格挡的奖励——成功不扣血不扣架势）
+#   候选集: [0, 1, 2]（默认 1 = 轻微消耗）
+#   偏离理由: 只狼为 0；本项目保留 0-2 微调通道——默认 1 防「无脑弹反」惩罚余地，用户实机裁决 0/1/2
+const PARRY_COST: float = 1.0                # # DRAFT
+# ENEMY_ATTACK_WINDUP
+#   只狼基准: 危攻击前摇 14-18 帧（刺刀突刺=可识破的危攻击）；普通攻击前摇可读
+#   候选集: [12, 15, 18]（默认 15 = 区间中位；12 = 快刀精英备选）
+#   偏离理由: 无（issue body 指定 12-18 帧，与只狼 14-18 基本重合，取宽 12 下限）
+const ENEMY_ATTACK_WINDUP: int = 15          # # DRAFT
+# EXECUTE_RANGE
+#   只狼基准: 忍杀触发 = 近身（架势崩解后玩家靠近即可处决）
+#   候选集: [1.0, 1.2, 1.5]（默认 1.2 = issue body 指定）
+#   偏离理由: 无
+const EXECUTE_RANGE: float = 1.2             # # DRAFT
+# SLOWMO_COEFF
+#   只狼基准: 处决演出 = hit-stop + 特写慢动作（情绪峰值制造）
+#   候选集: [0.1, 0.2, 0.3]（默认 0.2；0.1 = 最戏剧化，0.3 = 轻量演出）
+#   偏离理由: 无（消费方 #577 处决演出在 Engine.time_scale 应用，clamp 下限 0.1 防冻结）
+const SLOWMO_COEFF: float = 0.2              # # DRAFT
