@@ -1,0 +1,20 @@
+[gd_scene format=3 uid="uid://e2ehudcapt7r0q"]
+
+[ext_resource type="Script" path="res://gdscripts/e2e_hud_capture.gd" id="1_rig"]
+[ext_resource type="Script" path="res://gdscripts/hud.gd" id="2_hud"]
+[ext_resource type="Script" path="res://gdscripts/combat_entity.gd" id="3_enemy"]
+
+[node name="CaptureRig" type="Node2D"]
+script = ExtResource("1_rig")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+color = Color(0.1, 0.14, 0.18, 1)
+size = Vector2(1280, 720)
+
+[node name="Hud" type="CanvasLayer" parent="."]
+layer = 1
+script = ExtResource("2_hud")
+
+[node name="EnemyStub" type="Node2D" parent="."]
+position = Vector2(640, 300)
+script = ExtResource("3_enemy")
