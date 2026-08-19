@@ -304,7 +304,7 @@ godot --path shandong-wolf/ --headless --script tests/run_tests.gd     → _run(
 |-------------|:---:|:---:|-----|:---:|
 | constants 消费 | WolfConstants | #573/#575/#577/#578 | `const C = preload("res://gdscripts/constants.gd")` | ⬜ pending |
 | 状态机派生 | StateMachineBase | #575 | `class BattleStateMachine extends StateMachineBase` + 状态对象三接口 | ⬜ pending |
-| autoload 挂接 | Game | #573 | 输入控制器注册到 Game（autoload 段 Game 之后追加） | ⬜ pending |
+| autoload 挂接 | Game | #573 | 输入控制器注册到 Game（autoload 段 Game 之后追加） | ✅ done（#573 impl 已接线: [autoload] 追加 InputController） |
 | 数值定稿 | WolfConstants # DRAFT 分区 | #584 | 候补值 → 用户定稿（替换值 + 去 # DRAFT 标记，走 #584 PR） | ⬜ pending |
 | 单测挂载 | run_tests.gd | 本 issue | `_run("res://tests/test_state_machine.gd", ...)` + test_constants | ✅ done |
 
