@@ -6,8 +6,8 @@
 |------|:----:|
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
-| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D)、失败屏(win/fail双分支+run数据+软冻结)、球速 HUD 实时显示；🟡 shandong-wolf（当前活跃游戏）: 逻辑地基就绪（WolfConstants 数值集中地 + StateMachineBase 状态机基类 + Game autoload）+ 战斗数值 DRAFT 集中表（#584 只狼基准 14 参数候补值）+ DebugCanvas F1 调参面板（#609，仅 debug build）+ 输入层就绪（Input Map 9 动作 + InputController 意图事件/时间戳缓冲 + PlayerController 加速度移动，#611）+ 战斗实体与状态机就绪（CombatEntity 数据容器/两段血/输入桥 + 11 态战斗状态机 + 战斗时序 DRAFT 分区，#618）+ 火柴人剪影骨架与关键帧动画（Line2D 程序化骨架 7 pivot + 11 态关键帧 + consume_state 契约 + additive 刀光，#612）+ 血条与架势条极简 HUD（两段式血条/双架势条/击杀与处决提示，程序化绘制零贴图，草稿已合并待用户 E2E 截图定稿，#627） |
-| 最近构建 | 2026-08-19（shandong-wolf 血条与架势条极简 HUD #627） |
+| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D)、失败屏(win/fail双分支+run数据+软冻结)、球速 HUD 实时显示；🟡 shandong-wolf（当前活跃游戏）: 逻辑地基就绪（WolfConstants 数值集中地 + StateMachineBase 状态机基类 + Game autoload）+ 战斗数值 DRAFT 集中表（#584 只狼基准 14 参数候补值）+ DebugCanvas F1 调参面板（#609，仅 debug build）+ 输入层就绪（Input Map 9 动作 + InputController 意图事件/时间戳缓冲 + PlayerController 加速度移动，#611）+ 战斗实体与状态机就绪（CombatEntity 数据容器/两段血/输入桥 + 11 态战斗状态机 + 战斗时序 DRAFT 分区，#618）+ 火柴人剪影骨架与关键帧动画（Line2D 程序化骨架 7 pivot + 11 态关键帧 + consume_state 契约 + additive 刀光，#612）+ 血条与架势条极简 HUD（两段式血条/双架势条/击杀与处决提示，程序化绘制零贴图，草稿已合并待用户 E2E 截图定稿，#627）+ 拼刀/弹反/架势崩解判定层（CombatJudge 逻辑帧窗口判定 + AttackWindow 窗口契约 + 弹反/拼刀/格挡/受击五结果事件 + 6 判定常量 # DRAFT，#626） |
+| 最近构建 | 2026-08-19（shandong-wolf 拼刀/弹反/架势崩解判定系统 #626） |
 | 开放 Issues | 1 |
 
 ## 模块地图
@@ -44,6 +44,9 @@
 | Shandong Wolf — Hud 极简 HUD | `shandong-wolf/gdscripts/hud.gd`（CanvasLayer layer=1：两段式血条/玩家与敌人架势条/击杀与处决提示，纯信号驱动零轮询 + 内部类 _HudBar _draw 自绘 + low_health_changed 边沿信号） | ✅ | GDD |
 | Shandong Wolf — HUD E2E 截图 rig | `shandong-wolf/gdscripts/e2e_hud_capture.gd` + `scenes/e2e_hud_capture.tscn`（CaptureRig 模式 4 态，走 Hud 公有 debug API 零战斗场景依赖）+ `e2e_shots.json` hud group（4 shots） | ✅ | GDD |
 | Shandong Wolf — HUD 测试套件 | `shandong-wolf/tests/test_hud.gd`（T1-T28：布局锚点/两段结构/低血边沿/敌人条显隐/提示竞争/回生/静态断言/单例守卫/数值防御，run_tests.gd 第 8 套件） | ✅ | GDD |
+| Shandong Wolf — CombatJudge 判定器 | `shandong-wolf/gdscripts/combat_judge.gd`（Node 判定协调器：窗口登记 → 弹反/拼刀/格挡/受击裁决（CLASH_PRIORITY 常量）→ 实体接口调用 → 五结果事件 + 防重入） | ✅ | GDD |
+| Shandong Wolf — AttackWindow 窗口契约 | `shandong-wolf/gdscripts/combat_attack_window.gd`（RefCounted 纯数据：hit_frame/is_active 闭区间/is_expired，#581 敌AI 与玩家共用） | ✅ | GDD |
+| Shandong Wolf — CombatJudge 测试套件 | `shandong-wolf/tests/test_combat_judge.gd`（25 用例：弹反边界 5/拼刀+冲突矩阵 4/格挡受击 5/崩解+事件契约 5/边界失败路径 6，免树 headless tick_frame，95 断言） | ✅ | GDD |
 | Mini Pong — Arena | `mini-pong/scenes/Main.tscn` | ✅ | GDD |
 | Mini Pong — Constants | `mini-pong/gdscripts/constants.gd` | ✅ | GDD |
 | Mini Pong — ScoreFlash | `mini-pong/gdscripts/score_flash.gd` | ✅ | GDD |
@@ -98,6 +101,7 @@
 | 575 | Shandong Wolf 战斗实体基类与状态机 (CombatEntity 玩家/敌人变体 + 两段血 + 11 态战斗状态机 + 战斗时序 DRAFT 分区, AC1-AC5 全过) | ✅ 已合并 | DESIGN / GDD |
 | 574 | Shandong Wolf 火柴人剪影骨架与关键帧动画 (Line2D 程序化骨架 + 11 态 AnimationPlayer 关键帧 + consume_state 契约 + additive 刀光, 零美术资产 AC5) | ✅ 已合并 | DESIGN / GDD |
 | 576 | Shandong Wolf 血条与架势条极简 HUD (两段式血条 + 玩家/敌人架势条 + 击杀/处决提示 + 低血 vignette 信号源, 程序化绘制零贴图 AC4, 草稿已合并待用户 E2E 截图定稿) | 🧪 草稿已合并，待用户定稿 | DESIGN / GDD |
+| 577 | Shandong Wolf 拼刀/弹反/架势崩解判定系统 (CombatJudge 判定协调器 + AttackWindow 窗口契约 + 弹反/拼刀/格挡/受击五结果事件, 裁决顺序走 CLASH_PRIORITY 常量零字面量, AC1-AC5 全过) | ✅ 已合并 | DESIGN / GDD |
 ## 已知问题
 
 7项预存测试失败已在 #353 (暂停) 和 #355 (UI字体) 中全部修复并合并。
