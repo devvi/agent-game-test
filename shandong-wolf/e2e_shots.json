@@ -75,6 +75,18 @@
         { "name": "03_hud_execute_hint", "state": 2, "settle_frames": 10 },
         { "name": "04_hud_kill_hint", "state": 3, "settle_frames": 10 }
       ]
+    },
+    "battle_stage": {
+      "_comment": "#583 battle_stage 组供用户 AC5 裁决：地域感（无日本/西化元素）——全景/平台近景/月亮构图 3 shot。",
+      "main_scene": "res://scenes/e2e_battle_stage_capture.tscn",
+      "state_node": "/root/CaptureRig",
+      "state_property": "current_state",
+      "match": ["gdscripts/e2e_battle_stage_capture\\.gd", "scenes/battle_stage\\.tscn", "scenes/e2e_battle_stage_capture\\.tscn"],
+      "shots": [
+        { "name": "01_stage_panorama", "state": 0, "settle_frames": 30 },
+        { "name": "02_platform_closeup", "state": 1, "settle_frames": 15 },
+        { "name": "03_moon_composition", "state": 2, "settle_frames": 15 }
+      ]
     }
   }
 }
