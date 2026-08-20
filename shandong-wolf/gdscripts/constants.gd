@@ -557,3 +557,33 @@ const MOON_GLOW_RADIUS_RATIO: float = 2.2     # # DRAFT（光晕半径 = 主体 
 #   情感断言: 克制——4 件家具/物件是极限，多一件即噪杂（反例: 日式鸟居/西式城堡禁止）
 const HOUSE_RIDGE_HEIGHT_MAX: float = 120.0   # 机械常量（屋脊高度上限，低矮扁平）
 const OBJECT_BUDGET_MAX: int = 5              # 机械常量（物件 ≤5，issue 硬约束）
+
+# ── 反馈分区（# DRAFT 候补值，定稿 = #584 用户裁决；#579 消费方，禁止实现期定稿）──
+# FEEDBACK_SPARK_COUNT:  {S:14, A:18, B:6, C:8}          # 粒子数（issue 矩阵 A 16-20 取 18）
+const FEEDBACK_SPARK_COUNT: Dictionary = {"S": 14, "A": 18, "B": 6, "C": 8}
+# FEEDBACK_SPARK_COLOR:  Color("#ffd9a0")  # 苍白金（issue 禁橙色页游爆焰）
+const FEEDBACK_SPARK_COLOR: Color = Color("#ffd9a0")
+# FEEDBACK_HITSTOP_MS:   {S:150, A:90, A_:100, B:30, C:50, PH:60}   # 顿帧时长（≤100ms 不黏腻，S 例外）
+const FEEDBACK_HITSTOP_MS: Dictionary = {"S": 150, "A": 90, "A_": 100, "B": 30, "C": 50, "PH": 60}
+# FEEDBACK_SHAKE_PX:     {S:4.0, A:3.0, A_:3.0, B:1.0, C:2.0, PH:4.0}  # 屏震幅值（沿攻击方向）
+const FEEDBACK_SHAKE_PX: Dictionary = {"S": 4.0, "A": 3.0, "A_": 3.0, "B": 1.0, "C": 2.0, "PH": 4.0}
+# FEEDBACK_SLOWMO:       {S:{scale:0.05, ms:500}, A:{scale:0.3, ms:200}, A_:{scale:0.5, ms:300}}
+#                        # 慢动作仅 S/A/A- 级（issue: 滥用失去重量 = AC5）
+const FEEDBACK_SLOWMO: Dictionary = {
+    "S": {"scale": 0.05, "ms": 500},
+    "A": {"scale": 0.3,  "ms": 200},
+    "A_": {"scale": 0.5, "ms": 300},
+}
+# FEEDBACK_FLASH:        {A:{alpha:0.35, ms:120}, A_:{alpha:0.25, ms:100}}  # 实体闪/全屏淡闪
+const FEEDBACK_FLASH: Dictionary = {"A": {"alpha": 0.35, "ms": 120}, "A_": {"alpha": 0.25, "ms": 100}}
+# FEEDBACK_TIME_MAX_STACK: 3    # 时间栈深度上限（超限丢弃新 push 保旧恢复）
+const FEEDBACK_TIME_MAX_STACK: int = 3
+# FEEDBACK_SPARK_Z_INDEX: -1     # 火花层级 < 角色层（粒子不盖角色红线，单测断言）
+const FEEDBACK_SPARK_Z_INDEX: int = -1
+# FEEDBACK_SPARK_VELOCITY/LIFETIME: {S:{vel:260,lifetime:0.5}, A:{vel:240,lifetime:0.45}, B:{vel:140,lifetime:0.3}, C:{vel:170,lifetime:0.35}}  # # DRAFT 候补
+const FEEDBACK_SPARK_VELOCITY: Dictionary = {"S": 260.0, "A": 240.0, "B": 140.0, "C": 170.0}  # # DRAFT
+const FEEDBACK_SPARK_LIFETIME: Dictionary = {"S": 0.5, "A": 0.45, "B": 0.3, "C": 0.35}  # # DRAFT
+# FEEDBACK_SHAKE_DECAY: 3.0   # 屏震指数衰减系数（trauma -= trauma * decay * delta）
+const FEEDBACK_SHAKE_DECAY: float = 3.0  # # DRAFT
+# FEEDBACK_ENTITY_FLASH_FACTOR: 5.0  # 实体白闪 modulate 倍乘（深色火柴人也冲白）
+const FEEDBACK_ENTITY_FLASH_FACTOR: float = 5.0  # # DRAFT

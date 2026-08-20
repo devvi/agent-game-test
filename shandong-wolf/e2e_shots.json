@@ -87,6 +87,18 @@
         { "name": "02_platform_closeup", "state": 1, "settle_frames": 15 },
         { "name": "03_moon_composition", "state": 2, "settle_frames": 15 }
       ]
+    },
+    "feedback": {
+      "_comment": "#579 打击反馈三档截图供用户裁决（AC2/AC6）：注入 parry_success/stance_broken/execute，冻结效果帧模式捕获同帧四要素。",
+      "main_scene": "res://scenes/e2e_feedback_capture.tscn",
+      "state_node": "/root/CaptureRig",
+      "state_property": "current_state",
+      "match": ["gdscripts/reaction_controller\\.gd", "gdscripts/feedback_spark\\.gd", "gdscripts/time_scale_stack\\.gd", "gdscripts/screen_shake\\.gd", "gdscripts/flash_effect\\.gd", "gdscripts/e2e_feedback_capture\\.gd", "scenes/e2e_feedback_capture\\.tscn"],
+      "shots": [
+        { "name": "fb_parry_success", "state": 1, "settle_frames": 90, "theme_color": null },
+        { "name": "fb_stance_break", "state": 2, "settle_frames": 100, "theme_color": null },
+        { "name": "fb_execute", "state": 3, "settle_frames": 120, "theme_color": null }
+      ]
     }
   }
 }
