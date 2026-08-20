@@ -92,3 +92,40 @@ modulate = Color(1, 1, 1, 0.6)
 | #562 | Main.tscn 场景结构落地 + post-merge 机制（merge 事件绑定 GDD） | 已合并 |
 | #563 | 结论骨架回归（SubtitleLabel，静态 Label + 管线全链路回归） | 已合并 |
 | #567 | post-merge 阶段回归探针（PostMergeProbeLabel） | 已合并（#570） |
+| #652 | probe-C：api-close-reopen 探针（docs/probe-c.md marker，#658 已合并） | 已合并（#658） |
+
+## 5. 探针 C：api-close-reopen（#652/#658，2026-08-20）
+
+### 5.1 设计意图
+
+探针 C 是 GitHub API 语义实验（issue 正文「实验3: API close 后 reopen 是否
+re-close」，`content_ownership: mechanical`，无品味裁决空间），marker 文档
+`docs/probe-c.md`（单行文本「probe C: api close reopen test 1787223373」，
+时间戳为探针发射时刻）经完整 PR 流程（impl/652 分支 → PR #658 → squash
+merge）落地 main。与 #567 探针同族：驱动
+research→plan→implement→CI→E2E→review→merge→post-merge 管线二次回归，
+并验证「Closes #N」关键字 + API close/reopen 语义下 issue 终态收敛
+（#652 终态 CLOSED + status/done）。
+
+### 5.2 Marker 文档定义（docs/probe-c.md）
+
+```text
+probe C: api close reopen test 1787223373
+```
+
+### 5.3 参数
+
+| 属性 | 值 | 说明 |
+|------|-----|------|
+| 探针编号 | C（#650 A / #651 B / #652 C） | 系列第三枚，探针名 = issue 标题前缀 probe-C |
+| marker 文件 | docs/probe-c.md | 单行文本，1787223373 = 探针发射时间戳 |
+| 实验内容 | API close 后 reopen 是否 re-close | issue 正文「实验3」，终态 CLOSED + status/done |
+| 合并路径 | impl/652-api-close-reopen → PR #658 squash merge | 2026-08-20T12:50:30Z |
+
+### 5.4 设计决策
+
+- **方案 A（纯 marker 文档 PR）**：采纳。探针只测管线与 API 语义，不需要游戏
+  代码/场景改动，`docs/probe-c.md` 单行文本 diff 最小。
+- **post-merge 联动**：PR #658 merge 事件 → `_ensure_post_merge_state` →
+  SPAWN: post-merge（one-shot）→ 本 GDD 章节即由该流程写入 —— 与 #567 同款
+  闭环回归，2026-08-20 二次实证 post-merge 管线无回归。
