@@ -1,10 +1,12 @@
-# 雪夜氛围层 — 单 CanvasModulate 冷月光契约（#582/#624）
+# 雪夜氛围层 — 单 CanvasModulate 冷月光契约 + 四层系统实现（#582/#624/#613）
 
-> 落盘依据：PR #629（fix，已 merge 2026-08-19）← DESIGN `docs/DESIGN/624-snow-night-atmosphere-regression.md`；
-> 上游：#582 雪夜氛围（PRD/DESIGN，taste-draft 待用户定稿）。
-> ⚠️ 载体说明：氛围代码落地于 **impl/582-snow-night-atmosphere 分支**（main 上无氛围代码；
-> 修复后 #613 重新 review + #582 taste-draft 裁决后随 582 上 main）。本章记录的是**设计契约**
-> ——机械部分（moon 数量/层归属/守卫）已由 #629 定稿；常量色值仍属 taste 域（`# DRAFT`，归 #582 用户裁决）。
+> 落盘依据：PR **#613**（feat(582) 雪夜氛围四层系统，已 merge 2026-08-20）← DESIGN
+> `docs/DESIGN/582-snow-night-atmosphere.md`；单 moon 契约部分由 PR #629（fix，已 merge
+> 2026-08-19）← DESIGN `docs/DESIGN/624-snow-night-atmosphere-regression.md` 定稿。
+> 上游：#582 雪夜氛围（PRD/DESIGN，taste-draft 待用户 E2E 截图 ≥70% 定稿）。
+> ✅ 代码状态：#613 已合并，氛围代码（atmosphere_controller / snow_curtain / ink_wash /
+> blood_vignette / atmosphere_layer.tscn / test_atmosphere）全部落地 **main**（2026-08-20）。
+> 机械部分（moon 数量/层归属/守卫）已定稿；常量色值仍属 taste 域（`# DRAFT`，归 #582 用户裁决）。
 
 ## 1. 设计意图
 
@@ -36,6 +38,7 @@ moon（atmosphere 内 6 个 + Main.tscn UI 层 1 个 = 7 个）。PRD #624 实�
 | 夜色背景 | WorldBackdrop（layer 0 ColorRect，`NIGHT_BG_COLOR` 单一事实源） | 无背景（round 1 状态） | layer 0 无物可染 → AC2 不成立（「冷月光无效果」误判根源） |
 | 守卫 | C3 语义反转：`find_children("CanvasModulate")` 总数 == 1 + 层归属/颜色/Main.tscn 文本守卫 | 每可见层必须有 moon（#613 语义） | 防再犯：任何给氛围/UI 层加 moon 的改动被 CI 拦截 |
 | 色值 | `NIGHT_BG_COLOR` # DRAFT 候选集（首选 #d8dce4） | 单方面定稿 | taste 域归 #582 用户裁决；本设计只定约束（染后 luma ≥ 30）不定值 |
+| 氛围实现 | 全程序化：GPUParticles2D + canvas_item shader，零贴图/零外部资产 | 贴图/插件/像素帧 | PRD 硬约束⑤⑥ + issue 🔍 调研结论（无成熟开源方案可复用） |
 
 ## 3. 层契约与节点树
 
@@ -49,22 +52,24 @@ moon（atmosphere 内 6 个 + Main.tscn UI 层 1 个 = 7 个）。PRD #624 实�
 | 3-5 | 雪幕（远/中/近） | ❌ 禁染 | 必须纯白（F1） |
 | 10 | 血色 vignette | ❌ 禁染 | 唯一高饱和例外（F2） |
 
-### 3.2 节点树（atmosphere_layer.tscn，修复后）
+### 3.2 节点树（atmosphere_layer.tscn，main 上 #613 实测）
 
 ```text
 Atmosphere (Node2D, atmosphere_controller.gd)
 ├── Moonlight (CanvasModulate, color=MOONLIGHT_COLOR_APPLIED)   ← 唯一 moon，layer 0
 ├── SnowCurtain (Node2D, snow_curtain.gd)
-│   ├── LayerFar  (CanvasLayer, layer=3) ── Parallax ── Particles   [moon 已删]
-│   ├── LayerMid  (CanvasLayer, layer=4) ── Parallax ── Particles   [moon 已删]
-│   └── LayerNear (CanvasLayer, layer=5) ── Parallax ── Particles   [moon 已删]
-├── InkWashLayer (CanvasLayer, layer=2) ── InkWash (ColorRect)      [moon 已删]
+│   ├── LayerFar  (CanvasLayer, layer=3) ── Parallax(scroll_scale 0.2) ── Particles(amount 60)
+│   ├── LayerMid  (CanvasLayer, layer=4) ── Parallax(scroll_scale 0.5) ── Particles(amount 60)
+│   └── LayerNear (CanvasLayer, layer=5) ── Parallax(scroll_scale 1.0) ── Particles(amount 80)
+├── InkWashLayer (CanvasLayer, layer=2) ── InkWash (ColorRect full-rect, ink_wash.gdshader)
 └── BloodVignette (CanvasLayer, layer=10, blood_vignette.gd)
-    └── BloodRect (ColorRect)                                       [moon 已删]
+    └── BloodRect (ColorRect full-rect, blood_vignette.gdshader)
 ```
 
-**红线遵守：** 粒子 `amount`（60/60/80）、Parallax2D `scroll_scale`、粒子材质、水墨/血色 shader
-与 α 上限**全部零改动**（PRD §8 红线）；Main.tscn 现有 UI 节点零改动（仅删其下 moon）。
+**红线遵守（#613 实测）：** 粒子 `amount`（60/60/80）仅 .tscn 静态声明，运行时禁改
+（rain_curtain 教训：Godot 改 amount 重启粒子系统 → 可见跳变）；Parallax2D `scroll_scale`
+在 .tscn 声明（0.2/0.5/1.0）；水墨/血色 shader 与 α 上限全部零字面量（读 constants 分区）；
+Main.tscn 现有 UI 节点零改动（仅追加 Atmosphere 实例子节点）。
 
 ### 3.3 运行时控制面（atmosphere_controller.gd）
 
@@ -80,34 +85,41 @@ func _apply_moonlight() -> void:
 其余接口（`set_low_health` / `debug_trigger_low_health` / `debug_clear_low_health` /
 `get_visual_alpha()`）契约面保持——与 #576 HUD 的 low_health 链路（10-HUD-STANCE-BARS.md）零改动对接。
 
-## 4. 氛围常量（#582/#624，载体 impl/582 分支）
+## 4. 氛围常量（#582/#624/#613，全部落地 main）
 
-> 分区位于 constants.gd「冷月光 / 夜色世界背景 / 水墨晕染 / 血色 vignette」段，全部 `# DRAFT`
-> 候补值，定稿归 #582 用户裁决；`BLOOD_VIGNETTE_LAYER` 为机械常量（层级约定，定稿）。
+> 分区位于 constants.gd「冷月光 / 夜色世界背景 / 水墨晕染 / 血色 vignette」段，SNOW_*/MOONLIGHT_*/
+> INK_*/BLOOD_* 4 组 24 项全部 `# DRAFT` 候补值，定稿归 #582 用户裁决；`BLOOD_VIGNETTE_LAYER`
+> 为机械常量（层级约定，定稿）。
 
 | 常量 | 候补值 | 语义 |
 |------|--------|------|
+| `SNOW_PARTICLES_FAR/MID/NEAR` | `60 / 60 / 80` | 三层粒子数（合计 200，AC1 ±10%）；amount 仅 .tscn 静态声明 |
+| `SNOW_PARALLAX_FAR/MID/NEAR` | `0.2 / 0.5 / 1.0` | 三层视差系数（Parallax2D scroll_scale） |
+| `SNOW_SCALE_FAR` / `SNOW_SCALE_NEAR` | `0.5` / `1.5` | 远景雪小 / 近景雪大（AC1 近景 1.5x 远景 0.5x） |
+| `SNOW_VELOCITY_MIN/MAX` | `20.0 / 40.0` | 飘落速度 px/s（AC1 20-40px/s） |
+| `SNOW_ALPHA_MIN/MAX` | `0.7 / 0.9` | 雪幕 α 区间（远 0.7 / 中 0.8 / 近 0.9） |
+| `SNOW_WIND_DEFAULT` | `0.0` | 风向漂移（Boss 战可加大；`set_wind()` 运行时调） |
 | `MOONLIGHT_COLOR_TARGET` | `#b8c4d9` | AC2 目标色温（只狼苇名城雪夜） |
 | `MOONLIGHT_COLOR_APPLIED` | `#6e7684` | = TARGET × 0.6 换算（CanvasModulate 无独立 brightness） |
 | `MOONLIGHT_BRIGHTNESS` | `0.6` | 色值换算系数（A/B 亮度比 ≈ 0.471 断言依据） |
 | `NIGHT_BG_COLOR` | `#d8dce4`（候选集 #d8dce4 / #4e5464 / #0d1520否决） | layer 0 夜色垫底；染后 ≈ #66686b 命中 theme 断言；约束染后 luma ≥ 30 |
-| `INK_EDGE_ALPHA_MAX` | `0.3` | 水墨暗角硬上限 |
+| `INK_EDGE_ALPHA_MAX` | `0.3` | 水墨暗角硬上限（AC3 不遮挡战斗读图） |
 | `INK_COLOR` / `INK_INNER_RADIUS` / `INK_SOFTNESS` / `INK_NOISE_AMOUNT` | `#1a1f26` / `0.62` / `0.35` / `0.06` | 水墨质感参数 |
-| `BLOOD_VIGNETTE_ALPHA_MAX` | `0.35` | 低血触发 α 硬上限 |
-| `BLOOD_VIGNETTE_FADE_SECONDS` | `0.5` | Tween 时长 |
+| `BLOOD_VIGNETTE_ALPHA_MAX` | `0.35` | 低血触发 α 硬上限（AC4） |
+| `BLOOD_VIGNETTE_FADE_SECONDS` | `0.5` | Tween 时长（AC4 平滑 0.5s 渐变） |
 | `BLOOD_VIGNETTE_LAYER` | `10` | 机械常量（层级约定，定稿） |
 
 ## 5. 数据流
 
-### Flow 1: 正常路径 — 修复后单 moon 渲染（Main.tscn 首启）
+### Flow 1: 正常路径 — 单 moon 渲染（Main.tscn 首启）
 
 ```text
 Main 首帧
   ├─ WorldBackdrop(layer0, NIGHT_BG_COLOR #d8dce4) ──× 唯一 Moonlight(#6e7684) ──► ≈ #66686b 冷蓝灰夜色（AC2）
-  ├─ 雪幕 Particles(layer3-5, 白 α0.7-0.9) ──无 moon──► 纯白粒子在夜色上可见（F1 修复）
+  ├─ 雪幕 Particles(layer3-5, 白 α0.7-0.9) ──无 moon──► 纯白粒子在夜色上可见（F1）
   ├─ 水墨 InkWash(layer2) ──无 moon──► 暗角原样（edge_alpha ≤ 0.3）
-  ├─ 血色 BloodVignette(layer10) ──无 moon──► low_health 触发时饱和红 α≤0.35 可见（F2 修复）
-  └─ UI(layer1, 白字 255) ──无 moon──► 对比度恢复（F4 修复）
+  ├─ 血色 BloodVignette(layer10) ──无 moon──► low_health 触发时饱和红 α≤0.35 可见（F2）
+  └─ UI(layer1, 白字 255) ──无 moon──► 对比度恢复（F4）
 ```
 
 ### Flow 2: 验证路径 — 月光 A/B 亮度比（机械断言，不依赖 taste 值）
@@ -127,7 +139,7 @@ FAIL → CI 拦截；C3-2 层归属 / C3-3 颜色 / C3-4 Main.tscn 文本守卫�
 |------|:---:|------|
 | moon A/B 亮度比 ≈ 0.471 | 机械 | 不依赖 taste 值，机制验证（Flow 2） |
 | 雪白像素存在（≥200 lum） | 机械 | snow_night 截图计数 > 0（AC1） |
-| 血触发红像素 A/B diff | 机械 | debug_trigger_low_health 前后截图 diff（AC3） |
+| 血触发红像素 A/B diff | 机械 | debug_trigger_low_health 前后截图 diff（AC4） |
 | UI 白字 ≥ 200 lum | 机械 | F4 验证（AC5） |
 | `--theme 6e7684` 命中 | taste 依赖 | 随 NIGHT_BG_COLOR 定稿；深色候选则改 shot 级 `null` + A/B 亮度比断言（AC2） |
 
@@ -142,6 +154,7 @@ FAIL → CI 拦截；C3-2 层归属 / C3-3 颜色 / C3-4 Main.tscn 文本守卫�
 | 5 | Compatibility vs Forward+ 渲染器层作用域语义差异 | 项目 CI/E2E 固定 Compatibility；差异需开新 issue 验证，不静默假设 |
 | 6 | E2E 分辨率漂移导致像素断言失效 | 断言口径按实际分辨率适配；snow_night 官方截图需重出（旧图 luma 15.6 作废） |
 | 7 | stick_figure 组 theme 断言被染坏 | per-shot `theme_color: null` 跳过 theme，帧间 --diff-with 断言保留验证力 |
+| 8 | 雪幕粒子不可见（#613 self-correct D 类缺陷） | 粒子补 texture：GradientTexture2D 程序化软白点（#613 已修复，033171e） |
 
 ## 8. 集成点
 
@@ -149,15 +162,51 @@ FAIL → CI 拦截；C3-2 层归属 / C3-3 颜色 / C3-4 Main.tscn 文本守卫�
 |------|:---:|:---:|------|:---:|
 | 单 moon 守卫 | test_atmosphere C3（C3-1~C3-5） | #624 | 结构断言拦截复犯（==1） | ✅ #629 已落地 |
 | 层契约注释 | atmosphere_controller.gd 头部 | #583 | #583 复用 .tscn 时照契约放世界几何 | ⬜ 文档层 |
-| WorldBackdrop / Backdrop | Main.tscn + capture.tscn | #582 AC2 | layer 0 垫底供月光染色 | ⬜ 待 #613 re-review + 定稿后随 582 上 main |
-| snow_night 像素断言 | e2e_shots.json | #586 | 完整剧本纳入月/雪/血像素断言 | ⬜ 注释先行 |
-| 修复载体 | impl/582-snow-night-atmosphere 分支 | #613（PR） | 修复落分支 → 重新 review + taste-draft | ⬜ 待裁决 |
+| WorldBackdrop / Backdrop | Main.tscn + capture.tscn | #582 AC2 | layer 0 垫底供月光染色 | ✅ #613 已落地 main |
+| snow_night 像素断言 | e2e_shots.json | #586 | 完整剧本纳入月/雪/血像素断言 | ⬜ 注释先行（snow_night 单帧组已在 main） |
+| 氛围实现载体 | impl/582-snow-night-atmosphere 分支 | #613（PR） | 四层系统 + 单 moon 契约随 #613 上 main | ✅ 2026-08-20 已合并 |
+| 低血发射端 | HUD low_health_changed 边沿信号 | #576/#575 | `set_low_health()` 契约对接（#575 实体实现后接线） | ⬜ 消费端已建 |
 
 ## 9. 相关 Issue 记录
 
 | Issue | 内容 | 状态 |
 |-------|------|------|
-| #624 | 雪夜氛围回归修复（本文件所属；单 CanvasModulate 层契约） | 已合并（#629，落 impl/582 分支） |
-| #582 | 雪夜氛围（上游设计；NIGHT_BG_COLOR 等 taste 值定稿归此） | 草稿已合并，待用户定稿 |
-| #613 | 雪夜氛围 implement PR（被 #624 阻塞，修复后重新 review） | 阻塞中（修复已并入其载体分支） |
+| #624 | 雪夜氛围回归修复（单 CanvasModulate 层契约） | 已合并（#629，2026-08-19） |
+| #613 | 雪夜氛围 implement PR（四层系统 + self-correct 补粒子 texture） | ✅ 已合并（2026-08-20，代码上 main） |
+| #582 | 雪夜氛围（上游设计；NIGHT_BG_COLOR 等 taste 值定稿归此） | 草稿已合并，待用户 E2E 截图 ≥70% 定稿 |
 | #576 | HUD（low_health 信号源 → 血色 vignette 消费链路，10 章） | 已合并（#627） |
+| #586 | 雪夜氛围完整 E2E 剧本 | 待建（snow_night 单帧组已先行） |
+
+## 10. 实现落地（#613，已 merge 2026-08-20）
+
+> 本节记录 #613 实际实现细节（main 实测），与 DESIGN §2/§3 的对应关系。全部文件在
+> `shandong-wolf/` 下，零贴图/零外部资产（开源调研结论：GitHub 8 结果均 ≤2★ 无维护、
+> Asset Library 无收录 → 自行实现）。
+
+### 10.1 四层系统实现
+
+1. **雪幕** — `snow_curtain.gd`（Node2D 控制器）+ 3×CanvasLayer(3/4/5) + Parallax2D
+   （scroll_scale 0.2/0.5/1.0）+ GPUParticles2D（amount 60/60/80 静态声明）。`apply_tunables()`
+   把常量下发到三层：far（scale 0.5，α 0.7）/ mid（scale 1.0，α 0.8）/ near（scale 1.5，α 0.9）；
+   速度 20-40px/s（initial_velocity_min/max），风向 `set_wind(intensity)` 运行时调
+   （direction = (drift_x, 1, 0).normalized()，drift_x = wind × parallax.scroll_scale.x）。
+   self-correct 033171e 补粒子 texture（GradientTexture2D 程序化软白点）修复粒子不可见。
+2. **冷月光** — CanvasModulate 单节点 `#6e7684`（= `#b8c4d9` × 0.6），挂 Atmosphere 根 layer 0，
+   `_apply_moonlight()` 唯一赋值点（C3 守卫 == 1）。
+3. **水墨晕染** — `ink_wash.gdshader`（全屏 canvas_item shader，约 17 行）：径向暗角
+   （edge_alpha ≤ 0.3 硬上限）+ 噪声渗化（INK_NOISE_AMOUNT 0.06），墨色 `#1a1f26`。
+4. **血色 vignette** — `blood_vignette.gd/.gdshader`：CanvasLayer(10) + 径向血色 shader +
+   Tween 0.5s（alpha 0→0.35）。契约 `set_low_health(enabled)` + `debug_trigger_low_health()`/
+   `debug_clear_low_health()` 兜底（#575 发射端未建期驱动同一契约路径，不绕过 tween）。
+
+### 10.2 挂载与测试
+
+- **场景挂载**：`scenes/atmosphere/atmosphere_layer.tscn`（137 行，Atmosphere 根 + 唯一
+  Moonlight + 四层）实例化进 `scenes/Main.tscn`（Atmosphere 子节点）；`e2e_stick_figure_capture.tscn`
+  同样 instance Atmosphere 供 snow_night 截图（#613 conflict resolution 合并）。
+- **E2E**：`e2e_shots.json` 追加 snow_night 单帧组（完整剧本归 #586）；shot 用 at_frame
+  （state={} 在统一 states 映射下永不 ready 的已知 gap，_comment 注明）。
+- **测试**：`tests/test_atmosphere.gd`（462 行）覆盖 DESIGN §8 A-E 场景 + C3-1~C3-5 单 moon
+  守卫；`run_tests.gd` 第 3 套件挂载（`_run("res://tests/test_atmosphere.gd", "Atmosphere")`）。
+- **taste 裁决路径**：E2E 截图附 PR → 用户 ≥70% 裁决定稿；<70% 走 # DRAFT 参数迭代
+  （改 constants 候补值，不重写架构）。
