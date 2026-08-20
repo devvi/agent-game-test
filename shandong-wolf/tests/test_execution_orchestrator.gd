@@ -62,6 +62,8 @@ func run() -> void:
 	_reset_logs()
 	_test_e4_fade_rebind()
 	_reset_logs()
+	_test_e5_fade_attached_to_tree()
+	_reset_logs()
 	_test_f1_take_damage_red_line()
 	_reset_logs()
 	_test_f2_execute_kill_stop()
@@ -483,6 +485,23 @@ func _test_e4_fade_rebind() -> void:
 	f.bind(eb)
 	f._tick(1200)
 	_assert(absf(eb.modulate.a - 1.0) < 0.0001, "B alpha restarts at 1.0 after rebind (got %s)" % [eb.modulate.a])
+
+
+func _test_e5_fade_attached_to_tree() -> void:
+	## E5: 挂树契约回归（review D 类缺陷）—— 编排器入树后 fade 必须成为其子节点，
+	## 真实游戏中引擎才驱动 ExecutionFade._process（AC2 淡出消失）。headless 下
+	## 只断言父子/树内关系（确定性，不依赖真实帧推进）。
+	var o = _new_orchestrator()
+	if o == null: return
+	_assert(o.fade != null, "orchestrator created fade in _init")
+	var tree = Engine.get_main_loop()
+	var root = tree.root
+	root.add_child(o)
+	_assert(o.is_inside_tree() == true, "orchestrator inside tree after add_child")
+	var fade_node = o.fade
+	_assert(fade_node != null and fade_node.get_parent() == o, "fade attached as child of orchestrator (_ready add_child)")
+	_assert(fade_node.is_inside_tree() == true, "fade inside tree → engine drives _process")
+	root.remove_child(o)
 
 
 # ── Scenario F: 失败路径防回归 (PRD §5.3) ──────────────────────────────

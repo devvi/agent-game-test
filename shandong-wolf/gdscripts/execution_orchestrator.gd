@@ -28,6 +28,15 @@ func _init() -> void:
 		fade = fade_script.new()
 
 
+func _ready() -> void:
+	## 挂树（DESIGN §2.2 契约，D 类缺陷修复）: _init 阶段节点构造期锁定且未入树，
+	## add_child 必须延迟到 _ready——真实游戏中 fade 入树后引擎才会驱动 _process（AC2 淡出）。
+	## headless 测试免树手动 _tick 注入不依赖挂树，本方法不破坏测试契约。
+	var fade_node: Node = fade as Node
+	if fade_node != null and fade_node.get_parent() == null:
+		add_child(fade_node)
+
+
 func bind_player(p: Object) -> void:
 	## 幂等接线: 只存引用，不订阅——玩家 state（dead 守卫）与位置（距离校验）在触发时实时读取。
 	_player = p
