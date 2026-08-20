@@ -99,6 +99,18 @@
         { "name": "fb_stance_break", "state": 2, "settle_frames": 100, "theme_color": null },
         { "name": "fb_execute", "state": 3, "settle_frames": 120, "theme_color": null }
       ]
+    },
+    "execution": {
+      "_comment": "#580 处决构图截图（AC5 用户裁决素材）：敌人 execute 态处决斩落 + 淡出消散；rig 扩展（battle_stage 背景 + 冻结效果帧）归 Task 14/Spike 3，本组复用既有 CaptureRig（state EXECUTE 已存在）",
+      "match": [
+        "gdscripts/execution_orchestrator\\.gd",
+        "gdscripts/execution_fade\\.gd",
+        "gdscripts/combat_entity\\.gd"
+      ],
+      "shots": [
+        { "name": "01_execute_strike", "state": "EXECUTE", "settle_frames": 120, "theme_color": null },
+        { "name": "02_execute_fade", "state": "EXECUTE", "settle_frames": 60, "theme_color": null }
+      ]
     }
   }
 }

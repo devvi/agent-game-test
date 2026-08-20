@@ -587,3 +587,26 @@ const FEEDBACK_SPARK_LIFETIME: Dictionary = {"S": 0.5, "A": 0.45, "B": 0.3, "C":
 const FEEDBACK_SHAKE_DECAY: float = 3.0  # # DRAFT
 # FEEDBACK_ENTITY_FLASH_FACTOR: 5.0  # 实体白闪 modulate 倍乘（深色火柴人也冲白）
 const FEEDBACK_ENTITY_FLASH_FACTOR: float = 5.0  # # DRAFT
+
+# ── 处决演出（# DRAFT 候补值，定稿归 #584/用户；#580 消费方，禁止实现期定稿）──
+# EXECUTE_SLOWMO_SCALE / EXECUTE_SLOWMO_MS
+#   三处候选归拢（PRD §1.5，禁止二选一偷定）: issue body 0.1/0.6s vs #579 S 级 0.05/0.5s vs constants 默认 0.2/0.4s
+#   机制消费方 = #579 S 级矩阵（FEEDBACK_SLOWMO["S"]）；本分区为候选登记，定稿时由 #584 改 FEEDBACK_SLOWMO
+const EXECUTE_SLOWMO_SCALE: Array = [0.05, 0.1, 0.2]      # # DRAFT（候选集）
+const EXECUTE_SLOWMO_MS: Array = [400, 500, 600]          # # DRAFT（候选集）
+# EXECUTE_INVINCIBLE_SECONDS
+#   候选集: [1.0, 1.5, 2.0]（默认 1.5；覆盖 execute 5 帧 + 淡出 0.3s 有余）
+#   情感断言: 处决是「赢了一场艰难的仗」的奖励时刻——无敌窗口给足演出呼吸，不耍赖
+const EXECUTE_INVINCIBLE_SECONDS: float = 1.5             # # DRAFT
+# EXECUTE_FADE_SECONDS
+#   issue body: modulate alpha 1→0 0.3s 如墨迹消散
+const EXECUTE_FADE_SECONDS: float = 0.3                   # # DRAFT
+# EXECUTE_RANGE_PX
+#   派生: = EXECUTE_RANGE(1.2m) × 100px/m（# DRAFT 比例，与 HITBOX_RANGE=80px 同量级）
+#   候选集: [100, 120, 150]（默认 120）
+const EXECUTE_RANGE_PX: float = 120.0                     # # DRAFT
+# EXECUTE_EXHAUSTED_SECONDS / EXECUTE_RECOVER_RATIO / EXECUTE_EXHAUST_MULTIPLIER
+#   AC3: 崩解后 3s 未处决 → 起身恢复 50% 架势 + 5s 疲惫（受架势伤害 +20%）
+const EXECUTE_EXHAUSTED_SECONDS: float = 5.0              # # DRAFT
+const EXECUTE_RECOVER_RATIO: float = 0.5                  # # DRAFT
+const EXECUTE_EXHAUST_MULTIPLIER: float = 1.2             # # DRAFT
