@@ -532,13 +532,14 @@ const SNOW_DRIFT_DEPTH_MIN: float = 60.0      # # DRAFT（视觉雪堆深度下�
 const SNOW_DRIFT_DEPTH_MAX: float = 100.0     # # DRAFT（视觉雪堆深度上界，AC1 高差 100px）
 const PLATFORM_SEGMENT_OVERLAP_PX: float = 4.0 # # DRAFT（拼接式边缘重叠，防缝隙；单一 shape 时仅作断言参考）
 
-# ── 色板（# DRAFT 候补值，待 #583 用户裁决；#1a1f26 同源 INK_COLOR，与 #582 水墨一致）──
-#   候补值: 墨色 #1a1f26（墙体/枯树/平台剪影，染后 luma ≥30 约束 #624 F3）；雪层冷白 α0.6；月亮冷白 #b8c4d9 同源
+# ── 色板（# DRAFT 候补值，待 #583 用户裁决；与 #582 水墨 INK_COLOR 同色系）──
+#   候补值: 墨色系 #4a5664（墙体/枯树/平台剪影；self-correct R1 调亮——#1a1f26 染后 luma 0.055 < 30
+#           违反 #624 F3，#4a5664 染后 luma ≈ 39/255 ≥ 30）；雪层冷白 α0.6；月亮冷白 #b8c4d9 同源
 #   该值影响什么: 冷墨色调整体观感——AC2 硬约束「整体为冷墨色调」；色板过黑 → 月光染后 luma < 30 违反 #624
 #   情感断言: 大地如墨、雪压屋顶——黄土+雪的组合（屋顶压雪、墙体墨色、枯树如骨）
-const STAGE_INK_COLOR: Color = Color("#1a1f26")   # # DRAFT（墨色主体，同源 INK_COLOR）
+const STAGE_INK_COLOR: Color = Color("#4a5664")   # # DRAFT（墨色主体，染后 luma ≈ 39 ≥ 30，#624 F3）
 const SNOW_LAYER_COLOR: Color = Color(0.92, 0.95, 0.98, 0.6)  # # DRAFT（雪层冷白，alpha 0.6 字面约束）
-const MOUNTAIN_COLOR: Color = Color("#232a33")    # # DRAFT（山峦远景，较主体淡一档）
+const MOUNTAIN_COLOR: Color = Color("#536171")    # # DRAFT（山峦远景，较主体淡一档）
 const MOON_COLOR: Color = Color("#b8c4d9")        # # DRAFT（月亮冷白，同源 MOONLIGHT_COLOR_TARGET）
 
 # ── 月亮（# DRAFT 候补值，待 #583 用户裁决）──

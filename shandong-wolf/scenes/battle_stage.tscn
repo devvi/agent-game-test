@@ -47,12 +47,12 @@ polygon = PackedVector2Array(1596, 560, 2400, 560, 2400, 660, 1998, 685, 1596, 6
 
 [node name="PlatformSilhouetteMid" type="Polygon2D" parent="PlatformVisual"]
 z_index = -1
-color = Color(0.102, 0.122, 0.149, 1)
+color = Color(0.29, 0.337, 0.392, 1)
 polygon = PackedVector2Array(300, 510, 2100, 510, 2100, 560, 300, 560)
 
 [node name="PlatformSilhouetteBack" type="Polygon2D" parent="PlatformVisual"]
 z_index = -2
-color = Color(0.137, 0.165, 0.2, 1)
+color = Color(0.325, 0.38, 0.443, 1)
 polygon = PackedVector2Array(0, 470, 2400, 470, 2400, 520, 0, 520)
 
 [node name="Houses" type="Node2D" parent="."]
@@ -61,7 +61,7 @@ polygon = PackedVector2Array(0, 470, 2400, 470, 2400, 520, 0, 520)
 position = Vector2(300, 560)
 
 [node name="Hut" type="Polygon2D" parent="Houses/HouseLeft"]
-color = Color(0.102, 0.122, 0.149, 1)
+color = Color(0.29, 0.337, 0.392, 1)
 polygon = PackedVector2Array(0, 80, 180, 80, 180, 0, 90, -60, 0, 0)
 
 [node name="RoofSnowLine" type="Line2D" parent="Houses/HouseLeft"]
@@ -73,7 +73,7 @@ points = PackedVector2Array(0, 0, 90, -60, 180, 0)
 position = Vector2(1900, 560)
 
 [node name="Hut" type="Polygon2D" parent="Houses/HouseRight"]
-color = Color(0.102, 0.122, 0.149, 1)
+color = Color(0.29, 0.337, 0.392, 1)
 polygon = PackedVector2Array(180, 80, 0, 80, 0, 0, 90, -60, 180, 0)
 
 [node name="RoofSnowLine" type="Line2D" parent="Houses/HouseRight"]
@@ -85,18 +85,18 @@ points = PackedVector2Array(180, 0, 90, -60, 0, 0)
 
 [node name="TreeLeft" type="Line2D" parent="Trees"]
 position = Vector2(900, 560)
-default_color = Color(0.102, 0.122, 0.149, 1)
+default_color = Color(0.29, 0.337, 0.392, 1)
 width = 4
 points = PackedVector2Array(0, 0, 0, -120, 0, -160, 30, -200, -25, -180, 10, -240, 45, -260)
 
 [node name="TreeRight" type="Line2D" parent="Trees"]
 position = Vector2(1500, 560)
-default_color = Color(0.102, 0.122, 0.149, 1)
+default_color = Color(0.29, 0.337, 0.392, 1)
 width = 4
 points = PackedVector2Array(0, 0, 0, -130, 0, -150, 40, -190, -25, -220, 35, -250, 0, -290)
 
 [node name="Mountains" type="Line2D" parent="."]
-default_color = Color(0.137, 0.165, 0.2, 1)
+default_color = Color(0.325, 0.38, 0.443, 1)
 width = 3
 points = PackedVector2Array(0, 300, 150, 220, 320, 260, 480, 180, 650, 240, 820, 200, 1000, 250, 1200, 190, 1400, 240, 1600, 210, 1800, 260, 2000, 200, 2200, 250, 2400, 230)
 

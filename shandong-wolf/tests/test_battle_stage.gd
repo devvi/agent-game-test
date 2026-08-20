@@ -382,7 +382,7 @@ func _test_d1_camera_present_current() -> void:
 	_assert(cam != null and cam is Camera2D, "D1: StageCamera (Camera2D) 存在")
 	if cam != null and cam is Camera2D:
 		var c: Camera2D = cam as Camera2D
-		_assert(c.current, "D1: StageCamera.current == true（AC5 截图/手动运行即见全貌）")
+		_assert(c.is_current(), "D1: StageCamera.is_current() == true（AC5 截图/手动运行即见全貌）")
 		_assert(c.limit_left == 0, "D1: limit_left == 0（实际: %d）" % c.limit_left)
 		_assert(c.limit_right >= int(WolfConstantsScript.STAGE_WIDTH_PX),
 			"D1: limit_right %d ≥ STAGE_WIDTH_PX %d" % [c.limit_right, int(WolfConstantsScript.STAGE_WIDTH_PX)])
