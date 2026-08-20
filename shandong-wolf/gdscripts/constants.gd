@@ -509,3 +509,50 @@ const INVINCIBLE_FLICKER_HZ: float = 8.0      # # DRAFT
 #   该值影响什么: 闪烁谷值——0.3 可读不刺眼（实验 4）
 #   情感断言: 半透明但从不消失
 const INVINCIBLE_FLICKER_ALPHA_MIN: float = 0.3 # # DRAFT
+
+# ── 场景参数（# DRAFT 候补值，定稿 = #583 E2E 截图用户裁决）──
+#   分区: 舞台尺寸 STAGE_* / 平台 PLATFORM_* / 色板 *COLOR / 月亮 MOON_* / 物件 HOUSE_* TREE_* MOUNTAIN_*
+#   定稿机制: implement PR 附 battle_stage 组 3 shot 截图 → 用户 AC5 裁决（taste-draft；构图/配色归用户）
+#   硬约束: 坐标/尺寸声明在 .tscn（本分区为声明参考值，test 断言一致防漂移）；物件 ≤5；零外部贴图
+
+# ── 舞台尺寸（机械常量，骨架期定稿）──
+#   候补值: 场景总宽 2400px（issue AC1 字面值）；视觉平台 3 段；高差 60-100px（视觉分层，非碰撞）
+#   该值影响什么: 战斗移动空间宽度——2400px > 窗口 1280px，必须配 Camera2D 才能全貌可见
+#   情感断言: 横向扁平、屋舍低矮——地雷战乡村空间感（横向构图优先，禁止竖向高塔/城堡）
+const STAGE_WIDTH_PX: int = 2400          # AC1: 场景总宽（.tscn 根节点宽度声明参考值）
+const STAGE_VISUAL_SEGMENTS: int = 3      # AC1: 雪地平台 3 段（视觉分段，碰撞单一连续面）
+
+# ── 平台（# DRAFT 候补值，待 #583 用户裁决）──
+#   候补值: 基准 Y=560（碰撞顶面）；厚度 24px；视觉雪堆深度 60-100px（高低错落 3 段）；相邻段重叠 ≥4px（防缝隙，若改拼接式）
+#   该值影响什么: 角色站立高度 + 雪原起伏观感——碰撞面恒定是 AC1「可通行无阻碍」在 velocity.y=0 模型下的唯一严格解
+#   情感断言: 雪原起伏但脚下踏实——视觉有高低错落，角色行走零阻塞
+const PLATFORM_Y_BASE: float = 560.0          # # DRAFT（碰撞顶面基准 Y）
+const PLATFORM_THICKNESS_PX: float = 24.0     # # DRAFT（碰撞体厚度）
+const SNOW_DRIFT_DEPTH_MIN: float = 60.0      # # DRAFT（视觉雪堆深度下界，AC1 高差 60px）
+const SNOW_DRIFT_DEPTH_MAX: float = 100.0     # # DRAFT（视觉雪堆深度上界，AC1 高差 100px）
+const PLATFORM_SEGMENT_OVERLAP_PX: float = 4.0 # # DRAFT（拼接式边缘重叠，防缝隙；单一 shape 时仅作断言参考）
+
+# ── 色板（# DRAFT 候补值，待 #583 用户裁决；#1a1f26 同源 INK_COLOR，与 #582 水墨一致）──
+#   候补值: 墨色 #1a1f26（墙体/枯树/平台剪影，染后 luma ≥30 约束 #624 F3）；雪层冷白 α0.6；月亮冷白 #b8c4d9 同源
+#   该值影响什么: 冷墨色调整体观感——AC2 硬约束「整体为冷墨色调」；色板过黑 → 月光染后 luma < 30 违反 #624
+#   情感断言: 大地如墨、雪压屋顶——黄土+雪的组合（屋顶压雪、墙体墨色、枯树如骨）
+const STAGE_INK_COLOR: Color = Color("#1a1f26")   # # DRAFT（墨色主体，同源 INK_COLOR）
+const SNOW_LAYER_COLOR: Color = Color(0.92, 0.95, 0.98, 0.6)  # # DRAFT（雪层冷白，alpha 0.6 字面约束）
+const MOUNTAIN_COLOR: Color = Color("#232a33")    # # DRAFT（山峦远景，较主体淡一档）
+const MOON_COLOR: Color = Color("#b8c4d9")        # # DRAFT（月亮冷白，同源 MOONLIGHT_COLOR_TARGET）
+
+# ── 月亮（# DRAFT 候补值，待 #583 用户裁决）──
+#   候补值: 半径 42px；位置 y≈120-160（苍月悬顶）；光晕强度/半径（taste-draft）
+#   该值影响什么: 「苍月悬顶」构图焦点——月亮是场景情绪光源（视觉焦点），染后与 #582 月光色温同源
+#   情感断言: 苍月悬顶——冷白月亮是雪夜最亮的视觉锚点，构图焦点而非装饰
+const MOON_RADIUS_PX: float = 42.0            # # DRAFT（月亮主体半径）
+const MOON_POSITION_Y: float = 140.0          # # DRAFT（苍月悬顶，y<150 区域）
+const MOON_GLOW_STRENGTH: float = 0.35        # # DRAFT（光晕峰值 alpha，shader hint_range 上界）
+const MOON_GLOW_RADIUS_RATIO: float = 2.2     # # DRAFT（光晕半径 = 主体 × 2.2）
+
+# ── 物件（机械布局参考，坐标在 .tscn 声明）──
+#   候补值: 草屋 ×2（屋脊 ≤120px，x≈300/1900）；枯树 ×2（x≈900/1500）；山峦/月亮为背景不计数
+#   该值影响什么: 物件预算（≤5 硬约束，防噪杂）+ 空间锚点（玩家方位感）
+#   情感断言: 克制——4 件家具/物件是极限，多一件即噪杂（反例: 日式鸟居/西式城堡禁止）
+const HOUSE_RIDGE_HEIGHT_MAX: float = 120.0   # 机械常量（屋脊高度上限，低矮扁平）
+const OBJECT_BUDGET_MAX: int = 5              # 机械常量（物件 ≤5，issue 硬约束）

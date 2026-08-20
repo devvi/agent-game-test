@@ -1,0 +1,128 @@
+[gd_scene format=3 uid="uid://b583st4ge0001"]
+
+[ext_resource type="Shader" path="res://gdscripts/moon_glow.gdshader" id="1_moon_shader"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_ground"]
+size = Vector2(2400, 24)
+
+[sub_resource type="QuadMesh" id="QuadMesh_moon"]
+size = Vector2(84, 84)
+
+[sub_resource type="QuadMesh" id="QuadMesh_glow"]
+size = Vector2(185, 185)
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_moon"]
+shader = ExtResource("1_moon_shader")
+shader_parameter/strength = 1.0
+shader_parameter/radius_ratio = 1.0
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_moon_glow"]
+shader = ExtResource("1_moon_shader")
+shader_parameter/strength = 0.35
+shader_parameter/radius_ratio = 2.2
+
+[node name="BattleStage" type="Node2D"]
+
+[node name="Ground" type="StaticBody2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Ground"]
+position = Vector2(1200, 548)
+shape = SubResource("RectangleShape2D_ground")
+
+[node name="PlatformVisual" type="Node2D" parent="."]
+
+[node name="SnowDriftFront" type="Node2D" parent="PlatformVisual"]
+
+[node name="SnowDrift1" type="Polygon2D" parent="PlatformVisual/SnowDriftFront"]
+color = Color(0.92, 0.95, 0.98, 0.6)
+polygon = PackedVector2Array(0, 560, 800, 560, 800, 620, 400, 640, 0, 620)
+
+[node name="SnowDrift2" type="Polygon2D" parent="PlatformVisual/SnowDriftFront"]
+color = Color(0.92, 0.95, 0.98, 0.6)
+polygon = PackedVector2Array(796, 560, 1600, 560, 1600, 640, 1198, 665, 796, 645)
+
+[node name="SnowDrift3" type="Polygon2D" parent="PlatformVisual/SnowDriftFront"]
+color = Color(0.92, 0.95, 0.98, 0.6)
+polygon = PackedVector2Array(1596, 560, 2400, 560, 2400, 660, 1998, 685, 1596, 660)
+
+[node name="PlatformSilhouetteMid" type="Polygon2D" parent="PlatformVisual"]
+z_index = -1
+color = Color(0.102, 0.122, 0.149, 1)
+polygon = PackedVector2Array(300, 510, 2100, 510, 2100, 560, 300, 560)
+
+[node name="PlatformSilhouetteBack" type="Polygon2D" parent="PlatformVisual"]
+z_index = -2
+color = Color(0.137, 0.165, 0.2, 1)
+polygon = PackedVector2Array(0, 470, 2400, 470, 2400, 520, 0, 520)
+
+[node name="Houses" type="Node2D" parent="."]
+
+[node name="HouseLeft" type="Node2D" parent="Houses"]
+position = Vector2(300, 560)
+
+[node name="Hut" type="Polygon2D" parent="Houses/HouseLeft"]
+color = Color(0.102, 0.122, 0.149, 1)
+polygon = PackedVector2Array(0, 80, 180, 80, 180, 0, 90, -60, 0, 0)
+
+[node name="RoofSnowLine" type="Line2D" parent="Houses/HouseLeft"]
+default_color = Color(0.92, 0.95, 0.98, 0.6)
+width = 4
+points = PackedVector2Array(0, 0, 90, -60, 180, 0)
+
+[node name="HouseRight" type="Node2D" parent="Houses"]
+position = Vector2(1900, 560)
+
+[node name="Hut" type="Polygon2D" parent="Houses/HouseRight"]
+color = Color(0.102, 0.122, 0.149, 1)
+polygon = PackedVector2Array(180, 80, 0, 80, 0, 0, 90, -60, 180, 0)
+
+[node name="RoofSnowLine" type="Line2D" parent="Houses/HouseRight"]
+default_color = Color(0.92, 0.95, 0.98, 0.6)
+width = 4
+points = PackedVector2Array(180, 0, 90, -60, 0, 0)
+
+[node name="Trees" type="Node2D" parent="."]
+
+[node name="TreeLeft" type="Line2D" parent="Trees"]
+position = Vector2(900, 560)
+default_color = Color(0.102, 0.122, 0.149, 1)
+width = 4
+points = PackedVector2Array(0, 0, 0, -120, 0, -160, 30, -200, -25, -180, 10, -240, 45, -260)
+
+[node name="TreeRight" type="Line2D" parent="Trees"]
+position = Vector2(1500, 560)
+default_color = Color(0.102, 0.122, 0.149, 1)
+width = 4
+points = PackedVector2Array(0, 0, 0, -130, 0, -150, 40, -190, -25, -220, 35, -250, 0, -290)
+
+[node name="Mountains" type="Line2D" parent="."]
+default_color = Color(0.137, 0.165, 0.2, 1)
+width = 3
+points = PackedVector2Array(0, 300, 150, 220, 320, 260, 480, 180, 650, 240, 820, 200, 1000, 250, 1200, 190, 1400, 240, 1600, 210, 1800, 260, 2000, 200, 2200, 250, 2400, 230)
+
+[node name="Moon" type="MeshInstance2D" parent="."]
+position = Vector2(1400, 140)
+mesh = SubResource("QuadMesh_moon")
+material = SubResource("ShaderMaterial_moon")
+
+[node name="MoonGlow" type="MeshInstance2D" parent="Moon"]
+mesh = SubResource("QuadMesh_glow")
+material = SubResource("ShaderMaterial_moon_glow")
+
+[node name="PlayerSpawn" type="Marker2D" parent="."]
+position = Vector2(640, 560)
+
+[node name="EnemySpawnA" type="Marker2D" parent="."]
+position = Vector2(700, 560)
+
+[node name="EnemySpawnB" type="Marker2D" parent="."]
+position = Vector2(1720, 560)
+
+[node name="StageCamera" type="Camera2D" parent="."]
+position = Vector2(1200, 360)
+current = true
+position_smoothing_enabled = false
+limit_left = 0
+limit_right = 2400
+limit_top = -100
+limit_bottom = 820

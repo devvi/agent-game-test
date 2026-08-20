@@ -418,7 +418,7 @@ ink_wash.gdshader 语法错误
 | 血色契约 | `set_low_health(enabled)` | blood_vignette.set_enabled() | controller 转发 + Tween（§2.4） | ✅ connected（implement #582 验证） |
 | 低血信号源 | `debug_trigger_low_health()`（本 issue） | #575 玩家实体 `low_health` 信号（未来） | #575 实现时 `connect(controller.set_low_health)`；发射端归 #575，本 issue 只建消费端 | ⬜ pending（显式延期至 #575） |
 | E2E 单帧 | e2e_shots.json `snow_night` 组 | #586 E2E 完整剧本 harness | #586 接入 harness 时自动生效；本 issue 实现 PR 用 headless 截图附 PR（AC5） | ⬜ pending（显式延期至 #586） |
-| 战斗场景复用 | `atmosphere_layer.tscn` 实例 | #583 战斗场景 | #583 实现时实例化同一 .tscn（月亮节点归 #583） | ⬜ pending（显式延期至 #583） |
+| 战斗场景复用 | `atmosphere_layer.tscn` 实例 | #583 战斗场景 | #583 实现时实例化同一 .tscn（月亮节点归 #583） | ✅ connected（implement #583 验证：e2e_battle_stage_capture.tscn 实例化） |
 | 测试挂载 | `tests/test_atmosphere.gd` | run_tests.gd | `_run_tests()` 追加 `_run(...)` 一行（§3.4） | ✅ connected（implement #582 验证） |
 
 ---

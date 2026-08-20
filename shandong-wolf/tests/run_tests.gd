@@ -25,6 +25,7 @@ func _run_tests() -> void:
 	_run("res://tests/test_enemy_ai.gd", "EnemyAI")
 	_run("res://tests/test_hud.gd", "Hud")
 	_run("res://tests/test_revive_orchestrator.gd", "ReviveOrchestrator")
+	_run("res://tests/test_battle_stage.gd", "BattleStage")
 	print("TESTS: %d passed, %d failed" % [_pass, _fail])
 	quit(1 if _fail > 0 else 0)
 
