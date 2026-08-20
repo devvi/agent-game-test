@@ -14,6 +14,7 @@ const StateMachineBaseScript = preload("res://gdscripts/state_machine.gd")
 const C = preload("res://gdscripts/constants.gd")
 const CombatStateTableScript = preload("res://gdscripts/combat_state_table.gd")
 const CombatStatesScript = preload("res://gdscripts/combat_states.gd")
+const DebugCanvasScript = preload("res://gdscripts/debug_canvas.gd")
 
 ## 变体参数（issue body「差异通过参数配置」）
 @export var is_player: bool = false
@@ -34,6 +35,8 @@ var state_name: String = "idle"        # canonical 状态名（#574 consume_stat
 var _active_life: int = 1              # 两段血标记: 1 = hp_1 受击条，2 = hp_2 受击条
 var _is_final_dead: bool = false       # 终态（final=true 后禁止 revive）
 var _invincible_until_sec: float = 0.0 # 复活无敌期截止（Time.get_ticks_msec()/1000.0 比较）
+var exhausted: bool = false
+var _exhausted_until_sec: float = 0.0
 var fsm: Object                        # StateMachineBase 实例
 var _state_objs: Dictionary = {}       # canonical 状态名 → 状态对象（_init 预建）
 var _ic: Object = null                 # InputController 引用（输入桥，is_player 启用）
@@ -72,6 +75,8 @@ func _process(delta: float) -> void:
 		_invincible_until_sec = 0.0
 	if _ic != null:
 		_bridge_poll()
+	if exhausted and Time.get_ticks_msec() / 1000.0 >= _exhausted_until_sec:
+		exhausted = false
 
 func request_transition(to: String) -> bool:
 	## 唯一转移入口（表 = 拓扑合法性 + 守卫 = 条件合法性，两层设计）。
@@ -130,6 +135,8 @@ func take_stance_damage(amount: float) -> void:
 	if not is_finite(amount) or amount < 0.0:
 		push_warning("CombatEntity: invalid stance damage %s treated as 0" % [amount])
 		amount = 0.0
+	if exhausted:
+		amount = amount * float(_read_exe("EXECUTE_EXHAUST_MULTIPLIER", C.EXECUTE_EXHAUST_MULTIPLIER))
 	stance = clampf(stance - amount, 0.0, stance_max)
 	emit_signal("stance_changed", stance, stance_max)
 	if stance <= 0.0:
@@ -139,6 +146,7 @@ func break_stance() -> void:
 	## 幂等: 已崩解则不再二次广播/二次转移（单次触发，§5 边界 3）
 	if is_stance_broken:
 		return
+	exhausted = false
 	is_stance_broken = true
 	stance = 0.0
 	emit_signal("stance_broken", self)
@@ -215,3 +223,30 @@ func _bridge_poll() -> void:
 		request_transition("idle")
 	if state_name == "guard" and not Input.is_action_pressed("game_guard"):
 		request_transition("idle")
+
+func _read_exe(param_name: String, default_value: Variant) -> Variant:
+	return DebugCanvasScript.get_value(param_name, default_value)
+
+func execute_kill() -> void:
+	## 处决杀敌专用通道（#580）: 绕过 take_damage 的 execute no-op 无敌红线。不调用 take_damage、不转移 dead 态（保持 execute 演出态）。停摆守卫: _is_final_dead 置位 → 不可 revive / 不可二次 died。
+	if _is_final_dead:
+		return
+	_is_final_dead = true
+	exhausted = false
+	hp_1 = 0.0
+	emit_signal("hp_changed", hp_1, hp_2, _active_life)
+	emit_signal("died", self, true)
+
+func set_invincible(seconds: float) -> void:
+	## 处决/演出期无敌（#580）: 复用既有无敌期机制。
+	_invincible_until_sec = Time.get_ticks_msec() / 1000.0 + maxf(seconds, 0.0)
+
+func recover_from_break() -> void:
+	## 崩解起身（#580，幂等）: 50% 架势恢复 + 5s 疲惫。幂等: is_stance_broken 已清 → no-op（防状态机退出与编排器到期双写竞态）。
+	if not is_stance_broken:
+		return
+	is_stance_broken = false
+	stance = clampf(stance_max * float(_read_exe("EXECUTE_RECOVER_RATIO", C.EXECUTE_RECOVER_RATIO)), 0.0, stance_max)
+	exhausted = true
+	_exhausted_until_sec = Time.get_ticks_msec() / 1000.0 + float(_read_exe("EXECUTE_EXHAUSTED_SECONDS", C.EXECUTE_EXHAUSTED_SECONDS))
+	emit_signal("stance_changed", stance, stance_max)
