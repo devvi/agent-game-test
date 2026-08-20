@@ -8,6 +8,7 @@
 script = ExtResource("1_rig")
 
 [node name="Backdrop" type="ColorRect" parent="."]
+z_index = -2
 color = Color(0.847, 0.863, 0.894, 1)
 size = Vector2(1280, 720)
 
