@@ -256,6 +256,16 @@ json.dump(p, open(sys.argv[1], "w"), indent=2)
 PY
   fi
 
+  # #661 multi-scene: count distinct main_scenes in the resolved plan.
+  # 0/1 scene → byte-identical single capture of plan.json (old behavior).
+  SCENE_COUNT=$(python3 - "$OUT/plan.json" <<'PY' 2>/dev/null || echo 1
+import json, sys
+p = json.load(open(sys.argv[1]))
+print(len(p.get("scene_groups", {})))
+PY
+  )
+  log "  scene_groups: $SCENE_COUNT"
+
   if [ "$VISUAL" != "fail" ] && [ "$DRY_RUN" = "0" ]; then
     # 2026-08-20 (#586 gap 3): P5 分辨率从 project.godot 读取——不再硬编码
     # 720x1280（#383 mini-pong 竖屏遗留）。shandong-wolf=1280x720,
@@ -271,11 +281,44 @@ PY
 )"
     log "  viewport: $VIEWPORT (from project.godot)"
     maybe cp "$CAPTURE_SRC" "$OUT/capture.gd"
-    log "  running capture (real rendering, display-sleep immune)"
-    ( cd "$WT" && "$GODOT" --path "$SUBPROJECT/" --display-driver macos --rendering-driver opengl3 \
-        --resolution "$VIEWPORT" --script "$OUT/capture.gd" -- "$OUT/plan.json" > "$OUT/P5-visual.log" 2>&1 )
-    local_capture=$?
-    log "  capture exit=$local_capture"
+
+    # #661 multi-scene: one godot process per distinct main_scene (sub-plan).
+    run_capture() {
+      local plan_path="$1"
+      local log_name="$2"
+      log "  running capture (real rendering, display-sleep immune)"
+      ( cd "$WT" && maybe "$GODOT" --path "$SUBPROJECT/" --display-driver macos --rendering-driver opengl3 \
+          --resolution "$VIEWPORT" --script "$OUT/capture.gd" -- "$plan_path" > "$OUT/$log_name" 2>&1 )
+      local_capture=$?
+      log "  capture exit=$local_capture"
+      return $local_capture
+    }
+
+    if [ "$SCENE_COUNT" -le 1 ]; then
+      run_capture "$OUT/plan.json" "P5-visual.log"
+    else
+      log "  multi-scene capture ($SCENE_COUNT scenes): splitting by main_scene"
+      python3 - "$OUT/plan.json" "$OUT" <<'PY'
+import json, sys
+plan, out = json.load(open(sys.argv[1])), sys.argv[2]
+groups = plan["scene_groups"]
+for i, (scene, shots) in enumerate(groups.items()):
+    sub = dict(plan)
+    sub["main_scene"] = scene
+    sub["shots"] = shots
+    sub["out_dir"] = f"{out}/shots/{i}"
+    json.dump(sub, open(f"{out}/sub-plan-{i}.json", "w"), indent=2)
+PY
+      i=0
+      CAPTURE_FAILS=0
+      for sub in "$OUT"/sub-plan-*.json; do
+        run_capture "$sub" "P5-visual-$i.log" || { CAPTURE_FAILS=1; true; }
+        i=$((i+1))
+      done
+      mkdir -p "$OUT/shots"
+      for d in "$OUT"/shots/*/; do cp "$d"*.png "$OUT/shots/" 2>/dev/null || true; rm -rf "$d"; done
+      local_capture=$CAPTURE_FAILS
+    fi
 
     # 4-fold anti-fake assertions on every shot
     VISUAL_FAIL=0

@@ -269,3 +269,220 @@ class TestGroupKeyPromotion(unittest.TestCase):
         resolved = rp.resolve(plan, ["dialogue/scene2.json", "alt/scene.json"])
         self.assertEqual(resolved["groups_activated"], ["journey", "alt"])
         self.assertEqual(resolved["main_scene"], "res://scenes/Journey.tscn")
+
+
+class TestGroupAutoplayPromotion(unittest.TestCase):
+    """#661: group-level autoplay promotion (first activated group wins).
+
+    _GROUP_PROMOTED gains "autoplay" so a group-scoped capture mode survives
+    resolution, overriding any top-level default. These tests LOCK that
+    behavior (first activated group wins, consistent with existing group-key
+    semantics) and that a group declaring no autoplay must not introduce the
+    key when the top-level plan lacks it either.
+    """
+
+    def test_group_autoplay_promoted(self):
+        plan = {
+            "game": "mini-pong",
+            "default_archetype": "loop",
+            "groups": {
+                "loop": {
+                    "match": [r"gdscripts/.*\.gd"],
+                    "shots": [{"name": "01_title", "state": "MENU"}],
+                },
+                "journey": {
+                    "match": [r"dialogue/.*\.json"],
+                    "autoplay": {
+                        "mode": "capture",
+                        "tweaks": [{"key": "capture.slowmo", "value": 2.0}],
+                    },
+                    "shots": [{"name": "j_open", "state": "SCENE_1"}],
+                },
+            },
+        }
+        resolved = rp.resolve(plan, ["dialogue/scene2.json"])
+        self.assertEqual(resolved["groups_activated"], ["journey"])
+        self.assertEqual(resolved["autoplay"]["mode"], "capture")
+        self.assertEqual(
+            resolved["autoplay"]["tweaks"],
+            [{"key": "capture.slowmo", "value": 2.0}],
+        )
+        # a group that does not declare autoplay must not introduce the key
+        # when the top-level plan lacks it either
+        resolved = rp.resolve(plan, ["gdscripts/ball.gd"])
+        self.assertEqual(resolved["groups_activated"], ["loop"])
+        self.assertNotIn("autoplay", resolved)
+
+    def test_first_activated_group_wins(self):
+        plan = {
+            "game": "mini-pong",
+            "default_archetype": "loop",
+            "groups": {
+                "journey": {
+                    "match": [r"dialogue/.*\.json"],
+                    "autoplay": {"mode": "journey", "tweaks": []},
+                    "shots": [{"name": "j_open", "state": "SCENE_1"}],
+                },
+                "alt": {
+                    "match": [r"alt/.*\.json"],
+                    "autoplay": {"mode": "capture", "tweaks": []},
+                    "shots": [{"name": "a_open", "state": "SCENE_2"}],
+                },
+            },
+        }
+        resolved = rp.resolve(plan, ["dialogue/scene2.json", "alt/scene.json"])
+        self.assertEqual(resolved["groups_activated"], ["journey", "alt"])
+        self.assertEqual(resolved["autoplay"]["mode"], "journey")
+
+    def test_top_level_autoplay_passthrough_unchanged(self):
+        plan = {
+            "game": "mini-pong",
+            "default_archetype": "loop",
+            "autoplay": {"mode": "capture", "tweaks": []},
+            "groups": {
+                "loop": {
+                    "match": [r"gdscripts/.*\.gd"],
+                    "shots": [{"name": "01_title", "state": "MENU"}],
+                },
+            },
+        }
+        resolved = rp.resolve(plan, ["gdscripts/ball.gd"])
+        self.assertEqual(resolved["groups_activated"], ["loop"])
+        self.assertEqual(resolved["autoplay"], {"mode": "capture", "tweaks": []})
+
+
+class TestSceneGroups(unittest.TestCase):
+    """#661: resolve() emits scene_groups {main_scene: [shots, ...]}.
+
+    Each activated group's shots are grouped under the group's own main_scene
+    if declared, else the top-level plan main_scene. Single-value
+    "main_scene"/"shots" outputs are unchanged (backward compatible).
+    """
+
+    def test_single_scene_single_key(self):
+        plan = {
+            "game": "mini-pong",
+            "default_archetype": "loop",
+            "main_scene": "res://scenes/e2e_stick_figure_capture.tscn",
+            "groups": {
+                "loop": {
+                    "match": [r"gdscripts/.*\.gd"],
+                    "shots": [{"name": "01_title", "state": "MENU"}],
+                },
+                "visual_pause": {
+                    "match": [r"gdscripts/pause_overlay\.gd"],
+                    "shots": [{"name": "04_paused", "state": "PAUSED"}],
+                },
+            },
+        }
+        resolved = rp.resolve(
+            plan, ["gdscripts/ball.gd", "gdscripts/pause_overlay.gd"])
+        self.assertEqual(resolved["groups_activated"], ["loop", "visual_pause"])
+        self.assertEqual(len(resolved["scene_groups"]), 1)
+        self.assertIn(
+            "res://scenes/e2e_stick_figure_capture.tscn", resolved["scene_groups"])
+        stick = resolved["scene_groups"]["res://scenes/e2e_stick_figure_capture.tscn"]
+        names = [s["name"] for s in stick]
+        self.assertEqual(names, ["01_title", "04_paused"])
+
+    def test_multi_scene_split(self):
+        plan = {
+            "game": "mini-pong",
+            "default_archetype": "loop",
+            "main_scene": "res://scenes/e2e_stick_figure_capture.tscn",
+            "groups": {
+                "snow_night": {
+                    "match": [r"gdscripts/snow.*\.gd"],
+                    "shots": [{"name": "01_snow_night_atmosphere", "state": "NIGHT"}],
+                },
+                "feedback": {
+                    "match": [r"gdscripts/feedback.*\.gd"],
+                    "main_scene": "res://scenes/e2e_feedback_capture.tscn",
+                    "shots": [
+                        {"name": "fb_parry_success", "state": "PARRY"},
+                        {"name": "fb_stance_break", "state": "STANCE_BREAK"},
+                        {"name": "fb_execute", "state": "EXECUTE"},
+                    ],
+                },
+            },
+        }
+        resolved = rp.resolve(
+            plan, ["gdscripts/snow_fx.gd", "gdscripts/feedback.gd"])
+        self.assertEqual(resolved["groups_activated"], ["snow_night", "feedback"])
+        self.assertEqual(len(resolved["scene_groups"]), 2)
+        stick = resolved["scene_groups"]["res://scenes/e2e_stick_figure_capture.tscn"]
+        feedback = resolved["scene_groups"]["res://scenes/e2e_feedback_capture.tscn"]
+        self.assertEqual([s["name"] for s in stick], ["01_snow_night_atmosphere"])
+        self.assertEqual(
+            [s["name"] for s in feedback],
+            ["fb_parry_success", "fb_stance_break", "fb_execute"])
+        # resolved["shots"] still flattens all 4 in activation order
+        names = [s["name"] for s in resolved["shots"]]
+        self.assertEqual(
+            names,
+            ["01_snow_night_atmosphere", "fb_parry_success",
+             "fb_stance_break", "fb_execute"])
+
+    def test_same_scene_merged_deduped(self):
+        plan = {
+            "game": "mini-pong",
+            "default_archetype": "loop",
+            "main_scene": "res://scenes/e2e_stick_figure_capture.tscn",
+            "groups": {
+                "loop": {
+                    "match": [r"gdscripts/.*\.gd"],
+                    "main_scene": "res://scenes/e2e_feedback_capture.tscn",
+                    "shots": [{"name": "fb_parry_success", "state": "PARRY"}],
+                },
+                "visual_pause": {
+                    "match": [r"gdscripts/pause_overlay\.gd"],
+                    "main_scene": "res://scenes/e2e_feedback_capture.tscn",
+                    "shots": [
+                        {"name": "fb_parry_success", "state": "PARRY"},
+                        {"name": "04_paused", "state": "PAUSED"},
+                    ],
+                },
+            },
+        }
+        resolved = rp.resolve(
+            plan, ["gdscripts/ball.gd", "gdscripts/pause_overlay.gd"])
+        self.assertEqual(resolved["groups_activated"], ["loop", "visual_pause"])
+        self.assertEqual(len(resolved["scene_groups"]), 1)
+        merged = resolved["scene_groups"]["res://scenes/e2e_feedback_capture.tscn"]
+        names = [s["name"] for s in merged]
+        self.assertEqual(names, ["fb_parry_success", "04_paused"])
+        self.assertEqual(len(names), len(set(names)), "no duplicate shots")
+
+    def test_single_value_outputs_backward_compatible(self):
+        plan = {
+            "game": "mini-pong",
+            "default_archetype": "loop",
+            "main_scene": "res://scenes/e2e_stick_figure_capture.tscn",
+            "groups": {
+                "snow_night": {
+                    "match": [r"gdscripts/snow.*\.gd"],
+                    "shots": [{"name": "01_snow_night_atmosphere", "state": "NIGHT"}],
+                },
+                "feedback": {
+                    "match": [r"gdscripts/feedback.*\.gd"],
+                    "main_scene": "res://scenes/e2e_feedback_capture.tscn",
+                    "shots": [
+                        {"name": "fb_parry_success", "state": "PARRY"},
+                        {"name": "fb_stance_break", "state": "STANCE_BREAK"},
+                        {"name": "fb_execute", "state": "EXECUTE"},
+                    ],
+                },
+            },
+        }
+        resolved = rp.resolve(
+            plan, ["gdscripts/snow_fx.gd", "gdscripts/feedback.gd"])
+        # first activated group that declares main_scene wins; snow_night does
+        # not declare it, so feedback's scene is promoted — the single-value
+        # main_scene output is unchanged from pre-change behavior
+        self.assertEqual(
+            resolved["main_scene"], "res://scenes/e2e_feedback_capture.tscn")
+        names = [s["name"] for s in resolved["shots"]]
+        self.assertEqual(
+            names,
+            ["01_snow_night_atmosphere", "fb_parry_success",
+             "fb_stance_break", "fb_execute"])

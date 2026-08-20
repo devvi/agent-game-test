@@ -4,7 +4,10 @@
 Diff-driven archetype selection (P4: framework owns machinery, game owns script):
   - A group activates when ANY of its `match` regexes matches ANY diff file.
   - If no group matches, the `default_archetype` group is used.
-  - Activated groups' shots are flattened into the resolved plan (deduped by name).
+  - Activated groups' shots are flattened into the resolved plan (deduped by name),
+    and additionally grouped under `scene_groups`: a dict keyed by each group's
+    `main_scene` (falling back to the top-level `main_scene`) mapping to its shots.
+    Groups declaring the same scene merge under one key.
 
 Usage:
   resolve_plan.py <shot-plan.json> <diff-files.txt> <out-plan.json>
@@ -26,9 +29,11 @@ _PASSTHROUGH = (
 # Group-level keys promoted to the resolved plan (first activated group wins).
 # 2026-08-20 (#586 gap 1): scene keys joined so group-scoped main_scene /
 # state_node / state_property / states are no longer silently dropped.
+# 2026-08-21 (#661): autoplay promoted so a group-level autoplay overrides the
+# top-level passthrough value.
 _GROUP_PROMOTED = (
     "mode", "path", "transcript", "state_trajectory", "fidelity",
-    "main_scene", "state_node", "state_property", "states",
+    "main_scene", "state_node", "state_property", "states", "autoplay",
 )
 
 
@@ -60,12 +65,15 @@ def resolve(plan: dict, diff_files: list[str]) -> dict:
     resolved: dict = {k: plan[k] for k in _PASSTHROUGH if k in plan}
     shots: list[dict] = []
     seen: set[str] = set()
+    scene_groups: dict = {}
+    top_scene = plan.get("main_scene")
     # Keys already promoted by an earlier activated group. First activated group
     # wins, and a group-scoped value overrides the top-level passthrough default
     # (e.g. e2e_script declares its own main_scene over the global one).
     group_promoted: set[str] = set()
     for gname in activated:
         g = groups.get(gname, {})
+        g_scene = g.get("main_scene", top_scene)
         for s in g.get("shots", []):
             name = s.get("name", "")
             if name and name in seen:
@@ -73,11 +81,13 @@ def resolve(plan: dict, diff_files: list[str]) -> dict:
             if name:
                 seen.add(name)
             shots.append(s)
+            scene_groups.setdefault(g_scene, []).append(s)
         for k in _GROUP_PROMOTED:
             if k in g and k not in group_promoted:
                 resolved[k] = g[k]
                 group_promoted.add(k)
     resolved["shots"] = shots
+    resolved["scene_groups"] = scene_groups
     resolved["groups_activated"] = activated
     return resolved
 
