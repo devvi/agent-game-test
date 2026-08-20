@@ -116,6 +116,7 @@
 | 465 | Mini Pong 雨幕粒子修复 (全屏均匀雨滴分布 — visibility_rect 剔除修复 + 全屏发射区 + 基值对齐) | ✅ 已合并 | DESIGN / GDD |
 
 | 567 | Shandong Wolf post-merge 探针 (Main.tscn 右下角 PostMergeProbeLabel, 驱动 post-merge 管线回归) | ✅ 已合并 | DESIGN / GDD |
+| 652 | probe-C：api-close-reopen 探针 (docs/probe-c.md marker, GitHub API close→reopen→re-close 语义验证, 驱动 post-merge 管线二次回归, #658) | ✅ 已合并 | DESIGN / GDD |
 | 572 | Shandong Wolf 逻辑地基 (constants.gd # DRAFT 数值集中地 + StateMachineBase 通用状态机基类 + Game autoload 锚点 + 状态机/常量单测) | ✅ 已合并 | DESIGN / GDD |
 | 584 | Shandong Wolf 战斗数值 DRAFT 集中表 (只狼基准 14 参数候补值三行注释 + DebugCanvas F1 调参面板, 草稿已合并) | 🧪 草稿已合并，待用户定稿 | DESIGN / TASTE |
 | 573 | Shandong Wolf 输入映射与玩家控制器 (Input Map 9 动作 + InputController 意图事件/时间戳缓冲 + PlayerController 加速度移动, AC1-AC6 全过) | ✅ 已合并 | DESIGN / GDD |
