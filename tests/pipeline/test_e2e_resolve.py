@@ -476,10 +476,11 @@ class TestSceneGroups(unittest.TestCase):
         }
         resolved = rp.resolve(
             plan, ["gdscripts/snow_fx.gd", "gdscripts/feedback.gd"])
-        # main_scene matches the first activated group's scene (or top-level
-        # if none declared) — identical to pre-change behavior
+        # first activated group that declares main_scene wins; snow_night does
+        # not declare it, so feedback's scene is promoted — the single-value
+        # main_scene output is unchanged from pre-change behavior
         self.assertEqual(
-            resolved["main_scene"], "res://scenes/e2e_stick_figure_capture.tscn")
+            resolved["main_scene"], "res://scenes/e2e_feedback_capture.tscn")
         names = [s["name"] for s in resolved["shots"]]
         self.assertEqual(
             names,

@@ -316,7 +316,7 @@ PY
         i=$((i+1))
       done
       mkdir -p "$OUT/shots"
-      for d in "$OUT"/shots/*/; do cp "$d"*.png "$OUT/shots/" 2>/dev/null || true; done
+      for d in "$OUT"/shots/*/; do cp "$d"*.png "$OUT/shots/" 2>/dev/null || true; rm -rf "$d"; done
       local_capture=$CAPTURE_FAILS
     fi
 
