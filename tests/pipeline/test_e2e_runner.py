@@ -64,10 +64,16 @@ if "--display-driver" in sys.argv:
             if patch and theme and x < 8 and y < 8:
                 return (int(theme[0:2], 16), int(theme[2:4], 16), int(theme[4:6], 16))
             return ((x * 3 + b) % 256, (y * 2 + b) % 256, 60)
+        # Render at the runner's --resolution WxH (faithful to real Godot;
+        # #586 gap 3/AC2 makes the runner assert the PNG size via --size).
+        width, height = 320, 180
+        if "--resolution" in sys.argv:
+            w, h = sys.argv[sys.argv.index("--resolution") + 1].split("x")
+            width, height = int(w), int(h)
         for i, s in enumerate(plan.get("shots", [])):
             patch = not s.get("theme_absent")
             with open(os.path.join(out_dir, s["name"] + ".png"), "wb") as f:
-                f.write(make_png(320, 180, lambda x, y, b=i * 40, pt=patch: pixel(x, y, b, pt)))
+                f.write(make_png(width, height, lambda x, y, b=i * 40, pt=patch: pixel(x, y, b, pt)))
     sys.exit(0)
 
 exit_code = 0
@@ -119,7 +125,10 @@ class RunnerTestBase(unittest.TestCase):
                     "git:\n  default_branch: main\n"
                     "source:\n  subprojects:\n    - mini-pong\n")
         with open(os.path.join(self.repo, "mini-pong", "project.godot"), "w") as f:
-            f.write('[application]\nconfig/name="E2EFixture"\n')
+            f.write('[application]\nconfig/name="E2EFixture"\n'
+                    '[display]\n'
+                    'window/size/viewport_width=320\n'
+                    'window/size/viewport_height=180\n')
         for t in ("check_compile.gd", "run_tests.gd", "playthrough_test.tscn"):
             with open(os.path.join(self.repo, "mini-pong", "tests", t), "w") as f:
                 f.write("# fake\n")
