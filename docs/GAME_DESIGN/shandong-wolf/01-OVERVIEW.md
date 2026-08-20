@@ -92,7 +92,7 @@ modulate = Color(1, 1, 1, 0.6)
 | #562 | Main.tscn 场景结构落地 + post-merge 机制（merge 事件绑定 GDD） | 已合并 |
 | #563 | 结论骨架回归（SubtitleLabel，静态 Label + 管线全链路回归） | 已合并 |
 | #567 | post-merge 阶段回归探针（PostMergeProbeLabel） | 已合并（#570） |
-| #652 | probe-C：api-close-reopen 探针（docs/probe-c.md marker，#658 已合并） | 已合并（#658） |
+| #652 | probe-C：api-close-reopen 探针（marker 文档已随探针清理移除，#658 已合并） | 已合并（#658） |
 
 ## 5. 探针 C：api-close-reopen（#652/#658，2026-08-20）
 
