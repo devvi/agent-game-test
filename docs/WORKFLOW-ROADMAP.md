@@ -97,6 +97,48 @@ cron LLM 看到 skip 行 → 判定 SPAWN 无效 → `[SILENT]`，无 delegate�
 
 ---
 
+### R4. Cron LLM 深挖阻塞 poller（2026-08-20 列入，状态：待设计）
+
+**为什么列入**：cron session（deepseek-v4-flash）收到指令后深挖源码/调查 10-17 分钟，期间 scheduler 对同一 job 串行（`already running — skipping`）→ 所有 tick 停摆，SPAWN/E2E 收割全延迟。
+
+**现象**：
+- 00:44:05 session 处理 `STALLED: check-self-correct pr=627` → 深挖 17 分钟（01:01:04 结束），期间 tick 全 skip
+- 13:58:29 session 同款深挖 7 分钟（读 #613 分支 commits + reconcile 源码）后才 delegate review
+
+**证据**：scheduler 日志 `Job 'godot-workflow-poller' already running — skipping`（00:47-01:00 连续 8 次；13:59-14:00 连续 2 次）。
+
+**影响**：tick 停摆期间：E2E 收割延迟、SPAWN 延迟、watchdog 告警误报（626 verdict null 与 cron 阻塞叠加）。
+
+**设计方向（待评审）**：
+1. **cron prompt 强化**：指令执行加"单指令 ≤N 次工具调用 / ≤5 分钟"约束，超限直接按 skill 协议的最小动作收尾（delegate 或写文件）
+2. **scheduler 并行**：同 job 前一个 session 超时（>10min）→ 允许下一个 tick 并行（spawn gate 已有防重）
+3. **模型路由**：poller 用更快/更听话的模型（如 flash 换 non-reasoning 短模型），深挖型调查归 watchdog 人工
+
+---
+
+### R5. research/plan PR 写 "Closes #N" → issue 误关且 reopen 无效（2026-08-20 列入，状态：待设计）
+
+**为什么列入**：research/plan 阶段 PR body 含 `Closes #N` → merge 时 GitHub 原生 close issue → 后续阶段（plan/implement）无法 spawn（picker 只认 open）→ 且 **reopen 无效**：GitHub 对 merged PR 的 "Closes" 引用在 issue reopen 后确定性重新应用（实测 3 次，9-15 秒内 re-close）。
+
+**现象**：
+```
+PR #641（research/579）body: "parent #579" + "Closes #579"
+→ merge（05:24:48Z）→ GitHub 原生 close #579（05:24:50Z）
+→ 任何 reopen（3 次实测：13:55/14:10/14:18）→ 9-15 秒后被 GitHub re-close
+   （伴随 main 分支 push 事件重放：sync job queued, head=#641 merge commit）
+```
+
+**根因**：`game-research-agent` 认为 "Body 含 parent #N + Closes #N（符合项目大小写约定）" 是正确做法——**错误**：research/plan 阶段不该 close（只有 implement 完成/status/done 才 close）。Closes 语义与 workflow-chain 的 label 推进机制冲突。
+
+**影响**：#579 全阶段需手动 spawn（plan/implement）；任何 research/plan PR 误写 Closes 都会制造同类断链。
+
+**设计方向（待评审）**：
+1. **skill 红线**：`game-research-agent` / `game-plan-agent` PR body 禁止 `Closes/Fixes/Resolves #N`，只允许 `Parent #N`（关闭语义归 workflow-chain/status-done）
+2. **stage-gate.py 校验**：research/plan PR body 含 Closes 关键词 → 自动移除 + 告警
+3. **watchdog 检测**：`workflow/plan`/`workflow/implement` label + issue closed = 异常状态 → 告警（防静默断链）
+
+---
+
 ## 观察区（候选，未正式列入）
 
 - webhook 链路 5 故障点（ngrok→gateway→route script）——已有 reconcile_check_runs 兜底
