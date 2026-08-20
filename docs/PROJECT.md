@@ -6,8 +6,8 @@
 |------|:----:|
 | 编译 | ✅ 通过 |
 | 可运行 | ✅ 能启动 |
-| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D)、失败屏(win/fail双分支+run数据+软冻结)、球速 HUD 实时显示；🟡 shandong-wolf（当前活跃游戏）: 逻辑地基就绪（WolfConstants 数值集中地 + StateMachineBase 状态机基类 + Game autoload）+ 战斗数值 DRAFT 集中表（#584 只狼基准 14 参数候补值）+ DebugCanvas F1 调参面板（#609，仅 debug build）+ 输入层就绪（Input Map 9 动作 + InputController 意图事件/时间戳缓冲 + PlayerController 加速度移动，#611）+ 战斗实体与状态机就绪（CombatEntity 数据容器/两段血/输入桥 + 11 态战斗状态机 + 战斗时序 DRAFT 分区，#618）+ 火柴人剪影骨架与关键帧动画（Line2D 程序化骨架 7 pivot + 11 态关键帧 + consume_state 契约 + additive 刀光，#612）+ 血条与架势条极简 HUD（两段式血条/双架势条/击杀与处决提示，程序化绘制零贴图，草稿已合并待用户 E2E 截图定稿，#627）+ 拼刀/弹反/架势崩解判定层（CombatJudge 逻辑帧窗口判定 + AttackWindow 窗口契约 + 弹反/拼刀/格挡/受击五结果事件 + 6 判定常量 # DRAFT，#626）+ 雪夜氛围层（#582/#613 四层系统已落地 main：三层视差雪幕 60/60/80 粒子 + 单 CanvasModulate 冷月光 #6e7684 + 水墨晕染 + 血色 vignette 契约；#624/#629 单 moon 层契约：唯一 moon 挂 layer 0 + 雪幕/水墨/血色/UI 禁染 + C3 ==1 守卫；NIGHT_BG_COLOR 等 # DRAFT 定稿归 #582 用户裁决）+ 两条命原地复活系统（ReviveOrchestrator 自动复活编排：died(final=false)→1s 计时→revive()，与 F 键手动路径双路径幂等收敛 + ReviveFX 演出四件套：墨点 burst/瞬态闪屏/慢动作/无敌闪烁，12 演出常量 # DRAFT 归 #584，SW-015 终态契约固化，#637） + 基础日本兵 AI（EnemyAI 行为状态机：巡逻/追击/攻击/被弹反 4 行为态 + 120° 视线 6m 几何感知（无 raycast/Area2D）+ 决策门控 + 弹反抑制窗 0.5s；判定层 3 处 additive 参数化 + AI 分区 18 常量 # DRAFT，AC1-AC5 全过，#638） |
-| 最近构建 | 2026-08-20（shandong-wolf 雪夜氛围四层系统 #613） |
+| 可玩 | ✅ PONG://NEON（原 Mini Pong）: 完整状态机(MENU→SERVING→PLAYING⇌PAUSED→SCORED→GAME_OVER)、UI系统、球物理、挡板移动、AI对手、暂停(Escape)、音效合成、L0动态雨幕(GPUParticles2D)、失败屏(win/fail双分支+run数据+软冻结)、球速 HUD 实时显示；🟡 shandong-wolf（当前活跃游戏）: 逻辑地基就绪（WolfConstants 数值集中地 + StateMachineBase 状态机基类 + Game autoload）+ 战斗数值 DRAFT 集中表（#584 只狼基准 14 参数候补值）+ DebugCanvas F1 调参面板（#609，仅 debug build）+ 输入层就绪（Input Map 9 动作 + InputController 意图事件/时间戳缓冲 + PlayerController 加速度移动，#611）+ 战斗实体与状态机就绪（CombatEntity 数据容器/两段血/输入桥 + 11 态战斗状态机 + 战斗时序 DRAFT 分区，#618）+ 火柴人剪影骨架与关键帧动画（Line2D 程序化骨架 7 pivot + 11 态关键帧 + consume_state 契约 + additive 刀光，#612）+ 血条与架势条极简 HUD（两段式血条/双架势条/击杀与处决提示，程序化绘制零贴图，草稿已合并待用户 E2E 截图定稿，#627）+ 拼刀/弹反/架势崩解判定层（CombatJudge 逻辑帧窗口判定 + AttackWindow 窗口契约 + 弹反/拼刀/格挡/受击五结果事件 + 6 判定常量 # DRAFT，#626）+ 雪夜氛围层（#582/#613 四层系统已落地 main：三层视差雪幕 60/60/80 粒子 + 单 CanvasModulate 冷月光 #6e7684 + 水墨晕染 + 血色 vignette 契约；#624/#629 单 moon 层契约：唯一 moon 挂 layer 0 + 雪幕/水墨/血色/UI 禁染 + C3 ==1 守卫；NIGHT_BG_COLOR 等 # DRAFT 定稿归 #582 用户裁决）+ 两条命原地复活系统（ReviveOrchestrator 自动复活编排：died(final=false)→1s 计时→revive()，与 F 键手动路径双路径幂等收敛 + ReviveFX 演出四件套：墨点 burst/瞬态闪屏/慢动作/无敌闪烁，12 演出常量 # DRAFT 归 #584，SW-015 终态契约固化，#637） + 基础日本兵 AI（EnemyAI 行为状态机：巡逻/追击/攻击/被弹反 4 行为态 + 120° 视线 6m 几何感知（无 raycast/Area2D）+ 决策门控 + 弹反抑制窗 0.5s；判定层 3 处 additive 参数化 + AI 分区 18 常量 # DRAFT，AC1-AC5 全过，#638）+ 雪夜山东村战斗舞台（battle_stage.tscn 纯声明式世界层场景：单一连续碰撞面 2400px + 视觉 3 段雪堆高差 60-100px + 草屋×2/枯树×2 墨色剪影 + 山峦远景 + 苍月 Mesh2D 径向渐变 + moon_glow 光晕 shader + PlayerSpawn/EnemySpawnA/B 出生点 + StageCamera limits 2400，零贴图零新增 CanvasModulate（C3 守卫），E2E battle_stage 组截图待用户 AC5 裁决，#646） |
+| 最近构建 | 2026-08-20（shandong-wolf 雪夜山东村战斗舞台 #646） |
 | 开放 Issues | 1 |
 
 ## 模块地图
@@ -58,6 +58,9 @@
 | Shandong Wolf — ReviveFX 复活演出 | `shandong-wolf/gdscripts/revive_fx.gd`（Node2D _ready 代码构建零资产：墨点 GPUParticles2D one_shot + 瞬态 CanvasModulate 闪屏 Tween + Engine.time_scale 慢动作 + 父节点 modulate 无敌闪烁，参数全读 constants 复活 FX 分区零字面量） | ✅ | GDD |
 | Shandong Wolf — 复活测试套件 | `shandong-wolf/tests/test_revive_orchestrator.gd`（24 用例 7 场景：编排主路径/无敌+架势/终态契约/FX 零字面量/双路径竞争/边界失败/回归，run_tests.gd 第 10 套件） | ✅ | GDD |
 | Shandong Wolf — 复活 E2E 截图接线 | `shandong-wolf/scenes/e2e_stick_figure_capture.tscn` + `gdscripts/e2e_stick_figure_capture.gd`（REVIVE 态进入 → fx.trigger() + bind_player_visual，AC5 用户裁决证据路径） | ✅ | GDD |
+| Shandong Wolf — 战斗舞台场景 | `shandong-wolf/scenes/battle_stage.tscn`（纯声明式 Node2D 世界层：Ground StaticBody2D 单一碰撞面 + 草屋/枯树/山峦/苍月剪影 + Marker2D×3 + StageCamera，零脚本零贴图零新增 CanvasModulate） | ✅ | GDD |
+| Shandong Wolf — 月亮光晕 shader | `shandong-wolf/gdscripts/moon_glow.gdshader`（canvas_item 同心 alpha 衰减冷白光晕，回退双层半透明圆） | ✅ | GDD |
+| Shandong Wolf — 战斗舞台测试套件 | `shandong-wolf/tests/test_battle_stage.gd`（14 用例 Scenario A-D：场景结构/碰撞与出生点/视觉色板/相机，run_tests.gd 挂载） | ✅ | GDD |
 | Mini Pong — Arena | `mini-pong/scenes/Main.tscn` | ✅ | GDD |
 | Mini Pong — Constants | `mini-pong/gdscripts/constants.gd` | ✅ | GDD |
 | Mini Pong — ScoreFlash | `mini-pong/gdscripts/score_flash.gd` | ✅ | GDD |
@@ -117,6 +120,7 @@
 | 613 | Shandong Wolf 雪夜氛围四层系统 (三层视差雪幕 60/60/80 粒子 + Parallax2D 0.2/0.5/1.0 + 冷月光 #6e7684 + 水墨晕染 ink_wash + 血色 vignette 契约 + 4 组 24 项氛围常量 # DRAFT + test_atmosphere 462 行 C3 守卫, 草稿已合并待用户 E2E 截图定稿) | 🧪 草稿已合并，待用户定稿 | DESIGN / GDD |
 | 581 | Shandong Wolf 基础日本兵 AI (EnemyAI 行为状态机: 巡逻→追击→攻击→被弹反, 120° 视线 6m 几何感知 + 决策门控 + 弹反抑制窗 0.5s; 判定层 3 处 additive 参数化 windup_frames/伤害 @export/judge 读实体参数; AI 分区 18 常量 # DRAFT 归 #584, AC1-AC5 全过) | ✅ 已合并 | DESIGN / GDD |
 | 578 | Shandong Wolf 两条命原地复活系统 (ReviveOrchestrator 自动复活编排: died(final=false)→1s 计时→revive(), 与 F 键手动路径双路径幂等收敛; ReviveFX 演出四件套: 墨点 burst/瞬态闪屏/慢动作/无敌闪烁, 12 演出常量 # DRAFT 归 #584, SW-015 终态契约固化, AC1-AC5 全过) | ✅ 已合并 | DESIGN / GDD |
+| 583 | Shandong Wolf 雪夜山东村战斗场景 (battle_stage.tscn 纯声明式战斗舞台: 单一连续碰撞面 2400px + 视觉 3 段雪堆高差 60-100px + 草屋×2/枯树×2 墨色剪影 + 山峦远景 + 苍月 Mesh2D 径向渐变 + moon_glow 光晕 shader + PlayerSpawn/EnemySpawnA/B 出生点 + StageCamera limits 2400; constants 场景参数分区 # DRAFT; E2E battle_stage 组 3 shot 附 PR, AC1-AC4 过 + AC5 截图待用户裁决, #646) | ✅ 已合并 | DESIGN / GDD |
 ## 已知问题
 
 7项预存测试失败已在 #353 (暂停) 和 #355 (UI字体) 中全部修复并合并。
@@ -127,3 +131,5 @@ title 界面混杂游戏世界（#508）已在 #511 修复并合并（2026-08-17
 #613 雪夜氛围回归（雪幕粒子不可见/血色 vignette 无效果，7 CanvasModulate 乘法链压暗）已由 #629 修复合并（单 CanvasModulate 层契约：7 moon → 1 moon 挂 layer 0 + 四层禁染 + C3 ==1 守卫），修复随 #613 于 2026-08-20 落地 main（含 self-correct 粒子 texture 程序化软白点）；NIGHT_BG_COLOR 候选 #d8dce4 等 taste 值待 #582 用户 E2E 截图定稿。
 #578 复活演出参数（constants.gd「复活 FX 分区」12 常量：墨点/闪屏/慢动作/闪烁四件套）为 # DRAFT 候选值，定稿归 #584 调参；AC5 复活瞬间 E2E 截图情绪裁决（「硬汉再起」vs「日式中二觉醒」）待用户定稿 → docs/TASTE.md。
 #581/#638 敌人 AI 数值全量 # DRAFT（AI 分区 18 常量 + ENEMY_ATTACK_WINDUP 15→12 实现期 AC1 对齐偏离）定稿归 #584 调参面板；#585 组装前敌人由测试直接装配，场景出生点/巡逻路径 waypoints 待 #583 配置。
+
+#583/#646 战斗舞台参数（constants.gd「场景参数」分区：STAGE_*/PLATFORM_*/色板/MOON_*/物件）为 # DRAFT 候选值（含实现期 self-correct 调亮 STAGE_INK_COLOR #1a1f26→#4a5664 保证 #624 F3 染后 luma ≥30），定稿归 #583 AC5 E2E 截图用户裁决；battle_stage 挂载 Main.tscn 与 EnemyAI.waypoints 配置归 #585 组装。
