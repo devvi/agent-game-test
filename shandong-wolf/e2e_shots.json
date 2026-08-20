@@ -111,6 +111,19 @@
         { "name": "01_execute_strike", "state": "EXECUTE", "settle_frames": 120, "theme_color": null },
         { "name": "02_execute_fade", "state": "EXECUTE", "settle_frames": 60, "theme_color": null }
       ]
+    },
+    "assembly": {
+      "_comment": "#585 组装闭环截图供用户裁决（taste: 失败文案/教学文案/处决构图）：出生遇敌/弹反崩解处决/失败字幕/击杀余韵 4 shot，rig 驱动 BattleAssembler 状态。theme_color 6e7684 = Moonlight 染后 WorldBackdrop 背景断言（照 #582 snow_night 口径，RGB tol 32 命中）。",
+      "main_scene": "res://scenes/e2e_main_assembly_capture.tscn",
+      "state_node": "/root/CaptureRig",
+      "state_property": "current_state",
+      "match": ["gdscripts/main_battle\\.gd", "gdscripts/e2e_main_assembly_capture\\.gd", "scenes/e2e_main_assembly_capture\\.tscn", "scenes/Main\\.tscn", "scenes/battle_stage\\.tscn"],
+      "shots": [
+        { "name": "01_spawn_combat", "state": 0, "settle_frames": 30, "theme_color": "6e7684" },
+        { "name": "02_parry_execute", "state": 1, "settle_frames": 60, "theme_color": "6e7684" },
+        { "name": "03_fail_subtitle", "state": 2, "settle_frames": 30, "theme_color": "6e7684" },
+        { "name": "04_afterglow", "state": 3, "settle_frames": 30, "theme_color": "6e7684" }
+      ]
     }
   }
 }

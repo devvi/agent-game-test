@@ -1,0 +1,9 @@
+[gd_scene format=3 uid="uid://e2e585asmbl000"]
+
+[ext_resource type="Script" path="res://gdscripts/e2e_main_assembly_capture.gd" id="1_rig"]
+[ext_resource type="PackedScene" path="res://scenes/Main.tscn" id="2_main"]
+
+[node name="CaptureRig" type="Node2D"]
+script = ExtResource("1_rig")
+
+[node name="Main" parent="." instance=ExtResource("2_main")]

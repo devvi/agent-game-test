@@ -610,3 +610,32 @@ const EXECUTE_RANGE_PX: float = 120.0                     # # DRAFT
 const EXECUTE_EXHAUSTED_SECONDS: float = 5.0              # # DRAFT
 const EXECUTE_RECOVER_RATIO: float = 0.5                  # # DRAFT
 const EXECUTE_EXHAUST_MULTIPLIER: float = 1.2             # # DRAFT
+
+# ── 组装编排（# DRAFT 候补值，定稿归 #584/用户；#585 消费方，禁止实现期定稿）──
+# AFTERGLOW_SECONDS
+#   AC3: 击杀后场景空闲 ≥5s 情绪余韵，雪花持续（Atmosphere 无暂停路径，天然持续）
+#   候选集: [5.0, 6.0, 8.0]（默认 5.0；MVP 收束节奏，最短满足 AC3 字面）
+const AFTERGLOW_SECONDS: float = 5.0             # # DRAFT
+# FAIL_SUBTITLE_DELAY / FAIL_SUBTITLE_FADE_SECONDS
+#   AC2: 死亡反馈（白闪/屏震 #579）播完后 ≥0.5s 字幕淡入 1s
+#   候选集: delay [0.3, 0.5, 1.0] / fade [0.8, 1.0, 1.5]（默认 0.5 / 1.0）
+const FAIL_SUBTITLE_DELAY: float = 0.5           # # DRAFT
+const FAIL_SUBTITLE_FADE_SECONDS: float = 1.0    # # DRAFT
+# TUTORIAL_HINT_DELAY
+#   情绪弧「教学」: 开局 3s 内浮现操作提示（移动/攻击/格挡键位）
+#   候选集: [2.0, 3.0, 5.0]（默认 3.0）
+const TUTORIAL_HINT_DELAY: float = 3.0           # # DRAFT
+# FAIL_SUBTITLE_CANDIDATES: B5 失败表达候选 5 选 1（taste-draft 进 PR 待用户定稿，实现期禁止裁决）
+const FAIL_SUBTITLE_CANDIDATES: Array = [
+    "雪落无声。村口只剩你。",
+    "雪还在下。村口没人了。",
+    "灯灭了。雪落无声。",
+    "村口只剩下雪。",
+    "刀还在。你没了。",
+]
+# TUTORIAL_HINT_CANDIDATES: 教学提示文案候选（taste-draft 进 PR 待用户定稿，实现期禁止裁决）
+const TUTORIAL_HINT_CANDIDATES: Array = [
+    "村口有动静。握紧你的刀。",
+    "←→ 移动 · J 攻击 · K 格挡",
+    "雪夜村口，有人来了。",
+]
