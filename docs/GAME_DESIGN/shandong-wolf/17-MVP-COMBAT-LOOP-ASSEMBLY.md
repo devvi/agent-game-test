@@ -163,6 +163,10 @@ script = ExtResource("3_main_battle")
 不删除 WorldBackdrop / CanvasLayer 标题 / VersionLabel / PostMergeProbeLabel（标题 CenterContainer
 由 assembler `_ready` 隐藏）；`project.godot` 零改动（main_scene 已是 Main.tscn）。
 
+> #675（2026-08-20 merge）：WorldBackdrop 追加 `z_index = -2`（背景垫底，修复 #654/#666 引入的
+> 背景盖火花缺陷——层级约定「背景 < 火花 < 角色」详见 15-COMBAT-FEEDBACK-SYSTEM §9；本组装场景
+> 间接受益：assembly 组 02_parry_execute 截图恢复火花可见）。
+
 ### 3.5 constants.gd — 「组装编排」# DRAFT 分区（文件尾部追加）
 
 | 常量 | 值（# DRAFT） | 语义 | 候选集 |

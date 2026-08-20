@@ -1,4 +1,4 @@
-# 打击反馈系统 — 火花 / hit-stop / 屏震 / 慢动作 / 白闪（#579/#654）
+# 打击反馈系统 — 火花 / hit-stop / 屏震 / 慢动作 / 白闪（#579/#654/#675）
 
 > 落盘依据：PR **#654**（feat(579) 打击反馈系统，已 merge 2026-08-20）← DESIGN
 > `docs/DESIGN/579-combat-feedback-system.md`（plan PR #653 已 merge）。
@@ -268,3 +268,35 @@ CombatJudge.resolve_attack() → emit parry_success(defender, attacker, stance_d
 - ❌ 任何 `# DRAFT` 数值定稿（FEEDBACK_ 定稿归 #584/用户）
 - ❌ 判定/处决逻辑（#577/#580 职责）、音效发声（#593 职责，只留 feedback_played hook）
 - ❌ 引入第三方 addon（timeflow/trauma-gd 只借鉴模型）
+
+
+## 9. 层级约定：背景 < 火花 < 角色（#675，2026-08-20 merge）
+
+> 落盘依据：PR **#675**（feat(662) backdrop z_index=-2 so combat spark visible，已 merge
+> 2026-08-20）← DESIGN `docs/DESIGN/662-e2e-feedback-backdrop-z.md`（plan PR #674 已 merge）。
+> 性质：bug 修复 —— #654 rig / #666 Main.tscn 引入全屏背景 ColorRect 时未设 z_index
+> （Godot 默认 0），同一 CanvasLayer（layer 0）内按 z_index 升序绘制，不透明背景完整盖住
+> 火花（z=-1）→ **官方 E2E 截图永远截不到火花（AC6 素材无法产出）+ 真实战斗玩家看不到打击火花**。
+
+**层级约定（CanvasLayer 0 内 z_index 升序绘制，本 issue 固化）：**
+
+| 层 | z_index | 节点 | 文件 | 状态 |
+|:---:|:---:|------|------|:---:|
+| 背景 | `-2` | Backdrop（ColorRect） | `shandong-wolf/scenes/e2e_feedback_capture.tscn` | #675 加（原 0） |
+| 背景 | `-2` | WorldBackdrop（ColorRect） | `shandong-wolf/scenes/Main.tscn` | #675 加（原 0） |
+| 火花 | `-1` | FeedbackSpark（GPUParticles2D） | `gdscripts/feedback_spark.gd`（`FEEDBACK_SPARK_Z_INDEX`，constants.gd） | #579 硬约束，**零改动** |
+| 角色 | `0` | 火柴人 stick figure | 战斗场景 | #579 起默认，**零改动** |
+
+**设计要点：**
+
+1. **只动背景层级，不动火花/角色**——火花 -1 是 constants.gd + feedback_spark.gd + C4 单测
+   三方锁定的硬约束（「粒子不盖角色」红线）；角色 z=0 保持；仅背景 0 → -2。
+2. **z 必须严格 -2，不能 -1**：若设 -1 与火花同层，同层按树序绘制——Backdrop 在场景树中
+   先于 ReactionController 声明的火花（代码创建），背景仍会盖住火花（DESIGN §2 失败路径）。
+3. **风格统一**：与 battle_stage.tscn 既有 `PlatformSilhouetteMid/Back` 负层级先例
+   （z=-1/-2，#583）一致；两处修改均为 .tscn 声明式单属性，零 .gd / tests / e2e_shots.json 改动。
+4. **E2E 与真实游戏同时修复**：Main.tscn WorldBackdrop 是玩家实际战斗画面（#585 assembly
+   instance Main.tscn 自动继承）——非仅截图问题。
+
+**维护条款（DESIGN §5 边界情况固化）：** 未来新增 E2E rig / 全屏背景节点，默认
+`z_index=-2`（低于火花 -1）；「背景 < 火花 < 角色」三层约定是本系统与组装场景的公共契约。
