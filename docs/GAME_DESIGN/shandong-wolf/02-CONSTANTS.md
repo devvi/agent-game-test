@@ -195,6 +195,7 @@ shandong-wolf 骨架期（#559-#570）`gdscripts/` 为空，后续 #573-#578 的
 | #574 | 动画帧节奏/骨骼几何/刀光弧线参数 # DRAFT 分区追加（7+9+4 常量，双值冲突 10vs14） | 已合并（#612） |
 | #578 | 两条命原地复活系统（追加「复活 FX」12 常量分区：墨点/闪屏/慢动作/闪烁四件套参数） | 已合并（#637） |
 | #583 | 雪夜山东村战斗场景（追加「场景参数」分区：舞台尺寸/平台/色板/月亮/物件，STAGE_*/PLATFORM_*/MOON_*/HOUSE_* 等） | 已合并（#646） |
+| #579 | 打击反馈系统（追加「反馈分区」12 常量：FEEDBACK_SPARK_*/HITSTOP/SHAKE_PX/SLOWMO/FLASH/TIME_MAX_STACK/ENTITY_FLASH_FACTOR 等） | 已合并（#654） |
 
 ## 9. 复活 FX 分区指针（#578/#637）
 
@@ -210,3 +211,12 @@ shandong-wolf 骨架期（#559-#570）`gdscripts/` 为空，后续 #573-#578 的
 > 定稿归 #583 AC5 用户 E2E 截图裁决（构图/配色归用户，机械部分已定稿）。实现期 self-correct
 > R1：STAGE_INK_COLOR #1a1f26 → #4a5664（染后 luma 0.055 < 30 违反 #624 F3，调亮后 ≈ 39/255 ≥ 30）。
 > 完整组件/数据流/契约见 [14-SCENE-BATTLE-STAGE](14-SCENE-BATTLE-STAGE.md)。
+
+## 11. 反馈分区指针（#579/#654）
+
+> 打击反馈 12 常量随 #654 落地于 constants.gd「反馈分区」（文件尾部）：火花
+> FEEDBACK_SPARK_COUNT/COLOR/VELOCITY/LIFETIME/Z_INDEX + 顿帧 FEEDBACK_HITSTOP_MS +
+> 屏震 FEEDBACK_SHAKE_PX/DECAY + 慢动作 FEEDBACK_SLOWMO + 白闪 FEEDBACK_FLASH/
+> ENTITY_FLASH_FACTOR + 时间栈 FEEDBACK_TIME_MAX_STACK，全 `# DRAFT` 候补值，
+> 定稿归 #584（taste 域；实现期禁止「顺手定稿」）。
+> 完整组件/矩阵/数据流/红线见 [15-COMBAT-FEEDBACK-SYSTEM](15-COMBAT-FEEDBACK-SYSTEM.md)。
