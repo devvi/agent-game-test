@@ -58,7 +58,9 @@ cron LLM 看到 skip 行 → 判定 SPAWN 无效 → `[SILENT]`，无 delegate�
 
 **根因**：同一 tick 内多个路径（preprocess 事件路径 / backlog-promotion / available-rescan）先后调用 `_spawn_gate(issue, stage)`——第一个通过并输出 SPAWN，后续调用因 gate 刚写入而打印 skip。skip 日志与 SPAWN 并存进入 LLM prompt。
 
-**证据**（2026-08-20 实弹）：#579 在 13:12:28 tick 输出上述三行 → cron session `cron_..._131130` 回复 [SILENT] → research agent 未启动（后续手动 delegate 解卡）。
+**证据**（2026-08-20 实弹）：
+- #579 在 13:12:28 tick 输出上述三行 → cron session `cron_..._131130` 回复 [SILENT] → research agent 未启动（后续手动 delegate 解卡）。
+- #583 同日 14:17:37 同款 skip+SPAWN 并存（backlog-promotion 路径 + webhook 路径先后调 gate）→ 叠加 R6 provider 故障 → SPAWN 吞没后卡 `workflow/research`（2026-08-20 恢复实录，见 R6）。
 
 **影响链**（比 R1 更糟）：
 ```
@@ -136,6 +138,38 @@ PR #641（research/579）body: "parent #579" + "Closes #579"
 1. **skill 红线**：`game-research-agent` / `game-plan-agent` PR body 禁止 `Closes/Fixes/Resolves #N`，只允许 `Parent #N`（关闭语义归 workflow-chain/status-done）
 2. **stage-gate.py 校验**：research/plan PR body 含 Closes 关键词 → 自动移除 + 告警
 3. **watchdog 检测**：`workflow/plan`/`workflow/implement` label + issue closed = 异常状态 → 告警（防静默断链）
+
+---
+
+### R6. 模型 provider 配置事故 → poller 连续失败 → SPAWN/post-merge 吞没（2026-08-20 列入，状态：待设计）
+
+**为什么列入**：临时切换默认模型/provider（如 GLM key 试验）期间，poller 的 LLM 调用连续失败（400 modelCode 不存在 / 429 余额不足）→ cron job 反复 failed → 已发出的 SPAWN 无人执行。research 阶段 issue 卡死（`workflow/research` 无 rescan 兜底，同 R2 方向 3），post-merge one-shot 丢失（pending+emitted_at 不重发，仅 watchdog 告警）。**与 R1（API 超时）/R2（LLM 歧义）触发源不同：这是配置事故，失败是确定性的、持续的。**
+
+**现象**（2026-08-20 实弹 #583/#613）：
+```
+14:13  用户给 GLM key 设为默认 → model.base_url 切 api.z.ai, model 仍是 deepseek-v4-flash
+14:17:37  SPAWN research #583 (backlog-promotion) + 14:17:42 post-merge #613 同时发出
+14:17-14:25  poller 连续失败: HTTP 400 modelCode does not exist (z.ai 网关不认 deepseek model code)
+14:29  短暂切 glm-5.3 @ open.bigmodel.cn → HTTP 429 余额不足 → credential pool 耗尽
+14:31  配置恢复 coconut (glm-key-expiry-switchback.sh), 但 SPAWN 已被吞:
+       #583 卡 workflow/research — available-rescan 只扫 workflow/available → 无恢复路径
+       #613 post-merge pending+emitted_at — one-shot 已消费 → 不重发
+15:07/16:07  watchdog post-merge-stuck 告警 2 次 (只告警, 不自动恢复)
+16:55  人工解卡: #583 label→workflow/available (触发 available-rescan + dead_spawn_recovery)
+       + 清 613.json emitted_at (触发 post_merge_emitter 重发) → 恢复
+```
+
+**根因**：
+1. **cron job 配置跟随全局**：poller 的 provider/model 未 pin（受 model.default / base_url 全局切换影响），配置事故直接打穿调度层
+2. **无失败熔断**：连续 400/429 无告警无暂停，SPAWN 在故障窗口内持续被吞
+3. **workflow/research 无恢复兜底**（同 R2 方向 3，第二次实证）：label 已推进 → available-rescan 不认
+4. **post-merge 无自动重发**：pending+emitted_at 的 one-shot 语义无超时重置，只能人工清
+
+**设计方向（待评审）**：
+1. **cron job 配置 pin**：poller 的 model/provider 固定 `custom:coco`（deepseek-v4-flash），不受全局 model.default/base_url 切换影响（job 创建时已记录 provider，但需验证是否真正 pin 生效）
+2. **失败熔断**：cron job 连续 N 次 LLM 失败（400/429/超时）→ Feishu 告警 + 自动暂停调度（防 SPAWN 反复被吞），配置恢复后 `/workflow resume`
+3. **research-rescan 兜底**（并入 R2 方向 3）：`workflow/research` + 无 research PR + gate 过期 → 自动重发，覆盖所有"SPAWN 未执行"吞没路径
+4. **post-merge 超时重置**：pending+emitted_at 超时（如 2×POST_MERGE_TIMEOUT）→ 自动重置 emitted_at 重发（或 watchdog 直接重置并告警）
 
 ---
 
