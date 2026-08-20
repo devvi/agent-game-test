@@ -288,6 +288,84 @@ class TestRunnerFlow(RunnerTestBase):
         self.assertEqual(self._godot_calls(), [])
 
 
+class TestRunnerMultiScene(RunnerTestBase):
+    """#661: group-level main_scene → multi-scene split capture.
+
+    When plan.json has more than one distinct group-level main_scene, the
+    runner writes sub-plan-N.json files (one per scene, each with its own
+    main_scene / shots / out_dir=$OUT/shots/N) and captures once per scene,
+    then merges PNGs from $OUT/shots/*/ into $OUT/shots/. Single-scene
+    plans behave exactly as before (one capture of plan.json).
+    """
+
+    def _plan_with(self, plan):  # write full custom plan dict, commit on impl/1-test, run
+        self._git("checkout", "impl/1-test")
+        with open(os.path.join(self.repo, "mini-pong", "e2e_shots.json"), "w") as f:
+            json.dump(plan, f, indent=2)
+        changed = subprocess.run(["git", "-C", self.repo, "diff", "--quiet", "--", "mini-pong/e2e_shots.json"]).returncode == 1
+        if changed:
+            self._git("add", "mini-pong/e2e_shots.json")
+            self._git("commit", "-m", "multi-scene fixture")
+        self._git("checkout", "main")
+        return self._run("--no-comment")
+
+    def test_c1_single_scene_single_capture(self):
+        # default GAME_PLAN has no group-level main_scene → scene_groups has 1 key
+        # → byte-identical single capture of plan.json (regression lock)
+        r = self._run("--no-comment")
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        caps = [ln for ln in self._godot_calls() if "--display-driver" in ln]
+        self.assertEqual(len(caps), 1, "single-scene plan must capture exactly once")
+        self.assertIn("plan.json", caps[0])
+        self.assertNotIn("sub-plan", caps[0])
+        self.assertEqual(len(self._shots()), 3, self._shots())
+        self.assertEqual(self._summary()["layers"]["L3_visual"], "pass")
+
+    def test_c2_multi_scene_split_capture(self):
+        # two groups with DIFFERENT group-level main_scene, both activated by the
+        # default diff (mini-pong/gdscripts/ball.gd matches both) → runner must
+        # split into 2 sub-plans, capture each, and merge PNGs into $OUT/shots/
+        plan = {
+            "game": "mini-pong",
+            "default_archetype": "loop",
+            "max_wall_seconds": 30,
+            "theme_color": "4a90d9",
+            "autoplay": {"tweaks": []},
+            "groups": {
+                "loop": {
+                    "match": [r"gdscripts/.*\.gd"],
+                    "main_scene": "res://scenes/LoopCapture.tscn",
+                    "shots": [
+                        {"name": "01_title", "state": "MENU", "settle_frames": 2},
+                        {"name": "02_midgame", "state": "PLAYING", "settle_frames": 2},
+                    ],
+                },
+                "pause": {
+                    "match": [r"gdscripts/.*\.gd"],
+                    "main_scene": "res://scenes/PauseCapture.tscn",
+                    "shots": [{"name": "04_paused", "state": "PAUSED", "settle_frames": 2}],
+                },
+            },
+        }
+        r = self._plan_with(plan)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertEqual(self._summary()["layers"]["L3_visual"], "pass")
+        caps = [ln for ln in self._godot_calls() if "--display-driver" in ln]
+        self.assertEqual(len(caps), 2, "two scenes must capture twice")
+        self.assertIn("sub-plan-0.json", caps[0])
+        self.assertIn("sub-plan-1.json", caps[1])
+        # sub-plan files exist with correct per-scene main_scene + out_dir
+        e2e = os.path.join(self.worktree_root, "e2e-1")
+        for i, scene in ((0, "res://scenes/LoopCapture.tscn"), (1, "res://scenes/PauseCapture.tscn")):
+            with open(os.path.join(e2e, f"sub-plan-{i}.json")) as f:
+                sub = json.load(f)
+            self.assertEqual(sub["main_scene"], scene)
+            self.assertEqual(sub["out_dir"], os.path.join(e2e, "shots", str(i)))
+            self.assertTrue(sub["shots"])
+        # merged shot PNGs land in $OUT/shots/
+        self.assertEqual(self._shots(), ["01_title.png", "02_midgame.png", "04_paused.png"], self._shots())
+
+
 if __name__ == "__main__":
     unittest.main()
 
