@@ -24,7 +24,12 @@ _PASSTHROUGH = (
     "states", "theme_color", "autoplay",
 )
 # Group-level keys promoted to the resolved plan (first activated group wins).
-_GROUP_PROMOTED = ("mode", "path", "transcript", "state_trajectory", "fidelity")
+# 2026-08-20 (#586 gap 1): scene keys joined so group-scoped main_scene /
+# state_node / state_property / states are no longer silently dropped.
+_GROUP_PROMOTED = (
+    "mode", "path", "transcript", "state_trajectory", "fidelity",
+    "main_scene", "state_node", "state_property", "states",
+)
 
 
 def select_groups(plan: dict, diff_files: list[str]) -> list[str]:
@@ -55,6 +60,10 @@ def resolve(plan: dict, diff_files: list[str]) -> dict:
     resolved: dict = {k: plan[k] for k in _PASSTHROUGH if k in plan}
     shots: list[dict] = []
     seen: set[str] = set()
+    # Keys already promoted by an earlier activated group. First activated group
+    # wins, and a group-scoped value overrides the top-level passthrough default
+    # (e.g. e2e_script declares its own main_scene over the global one).
+    group_promoted: set[str] = set()
     for gname in activated:
         g = groups.get(gname, {})
         for s in g.get("shots", []):
@@ -65,8 +74,9 @@ def resolve(plan: dict, diff_files: list[str]) -> dict:
                 seen.add(name)
             shots.append(s)
         for k in _GROUP_PROMOTED:
-            if k in g and k not in resolved:
+            if k in g and k not in group_promoted:
                 resolved[k] = g[k]
+                group_promoted.add(k)
     resolved["shots"] = shots
     resolved["groups_activated"] = activated
     return resolved

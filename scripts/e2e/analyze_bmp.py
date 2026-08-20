@@ -2,12 +2,13 @@
 """E2E screenshot anti-fake-evidence analyzer (pure stdlib, PNG-native).
 
 Verifies a screenshot PNG is REAL rendered content, not a black/frozen frame.
-Five assertions (flag-gated):
+Six assertions (flag-gated):
   1. non-black     : near-black pixel ratio <= --max-black-ratio (default 0.50)
   2. color count   : distinct colors >= --min-colors (default 3)
   3. theme color   : --theme RRGGBB present within RGB tolerance 32
   4. frame diff    : --diff-with FILE — mean luminance delta >= --min-delta
   5. theme absent  : --theme-absent RRGGBB absent within RGB tolerance 32 (0 sampled hits = world hidden)
+  6. size          : --size WxH — PNG dimensions must match exactly (AC2 viewport hard check)
 
 PNG decoding is implemented with zlib+struct only (no PIL/sips) so it runs in
 CI (ubuntu) and on the Mac mini alike. Supports bit depths 8/16 and color
@@ -16,7 +17,7 @@ types 0/2/3/4/6.
 Usage:
   python3 scripts/e2e/analyze_bmp.py shot.png [--min-colors N] [--max-black-ratio R]
       [--theme 4a90d9] [--theme-absent 4a90d9] [--diff-with prev.png] [--min-delta D]
-      [--diff-ratio R] [--pixel-delta D] [--name LABEL] [--json]
+      [--diff-ratio R] [--pixel-delta D] [--name LABEL] [--size 1280x720] [--json]
 Exit: 0 = all enabled assertions pass, 1 = any fail.
 """
 from __future__ import annotations  # py3.9/3.11 dual compat (lazy annotations)
@@ -239,7 +240,7 @@ def main() -> int:
         "--min-colors": None, "--max-black-ratio": None, "--theme": None,
         "--theme-absent": None,
         "--diff-with": None, "--min-delta": None, "--name": None,
-        "--diff-ratio": None, "--pixel-delta": None,
+        "--diff-ratio": None, "--pixel-delta": None, "--size": None,
         "--json": False,
     }
 
@@ -339,6 +340,19 @@ def main() -> int:
             fails.append(f"diff vs {Path(diff_with).name}: Δluma={delta:.1f} < {min_delta}"
                          + (f" 且 变化像素占比 {ratio*100:.3f}% < {diff_ratio_arg*100:.3f}%"
                             if diff_ratio_arg is not None else "") + " — frozen?")
+
+    # 6. size — optional WxH exact match (AC2 1280x720 hard check)
+    size_arg = _s("--size")
+    if size_arg:
+        try:
+            want_w, want_h = (int(v) for v in size_arg.lower().split("x"))
+        except (ValueError, AttributeError):
+            print(f"❌ invalid --size '{size_arg}' (expected WxH)")
+            return 2
+        if st["width"] == want_w and st["height"] == want_h:
+            passes.append(f"size {st['width']}x{st['height']} == {want_w}x{want_h}")
+        else:
+            fails.append(f"size {st['width']}x{st['height']} != expected {want_w}x{want_h}")
 
     line = (f"{path} [{name}]: {st['width']}x{st['height']} "
             f"avgRGB={st['avg_rgb']} colors={st['color_buckets']} "

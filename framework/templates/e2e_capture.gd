@@ -139,7 +139,14 @@ func _run() -> void:
 				var saved := _capture(shot_name)
 				if d.has("press"):
 					_release_press(d)
-				_results.append({"name": shot_name, "saved": saved, "frame": _frame, "state": _current_state_name()})
+				# AC2 元数据透传（#586 缺口 5）：scene_description/trigger/composition
+				# 白名单透传（缺省跳过；resolve_plan.py 已原样透传 shot 字典）
+				var entry: Dictionary = {"name": shot_name, "saved": saved, "frame": _frame,
+					"state": _current_state_name()}
+				for k in ["scene_description", "trigger", "composition"]:
+					if d.has(k):
+						entry[k] = d[k]
+				_results.append(entry)
 				if not saved:
 					failed_shots.append(shot_name)
 			else:
@@ -234,11 +241,15 @@ func _state_node() -> Node:
 
 func _shot_ready(d: Dictionary) -> bool:
 	if d.has("state"):
+		var sv = d["state"]
+		# 数字 state 直比（修复 #586 缺口 2：既有 4 组数字态 shot 永不 ready）
+		if typeof(sv) == TYPE_INT or typeof(sv) == TYPE_FLOAT:
+			return _current_state() == int(sv) and _require_ok(d) and _assert_text_ok(d)
+		# 字符串 state 走 states 映射（12 态 stick 向后兼容）
 		var states: Dictionary = _plan.get("states", {})
-		if not states.has(d["state"]):
+		if not states.has(sv):
 			return false
-		# JSON numbers parse as float — compare numerically, never via typeof.
-		var want: int = int(states[d["state"]])
+		var want: int = int(states[sv])
 		if _current_state() == want and _require_ok(d) and _assert_text_ok(d):
 			return true
 		return false

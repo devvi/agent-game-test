@@ -10,6 +10,17 @@
 #   scripts/run-e2e-review.sh <PR_NUM> [--subproject NAME] [--skip-visual]
 #       [--baseline] [--no-comment] [--keep] [--dry-run]
 #
+# Headless semantics (#586 gap 6, 2026-08-20): `--headless` = dummy
+# DisplayServer with NO rendering (screenshots come out black), so the capture
+# layer MUST pick a real display driver explicitly — never fall back silently.
+# Three tiers:
+#   Tier 1  local unattended   --display-driver <os> --rendering-driver opengl3
+#                              --resolution WxH (this script; WxH read from
+#                              project.godot, see P5)
+#   Tier 2  CI xvfb            xvfb-run godot ... (Linux; optional pipeline job)
+#   Tier 3  Movie Maker        --write-movie out.png (supplementary evidence,
+#                              NOT the main path — AC1 auto-script contract)
+#
 # Testability env overrides (used by tests/pipeline/test_e2e_runner.py):
 #   RUNNER_GODOT      godot binary (fake godot in CI tests)
 #   E2E_WORKTREE_ROOT worktree/output root (default /tmp)
@@ -246,10 +257,23 @@ PY
   fi
 
   if [ "$VISUAL" != "fail" ] && [ "$DRY_RUN" = "0" ]; then
+    # 2026-08-20 (#586 gap 3): P5 分辨率从 project.godot 读取——不再硬编码
+    # 720x1280（#383 mini-pong 竖屏遗留）。shandong-wolf=1280x720,
+    # mini-pong=720x1280；无 viewport 键时回退 1280x720（照 default_subproject
+    # 同款 inline python）。L3 用同值 --size 校验 PNG 尺寸（AC2）。
+    VIEWPORT="$(python3 - "$WT/$SUBPROJECT/project.godot" <<'PY' || echo 1280x720
+import re, sys
+txt = open(sys.argv[1], encoding="utf-8").read()
+w = re.search(r"window/size/viewport_width=(\d+)", txt)
+h = re.search(r"window/size/viewport_height=(\d+)", txt)
+print(f"{w.group(1)}x{h.group(1)}" if w and h else "1280x720")
+PY
+)"
+    log "  viewport: $VIEWPORT (from project.godot)"
     maybe cp "$CAPTURE_SRC" "$OUT/capture.gd"
     log "  running capture (real rendering, display-sleep immune)"
     ( cd "$WT" && "$GODOT" --path "$SUBPROJECT/" --display-driver macos --rendering-driver opengl3 \
-        --resolution 720x1280 --script "$OUT/capture.gd" -- "$OUT/plan.json" > "$OUT/P5-visual.log" 2>&1 )
+        --resolution "$VIEWPORT" --script "$OUT/capture.gd" -- "$OUT/plan.json" > "$OUT/P5-visual.log" 2>&1 )
     local_capture=$?
     log "  capture exit=$local_capture"
 
@@ -262,6 +286,7 @@ PY
       prev=""
       for png in "$OUT/shots/"*.png; do
         args=(--min-colors 3 --name "$(basename "$png")")
+        args+=(--size "$VIEWPORT")
         shot_theme_args="$(python3 - "$OUT/plan.json" "$(basename "$png" .png)" <<'PY'
 import json, sys
 plan = json.load(open(sys.argv[1]))

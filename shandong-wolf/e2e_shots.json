@@ -112,15 +112,53 @@
         { "name": "02_execute_fade", "state": "EXECUTE", "settle_frames": 60, "theme_color": null }
       ]
     },
-    "assembly": {
-      "_comment": "#585 组装闭环截图供用户裁决（taste: 失败文案/教学文案/处决构图）：出生遇敌/弹反崩解处决/失败字幕/击杀余韵 4 shot，rig 驱动 BattleAssembler 状态。theme_color 6e7684 = Moonlight 染后 WorldBackdrop 背景断言（照 #582 snow_night 口径，RGB tol 32 命中）。",
+    "e2e_script": {
+      "_comment": "#586 端到端验证剧本组：6 帧情感弧（雪夜村口→移动→弹反火花→拼刀→处决特写→失败字幕），每条含 scene_description/trigger/composition 文字契约（AC1）；rig 驱动 BattleAssembler 真实闭环（e2e_main_assembly_capture.tscn）；theme_color 6e7684 = Moonlight 染后 WorldBackdrop 断言（照 #582/#585 口径）；dwell 由 rig CYCLE_DWELL_FRAMES 保证 settle 不跨态",
       "main_scene": "res://scenes/e2e_main_assembly_capture.tscn",
       "state_node": "/root/CaptureRig",
       "state_property": "current_state",
-      "match": ["gdscripts/main_battle\\.gd", "gdscripts/e2e_main_assembly_capture\\.gd", "scenes/e2e_main_assembly_capture\\.tscn", "scenes/Main\\.tscn", "scenes/battle_stage\\.tscn"],
+      "match": [
+        "gdscripts/e2e_main_assembly_capture\\.gd",
+        "gdscripts/main_battle\\.gd",
+        "scenes/e2e_main_assembly_capture\\.tscn"
+      ],
+      "shots": [
+        { "name": "01_village_open", "state": 0, "settle_frames": 30, "theme_color": "6e7684",
+          "scene_description": "雪夜村口开场：玩家与敌人出生对峙，三层雪幕飘落，冷月光染雪地（冷静开场）",
+          "trigger": "rig 驱动 BattleAssembler 出生态（SPAWN_COMBAT），settle 对齐雪花飘落节奏",
+          "composition": "中景对称构图：玩家（左）与敌人（右）隔平台对峙，雪幕三层可见，无 UI 干扰" },
+        { "name": "02_player_move", "state": 4, "settle_frames": 120, "theme_color": "6e7684",
+          "require": { "node": "/root/CaptureRig", "prop": "move_displacement_px", "min": 100 },
+          "scene_description": "玩家移动：火柴人 move 动画侧移，雪地位移（动作张力预备）",
+          "trigger": "rig 进入 MOVE 态后内部按住 game_move_right ≥120 帧（smoke I1 口径），位移 ≥100px 断言通过才可截图",
+          "composition": "侧移姿态，运动方向留白（玩家前方空间），雪幕为背景层次" },
+        { "name": "03_first_parry", "state": 1, "settle_frames": 20, "theme_color": "6e7684",
+          "scene_description": "首次弹反火花：苍白金火花爆于刀剑交点，顿帧+慢动作（动作张力）",
+          "trigger": "rig 注入 parry_success 反馈（level A 火花 18 粒 + 90ms 顿帧 + 慢动作），freeze_time_stack 冻结效果帧",
+          "composition": "特写：火花在刀剑交点（_impact_pos），双刀交叉剪影，StageCamera 推近" },
+        { "name": "04_clash", "state": 5, "settle_frames": 20, "theme_color": "6e7684",
+          "scene_description": "拼刀：双刀相格，火花四溅，双方架势僵持（高潮前奏）",
+          "trigger": "rig 双实体同帧 request_transition(\"attack\") → judge.clash 信号 → reaction clash 反馈（B 级火花 6 粒 + 30ms 顿帧）；E1 失败则 fallback trigger_feedback(\"clash\")（results.json 标注驱动来源）",
+          "composition": "中近景：双刀相格于画面中心，火花对称溅射，双方身体前倾僵持" },
+        { "name": "05_execute_closeup", "state": 6, "settle_frames": 60, "theme_color": "6e7684",
+          "scene_description": "敌人崩解+处决特写：架势崩解剪影 + 处决斩落 + S 级处决反馈（高潮）",
+          "trigger": "rig 崩解（take_stance_damage → stance_break）→ 处决姿态（request_transition(\"execute\")）→ trigger_feedback(\"execute\")（S 级火花 14 粒 + 150ms 顿帧 + 慢动作），freeze_time_stack 冻结效果帧",
+          "composition": "特写：处决斩落瞬间，敌人崩解剪影 + 苍白金火花 + 刀光，雪幕环绕（照 execution 组构图先例）" },
+        { "name": "06_fail_subtitle", "state": 2, "settle_frames": 30, "theme_color": "6e7684",
+          "scene_description": "失败字幕：玩家双死，输入冻结，字幕淡入完成（余韵）",
+          "trigger": "rig 驱动玩家双死 → BattleAssembler FAIL 态 → 字幕 Timer 到期 → 淡入 Tween 完成（照 #585 _drive_fail_subtitle）",
+          "composition": "中景：雪夜村口 + 居中失败字幕（文案 ∈ FAIL_SUBTITLE_CANDIDATES，本 issue 不定稿），雪花持续" }
+      ]
+    },
+    "assembly": {
+      "_comment": "#585 组装闭环截图供用户裁决（taste: 失败文案/教学文案/处决构图）：出生遇敌/弹反崩解处决/失败字幕/击杀余韵 4 shot，rig 驱动 BattleAssembler 状态。theme_color 6e7684 = Moonlight 染后 WorldBackdrop 背景断言（照 #582 snow_night 口径，RGB tol 32 命中）。组件级证据，剧本验收见 e2e_script 组。",
+      "main_scene": "res://scenes/e2e_main_assembly_capture.tscn",
+      "state_node": "/root/CaptureRig",
+      "state_property": "current_state",
+      "match": ["scenes/Main\\.tscn", "scenes/battle_stage\\.tscn"],
       "shots": [
         { "name": "01_spawn_combat", "state": 0, "settle_frames": 30, "theme_color": "6e7684" },
-        { "name": "02_parry_execute", "state": 1, "settle_frames": 60, "theme_color": "6e7684" },
+        { "name": "02_parry_execute", "state": 6, "settle_frames": 60, "theme_color": "6e7684" },
         { "name": "03_fail_subtitle", "state": 2, "settle_frames": 30, "theme_color": "6e7684" },
         { "name": "04_afterglow", "state": 3, "settle_frames": 30, "theme_color": "6e7684" }
       ]

@@ -145,3 +145,127 @@ class TestDeadlinePassthrough(unittest.TestCase):
         }
         resolved = rp.resolve(plan, ["mini-pong/gdscripts/ball.gd"])
         self.assertEqual(resolved["max_wall_seconds"], 120)
+
+
+class TestGroupKeyPromotion(unittest.TestCase):
+    """#586 gap 1: group-level main_scene/state_node/state_property/states promotion.
+
+    _GROUP_PROMOTED grows by 4 keys (main_scene, state_node, state_property,
+    states) so group-scoped scene keys are no longer silently dropped by
+    resolve_plan.py. These tests LOCK that behavior (first activated group wins,
+    consistent with existing group-key semantics).
+    """
+
+    def test_group_main_scene_promoted(self):
+        plan = {
+            "game": "mini-pong",
+            "default_archetype": "loop",
+            "groups": {
+                "loop": {
+                    "match": [r"gdscripts/.*\.gd"],
+                    "shots": [{"name": "01_title", "state": "MENU"}],
+                },
+                "journey": {
+                    "match": [r"dialogue/.*\.json"],
+                    "main_scene": "res://scenes/Journey.tscn",
+                    "state_node": "/root/Main/JourneyStateMachine",
+                    "state_property": "scene_state",
+                    "shots": [{"name": "j_open", "state": "SCENE_1"}],
+                },
+            },
+        }
+        resolved = rp.resolve(plan, ["dialogue/scene2.json"])
+        self.assertEqual(resolved["groups_activated"], ["journey"])
+        self.assertEqual(resolved["main_scene"], "res://scenes/Journey.tscn")
+        self.assertEqual(resolved["state_node"], "/root/Main/JourneyStateMachine")
+        self.assertEqual(resolved["state_property"], "scene_state")
+        # a group that does not declare these keys must not introduce them
+        # when the top-level plan lacks them either
+        resolved = rp.resolve(plan, ["gdscripts/ball.gd"])
+        self.assertEqual(resolved["groups_activated"], ["loop"])
+        self.assertNotIn("main_scene", resolved)
+        self.assertNotIn("state_node", resolved)
+        self.assertNotIn("state_property", resolved)
+
+    def test_group_states_promoted(self):
+        plan = {
+            "game": "mini-pong",
+            "default_archetype": "loop",
+            "groups": {
+                "loop": {
+                    "match": [r"gdscripts/.*\.gd"],
+                    "shots": [{"name": "01_title", "state": "IDLE"}],
+                },
+                "journey": {
+                    "match": [r"dialogue/.*\.json"],
+                    "states": {"IDLE": 0, "MOVE": 1},
+                    "shots": [{"name": "j_open", "state": 0}],
+                },
+            },
+        }
+        resolved = rp.resolve(plan, ["dialogue/scene2.json"])
+        self.assertEqual(resolved["groups_activated"], ["journey"])
+        self.assertEqual(resolved["states"], {"IDLE": 0, "MOVE": 1})
+        # a group that does not declare states must not introduce the key
+        resolved = rp.resolve(plan, ["gdscripts/ball.gd"])
+        self.assertEqual(resolved["groups_activated"], ["loop"])
+        self.assertNotIn("states", resolved)
+
+    def test_group_overrides_top_level_scene(self):
+        # shandong-wolf reality: top-level declares a main_scene, but the
+        # activated e2e_script group declares its own rig scene. Group value
+        # must win (gap 1 fix: previously the passthrough top-level key
+        # blocked promotion so shots ran against the wrong rig).
+        plan = {
+            "game": "shandong-wolf",
+            "default_archetype": "loop",
+            "main_scene": "res://scenes/e2e_stick_figure_capture.tscn",
+            "state_node": "/root/CaptureRig",
+            "state_property": "current_state",
+            "groups": {
+                "loop": {
+                    "match": [r"gdscripts/.*\.gd"],
+                    "shots": [{"name": "01_title", "state": "MENU"}],
+                },
+                "e2e_script": {
+                    "match": [r"gdscripts/e2e_main_assembly_capture\.gd"],
+                    "main_scene": "res://scenes/e2e_main_assembly_capture.tscn",
+                    "state_node": "/root/CaptureRig",
+                    "state_property": "current_state",
+                    "shots": [{"name": "01_village_open", "state": 0}],
+                },
+            },
+        }
+        resolved = rp.resolve(plan, ["gdscripts/e2e_main_assembly_capture.gd"])
+        self.assertIn("e2e_script", resolved["groups_activated"])
+        self.assertEqual(
+            resolved["main_scene"], "res://scenes/e2e_main_assembly_capture.tscn")
+        self.assertEqual(resolved["state_node"], "/root/CaptureRig")
+        self.assertEqual(resolved["state_property"], "current_state")
+        # loop-only diff keeps the top-level scene untouched
+        resolved = rp.resolve(plan, ["gdscripts/stick_figure.gd"])
+        self.assertIn("loop", resolved["groups_activated"])
+        self.assertNotIn("e2e_script", resolved["groups_activated"])
+        self.assertEqual(
+            resolved["main_scene"], "res://scenes/e2e_stick_figure_capture.tscn")
+
+    def test_first_activated_group_wins(self):
+        plan = {
+            "game": "mini-pong",
+            "default_archetype": "loop",
+            "groups": {
+                "journey": {
+                    "match": [r"dialogue/.*\.json"],
+                    "main_scene": "res://scenes/Journey.tscn",
+                    "shots": [{"name": "j_open", "state": "SCENE_1"}],
+                },
+                "alt": {
+                    "match": [r"alt/.*\.json"],
+                    "main_scene": "res://scenes/Alt.tscn",
+                    "shots": [{"name": "a_open", "state": "SCENE_2"}],
+                },
+            },
+        }
+        resolved = rp.resolve(plan, ["dialogue/scene2.json", "alt/scene.json"])
+        self.assertEqual(resolved["groups_activated"], ["journey", "alt"])
+        self.assertEqual(resolved["main_scene"], "res://scenes/Journey.tscn")
