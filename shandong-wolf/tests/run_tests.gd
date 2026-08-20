@@ -15,6 +15,7 @@ func _init() -> void:
 func _run_tests() -> void:
 	_run("res://tests/test_state_machine.gd", "StateMachine")
 	_run("res://tests/test_constants.gd", "Constants")
+	_run("res://tests/test_atmosphere.gd", "Atmosphere")
 	_run("res://tests/test_stick_figure_animation.gd", "StickFigureAnimation")
 	_run("res://tests/test_input_controller.gd", "InputController")
 	_run("res://tests/test_player_controller.gd", "PlayerController")

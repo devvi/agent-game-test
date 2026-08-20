@@ -91,7 +91,8 @@ const FRAME_ATTACK_WINDUP: int = 8           # # DRAFT
 #   候选集: [12, 14, 16]（默认 14 = #572 占位延续）
 #   偏离理由: 无
 const FRAME_ATTACK_RECOVERY: int = 14        # # DRAFT
-const FRAME_RHYTHM_BASE: int = 60            # # DRAFT（基准帧率参考）
+
+const FRAME_RHYTHM_BASE: int = 60            # # DRAFT（基准帧率参考，机械常量语义）
 
 #   候补值: 攻击前摇 8 / 暴发 4 / 收招 10；过渡上限 2 帧；步态循环 4 帧；处决 5 帧；刀光衰减 4 帧；
 #           墨色剪影 #2b2b2b（issue body 指定）/ 冷白刀身 #c0c8d0（雪夜反差）；头:躯干:臂:腿 ≈ 1:2.5:1.9:2.2
@@ -164,6 +165,59 @@ const EXECUTE_RANGE: float = 1.2             # # DRAFT
 #   偏离理由: 无（消费方 #577 处决演出在 Engine.time_scale 应用，clamp 下限 0.1 防冻结）
 const SLOWMO_COEFF: float = 0.2              # # DRAFT
 
+# ── 氛围参数（# DRAFT 候补值，定稿 = #582 E2E 用户裁决）──
+# ── 雪幕（# DRAFT 候补值，待 #582 用户裁决）──
+#   候补值: 远 60 / 中 60 / 近 80 = 200 粒子（AC1 中心值）；视差 0.2x/0.5x/1.0x；scale 近 1.5x 远 0.5x；飘落 20-40px/s；白色 α70-90%
+#   该值影响什么: 雪夜纵深与密度——三层视差营造空间，粒子密度决定氛围浓度；amount 只在 .tscn 静态声明，运行时禁改（rain_curtain 教训）
+#   情感断言: 苍白、清冷——雪是安静的背景呼吸，不是注意力主角
+const SNOW_PARTICLES_FAR: int = 60              # # DRAFT
+const SNOW_PARTICLES_MID: int = 60              # # DRAFT
+const SNOW_PARTICLES_NEAR: int = 80             # # DRAFT（合计 200）
+const SNOW_PARALLAX_FAR: float = 0.2            # # DRAFT
+const SNOW_PARALLAX_MID: float = 0.5            # # DRAFT
+const SNOW_PARALLAX_NEAR: float = 1.0           # # DRAFT
+const SNOW_SCALE_FAR: float = 0.5               # # DRAFT
+const SNOW_SCALE_NEAR: float = 1.5              # # DRAFT
+const SNOW_VELOCITY_MIN: float = 20.0           # # DRAFT（px/s 下界）
+const SNOW_VELOCITY_MAX: float = 40.0           # # DRAFT（px/s 上界）
+const SNOW_ALPHA_MIN: float = 0.7               # # DRAFT
+const SNOW_ALPHA_MAX: float = 0.9               # # DRAFT
+const SNOW_WIND_DEFAULT: float = 0.0            # # DRAFT（风向，Boss 战可加大）
+
+# ── 冷月光（# DRAFT 候补值，待 #582 用户裁决）──
+#   候补值: 目标色温 #b8c4d9（issue AC2 字面值）；CanvasModulate 无独立 brightness，「亮度 0.6」经色值换算 ≈ #6e7684（PRD §4.2 方案 B）
+#   该值影响什么: 全场景色温基调
+#   情感断言: 苍白、清冷——只狼苇名城雪夜 + 抗战黑白电影月光；禁止阳光明媚/星光点缀
+const MOONLIGHT_COLOR_TARGET: Color = Color("#b8c4d9")   # # DRAFT（AC2 字面色值）
+const MOONLIGHT_COLOR_APPLIED: Color = Color("#6e7684")  # # DRAFT（= TARGET × 0.6 换算）
+const MOONLIGHT_BRIGHTNESS: float = 0.6                  # # DRAFT（语义 = 色值换算系数）
+
+# ── 夜色世界背景（# DRAFT 候补值，待 #582 用户裁决；#624 新增）──
+#   作用: layer 0 世界垫底，供唯一 Moonlight（#6e7684）染色成冷蓝灰夜色（AC2 载体）
+#   约束: 染后（× MOONLIGHT_COLOR_APPLIED）背景 luma ≥ 30 —— 不得回到 #613 近黑态（F3）
+#   候选集: #d8dce4（浅月光灰，染后 ≈ #66686b 接近 AC2 目标 #6e7684，theme 断言可命中）——
+#           #4e5464（中蓝灰，染后 ≈ #222734，luma ~39，需 A/B 亮度比断言）——
+#           #0d1520（PRD §8 建议的深夜色，染后 ≈ #060a0f luma ~10，近黑，**否决候选**）
+#   情感断言: 苍白、清冷——月光下的雪夜大地是亮冷灰蓝，不是无月黑夜
+const NIGHT_BG_COLOR: Color = Color("#d8dce4")   # # DRAFT（首选候选；染后 ≈ #66686b）
+
+# ── 水墨晕染（# DRAFT 候补值，待 #582 用户裁决）──
+#   候补值: 边缘暗角 alpha ≤ 0.3（AC3 硬约束）；墨色 #1a1f26
+#   该值影响什么: 全屏水墨质感
+#   情感断言: 大地如墨——暗角是氛围不是遮挡，中央读图区必须通透
+const INK_EDGE_ALPHA_MAX: float = 0.3            # # DRAFT（硬上限）
+const INK_COLOR: Color = Color("#1a1f26")        # # DRAFT（墨色）
+const INK_INNER_RADIUS: float = 0.62             # # DRAFT
+const INK_SOFTNESS: float = 0.35                 # # DRAFT
+const INK_NOISE_AMOUNT: float = 0.06             # # DRAFT
+
+# ── 血色 vignette（# DRAFT 候补值，待 #582 用户裁决）──
+#   候补值: 低血触发 alpha 0→0.35（AC4 硬上限），0.5s 平滑渐变；CanvasLayer layer=10
+#   该值影响什么: 玩家低血时的生死压迫感——红色只在危险时出现
+#   情感断言: 刀刀见血不拖沓——血色是唯一允许打破冷色调的高饱和元素
+const BLOOD_VIGNETTE_ALPHA_MAX: float = 0.35     # # DRAFT（硬上限）
+const BLOOD_VIGNETTE_FADE_SECONDS: float = 0.5   # # DRAFT（Tween 时长）
+const BLOOD_VIGNETTE_LAYER: int = 10             # 机械常量（层级约定，定稿）
 # ── 战斗时序（# DRAFT 候补值，待 #584 定稿）──
 # STAGGER_FRAMES
 #   候补值: [8, 12, 16]（默认 12）
@@ -400,12 +454,13 @@ const INK_BURST_SPEED: float = 180.0         # # DRAFT
 #   该值影响什么: 粒子存活——0.4s 内淡出，快速衰减不粘连（实验 1）
 #   情感断言: 一击即逝的墨迹
 const INK_BURST_LIFETIME: float = 0.4        # # DRAFT
-# INK_COLOR
+# INK_BURST_COLOR
 #   只狼基准: = HUD_INK_BLACK（同值互引，零新色相）
 #   候选集: —（墨黑固定）
 #   该值影响什么: 墨点色——墨黑，禁止彩色粒子（反页游）
 #   情感断言: 水墨的克制
-const INK_COLOR: Color = Color("#141414")     # # DRAFT
+#   命名: INK_BURST_* 前缀（#578 复活 FX），与 #582 氛围 INK_COLOR（墨色 #1a1f26）区分——冲突解决重命名（PR #613 merge main）
+const INK_BURST_COLOR: Color = Color("#141414")  # # DRAFT
 # INK_BURST_SPREAD_DEG
 #   只狼基准: 径向爆开语义
 #   候选集: [120, 180, 360]（默认 180）

@@ -353,7 +353,7 @@ func _test_t10_fx_nodes_and_constants() -> void:
 		_assert(fx._ink_burst.process_material != null, "T10 process_material built")
 		if fx._ink_burst.process_material != null:
 			_assert(absf(fx._ink_burst.process_material.spread - float(cm.get("INK_BURST_SPREAD_DEG", -1.0))) < 0.0001, "T10 spread(deg) == INK_BURST_SPREAD_DEG (got %s)" % [fx._ink_burst.process_material.spread])
-			_assert(fx._ink_burst.process_material.color.is_equal_approx(cm.get("INK_COLOR", Color.WHITE)), "T10 color == INK_COLOR (got %s)" % [fx._ink_burst.process_material.color])
+			_assert(fx._ink_burst.process_material.color.is_equal_approx(cm.get("INK_BURST_COLOR", Color.WHITE)), "T10 color == INK_COLOR (got %s)" % [fx._ink_burst.process_material.color])
 
 		_assert(fx._ink_burst.one_shot == true, "T10 one_shot == true")
 	if fx._flash_layer != null:

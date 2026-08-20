@@ -49,7 +49,7 @@ func _build_nodes() -> void:
 	mat.initial_velocity_min = float(C.INK_BURST_SPEED)
 	mat.initial_velocity_max = float(C.INK_BURST_SPEED)
 	mat.gravity = Vector3.ZERO  # 墨点向外爆开、不受重力下落（结构语义）
-	mat.color = C.INK_COLOR
+	mat.color = C.INK_BURST_COLOR
 	_ink_burst.process_material = mat
 	_ink_burst.texture = _build_ink_texture()
 	add_child(_ink_burst)
