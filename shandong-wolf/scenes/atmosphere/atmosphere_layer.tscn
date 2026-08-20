@@ -33,6 +33,18 @@ spread = 0.0
 initial_velocity_min = 20.0
 initial_velocity_max = 40.0
 
+[sub_resource type="Gradient" id="Gradient_snow"]
+offsets = PackedFloat32Array(0, 0.8, 1)
+colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.85, 1, 1, 1, 0)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_snow"]
+gradient = SubResource("Gradient_snow")
+width = 32
+height = 32
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1.0, 0.5)
+
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_ink"]
 shader = ExtResource("3_ink_shader")
 
@@ -53,6 +65,7 @@ scroll_scale = Vector2(0.2, 0.2)
 
 [node name="Particles" type="GPUParticles2D" parent="SnowCurtain/LayerFar/Parallax"]
 process_material = SubResource("ParticleProcessMaterial_far")
+texture = SubResource("GradientTexture2D_snow")
 position = Vector2(640, 360)
 visibility_rect = Rect2(-900, -600, 1800, 1200)
 amount = 60
@@ -68,6 +81,7 @@ scroll_scale = Vector2(0.5, 0.5)
 
 [node name="Particles" type="GPUParticles2D" parent="SnowCurtain/LayerMid/Parallax"]
 process_material = SubResource("ParticleProcessMaterial_mid")
+texture = SubResource("GradientTexture2D_snow")
 position = Vector2(640, 360)
 visibility_rect = Rect2(-900, -600, 1800, 1200)
 amount = 60
@@ -83,6 +97,7 @@ scroll_scale = Vector2(1.0, 1.0)
 
 [node name="Particles" type="GPUParticles2D" parent="SnowCurtain/LayerNear/Parallax"]
 process_material = SubResource("ParticleProcessMaterial_near")
+texture = SubResource("GradientTexture2D_snow")
 position = Vector2(640, 360)
 visibility_rect = Rect2(-900, -600, 1800, 1200)
 amount = 80

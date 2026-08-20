@@ -25,6 +25,7 @@ func run() -> void:
 	_test_b2_particle_scale()
 	_test_b3_no_amount_override()
 	_test_b4_emitting_state()
+	_test_b5_particle_texture()
 	_test_c1_moonlight()
 	_test_c2_moonlight_convert_comment()
 	_test_c3_single_moonlight_guard()
@@ -229,6 +230,22 @@ func _test_b4_emitting_state() -> void:
 			var gp: GPUParticles2D = layers[s] as GPUParticles2D
 			_assert(gp.emitting, "B4: layer scroll_scale=%s emitting == true" % str(s))
 			_assert(not gp.one_shot, "B4: layer scroll_scale=%s one_shot == false" % str(s))
+	inst.queue_free()
+
+
+func _test_b5_particle_texture() -> void:
+	var inst: Node = _instantiate_scene()
+	if inst == null:
+		_assert(false, "B5: atmosphere_layer.tscn loads and instantiates")
+		return
+	var layers: Dictionary = _particle_layers(inst)
+	if layers.size() != 3:
+		_assert(false, "B5: exactly 3 GPUParticles2D layers found")
+	else:
+		var scales: Array = _sorted_scales(layers)
+		for s in scales:
+			var gp: GPUParticles2D = layers[s] as GPUParticles2D
+			_assert(gp.texture != null, "B5: layer scroll_scale=%s has a texture (regression: snow invisible without texture)" % str(s))
 	inst.queue_free()
 
 
