@@ -6,7 +6,7 @@
     "platform": "macOS",
     "created_at": "2026-08-18T16:56:31Z",
     "model": "deepseek/deepseek-v4-flash",
-    "status": "draft",
+    "status": "created",
     "total_issues": 25
   },
   "issues": [
@@ -20,8 +20,8 @@
       "dependencies": [],
       "labels": [
         "enhancement",
-        "workflow/backlog",
-        "scaffold"
+        "infrastructure",
+        "workflow/backlog"
       ],
       "estimate": "1d",
       "milestone": "mvp",
@@ -32,7 +32,8 @@
         "tests 三入口（compile/smoke/run）全绿",
         "不得引入任何外部美术资产或 AI 生成像素动画帧"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 572
     },
     {
       "id": 2,
@@ -46,8 +47,8 @@
       ],
       "labels": [
         "enhancement",
-        "workflow/backlog",
-        "input"
+        "gameplay",
+        "workflow/backlog"
       ],
       "estimate": "2d",
       "milestone": "mvp",
@@ -59,7 +60,8 @@
         "快速连按不丢输入：300ms 内 3 连击全部生效（缓冲队列 ≥1，无吞噬）",
         "smoke test：模拟按键可驱动玩家 2 秒内位移 ≥100px，攻击/格挡/垫步事件信号均可被捕获"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 573
     },
     {
       "id": 3,
@@ -72,10 +74,10 @@
         1
       ],
       "labels": [
+        "content",
         "enhancement",
-        "workflow/backlog",
-        "rendering",
-        "content"
+        "graphics",
+        "workflow/backlog"
       ],
       "estimate": "3d",
       "milestone": "mvp",
@@ -86,7 +88,8 @@
         "E2E 截图提交用户裁决：火柴人摆姿/剪影是否具有『小小系列』的干净力量感，且与雪夜水墨背景和谐",
         "无外部美术文件，仅 .gd 程序生成"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 574
     },
     {
       "id": 4,
@@ -101,8 +104,8 @@
       ],
       "labels": [
         "enhancement",
-        "workflow/backlog",
-        "combat"
+        "gameplay",
+        "workflow/backlog"
       ],
       "estimate": "3d",
       "milestone": "mvp",
@@ -113,7 +116,8 @@
         "两段血：第一条血归零进入 dead 状态（由 SW-007 接管复活），第二条半管血独立计数",
         "单元测试覆盖：受击/架势/死亡 3 条主路径"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 575
     },
     {
       "id": 5,
@@ -126,10 +130,10 @@
         4
       ],
       "labels": [
+        "content",
         "enhancement",
-        "workflow/backlog",
         "ui",
-        "content"
+        "workflow/backlog"
       ],
       "estimate": "1d",
       "milestone": "mvp",
@@ -139,7 +143,8 @@
         "E2E 截图提交用户裁决：HUD 观感是否克制、与雪夜水墨背景融为一体（禁止光效/圆角/饱和堆砌）",
         "无外部 UI 图像资源"
       ],
-      "content_ownership": "taste-draft"
+      "content_ownership": "taste-draft",
+      "github_number": 576
     },
     {
       "id": 6,
@@ -152,10 +157,10 @@
         4
       ],
       "labels": [
+        "content",
         "enhancement",
-        "workflow/backlog",
-        "combat",
-        "content"
+        "gameplay",
+        "workflow/backlog"
       ],
       "estimate": "4d",
       "milestone": "mvp",
@@ -166,7 +171,8 @@
         "弹反窗口、架势数值全部从 constants.gd 读取，PR 中说明调参候选",
         "单元测试覆盖：弹反成功/拼刀/未弹反受击 三条判定路径"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 577
     },
     {
       "id": 7,
@@ -180,8 +186,8 @@
       ],
       "labels": [
         "enhancement",
-        "workflow/backlog",
-        "combat"
+        "gameplay",
+        "workflow/backlog"
       ],
       "estimate": "3d",
       "milestone": "mvp",
@@ -192,7 +198,8 @@
         "复活动画触发 GPUParticles2D 墨点 burst 与 CanvasModulate 闪屏",
         "E2E 截图提交用户裁决：复活瞬间的画面情绪是否符合『硬汉再起』而非『日式中二觉醒』"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 578
     },
     {
       "id": 8,
@@ -207,8 +214,8 @@
       ],
       "labels": [
         "enhancement",
-        "workflow/backlog",
-        "rendering"
+        "graphics",
+        "workflow/backlog"
       ],
       "estimate": "3d",
       "milestone": "mvp",
@@ -220,7 +227,8 @@
         "反馈强度与事件奖励成正比（处决>弹反>格挡>命中），滥用慢动作/满屏特效=AC 失败",
         "E2E 截图提交用户裁决：『刀锋相撞』重量感成立，且未破坏雪夜水墨宁静基调（禁止页游光效感）"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 579
     },
     {
       "id": 9,
@@ -235,8 +243,8 @@
       ],
       "labels": [
         "enhancement",
-        "workflow/backlog",
-        "combat"
+        "gameplay",
+        "workflow/backlog"
       ],
       "estimate": "3d",
       "milestone": "mvp",
@@ -247,7 +255,8 @@
         "处决触发 SW-008 的强力慢动作与火花，持续时间 0.6s",
         "E2E 截图提交用户裁决：处决瞬间构图是否符合『雪夜+血色+水墨』的审美许可（禁止夸张喷血、禁止奥特曼式发光）"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 580
     },
     {
       "id": 10,
@@ -261,10 +270,10 @@
         6
       ],
       "labels": [
+        "content",
         "enhancement",
-        "workflow/backlog",
-        "ai",
-        "content"
+        "gameplay",
+        "workflow/backlog"
       ],
       "estimate": "3d",
       "milestone": "mvp",
@@ -275,7 +284,8 @@
         "AI 参数全部从 constants.gd 读取",
         "smoke test：玩家站桩时敌人 5s 内完成巡逻→发现→接近→攻击的路径"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 581
     },
     {
       "id": 11,
@@ -288,10 +298,10 @@
         1
       ],
       "labels": [
+        "content",
         "enhancement",
-        "workflow/backlog",
-        "rendering",
-        "content"
+        "graphics",
+        "workflow/backlog"
       ],
       "estimate": "3d",
       "milestone": "mvp",
@@ -302,7 +312,8 @@
         "玩家 low_health 信号触发血色 vignette 平滑 0.5s 渐变",
         "E2E 截图提交用户裁决：雪夜氛围是否达到『黑白电影/水墨画』质感的 70% 以上（用户主观评分标准），且不干扰战斗可读性"
       ],
-      "content_ownership": "taste-draft"
+      "content_ownership": "taste-draft",
+      "github_number": 582
     },
     {
       "id": 12,
@@ -317,10 +328,10 @@
         11
       ],
       "labels": [
+        "content",
         "enhancement",
-        "workflow/backlog",
         "scene",
-        "content"
+        "workflow/backlog"
       ],
       "estimate": "3d",
       "milestone": "mvp",
@@ -331,7 +342,8 @@
         "场景加载后帧率 ≥60fps（Mac 基准测试）",
         "E2E 截图提交用户裁决：场景是否符合『雪夜山东村』的地域感（无日本元素、无西化元素）"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 583
     },
     {
       "id": 13,
@@ -344,10 +356,10 @@
         1
       ],
       "labels": [
+        "content",
         "enhancement",
-        "workflow/backlog",
-        "tuning",
-        "content"
+        "gameplay",
+        "workflow/backlog"
       ],
       "estimate": "2d",
       "milestone": "mvp",
@@ -358,7 +370,8 @@
         "PR 中附调参对比说明（至少 3 组候选对比手感差异）",
         "最终数值由用户 E2E 实机裁决后从 # DRAFT 转为正式值"
       ],
-      "content_ownership": "taste-draft"
+      "content_ownership": "taste-draft",
+      "github_number": 584
     },
     {
       "id": 14,
@@ -382,8 +395,8 @@
       ],
       "labels": [
         "enhancement",
-        "workflow/backlog",
-        "integration"
+        "feature",
+        "workflow/backlog"
       ],
       "estimate": "3d",
       "milestone": "mvp",
@@ -394,7 +407,8 @@
         "5-10 分钟可完成完整 MVP 流程（smoke test 自动跑通）",
         "组装完成后 compile/run 测试全绿，无 pending 组件"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 585
     },
     {
       "id": 15,
@@ -408,8 +422,8 @@
       ],
       "labels": [
         "enhancement",
-        "workflow/backlog",
-        "test"
+        "testing",
+        "workflow/backlog"
       ],
       "estimate": "2d",
       "milestone": "mvp",
@@ -420,7 +434,8 @@
         "用户对 6 张截图的裁决结果 ≥4 星的平均分（否则对应 Issue 打回重做）",
         "测试报告记录裁决意见并回填到对应 Issue 的 acceptance 中"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 586
     },
     {
       "id": 16,
@@ -434,9 +449,9 @@
         12
       ],
       "labels": [
+        "content",
         "enhancement",
-        "workflow/backlog",
-        "content"
+        "workflow/backlog"
       ],
       "estimate": "3d",
       "milestone": "v1",
@@ -447,7 +462,8 @@
         "与 SW-017 的失败判定联动（村民/房屋死亡时波次强制结束）",
         "smoke test：配置 2 波测试序列可自动跑通"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 587
     },
     {
       "id": 17,
@@ -462,10 +478,9 @@
         14
       ],
       "labels": [
-        "enhancement",
-        "workflow/backlog",
         "content",
-        "taste-draft"
+        "enhancement",
+        "workflow/backlog"
       ],
       "estimate": "3d",
       "milestone": "v1",
@@ -476,7 +491,8 @@
         "E2E 截图提交用户裁决：村民/房屋剪影是否与雪夜氛围统一（可辨认但不过度细节）",
         "无外部 NPC 美术资源"
       ],
-      "content_ownership": "taste-draft"
+      "content_ownership": "taste-draft",
+      "github_number": 588
     },
     {
       "id": 18,
@@ -490,9 +506,9 @@
         14
       ],
       "labels": [
+        "content",
         "enhancement",
-        "workflow/backlog",
-        "content"
+        "workflow/backlog"
       ],
       "estimate": "4d",
       "milestone": "v1",
@@ -503,7 +519,8 @@
         "AI 攻击节奏可变（每 3 次攻击插入 1 次后跳冷却）",
         "smoke test：玩家与军曹对战 60s 内不会 softlock"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 589
     },
     {
       "id": 19,
@@ -518,10 +535,9 @@
         18
       ],
       "labels": [
-        "enhancement",
-        "workflow/backlog",
         "content",
-        "taste-draft"
+        "enhancement",
+        "workflow/backlog"
       ],
       "estimate": "5d",
       "milestone": "v1",
@@ -532,7 +548,8 @@
         "Boss 台词全部为短句（≤10 字）、乡土味、无双关废话",
         "E2E 截图提交用户裁决：最终处决特写是否达到『雪夜+血色+水墨构图』的完成标准（这是项目的‘成了’时刻）"
       ],
-      "content_ownership": "taste-draft"
+      "content_ownership": "taste-draft",
+      "github_number": 590
     },
     {
       "id": 20,
@@ -545,10 +562,9 @@
         14
       ],
       "labels": [
-        "enhancement",
-        "workflow/backlog",
         "content",
-        "taste-draft"
+        "enhancement",
+        "workflow/backlog"
       ],
       "estimate": "3d",
       "milestone": "v1",
@@ -559,7 +575,8 @@
         "教学完成后自动衔接 SW-016 波次或自由战斗",
         "对白/文本全为短句（≤10 字），无抗日神剧式口号"
       ],
-      "content_ownership": "taste-draft"
+      "content_ownership": "taste-draft",
+      "github_number": 591
     },
     {
       "id": 21,
@@ -573,10 +590,9 @@
         19
       ],
       "labels": [
-        "enhancement",
-        "workflow/backlog",
         "content",
-        "taste-draft"
+        "enhancement",
+        "workflow/backlog"
       ],
       "estimate": "2d",
       "milestone": "v1",
@@ -587,7 +603,8 @@
         "结局后回到主菜单/标题场景",
         "E2E 截图提交用户裁决：结局构图是否留有‘雪夜余韵’（非热闹大团圆）"
       ],
-      "content_ownership": "taste-draft"
+      "content_ownership": "taste-draft",
+      "github_number": 592
     },
     {
       "id": 22,
@@ -601,9 +618,9 @@
         14
       ],
       "labels": [
+        "audio",
         "enhancement",
-        "workflow/backlog",
-        "audio"
+        "workflow/backlog"
       ],
       "estimate": "2d",
       "milestone": "v1",
@@ -614,7 +631,8 @@
         "提供全局音效开关与音量滑条（设置菜单）",
         "E2E 评测中用户确认拼刀音效有‘金属冷冽感’（至少 3 人主观通过）"
       ],
-      "content_ownership": "taste-draft"
+      "content_ownership": "taste-draft",
+      "github_number": 593
     },
     {
       "id": 23,
@@ -627,9 +645,9 @@
         14
       ],
       "labels": [
+        "core",
         "enhancement",
-        "workflow/backlog",
-        "system"
+        "workflow/backlog"
       ],
       "estimate": "1d",
       "milestone": "v1",
@@ -639,7 +657,8 @@
         "菜单全部为短句按钮，无任何商城/红点/充值元素",
         "读档后恢复波次与 Boss 状态（实测通过）"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 594
     },
     {
       "id": 24,
@@ -652,9 +671,9 @@
         23
       ],
       "labels": [
+        "content",
         "enhancement",
-        "workflow/backlog",
-        "content"
+        "workflow/backlog"
       ],
       "estimate": "3d",
       "milestone": "v2",
@@ -664,7 +683,8 @@
         "升级界面风格与整体一致（墨色/短句/无特效）",
         "升级状态保存到 save.json（联动 SW-023）"
       ],
-      "content_ownership": "mechanical"
+      "content_ownership": "mechanical",
+      "github_number": 595
     },
     {
       "id": 25,
@@ -684,10 +704,10 @@
         22
       ],
       "labels": [
+        "content",
         "enhancement",
-        "workflow/backlog",
-        "tuning",
-        "content"
+        "gameplay",
+        "workflow/backlog"
       ],
       "estimate": "3d",
       "milestone": "v2",
@@ -698,7 +718,8 @@
         "生成 12 张 E2E 终稿截图并获用户 ≥4 星平均分",
         "repository 打上 v1.0 发布标签"
       ],
-      "content_ownership": "taste-draft"
+      "content_ownership": "taste-draft",
+      "github_number": 596
     }
   ],
   "versions": {
