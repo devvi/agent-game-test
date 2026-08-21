@@ -119,6 +119,20 @@ func play_clip(clip: String) -> void:
 	_anim.seek(0.0)
 
 
+func get_animation_position() -> float:
+	## 供动画状态对象 / E2E 截图像具查询 AnimationPlayer 当前播放位置（秒）
+	if _anim == null:
+		return 0.0
+	return _anim.current_animation_position
+
+
+func is_animation_playing() -> bool:
+	## 供 E2E 截图像具查询动画是否在播（null-guard）
+	if _anim == null:
+		return false
+	return _anim.is_playing()
+
+
 func trigger_sword_arc() -> void:
 	## 暴发段刀光入口（#579 打击反馈可复用；本层由 attack clip method track 触发）
 	if _figure == null:
