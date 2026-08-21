@@ -7,18 +7,19 @@ class_name E2EHudCapture
 ##   debug API（set_debug_* / show_debug_hint），信号源（#577/#580）未合入也能截全。
 ##
 ## 驱动契约（与 framework/templates/e2e_capture.gd 兼容）:
-##   - current_state: int（NORMAL=0 / LOW_HP=1 / EXECUTE_HINT=2 / KILL_HINT=3）——
-##     shot plan 的 state_node/state_property 轮询目标
-##   - digit 键 0-3 → _drive_state(...)（_unhandled_input）
+##   - current_state: int（NORMAL=0 / LOW_HP=1 / EXECUTE_HINT=2 / KILL_HINT=3 /
+##     BOSS_BAR=4 / STANCE_BREAK_FLASH=5 / MINION_MODE=6）——shot plan 的
+##     state_node/state_property 轮询目标
+##   - digit 键 0-6 → _drive_state(...)（_unhandled_input）
 ##   - auto_cycle 兜底（#574 同路径）: e2e_capture.gd 的 press 仅支持
 ##     enter/space/esc/方向键，digit 键注入不兼容 → shot plan 经 autoplay.tweaks
 ##     开启 auto_cycle（每态停留 auto_cycle_frames 帧自循环），capture 驱动只轮询
 ##     current_state 截图。
 
-enum { NORMAL = 0, LOW_HP = 1, EXECUTE_HINT = 2, KILL_HINT = 3 }
+enum { NORMAL = 0, LOW_HP = 1, EXECUTE_HINT = 2, KILL_HINT = 3, BOSS_BAR = 4, STANCE_BREAK_FLASH = 5, MINION_MODE = 6 }
 
-## auto-cycle 状态序列（常态 → 低血 → 处决提示 → 击杀提示）
-const CYCLE_SEQUENCE: Array = [NORMAL, LOW_HP, EXECUTE_HINT, KILL_HINT]
+## auto-cycle 状态序列（常态 → 低血 → 处决提示 → 击杀提示 → Boss 条 → 崩解闪白 → 杂兵档）
+const CYCLE_SEQUENCE: Array = [NORMAL, LOW_HP, EXECUTE_HINT, KILL_HINT, BOSS_BAR, STANCE_BREAK_FLASH, MINION_MODE]
 
 var current_state: int = NORMAL
 
@@ -44,7 +45,7 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	## digit 键 0-3 → 对应 HUD 状态（人工/脚本注入备选）
+	## digit 键 0-6 → 对应 HUD 状态（人工/脚本注入备选）
 	if event is InputEventKey and event.pressed and not event.echo:
 		var key: Key = event.keycode
 		match key:
@@ -59,6 +60,15 @@ func _unhandled_input(event: InputEvent) -> void:
 				get_viewport().set_input_as_handled()
 			KEY_3:
 				_drive_state(KILL_HINT)
+				get_viewport().set_input_as_handled()
+			KEY_4:
+				_drive_state(BOSS_BAR)
+				get_viewport().set_input_as_handled()
+			KEY_5:
+				_drive_state(STANCE_BREAK_FLASH)
+				get_viewport().set_input_as_handled()
+			KEY_6:
+				_drive_state(MINION_MODE)
 				get_viewport().set_input_as_handled()
 
 
@@ -90,6 +100,23 @@ func _drive_state(state: int) -> void:
 			_hud.show_debug_hint("execute")
 		KILL_HINT:
 			_hud.show_debug_hint("kill")
+		BOSS_BAR:
+			_hud.set_target_enemy(_enemy)
+			_hud.set_boss_mode(true)
+			_hud.set_enemy_display_name("雪夜刀客")
+			_hud.set_debug_hp(80.0, 50.0, 1)
+			_hud.set_debug_stance(40.0, 100.0)
+		STANCE_BREAK_FLASH:
+			_hud.set_target_enemy(_enemy)
+			_hud.set_boss_mode(true)
+			_hud.set_enemy_display_name("雪夜刀客")
+			_hud.set_debug_hp(80.0, 50.0, 1)
+			_hud.set_debug_stance(40.0, 100.0)
+			_hud.set_debug_stance_break()
+		MINION_MODE:
+			_hud.set_target_enemy(_enemy)
+			_hud.set_boss_mode(false)
+			_hud.set_debug_stance(40.0, 100.0)
 
 
 func _advance_cycle() -> void:

@@ -2,9 +2,14 @@ extends Object
 ## Test suite for Hud (#576) — 两段式血条 / 玩家与敌人架势条 / 击杀与处决提示。
 ## Runs under godot --headless --script via run_tests.gd.
 ## Design: docs/DESIGN/576-hud-stance-bars.md §8 (Scenario A-F, T1-T28)
+## 增量: docs/DESIGN/684-boss-hp-bar-ui.md §8（场景 A-D，#684）—— 敌人名字 Label /
+##   架势崩解条级闪白 / Boss-杂兵分档三态显隐 / died 名字联动。
 ##
 ## TDD red phase: hud.gd does NOT exist yet → runtime load() returns null
 ## → assertions fail (red) instead of whole-file parse error.
+##   #684 红期: hud.gd 已存在（#695），#684 新 API（EnemyNameLabel / set_boss_mode /
+##     set_break_flash 等）未实现 → 经 hud.get()/has_method() 守卫访问（红期记一条 FAIL，
+##     非 SCRIPT ERROR——CI grep 防误伤；中断路径仍 cleanup 防泄漏污染后续套件）。
 ##
 ## Godot 4.7.1 --script 硬性约束 (同 test_combat_entity.gd):
 ##   - 禁止 := 类型推断 (4.7.1 视推断警告为硬错误) — 一律显式类型或普通 =
@@ -63,6 +68,26 @@ func run() -> void:
 	_test_b3_enemy_health_bar_hp_changed()
 	_test_b4_enemy_health_bar_hide()
 	_test_b5_player_bars_fill_override_off()
+	# Scenario A/B/C/D(#684): 敌人名字 Label / 架势崩解闪白 / Boss-杂兵分档 / died 名字联动
+	_test_a1_name_label_layout()
+	_test_a2_boss_shows_name()
+	_test_a3_minion_hides_name()
+	_test_a4_empty_name_hides()
+	_test_a5_long_name_overrun()
+	_test_a6_null_target_clears_name()
+	_test_b1_stance_break_flash_on()
+	_test_b2_stance_break_flash_fades()
+	_test_b3_stance_break_data_path_unaffected()
+	_test_b4_stance_break_flash_cleared_on_died()
+	_test_b5_player_stance_bar_never_flashes()
+	_test_b6_debug_stance_break()
+	_test_c1_tier_then_inject()
+	_test_c2_inject_then_tier()
+	_test_c3_boss_tier_toggle()
+	_test_c4_boss_tier_idempotent()
+	_test_c5_boss_tier_null_target()
+	_test_d3_died_final_hides_name()
+	_test_d4_died_non_final_clears_name()
 	print("Passed: %d, Failed: %d" % [passed, failed])
 
 
@@ -608,3 +633,461 @@ func _test_b5_player_bars_fill_override_off() -> void:
 	_assert(hud.PlayerHealthBar._use_fill_override == false, "B5: PlayerHealthBar fill_override default off")
 	_assert(hud.PlayerStanceBar._use_fill_override == false, "B5: PlayerStanceBar fill_override default off")
 	_cleanup_hud(hud)
+
+
+# ── Scenario A/B/C/D(#684): 敌人名字 Label / 崩解闪白 / Boss-杂兵分档 ────────
+## 设计: docs/DESIGN/684-boss-hp-bar-ui.md §8（场景 A-D，#684）。
+## 常量: #684 新常量未入库 → 字面值 + 常量名注释（HUD_ENEMY_NAME_WIDTH=240.0 → offset_left=-120.0；
+##   HUD_ENEMY_NAME_FONT_SIZE=16；HUD_ENEMY_NAME_TOP=2.0；HUD_STANCE_BREAK_FLASH_SECONDS=0.18）。
+## 红期守卫: hud.gd 已存在（#695），#684 新 API 未实现 → 经 hud.get()/has_method() 守卫访问，
+##   红期记一条 FAIL（非 SCRIPT ERROR——CI grep 防误伤）并 cleanup（防泄漏污染后续套件）。
+
+func _require_methods(hud, methods: Array, scenario: String) -> bool:
+	## TDD 红期守卫（#684 新 API 未实现）: 任一方法缺失 → 记一条 FAIL 并返回 false，
+	##   调用方负责 cleanup（避免红期直接调用缺失方法触发 SCRIPT ERROR 中断 cleanup）。
+	for m in methods:
+		if hud == null or not hud.has_method(m):
+			_assert(false, "%s: %s missing (TDD red phase)" % [scenario, str(m)])
+			return false
+	return true
+
+
+func _test_a1_name_label_layout() -> void:
+	## A1(#684) 布局: EnemyNameLabel 锚点 0.5 居中、offset_left=-120（-HUD_ENEMY_NAME_WIDTH/2）、
+	##   offset_top=2（HUD_ENEMY_NAME_TOP）、font_size 覆写 16（HUD_ENEMY_NAME_FONT_SIZE）、无底框
+	var hud = _spawn_hud()
+	if hud == null: return
+	var label = hud.get("EnemyNameLabel")
+	if label == null:
+		_assert(false, "A1: EnemyNameLabel created (TDD red phase: missing)")
+		_cleanup_hud(hud)
+		return
+	_assert(absf(label.anchor_left - 0.5) < 0.001 and absf(label.anchor_right - 0.5) < 0.001, "A1: EnemyNameLabel anchored top-center (anchor 0.5)")
+	_assert(absf(label.offset_left - (-120.0)) < 0.001, "A1: EnemyNameLabel offset_left == -120.0 = -HUD_ENEMY_NAME_WIDTH/2")
+	_assert(absf(label.offset_top - 2.0) < 0.001, "A1: EnemyNameLabel offset_top == 2.0 = HUD_ENEMY_NAME_TOP")
+	_assert(label.get_theme_font_size("font_size") == 16, "A1: EnemyNameLabel font_size override == 16 = HUD_ENEMY_NAME_FONT_SIZE")
+	var sb = label.get_theme_stylebox("normal")
+	_assert(sb == null or not (sb is StyleBoxFlat), "A1: EnemyNameLabel has no ink frame (no StyleBoxFlat normal stylebox)")
+	_cleanup_hud(hud)
+
+
+func _test_a2_boss_shows_name() -> void:
+	## A2(#684) 显示: boss 档 + 非空 display name → EnemyNameLabel.visible == true 且 text 一致
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	if not _require_methods(hud, ["set_boss_mode", "set_enemy_display_name"], "A2"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(true)
+	hud.set_enemy_display_name("雪夜刀客")
+	var label = hud.get("EnemyNameLabel")
+	_assert(label != null and label.visible == true, "A2: EnemyNameLabel visible in boss mode")
+	_assert(label != null and label.text == "雪夜刀客", "A2: EnemyNameLabel text == '雪夜刀客'")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_a3_minion_hides_name() -> void:
+	## A3(#684) 隐藏: 杂兵档（set_boss_mode(false)）→ 名字 + 血条隐藏、小架势条保留
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	if not _require_methods(hud, ["set_boss_mode", "set_enemy_display_name"], "A3"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(true)
+	hud.set_enemy_display_name("雪夜刀客")
+	hud.set_boss_mode(false)
+	var label = hud.get("EnemyNameLabel")
+	_assert(label != null and label.visible == false, "A3: minion tier → EnemyNameLabel hidden")
+	_assert(hud.EnemyHealthBar.visible == false, "A3: minion tier → EnemyHealthBar hidden")
+	_assert(hud.EnemyStanceBar.visible == true, "A3: minion tier → EnemyStanceBar visible")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_a4_empty_name_hides() -> void:
+	## A4(#684) 空串隐藏: boss 档 + display name "" → EnemyNameLabel hidden（_enemy_display_name != "" 判定）
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	if not _require_methods(hud, ["set_boss_mode", "set_enemy_display_name"], "A4"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(true)
+	hud.set_enemy_display_name("")
+	var label = hud.get("EnemyNameLabel")
+	_assert(label != null and label.visible == false, "A4: empty display name → EnemyNameLabel hidden")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_a5_long_name_overrun() -> void:
+	## A5(#684) 超长名省略: 50 字名 → text_overrun_behavior == OVERRUN_TRIM_ELLIPSIS（不断言实际像素截断）
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	if not _require_methods(hud, ["set_boss_mode", "set_enemy_display_name"], "A5"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(true)
+	var long_name: String = ""
+	for i in range(50):
+		long_name += "刀"
+	hud.set_enemy_display_name(long_name)
+	var label = hud.get("EnemyNameLabel")
+	_assert(label != null and label.text_overrun_behavior == TextServer.OVERRUN_TRIM_ELLIPSIS, "A5: long name → text_overrun_behavior == OVERRUN_TRIM_ELLIPSIS")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_a6_null_target_clears_name() -> void:
+	## A6(#684) null 目标: set_target_enemy(null) → 名字 + 血条 + 架势条三态全隐
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	if not _require_methods(hud, ["set_boss_mode", "set_enemy_display_name"], "A6"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(true)
+	hud.set_enemy_display_name("雪夜刀客")
+	hud.set_target_enemy(null)
+	var label = hud.get("EnemyNameLabel")
+	_assert(label != null and label.visible == false, "A6: null target → EnemyNameLabel hidden")
+	_assert(hud.EnemyHealthBar.visible == false, "A6: null target → EnemyHealthBar hidden")
+	_assert(hud.EnemyStanceBar.visible == false, "A6: null target → EnemyStanceBar hidden")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_b1_stance_break_flash_on() -> void:
+	## B1(#684) 崩解闪白触发: stance_broken → EnemyStanceBar.is_break_flashing() == true；
+	##   且 ExecutePromptLabel 可见（条级闪白与文字提示正交并存）
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	if not _require_methods(hud, ["set_boss_mode"], "B1"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(true)
+	enemy.stance_broken.emit(enemy)
+	var sb = hud.get("EnemyStanceBar")
+	_assert(sb != null and sb.has_method("is_break_flashing") and sb.is_break_flashing() == true, "B1: stance_broken → EnemyStanceBar.is_break_flashing() == true")
+	_assert(hud.ExecutePromptLabel.visible == true, "B1: stance_broken → ExecutePromptLabel visible (orthogonal)")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_b2_stance_break_flash_fades() -> void:
+	## B2(#684) Tween 结束复位: EnemyStanceBar._flash_tween.custom_step(HUD_STANCE_BREAK_FLASH_SECONDS=0.18)
+	##   → is_break_flashing() == false 且 _break_flash_alpha == 0.0（headless 同步推进）
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	if not _require_methods(hud, ["set_boss_mode"], "B2"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(true)
+	enemy.stance_broken.emit(enemy)
+	var sb = hud.get("EnemyStanceBar")
+	var flashing: bool = false
+	if sb != null and sb.has_method("is_break_flashing"):
+		flashing = sb.is_break_flashing()
+	_assert(flashing, "B2: precondition — stance_broken → flash active")
+	if flashing:
+		var tw = sb.get("_flash_tween")
+		if tw != null:
+			tw.custom_step(0.18)   # HUD_STANCE_BREAK_FLASH_SECONDS
+	var cleared: bool = false
+	if sb != null and sb.has_method("is_break_flashing"):
+		cleared = not sb.is_break_flashing() and sb.get("_break_flash_alpha") == 0.0
+	_assert(cleared, "B2: flash tween finished → is_break_flashing() == false and _break_flash_alpha == 0.0")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_b3_stance_break_data_path_unaffected() -> void:
+	## B3(#684) 闪白期间重绘接管: flash 置位后 set_segments 仍驱动分数（无竞态，数据路径不受影响）
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	if not _require_methods(hud, ["set_boss_mode"], "B3"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(true)
+	enemy.stance_broken.emit(enemy)
+	var sb = hud.get("EnemyStanceBar")
+	_assert(sb != null and sb.has_method("is_break_flashing") and sb.is_break_flashing() == true, "B3: precondition — flash active after stance_broken")
+	if sb != null:
+		sb.set_segments([0.0], [1.0], 0)
+		var f: Array = sb.get_segment_fractions()
+		_assert(f.size() == 1 and absf(f[0] - 0.0) < 0.001, "B3: flash active → set_segments data path unaffected (got %s)" % [str(f)])
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_b4_stance_break_flash_cleared_on_died() -> void:
+	## B4(#684) died 打断无残影: flash 置位后 died(final=true) → is_break_flashing() == false
+	##   （clear_break_flash 路径复位）
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	if not _require_methods(hud, ["set_boss_mode"], "B4"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(true)
+	enemy.stance_broken.emit(enemy)
+	var sb = hud.get("EnemyStanceBar")
+	_assert(sb != null and sb.has_method("is_break_flashing") and sb.is_break_flashing() == true, "B4: precondition — flash active after stance_broken")
+	enemy.take_damage(80.0)
+	_assert(sb != null and sb.has_method("is_break_flashing") and sb.is_break_flashing() == false, "B4: died(final=true) → flash cleared (no residue)")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_b5_player_stance_bar_never_flashes() -> void:
+	## B5(#684) 玩家条不受影响: 玩家 stance_changed 触发 → PlayerStanceBar.is_break_flashing() == false
+	##   （闪白只作用于敌人架势条）
+	var hud = _spawn_hud()
+	if hud == null: return
+	var player = _spawn_entity({is_player=true, life_total=2})
+	if player == null:
+		_cleanup_hud(hud)
+		return
+	hud.bind_player(player)
+	player.stance_changed.emit(80.0, 100.0)
+	var psb = hud.get("PlayerStanceBar")
+	_assert(psb != null and psb.has_method("is_break_flashing") and psb.is_break_flashing() == false, "B5: player stance_changed → PlayerStanceBar.is_break_flashing() == false")
+	_cleanup_hud(hud)
+	_cleanup_entity(player)
+
+
+func _test_b6_debug_stance_break() -> void:
+	## B6(#684) debug 置位: set_debug_stance_break() → EnemyStanceBar.is_break_flashing() == true
+	##   （E2E 截图驱动路径，绕开真实 Tween 时序）
+	var hud = _spawn_hud()
+	if hud == null: return
+	if not _require_methods(hud, ["set_debug_stance_break"], "B6"):
+		_cleanup_hud(hud)
+		return
+	hud.set_debug_stance_break()
+	var sb = hud.get("EnemyStanceBar")
+	_assert(sb != null and sb.has_method("is_break_flashing") and sb.is_break_flashing() == true, "B6: set_debug_stance_break() → is_break_flashing() == true")
+	_cleanup_hud(hud)
+
+
+func _test_c1_tier_then_inject() -> void:
+	## C1(#684) 先档后注入: set_boss_mode(false) → set_target_enemy → 注入时读档位
+	##   （血条 + 名字隐藏、小架势条可见）
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	if not _require_methods(hud, ["set_boss_mode"], "C1"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(false)
+	hud.set_target_enemy(enemy)
+	var label = hud.get("EnemyNameLabel")
+	_assert(label != null and label.visible == false, "C1: minion tier → EnemyNameLabel hidden")
+	_assert(hud.EnemyHealthBar.visible == false, "C1: minion tier → EnemyHealthBar hidden")
+	_assert(hud.EnemyStanceBar.visible == true, "C1: minion tier → EnemyStanceBar visible")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_c2_inject_then_tier() -> void:
+	## C2(#684) 先注入后档: set_target_enemy → set_boss_mode(true) → 三组件全显
+	##   （名字可见需 display name 非空——补充 set_enemy_display_name 使「全显」成立）
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	if not _require_methods(hud, ["set_boss_mode", "set_enemy_display_name"], "C2"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(true)
+	hud.set_enemy_display_name("雪夜刀客")
+	var label = hud.get("EnemyNameLabel")
+	_assert(label != null and label.visible == true, "C2: boss tier + display name → EnemyNameLabel visible")
+	_assert(hud.EnemyHealthBar.visible == true, "C2: boss tier → EnemyHealthBar visible")
+	_assert(hud.EnemyStanceBar.visible == true, "C2: boss tier → EnemyStanceBar visible")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_c3_boss_tier_toggle() -> void:
+	## C3(#684) 反复切换: true→false→true → 最终全显，无异常无残留
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	if not _require_methods(hud, ["set_boss_mode", "set_enemy_display_name"], "C3"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(true)
+	hud.set_enemy_display_name("雪夜刀客")
+	hud.set_boss_mode(false)
+	hud.set_boss_mode(true)
+	var label = hud.get("EnemyNameLabel")
+	_assert(label != null and label.visible == true, "C3: toggle true→false→true → EnemyNameLabel visible (final)")
+	_assert(hud.EnemyHealthBar.visible == true, "C3: toggle → EnemyHealthBar visible (final)")
+	_assert(hud.EnemyStanceBar.visible == true, "C3: toggle → EnemyStanceBar visible (final)")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_c4_boss_tier_idempotent() -> void:
+	## C4(#684) 幂等: set_boss_mode(true) 连续两次 → _boss_mode 恒 true、三态一致（同值早退）
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	if not _require_methods(hud, ["set_boss_mode"], "C4"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(true)
+	hud.set_boss_mode(true)
+	_assert(hud.get("_boss_mode") == true, "C4: set_boss_mode(true) twice → _boss_mode == true")
+	_assert(hud.EnemyHealthBar.visible == true, "C4: repeated set_boss_mode(true) → EnemyHealthBar visible")
+	_assert(hud.EnemyStanceBar.visible == true, "C4: repeated set_boss_mode(true) → EnemyStanceBar visible")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_c5_boss_tier_null_target() -> void:
+	## C5(#684) null 三态全隐: set_target_enemy(null) → 名字 + 血条 + 架势条全部不可见
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	if not _require_methods(hud, ["set_boss_mode", "set_enemy_display_name"], "C5"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(true)
+	hud.set_enemy_display_name("雪夜刀客")
+	hud.set_target_enemy(null)
+	var label = hud.get("EnemyNameLabel")
+	_assert(label != null and label.visible == false, "C5: null target → EnemyNameLabel hidden")
+	_assert(hud.EnemyHealthBar.visible == false, "C5: null target → EnemyHealthBar hidden")
+	_assert(hud.EnemyStanceBar.visible == false, "C5: null target → EnemyStanceBar hidden")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_d3_died_final_hides_name() -> void:
+	## D3(#684) died final=true: 名字 + 双条隐藏 + 击杀提示（T18 扩展断言名字）
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	if not _require_methods(hud, ["set_boss_mode", "set_enemy_display_name"], "D3"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(true)
+	hud.set_enemy_display_name("雪夜刀客")
+	var label = hud.get("EnemyNameLabel")
+	_assert(label != null and label.visible == true, "D3: precondition — EnemyNameLabel visible in boss mode")
+	enemy.take_damage(80.0)
+	_assert(label != null and label.visible == false, "D3: died(final=true) → EnemyNameLabel hidden")
+	_assert(hud.KillPromptLabel.visible == true, "D3: died(final=true) → KillPromptLabel visible")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_d4_died_non_final_clears_name() -> void:
+	## D4(#684) died final=false: 名字隐藏 + 双条清 0（T20 扩展断言名字）
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=2, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	if not _require_methods(hud, ["set_boss_mode", "set_enemy_display_name"], "D4"):
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_boss_mode(true)
+	hud.set_enemy_display_name("雪夜刀客")
+	var label = hud.get("EnemyNameLabel")
+	_assert(label != null and label.visible == true, "D4: precondition — EnemyNameLabel visible in boss mode")
+	enemy.died.emit(enemy, false)
+	_assert(label != null and label.visible == false, "D4: died(final=false) → EnemyNameLabel hidden")
+	var hb = hud.EnemyHealthBar
+	var hf: Array = hb.get_segment_fractions()
+	_assert(hf.size() == 1 and absf(hf[0] - 0.0) < 0.001, "D4: died(final=false) → EnemyHealthBar fraction == 0.0 (got %s)" % [str(hf)])
+	var sb = hud.EnemyStanceBar
+	var sf: Array = sb.get_segment_fractions()
+	_assert(sf.size() == 1 and absf(sf[0] - 0.0) < 0.001, "D4: died(final=false) → EnemyStanceBar fraction == 0.0 (got %s)" % [str(sf)])
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)

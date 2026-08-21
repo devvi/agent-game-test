@@ -197,6 +197,8 @@ func _build_hud() -> void:
 	hud_layer.add_child(hud)
 	hud.bind_player(player_entity)
 	hud.set_target_enemy(enemy_entity)
+	hud.set_boss_mode(true)          # MVP 唯一敌人 = 精英 → Boss 档（名字+血条+架势条全显）
+	hud.set_enemy_display_name("雪夜刀客")   # # DRAFT 占位文案（taste 候选进 PR 待用户定稿）
 
 
 func _build_reaction() -> void:

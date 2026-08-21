@@ -25,6 +25,8 @@ const KILL_HINTS: Array = [
 var _player: CombatEntityScript = null
 var _target_enemy: CombatEntityScript = null
 var _low_health: bool = false                # 当前低血态（边沿触发基准，防每帧重发）
+var _boss_mode: bool = true                  # #684: 敌人呈现档位（true=名字+血条+架势条全显；默认 true 保持 #695「注入即双条可见」既有行为，MVP 装配显式 set_boss_mode(true)）
+var _enemy_display_name: String = ""         # #684: 当前敌人名字（taste 文案，默认空 → boss 档下也隐藏）
 
 var _execute_hint_tween: Tween = null
 var _kill_hint_tween: Tween = null
@@ -35,6 +37,7 @@ var PlayerHealthBar: _HudBar
 var PlayerStanceBar: _HudBar
 var EnemyHealthBar: _HudBar
 var EnemyStanceBar: _HudBar
+var EnemyNameLabel: Label
 var ExecutePromptLabel: Label
 var KillPromptLabel: Label
 
@@ -96,6 +99,8 @@ func _create_nodes() -> void:
 	EnemyStanceBar.visible = false
 	add_child(EnemyStanceBar)
 
+	EnemyNameLabel = _make_enemy_name_label()
+
 	ExecutePromptLabel = _make_hint_label(220.0, 44.0)
 	KillPromptLabel = _make_hint_label(120.0, 44.0)
 
@@ -121,6 +126,24 @@ func _make_hint_label(width: float, top: float) -> Label:
 	label.offset_right = width / 2.0
 	label.offset_top = top
 	label.offset_bottom = top + 28.0
+	label.visible = false
+	add_child(label)
+	return label
+
+
+func _make_enemy_name_label() -> Label:
+	## #684 敌人名字 Label: _make_hint_label 同构（锚点 0.5 / OVERRUN_TRIM_ELLIPSIS）但无底框——
+	## 克制风格，名字悬浮于条上方；boss 档可见、杂兵档/空串隐藏。
+	var label: Label = Label.new()
+	label.add_theme_font_size_override("font_size", C.HUD_ENEMY_NAME_FONT_SIZE)
+	label.add_theme_color_override("font_color", C.HUD_MOON_WHITE)
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	label.anchor_left = 0.5
+	label.anchor_right = 0.5
+	label.offset_left = -C.HUD_ENEMY_NAME_WIDTH / 2.0
+	label.offset_right = C.HUD_ENEMY_NAME_WIDTH / 2.0
+	label.offset_top = C.HUD_ENEMY_NAME_TOP
+	label.offset_bottom = C.HUD_ENEMY_NAME_TOP + 28.0
 	label.visible = false
 	add_child(label)
 	return label
@@ -163,17 +186,15 @@ func set_target_enemy(entity: CombatEntityScript) -> void:
 	_disconnect_enemy()
 	_target_enemy = entity
 	if entity == null:
-		EnemyHealthBar.visible = false
-		EnemyStanceBar.visible = false
+		_apply_enemy_visibility()
 		return
 	entity.hp_changed.connect(_on_enemy_hp_changed, CONNECT_REFERENCE_COUNTED)
 	entity.stance_changed.connect(_on_enemy_stance_changed, CONNECT_REFERENCE_COUNTED)
 	entity.stance_broken.connect(_on_enemy_stance_broken, CONNECT_REFERENCE_COUNTED)
 	entity.died.connect(_on_enemy_died, CONNECT_REFERENCE_COUNTED)
-	EnemyHealthBar.visible = true
 	EnemyHealthBar.set_segments([entity.hp_1], [entity.life_1_max], 0)
-	EnemyStanceBar.visible = true
 	EnemyStanceBar.set_segments([entity.stance], [entity.stance_max], 0)
+	_apply_enemy_visibility()
 
 
 func set_debug_hp(hp_1: float, hp_2: float, active_life: int) -> void:
@@ -192,6 +213,43 @@ func show_debug_hint(kind: String) -> void:
 		_show_execute_hint()
 	elif kind == "kill":
 		_show_kill_hint()
+
+
+func set_enemy_display_name(name: String) -> void:
+	## #684 新 API（PRD §4.1-A）: 设置敌人名字；空串隐藏；boss 档可见、杂兵档隐藏
+	_enemy_display_name = name
+	EnemyNameLabel.text = name
+	_apply_enemy_visibility()
+
+
+func set_boss_mode(enabled: bool) -> void:
+	## #684 新 API（PRD §4.3-A）: 幂等设置敌人呈现档位；同值早退；
+	## 无目标实体时仅记录档位（set_target_enemy 注入时读取）。
+	if enabled == _boss_mode:
+		return
+	_boss_mode = enabled
+	_apply_enemy_visibility()
+
+
+func set_debug_stance_break() -> void:
+	## #684 E2E/单测驱动：debug 直接置敌人架势条闪白态（绕开真实 Tween 时序，供截图）
+	EnemyStanceBar.set_break_flash()
+
+
+func _apply_enemy_visibility() -> void:
+	## #684 内部: 敌人三态显隐唯一收敛点（名字 + 血条 + 架势条联动；签名零改动）
+	if _target_enemy == null:
+		EnemyNameLabel.visible = false
+		EnemyHealthBar.visible = false
+		EnemyStanceBar.visible = false
+	elif _boss_mode:
+		EnemyNameLabel.visible = _enemy_display_name != ""
+		EnemyHealthBar.visible = true
+		EnemyStanceBar.visible = true
+	else:
+		EnemyNameLabel.visible = false
+		EnemyHealthBar.visible = false
+		EnemyStanceBar.visible = true   # 杂兵档: 仅保留小架势条（现状位置）
 
 
 # ── 信号处理（#575 契约逐条订阅）──────────────────────────────────────────
@@ -228,7 +286,9 @@ func _on_enemy_hp_changed(hp_1: float, _hp_2: float, _active_life: int) -> void:
 
 
 func _on_enemy_stance_broken(_entity: CombatEntityScript) -> void:
+	## #684 增订: 条级崩解白闪 + 处决文字提示（正交，白闪仅条内，互不遮挡）
 	_show_execute_hint()
+	EnemyStanceBar.set_break_flash()
 
 
 func _on_player_state_changed(_from: String, to: String) -> void:
@@ -238,17 +298,22 @@ func _on_player_state_changed(_from: String, to: String) -> void:
 
 
 func _on_enemy_died(_entity: CombatEntityScript, is_final: bool) -> void:
-	## 击杀 > 处决：final=true → 击杀提示 + 处决让位 + 敌人血条/架势条隐藏；
-	## final=false（MVP 无复活敌人，防御）→ 仅隐藏处决提示 + 清空敌人血条/架势条
+	## 击杀 > 处决：final=true → 击杀提示 + 处决让位 + 名字/血条/架势条隐藏；
+	## final=false（MVP 无复活敌人，防御）→ 仅隐藏处决提示 + 名字清空 + 双条清 0 + 闪白清理
 	if is_final:
 		_show_kill_hint()
 		_hide_execute_hint()
 		EnemyHealthBar.visible = false
 		EnemyStanceBar.visible = false
+		EnemyNameLabel.visible = false
+		EnemyStanceBar.clear_break_flash()
 	else:
 		_hide_execute_hint()
+		_enemy_display_name = ""
 		EnemyHealthBar.set_segments([0.0], [1.0], 0)
 		EnemyStanceBar.set_segments([0.0], [1.0], 0)
+		EnemyNameLabel.visible = false
+		EnemyStanceBar.clear_break_flash()
 
 
 func _on_player_died(_entity: CombatEntityScript, _is_final: bool) -> void:
@@ -370,6 +435,9 @@ class _HudBar:
 	var _low_hp_mode: bool = false  # 低血：活性段填充+描边转 HUD_BLOOD_RED
 	var _fill_override: Color = Color.TRANSPARENT  # #682: 填充色覆写（EnemyHealthBar 暗红条）
 	var _use_fill_override: bool = false           # #682: 覆写开关（默认关闭 → 既有行为零变化）
+	var _break_flash: bool = false           # #684: 崩解闪白激活态（headless 可断言）
+	var _break_flash_alpha: float = 0.0      # #684: 1.0→0.0 淡出（_draw 读）
+	var _flash_tween: Tween = null           # #684: 内层自持 Tween（外层 Hud 私有方法不可达）
 
 	func set_segments(values: Array, maxes: Array, active_index: int) -> void:
 		_values = values
@@ -386,6 +454,34 @@ class _HudBar:
 	func set_low_hp_mode(enabled: bool) -> void:
 		_low_hp_mode = enabled
 		queue_redraw()
+
+	func set_break_flash() -> void:
+		## #684 新（PRD §4.2-A 机械）: 崩解瞬间填充/描边转 HUD_STANCE_BREAK_FLASH_COLOR，
+		## Tween 将 _break_flash_alpha 1.0→0.0 淡出，finished 后 _break_flash = false。
+		## 零 _process（Tween 驱动，同 _show_execute_hint 模式）；状态与绘制解耦（无竞态）。
+		_break_flash = true
+		_break_flash_alpha = 1.0
+		if _flash_tween != null and _flash_tween.is_valid():
+			_flash_tween.kill()
+		_flash_tween = create_tween()
+		_flash_tween.tween_property(self, "_break_flash_alpha", 0.0, C.HUD_STANCE_BREAK_FLASH_SECONDS)
+		_flash_tween.finished.connect(_finish_break_flash)
+		queue_redraw()
+
+	func _finish_break_flash() -> void:
+		_break_flash = false
+		queue_redraw()
+
+	func clear_break_flash() -> void:
+		## #684 died/换目标打断强制清理：kill tween + 双状态复位，不留残影
+		if _flash_tween != null and _flash_tween.is_valid():
+			_flash_tween.kill()
+		_break_flash = false
+		_break_flash_alpha = 0.0
+		queue_redraw()
+
+	func is_break_flashing() -> bool:
+		return _break_flash
 
 	func get_segment_fractions() -> Array:
 		## 逐段 value/max 夹取 [0,1]；max<=0 防御返回 1.0；非有限值（NaN/Inf）返回 0.0
@@ -423,6 +519,8 @@ class _HudBar:
 		var rect: Rect2 = Rect2(Vector2.ZERO, size)
 		draw_rect(rect, Color(C.HUD_INK_BLACK, 0.6), true)
 		var border_color: Color = C.HUD_BLOOD_RED if _low_hp_mode else C.HUD_MOON_WHITE
+		if _break_flash:
+			border_color = C.HUD_STANCE_BREAK_FLASH_COLOR.lerp(border_color, _break_flash_alpha)
 		draw_rect(rect, border_color, false, 1.0)
 		var shares: Array = get_segment_shares()
 		var fracs: Array = get_segment_fractions()
@@ -434,6 +532,8 @@ class _HudBar:
 				if i == _active_index:
 					## #682 additive: fill_override（EnemyHealthBar 暗红）优先，默认走既有低血/月白逻辑
 					fill_color = _fill_override if _use_fill_override else (C.HUD_BLOOD_RED if _low_hp_mode else C.HUD_MOON_WHITE)
+					if _break_flash:
+						fill_color = C.HUD_STANCE_BREAK_FLASH_COLOR.lerp(fill_color, _break_flash_alpha)
 				else:
 					fill_color = _inactive_color()
 				draw_rect(Rect2(Vector2(x, 0.0), Vector2(seg_w, size.y)), fill_color, true)
