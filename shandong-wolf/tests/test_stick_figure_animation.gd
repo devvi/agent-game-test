@@ -2,6 +2,7 @@ extends Object
 ## Test suite for stick-figure silhouette skeleton & keyframe animation (#574).
 ## Runs under godot --headless --script via run_tests.gd.
 ## Design: docs/DESIGN/574-stick-figure-silhouette-animation.md §8 (Scenario A–L)
+##          docs/DESIGN/681-attack-get-animation-position.md §8 (Scenario J, #681)
 ##
 ## Godot 4.7.1 --script 模式硬性约束:
 ##   - 禁止 := 类型推断（4.7.1 视推断警告为硬错误）——一律显式类型声明或普通 =
@@ -85,6 +86,15 @@ func run() -> void:
 	_test_ac3_t3_knee_bend_max()
 	_test_ac3_t5_key_chain()
 	_test_l1_invalid_geometry_fallback()
+	_test_j1_windup_phase_zero()
+	_test_j2_burst_phase_one()
+	_test_j3_recovery_phase_two()
+	_test_j4_same_state_reentry_resets()
+	_test_j5_finished_holds_two()
+	_test_j6_get_animation_position_delegation()
+	_test_j7_is_animation_playing_delegation()
+	_test_j8_null_anim_safe()
+	_test_j9_unknown_state_fallback()
 	print("Passed: %d, Failed: %d" % [passed, failed])
 
 
@@ -989,3 +999,152 @@ func _test_l1_invalid_geometry_fallback() -> void:
 	else:
 		_assert(false, "L1: BODY_* geometry constants missing")
 	figure.free()
+
+
+# ── Scenario J: 攻击 phase 推进（_process 驱动，AC2/AC3，#681）──
+## DESIGN #681 §8: 新用例必须驱动 _process → _anim_fsm.update → AnimStateAttack.update
+## （既有 G1 直接读 AnimationPlayer 不驱动 FSM update —— bug 漏网原因）。
+## phase 边界（constants 派生，秒）: 前摇 [0,8/60=0.1333) / 暴发 [8/60,12/60=0.2) / 收招 [12/60,∞)
+
+func _attack_phase(controller: Node) -> int:
+	## 经 controller._anim_fsm.current_state.phase 读取 AnimStateAttack 的 phase（动态访问防类型问题）
+	var fsm: Object = controller.get("_anim_fsm")
+	if fsm == null:
+		return -1
+	var state: Object = fsm.get("current_state")
+	if state == null:
+		return -1
+	return int(state.get("phase"))
+
+
+func _test_j1_windup_phase_zero() -> void:
+	## J1: 前摇 phase 0 —— consume_state("attack") + _process 一帧 → phase == 0（pos≈0 < 8/60）
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	controller.consume_state("attack")
+	controller._process(0.016)
+	var phase: int = _attack_phase(controller)
+	_assert(phase == 0, "J1: windup phase 0 (got %d)" % phase)
+	_assert(controller.has_method("get_animation_position"), "J1: controller implements get_animation_position (AC1)")
+	_assert(controller.has_method("is_animation_playing"), "J1: controller implements is_animation_playing")
+	_free_controller(controller)
+
+
+func _test_j2_burst_phase_one() -> void:
+	## J2: 暴发 phase 1 —— seek(0.1667)（10 帧，暴发中段 [8/60,12/60)）→ _process → phase == 1
+	## 注: DESIGN §8 原文 seek(0.10) 数值有误（0.10 < 8/60 仍在前摇区），按真实边界修正
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var anim: AnimationPlayer = _anim_player(controller)
+	controller.consume_state("attack")
+	anim.seek(0.1667)
+	controller._process(0.016)
+	var phase: int = _attack_phase(controller)
+	_assert(phase == 1, "J2: burst phase 1 @0.1667s (got %d)" % phase)
+	_free_controller(controller)
+
+
+func _test_j3_recovery_phase_two() -> void:
+	## J3: 收招 phase 2 —— seek(0.21)（≥ 12/60=0.2）→ _process → phase == 2
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var anim: AnimationPlayer = _anim_player(controller)
+	controller.consume_state("attack")
+	anim.seek(0.21)
+	controller._process(0.016)
+	var phase: int = _attack_phase(controller)
+	_assert(phase == 2, "J3: recovery phase 2 @0.21s (got %d)" % phase)
+	_free_controller(controller)
+
+
+func _test_j4_same_state_reentry_resets() -> void:
+	## J4: 同态重入 phase 重置 0 —— 暴发中段（seek 0.1667）再 consume_state("attack") → _process → phase == 0
+	## 注: DESIGN §8 原文 seek(0.10) 数值有误（非暴发中段），按真实边界修正
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var anim: AnimationPlayer = _anim_player(controller)
+	controller.consume_state("attack")
+	anim.seek(0.1667)
+	controller.consume_state("attack")
+	controller._process(0.016)
+	var phase: int = _attack_phase(controller)
+	_assert(phase == 0, "J4: re-entry resets phase to 0 (got %d)" % phase)
+	_assert(anim.current_animation_position < 0.001, "J4: re-entry seeks back to first frame (pos=%s)" % str(anim.current_animation_position))
+	_free_controller(controller)
+
+
+func _test_j5_finished_holds_two() -> void:
+	## J5: 播完 phase 保持 2 —— seek(0.35)+advance 越过末尾（pos=length, is_playing=false）→ _process → phase == 2
+	## 注: Godot 4.7.1 实测 seek() 不 clamp 到 length 且 is_playing 保持 true（probe 验证）,
+	##     故用 seek(0.35)+advance(0.05) 触发真实播完（pos=22/60≈0.3667, playing=false）
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var anim: AnimationPlayer = _anim_player(controller)
+	controller.consume_state("attack")
+	anim.seek(0.35)
+	anim.advance(0.05)
+	_assert(anim.is_playing() == false, "J5: animation finished playing (advance past end)")
+	controller._process(0.016)
+	var phase: int = _attack_phase(controller)
+	_assert(phase == 2, "J5: phase holds 2 after finish (got %d)" % phase)
+	_free_controller(controller)
+
+
+func _test_j6_get_animation_position_delegation() -> void:
+	## J6: get_animation_position 委托正确性（AC1）—— seek(0.13) → 查询 ≈ 0.13（±0.001）
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var anim: AnimationPlayer = _anim_player(controller)
+	controller.consume_state("attack")
+	anim.seek(0.13)
+	var pos: float = controller.get_animation_position()
+	_assert(absf(pos - 0.13) < 0.001, "J6: get_animation_position() ≈ 0.13 after seek (got %s)" % str(pos))
+	_free_controller(controller)
+
+
+func _test_j7_is_animation_playing_delegation() -> void:
+	## J7: is_animation_playing 委托正确性 —— 播放中 true；stop() 后 false
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var anim: AnimationPlayer = _anim_player(controller)
+	controller.consume_state("attack")
+	_assert(controller.is_animation_playing() == true, "J7: is_animation_playing() true while playing")
+	anim.stop()
+	_assert(controller.is_animation_playing() == false, "J7: is_animation_playing() false after stop")
+	_free_controller(controller)
+
+
+func _test_j8_null_anim_safe() -> void:
+	## J8: null _anim 安全（PRD §5.3-1）—— 裸实例（不进树，_ready 不执行 → _anim 保持 null）
+	##     get_animation_position() == 0.0、is_animation_playing() == false，不报错不崩溃
+	var script: GDScript = load("res://gdscripts/stick_figure_controller.gd")
+	_assert(script != null, "J8: stick_figure_controller.gd loads")
+	if script == null:
+		return
+	var controller: Node = script.new()
+	var pos: float = controller.get_animation_position()
+	var playing: bool = controller.is_animation_playing()
+	_assert(pos == 0.0, "J8: null _anim → get_animation_position() == 0.0 (got %s)" % str(pos))
+	_assert(playing == false, "J8: null _anim → is_animation_playing() == false")
+	controller.free()
+
+
+func _test_j9_unknown_state_fallback() -> void:
+	## J9: 未知状态降级不崩 —— consume_state("unknown_state") → _process 多帧 → anim_idle 在播（AnimStateIdle no-op 路径）
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var anim: AnimationPlayer = _anim_player(controller)
+	controller.consume_state("unknown_state")
+	controller._process(0.016)
+	controller._process(0.016)
+	_assert(anim.current_animation == "anim_idle", "J9: unknown state falls back to anim_idle (got '%s')" % anim.current_animation)
+	_assert(anim.is_playing(), "J9: idle animation playing (no crash)")
+	_free_controller(controller)

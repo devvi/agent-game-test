@@ -210,6 +210,28 @@ PR #641（research/579）body: "parent #579" + "Closes #579"
 
 ---
 
+### R8. event-processor `_green()` 不识别 L2=2（unavailable）→ E2E PASS 误标 failed（2026-08-21 列入，状态：待设计）
+
+**为什么列入**：`scripts/event-processor.py` 收割 E2E runner 结果时（约 L2423），`_green()` 只接受 `("0","pass","true","yes","skip")`，**缺 `"2"`（unavailable）**。runner 协议：层退出码 0=pass / 1=fail / 2=unavailable，只有 1 让 run 变红，unavailable 仅告警。shandong-wolf（新活跃游戏）无 `tests/playthrough_test.tscn` → L2=2 → `all(_green(...))` 为 False → e2e-state 误标 `status=failed`，尽管 runner 自身报 `overall: ✅ PASS`。
+
+**证据**（2026-08-20 实弹，来源 #678 E2E harness 修复 PR review 发现，原 issue #680）：
+- `/tmp/e2e-678-orchestrator.log`：L0=0/L1=0/L2=2/L3=skip，runner 报 overall PASS，收割结果却误标 failed
+- 此前 mini-pong 有 `playthrough_test.tscn`（L2=0）从未触发该路径——游戏切换（shandong-wolf）后路径暴露
+
+**影响链**：
+```python
+_green() 集合缺 "2" → all(...) 为 False → e2e-state status=failed
+→ 本应派发 review 的 run 被误判失败 → review 不启动 / 人工误判质量门
+```
+
+**设计方向（待评审）**：
+1. `_green()` 绿集合加入 `"2"`（或按 runner 语义改写：仅 1=fail 判红）
+2. tests/pipeline/ 增加用例锁定：L2=2 的 summary → e2e-state verdict=done（对齐 `test_..._e2e_harvest` 类）
+
+**验收设想**：对 L0=0/L1=0/L2=2/L3=skip 的 summary，event-processor 收割 verdict=done 且派发 review；pipeline 测试全绿。
+
+---
+
 ## 观察区（候选，未正式列入）
 
 - webhook 链路 5 故障点（ngrok→gateway→route script）——已有 reconcile_check_runs 兜底
