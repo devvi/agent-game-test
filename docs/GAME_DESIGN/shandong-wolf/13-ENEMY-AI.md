@@ -191,3 +191,8 @@ func hit_frame() -> int:        # 优先 windup_frames（≥0），否则 int(C.
 - ❌ 不改 #577 五结果事件名与裁决顺序（additive 补丁必须保既有 25 判定用例全绿）
 - ❌ 不改 debug_canvas.gd（#584 调参面板域）、scenes/Main.tscn（标题场景红线）、mini-pong/ 任何文件
 - ❌ 不做场景组装与渲染（#583/#585 职责）；敌人视觉复用 SW-003，AI 层零渲染代码
+
+
+## 12. 精英档位延伸（#682/#695，详见 19 章）
+
+本章记录 #581/#638 基础小兵档位。**#682/#695 在 EnemyAI 上叠加精英档位**（`@export elite_mode: bool`）——AttackState 出招二选一 → 三选一（+蓄力重斩）、受击击退位移、敌人架势脱战恢复、EnemyHealthBar 血条、HP 慢线装配消费 `ENEMY_HP_MAX`（40→80 候选上调，§6 表值已被 #682 覆盖为 80）。小兵档位（elite_mode=false）行为与本章逐字节一致，既有 36 用例回归全绿。详见 `19-ELITE-BOSS-AI.md`。
