@@ -173,6 +173,9 @@ func _build_enemy(stage) -> void:
 	enemy.add_child(enemy_entity)
 	enemy.bind_entity(enemy_entity)
 	enemy.elite_mode = true   # MVP 单敌人即精英（#682: 蓄力重斩出招启用，HP 慢线接通）
+	## #720 自动面向: 玩家攻击瞬间转向最近敌人（消除站桩挥空；装配注入 target 引用）
+	if player_entity != null:
+		player_entity._auto_face_target = enemy_entity
 	enemy_entity.state_changed.connect(func(_from: String, to: String): stick.consume_state(to))
 	## 遇敌 → COMBAT 态（首次攻击接战，仅 IDLE→COMBAT）
 	enemy_entity.state_changed.connect(_on_enemy_entity_state_changed)

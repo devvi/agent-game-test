@@ -36,6 +36,8 @@ var _behavior: String = "patrol"             # 当前行为态名（调试/回�
 var _judge_subscribed: bool = false          # judge 信号已订阅标记（惰性接线）
 var _knockback_vel: float = 0.0              # 受击击退初速（#682，stagger 期间沿受击反向，ENEMY_KNOCKBACK_DECAY 衰减）
 var _knockback_dir: int = 1                  # 受击反向（相对 attacker 位置，远离攻击者）
+var _guard_until_sec: float = 0.0            # 防御（#720）格挡姿态截止（GuardState.enter 设置；Time 秒）
+var _enraged: bool = false                   # 血线阶段（#720 P2 可选）: HP ≤ ENEMY_ENRAGE_HP_RATIO → 强化态
 
 func bind_entity(e) -> void:
 	## 绑定战斗实体: 注入敌人攻击伤害参数（judge 登记读取）+ 订阅信号
@@ -89,16 +91,20 @@ func can_sense_player() -> bool:
 func decide(delta: float) -> void:
 	## 纯决策入口（headless 测试手动调用 + 运行时 _physics_process 驱动，无物理依赖）:
 	##   ① 决策门控: entity == null or _dead → 清 move_intent 返回
-	##   ② 实体非 idle/move 态（entity.state_name not in ["idle","move"]）→ 清 move_intent 返回
-	##      （战斗动画/硬直期间 combat FSM 接管，AI 不抢戏）
+	##   ② 实体非 idle/move/guard 态（entity.state_name not in ["idle","move","guard"]）→ 清 move_intent 返回
+	##      （战斗动画/硬直期间 combat FSM 接管，AI 不抢戏；guard 例外——防御到期需行为 FSM 计时退出）
 	##   ③ 弹反抑制窗: Time.get_ticks_msec()/1000.0 < _parry_stun_until_sec → 清 move_intent 返回
 	##   ④ 推进行为 FSM: _ai_fsm.update(delta)（状态对象只写 _move_intent / 调 entity.request_transition；
 	##      位移不在此执行——_physics_process 每帧调用 _apply_movement 恰一次，见 #703）
 	_ensure_judge_subscription()
+	## #720 P2 血线阶段: HP ≤ ENEMY_ENRAGE_HP_RATIO → _enraged（AttackState 读冷却/概率时按标志调整）
+	if entity != null and not _dead:
+		var hp_ratio: float = float(entity.hp_1) / maxf(float(entity.life_1_max), 0.001)
+		_enraged = hp_ratio <= float(C.ENEMY_ENRAGE_HP_RATIO)
 	if entity == null or _dead:
 		_move_intent = Vector2.ZERO
 		return
-	if entity.state_name != "idle" and entity.state_name != "move":
+	if entity.state_name != "idle" and entity.state_name != "move" and entity.state_name != "guard":
 		_move_intent = Vector2.ZERO
 		return
 	if Time.get_ticks_msec() / 1000.0 < _parry_stun_until_sec:
@@ -190,21 +196,29 @@ func _on_player_state_changed(_from: String, to: String) -> void:
 	## AC3 触发源: 玩家进入 attack/heavy_attack（前摇开始）且玩家在
 	##   ENEMY_RETREAT_TRIGGER_RANGE 内 → 掷骰 5%（_rng.randf() < C.ENEMY_RETREAT_CHANCE）
 	##   → 行为 FSM 转移 RetreatState（95% 不打断当前行为）
+	## #720 防御触发（追加分支, issue body 要素 4）: 玩家攻击前摇 + 敌人 idle/move + |dx| ≤ HITBOX_RANGE
+	##   → 掷骰 ENEMY_BLOCK_CHANCE → GuardState（格挡玩家攻击）。retreat 优先守卫（_behavior == "retreat" 跳过防御）。
 	if to != "attack" and to != "heavy_attack":
 		return
 	if _ai_fsm == null or entity == null or _dead:
 		return
 	if entity.state_name != "idle" and entity.state_name != "move":
 		return
-	if _behavior == "retreat":
+	if _behavior == "retreat" or _behavior == "guard":
 		return
 	if player == null:
 		return
 	var dx: float = player.position.x - position.x
-	if absf(dx) > float(C.ENEMY_RETREAT_TRIGGER_RANGE):
+	## 回避（#581）: 玩家在 ENEMY_RETREAT_TRIGGER_RANGE 内 → 掷骰 5%
+	if absf(dx) <= float(C.ENEMY_RETREAT_TRIGGER_RANGE):
+		if _rng.randf() < float(C.ENEMY_RETREAT_CHANCE):
+			_ai_fsm.transition_to(EnemyAIStatesScript.make_state("retreat", self))
+			return
+	## 防御（#720）: 玩家攻击够得着（|dx| ≤ HITBOX_RANGE）→ 掷骰 ENEMY_BLOCK_CHANCE → GuardState
+	if absf(dx) > float(C.HITBOX_RANGE):
 		return
-	if _rng.randf() < float(C.ENEMY_RETREAT_CHANCE):
-		_ai_fsm.transition_to(EnemyAIStatesScript.make_state("retreat", self))
+	if _rng.randf() < float(C.ENEMY_BLOCK_CHANCE):
+		_ai_fsm.transition_to(EnemyAIStatesScript.make_state("guard", self))
 
 func _on_entity_state_changed(_from: String, to: String) -> void:
 	## 决策门控补充: 实体进入非 idle/move 态时清 move_intent（decide 内自然被门控，这里同步清理）

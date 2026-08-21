@@ -91,11 +91,13 @@ func resolve_attack(attacker, defender) -> void:
 		if rel_dir != w.direction:
 			_resolved[key] = true
 			return
-	# 弹反判定（仅玩家防御者）: 时间戳窗闭区间 [hit_ms - PARRY_WINDOW_SECONDS*1000, hit_ms] + facing 校验
+	# 弹反判定（仅玩家防御者）: 时间戳窗闭区间 [hit_ms - parry_window, hit_ms] + facing 校验
+	#   #720 窗口差异化: 读 AttackWindow.parry_window_seconds（-1 → 回退 PARRY_WINDOW_SECONDS）
 	var hit_ms: int = int(w.hit_frame() * 1000.0 / float(C.FRAME_RHYTHM_BASE))
 	var parry_ok: bool = false
 	if defender == player:
-		var lower_ms: int = hit_ms - int(C.PARRY_WINDOW_SECONDS * 1000.0)
+		var pws: float = float(w.parry_window_seconds) if w.parry_window_seconds >= 0.0 else float(C.PARRY_WINDOW_SECONDS)
+		var lower_ms: int = hit_ms - int(pws * 1000.0)
 		parry_ok = _last_guard_press_ms >= 0 and _last_guard_press_ms >= lower_ms and _last_guard_press_ms <= hit_ms
 		if parry_ok and int(C.PARRY_DIRECTION_TOLERANCE) == 1:
 			parry_ok = defender.facing == -w.direction
@@ -157,11 +159,14 @@ func _active_window_for(attacker) -> Object:
 func _resolve_parry(attacker, defender, parry_ok: bool, key: String, reversed_key: String) -> bool:
 	## 弹反成功：玩家 0 伤害（不调 take_damage）+ 敌架势扣 PARRY_STANCE_DAMAGE
 	##   + 玩家 request_transition("parry_success") + 发射事件；双向键防重入
+	##   #720 弹反回报差异化: 读窗口 parry_stance_damage（-1 → 回退 PARRY_STANCE_DAMAGE）
 	if defender != player or not parry_ok:
 		return false
-	enemy.take_stance_damage(float(C.PARRY_STANCE_DAMAGE))
+	var win: Object = _active_window_for(attacker)
+	var psd: float = float(win.parry_stance_damage) if (win != null and win.parry_stance_damage >= 0.0) else float(C.PARRY_STANCE_DAMAGE)
+	enemy.take_stance_damage(psd)
 	player.request_transition("parry_success")
-	emit_signal("parry_success", player, enemy, float(C.PARRY_STANCE_DAMAGE))
+	emit_signal("parry_success", player, enemy, psd)
 	_resolved[key] = true
 	_resolved[reversed_key] = true
 	return true
@@ -203,6 +208,13 @@ func _on_entity_state_changed(_from: String, to: String, entity) -> void:
 		## 敌人前摇（AC1: 12 帧可弹反）；#682 蓄力重斩 override fallback 链——≥0 用 override，否则默认
 		var wu: int = int(entity.current_windup_frames) if (entity.current_windup_frames >= 0) else int(C.ENEMY_ATTACK_WINDUP)
 		w.windup_frames = wu
+		## #720 弹反窗口/回报差异化: 按 windup 阈值链注入（charge 24 先判 / thrust 16 次判 / 其余 fallback 常量）
+		if wu >= int(C.ENEMY_CHARGE_WINDUP):
+			w.parry_window_seconds = float(C.PARRY_WINDOW_CHARGE_SECONDS)
+			w.parry_stance_damage = float(C.PARRY_STANCE_DAMAGE_CHARGE)
+		elif wu >= int(C.ENEMY_THRUST_WINDUP):
+			w.parry_window_seconds = float(C.PARRY_WINDOW_THRUST_SECONDS)
+			w.parry_stance_damage = float(C.PARRY_STANCE_DAMAGE_THRUST)
 	w.direction = entity.facing
 	register_attack_window(w)
 

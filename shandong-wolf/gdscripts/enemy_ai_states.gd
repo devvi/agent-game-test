@@ -20,6 +20,8 @@ static func make_state(state_name: String, ai: Object) -> Object:
 			return AttackState.new(ai)
 		"retreat":
 			return RetreatState.new(ai)
+		"guard":
+			return GuardState.new(ai)
 		_:
 			return PatrolState.new(ai)
 
@@ -156,7 +158,9 @@ class AttackState:
 		ai._behavior = "attack"
 		state_name = "attack"
 		_elapsed = 0.0
-		if ai.elite_mode and ai._rng.randf() < float(C.ENEMY_CHARGE_CHANCE):
+		## #720 血线阶段强化（P2 可选）: _enraged → charge 概率 ×1.5（冷却缩短在 update 中按 _enraged 调整）
+		var charge_chance: float = float(C.ENEMY_CHARGE_CHANCE) * (1.5 if ai._enraged else 1.0)
+		if ai.elite_mode and ai._rng.randf() < charge_chance:
 			_attack_kind = "charge"
 		elif ai._rng.randf() < float(C.ENEMY_THRUST_CHANCE):
 			_attack_kind = "thrust"
@@ -165,6 +169,10 @@ class AttackState:
 		_is_thrust = (_attack_kind == "thrust")
 		_issued = false
 		_strikes = 0
+		## #720 差异化前摇（三级可读梯度）: thrust 注入中前摇 override（judge 登记时读取）。
+		##   charge/combo 走既有 override/fallback 链（charge 在 update 注入、combo fallback ENEMY_ATTACK_WINDUP）
+		if _attack_kind == "thrust":
+			ai.entity.current_windup_frames = int(C.ENEMY_THRUST_WINDUP)
 
 	func update(_delta: float) -> void:
 		var now: float = Time.get_ticks_msec() / 1000.0
@@ -186,6 +194,8 @@ class AttackState:
 			return
 		if ai.entity == null:
 			return
+		## #720 血线阶段强化（P2 可选）: _enraged → 冷却缩短 ×0.6（charge 概率 ×1.5 已在 enter 处理）
+		var cd: float = float(C.ENEMY_ATTACK_COOLDOWN_SEC) * (0.6 if ai._enraged else 1.0)
 		if _attack_kind == "charge":
 			if not _issued:
 				ai.entity.current_windup_frames = int(C.ENEMY_CHARGE_WINDUP)
@@ -193,14 +203,15 @@ class AttackState:
 				ai.entity.request_transition("heavy_attack")
 				ai.entity.current_windup_frames = -1
 				ai.entity.current_hp_damage = -1.0
-				ai._attack_cooldown_until_sec = now + float(C.ENEMY_ATTACK_COOLDOWN_SEC)
+				ai._attack_cooldown_until_sec = now + cd
 				_issued = true
 			else:
 				ai._ai_fsm.transition_to(SelfScript.make_state("chase", ai))
 		elif _is_thrust:
 			if not _issued:
 				ai.entity.request_transition("heavy_attack")
-				ai._attack_cooldown_until_sec = now + float(C.ENEMY_ATTACK_COOLDOWN_SEC)
+				ai.entity.current_windup_frames = -1   # #720 清空 thrust 中前摇 override（防泄漏到下一击）
+				ai._attack_cooldown_until_sec = now + cd
 				_issued = true
 			else:
 				ai._ai_fsm.transition_to(SelfScript.make_state("chase", ai))
@@ -208,7 +219,7 @@ class AttackState:
 			if _strikes < 3:
 				ai.entity.request_transition("attack")
 				if _strikes == 0:
-					ai._attack_cooldown_until_sec = now + float(C.ENEMY_ATTACK_COOLDOWN_SEC)
+					ai._attack_cooldown_until_sec = now + cd
 				_strikes += 1
 			else:
 				ai._ai_fsm.transition_to(SelfScript.make_state("chase", ai))
@@ -242,3 +253,27 @@ class RetreatState:
 				ai._ai_fsm.transition_to(SelfScript.make_state("attack", ai))
 			else:
 				ai._ai_fsm.transition_to(SelfScript.make_state("chase", ai))
+
+
+class GuardState:
+	extends AIStateBase
+	## 防御（#720, issue body 要素 4）: 敌人格挡玩家攻击。复用 11 态 guard 战斗态（零新增状态名）。
+	##   - 进入: entity.request_transition("guard")（AI decide 门控冻结位移）→ 玩家攻击命中走 judge
+	##     既有 block_held 路径（敌人扣 POSTURE_BLOCK_COST）
+	##   - 退出（边界 3）: 持续 ENEMY_GUARD_HOLD_SECONDS → request_transition("idle") + 回 Chase
+	##   - 边界: 格挡中敌人被绕背 → facing 不变（MVP 一维，无绕背语义）；格挡中架势归零 → guard→stance_break 表内合法
+	func enter() -> void:
+		ai._behavior = "guard"
+		state_name = "guard"
+		_elapsed = 0.0
+		ai._guard_until_sec = Time.get_ticks_msec() / 1000.0 + float(C.ENEMY_GUARD_HOLD_SECONDS)
+		if ai.entity != null:
+			ai.entity.request_transition("guard")
+
+	func update(delta: float) -> void:
+		ai._move_intent = Vector2.ZERO
+		_elapsed += delta
+		if _elapsed >= float(C.ENEMY_GUARD_HOLD_SECONDS):
+			if ai.entity != null and ai.entity.state_name == "guard":
+				ai.entity.request_transition("idle")
+			ai._ai_fsm.transition_to(SelfScript.make_state("chase", ai))

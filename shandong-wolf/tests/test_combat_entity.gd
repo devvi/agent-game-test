@@ -117,6 +117,19 @@ func run() -> void:
 	_test_recover_e6_dual_write_race()
 	_reset_logs()
 	_test_recover_e6_fast_line_survives()
+	# Scenario #720: 霸体（windup 不打断 / 收招可打断）+ 自动面向（T5-T7）
+	_reset_logs()
+	_test_720_a1_armor_windup_no_interrupt()
+	_reset_logs()
+	_test_720_a2_armor_recovery_interrupt()
+	_reset_logs()
+	_test_720_a3_armor_only_enemy()
+	_reset_logs()
+	_test_720_b1_auto_face_turn()
+	_reset_logs()
+	_test_720_b2_auto_face_no_target()
+	_reset_logs()
+	_test_720_b3_auto_face_no_jitter()
 	print("Passed: %d, Failed: %d" % [passed, failed])
 
 
@@ -697,3 +710,91 @@ func _test_recover_e6_fast_line_survives() -> void:
 		_advance(e, int(1.2 * 60.0))   # 间隔 1.2s < 延迟 2.5s → 每次弹反重置延迟，恢复不启动
 	_assert(e.is_stance_broken, "E6: 4 parries @ 1.2s gaps still break stance (fast line holds)")
 	_assert(e.state_name == "stance_break", "E6: enters stance_break (got %s)" % e.state_name)
+
+
+# ── Scenario #720: 霸体（windup 不打断 / 收招可打断 / 仅敌人）+ 自动面向（T5-T7）─────
+
+func _test_720_a1_armor_windup_no_interrupt() -> void:
+	## #720 霸体（windup 期命中不打断）: 敌人 attack 且 _state_elapsed_frames < windup →
+	##   take_damage → 不转 stagger、HP 已扣、hp_changed 已广播（修复前命中即 stagger）
+	var e = _new_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if e == null: return
+	e.hp_changed.connect(_on_hp_changed)
+	e.request_transition("attack")
+	_assert(e.state_name == "attack", "enemy enters attack (got %s)" % e.state_name)
+	_assert(e._windup_frames > 0, "windup frames set on attack enter (got %d)" % e._windup_frames)
+	e._state_elapsed_frames = 0
+	var hp_before: float = e.hp_1
+	e.take_damage(15.0)
+	_assert(e.hp_1 < hp_before, "armor hit reduces HP (%.1f → %.1f)" % [hp_before, e.hp_1])
+	_assert(e.state_name == "attack", "windup hit does NOT stagger (霸体) (got %s)" % e.state_name)
+	_assert(_hp_log.size() == 1, "hp_changed broadcast once (got %d)" % _hp_log.size())
+
+
+func _test_720_a2_armor_recovery_interrupt() -> void:
+	## #720 霸体只拦 windup 期: windup 结束后（收招期）take_damage → stagger（玩家反击窗口保留）
+	var e = _new_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if e == null: return
+	e.request_transition("attack")
+	e._state_elapsed_frames = e._windup_frames + 1
+	e.take_damage(15.0)
+	_assert(e.state_name == "stagger", "post-windup hit staggers (got %s)" % e.state_name)
+
+
+func _test_720_a3_armor_only_enemy() -> void:
+	## #720 霸体仅敌人（is_player 豁免）: 玩家 attack windup 期 take_damage → 仍 stagger（玩家无霸体）
+	var e = _new_entity({is_player=true})
+	if e == null: return
+	e.request_transition("attack")
+	_assert(e.state_name == "attack", "player enters attack (got %s)" % e.state_name)
+	e._state_elapsed_frames = 0
+	e.take_damage(15.0)
+	_assert(e.state_name == "stagger", "player in attack windup still staggers (is_player 无霸体) (got %s)" % e.state_name)
+
+
+func _test_720_b1_auto_face_turn() -> void:
+	## #720 T5 自动面向: 玩家 facing=-1、敌人在右侧(dx>0)、注入 _auto_face_target →
+	##   _on_bridge_attack_pressed → facing 翻转为 +1
+	var p = _new_entity({is_player=true})
+	if p == null: return
+	var enemy = _new_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null: return
+	p.position = Vector2(50, 0)
+	p.facing = -1
+	enemy.position = Vector2(150, 0)
+	p._auto_face_target = enemy
+	_assert(p.facing == -1, "player facing -1 before attack")
+	p._on_bridge_attack_pressed()
+	_assert(p.facing == 1, "auto-face turns to +1 toward enemy (got %d)" % p.facing)
+	_assert(p.state_name == "attack", "attack entered (got %s)" % p.state_name)
+
+
+func _test_720_b2_auto_face_no_target() -> void:
+	## #720 T6 无敌人 no-op: _auto_face_target = null → 攻击 → facing 不变
+	var p = _new_entity({is_player=true})
+	if p == null: return
+	p.position = Vector2(50, 0)
+	p.facing = -1
+	p._auto_face_target = null
+	p._on_bridge_attack_pressed()
+	_assert(p.facing == -1, "no target → facing unchanged (got %d)" % p.facing)
+
+
+func _test_720_b3_auto_face_no_jitter() -> void:
+	## #720 T7 攻击中 facing 不抖动: 攻击转向后 _bridge_poll 收到反向移动轴 → facing 保持攻击方向
+	var p = _new_entity({is_player=true})
+	if p == null: return
+	var enemy = _new_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null: return
+	p.position = Vector2(50, 0)
+	p.facing = -1
+	enemy.position = Vector2(150, 0)
+	p._auto_face_target = enemy
+	var mock = _MockInput.new()
+	p.bind_input_controller(mock)
+	p._on_bridge_attack_pressed()
+	_assert(p.facing == 1, "auto-face turned to +1 (got %d)" % p.facing)
+	## 攻击中收到反向移动轴（-1）→ facing 保持 +1（非 idle/move 不更新）
+	mock.axis = -1.0
+	p._process(1.0 / 60.0)
+	_assert(p.facing == 1, "attack-phase reverse move axis does NOT flip facing (no jitter) (got %d)" % p.facing)

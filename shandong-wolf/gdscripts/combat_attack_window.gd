@@ -16,6 +16,8 @@ var hp_damage: float     # 命中 HP 伤害（玩家 SWORD_DAMAGE_LIGHT/HEAVY；
 var stance_damage: float # 命中架势伤害（POSTURE_HIT_COST # DRAFT）
 var direction: int       # 攻击方向（-1/1 = 攻击者 facing 快照；命中瞬间 facing 校验用）
 var windup_frames: int = -1     # -1 → 回退 FRAME_ATTACK_WINDUP（玩家窗口零变化）；敌人 = ENEMY_ATTACK_WINDUP
+var parry_window_seconds: float = -1.0    # -1 → 回退 C.PARRY_WINDOW_SECONDS（普通连击 0.2）；#720 按招式差异化
+var parry_stance_damage: float = -1.0     # -1 → 回退 C.PARRY_STANCE_DAMAGE（普通弹反 35）；#720 按招式差异化
 
 ## 命中判定起始帧（闭区间下界）: start_frame + windup_frames（>=0 时）或 FRAME_ATTACK_WINDUP（回退）
 func hit_frame() -> int:
