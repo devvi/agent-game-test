@@ -234,7 +234,7 @@ func _test_a6_default_values() -> void:
 	_assert(consts.get("PARRY_WINDOW_FRAMES", -1) == 12, "A6: PARRY_WINDOW_FRAMES == 12 (got %s)" % str(consts.get("PARRY_WINDOW_FRAMES", "MISSING")))
 	_assert(consts.get("POSTURE_RECOVERY_PER_SEC", -1.0) == 25, "A6: POSTURE_RECOVERY_PER_SEC == 25 (got %s)" % str(consts.get("POSTURE_RECOVERY_PER_SEC", "MISSING")))
 	_assert(consts.get("POSTURE_RECOVERY_PER_SEC", -1.0) != 0.8, "A6: 旧占位 0.8 必须消失")
-	_assert(consts.get("POSTURE_HIT_COST", -1.0) == 35, "A6: POSTURE_HIT_COST == 35 (got %s)" % str(consts.get("POSTURE_HIT_COST", "MISSING")))
+	_assert(consts.get("POSTURE_HIT_COST", -1.0) == 18.0, "A6: POSTURE_HIT_COST == 18.0 (got %s)" % str(consts.get("POSTURE_HIT_COST", "MISSING")))
 	_assert(consts.get("LIFE_2_ABS", -1.0) == 50, "A6: LIFE_2_ABS == 50 (got %s)" % str(consts.get("LIFE_2_ABS", "MISSING")))
 	_assert(consts.get("ENEMY_ATTACK_WINDUP", -1) == 12, "A6: ENEMY_ATTACK_WINDUP == 12 (AC1 对齐, #581 裁决点 1, got %s)" % str(consts.get("ENEMY_ATTACK_WINDUP", "MISSING")))
 	_assert(consts.get("EXECUTE_RANGE", -1.0) == 1.2, "A6: EXECUTE_RANGE == 1.2 (got %s)" % str(consts.get("EXECUTE_RANGE", "MISSING")))

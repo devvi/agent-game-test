@@ -96,6 +96,7 @@ func run() -> void:
 	_test_54_knockback_shortened_combo()
 	_test_55_rechase_no_cooldown()
 	_test_56_guard_trigger()
+	_reset_logs()
 	_test_57_guard_block()
 	_test_58_guard_exit()
 	_test_59_guard_not_in_retreat()
@@ -1076,7 +1077,7 @@ func _test_38_override_no_leak() -> void:
 
 
 func _test_39_charge_parryable() -> void:
-	## 蓄力重斩可弹反（实验 1 落地）: 20 帧前摇窗口弹反闭区间 [hit-200ms, hit] 三态判定——
+	## 蓄力重斩可弹反（实验 1 落地）: 24 帧前摇窗口弹反闭区间 [hit-300ms, hit] 三态判定——
 	##   下界含端点弹反成功 / 命中帧弹反成功 / 下界-1 窗口外不弹反（落入受击）
 	var charge_seed: int = _find_charge_seed()
 	_assert(charge_seed >= 0, "found elite charge seed for parry test")
@@ -1104,7 +1105,7 @@ func _test_39_charge_parryable() -> void:
 		var w = judge._windows[judge._windows.size() - 1]
 		var hit_frame: int = w.hit_frame()
 		var hit_ms: int = int(hit_frame * 1000 / int(_c("FRAME_RHYTHM_BASE")))
-		var lower_ms: int = hit_ms - int(float(_c("PARRY_WINDOW_SECONDS")) * 1000.0)
+		var lower_ms: int = hit_ms - int(float(_c("PARRY_WINDOW_CHARGE_SECONDS")) * 1000.0)
 		## ① 下界（闭区间含端点）→ 弹反成功
 		judge._on_guard_pressed(lower_ms)
 		judge._frame = hit_frame
@@ -1442,7 +1443,8 @@ func _test_54_knockback_shortened_combo() -> void:
 
 func _test_55_rechase_no_cooldown() -> void:
 	## #720 T10（回扑无冷却）: 击退/受击后敌人进入 Chase → 直接逼近（AttackState 冷却只 gate 出招，不 gate 位移）
-	var k = _knockback_setup(65.0, 0.0)
+	##   #720 停距 65 后贴 0 敌击退不可观测（clamp）→ 用 170/100（玩家右、敌被击退出范围）验证回扑
+	var k = _knockback_setup(170.0, 100.0)
 	if k.is_empty(): return
 	var ai = k["ai"]
 	var enemy = k["enemy"]
