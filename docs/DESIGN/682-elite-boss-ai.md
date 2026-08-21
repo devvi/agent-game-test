@@ -476,11 +476,11 @@ judge.resolve_attack 命中 → emit hit_landed(defender=enemy, attacker=player,
 
 | 集成 | 本组件 | 目标 Issue | 方式 | Status |
 |------|:---:|:---:|-----|:---:|
-| HP 慢线装配 → 敌人实体 | main_battle.gd `_build_enemy` | #585 | `life_1_max: C.ENEMY_HP_MAX` + `enemy.elite_mode = true` | ⬜ pending |
-| 蓄力出招 → 窗口登记 | enemy_ai_states.gd → combat_entity.gd override → combat_judge.gd | #577/#581 | `request_transition("heavy_attack")` 同步触发登记；fallback 链读取 override | ⬜ pending |
-| 受击 → 击退位移 | judge.hit_landed → EnemyAI._on_judge_hit_landed → _apply_movement | #579（事件源复用） | 信号订阅（与 parry_success 同构）；渲染层零改动 | ⬜ pending |
-| 敌人受击/弹反 → 脱战恢复 | take_stance_damage → CombatEntity._process | #575 | 延迟重置 + 轮询恢复（仅 is_player=false） | ⬜ pending |
-| 敌人 HP → Boss 条 | CombatEntity.hp_changed → Hud.EnemyHealthBar | #576 | set_target_enemy 订阅 + _HudBar.set_fill_color | ⬜ pending |
+| HP 慢线装配 → 敌人实体 | main_battle.gd `_build_enemy` | #585 | `life_1_max: C.ENEMY_HP_MAX` + `enemy.elite_mode = true` | ✅ connected |
+| 蓄力出招 → 窗口登记 | enemy_ai_states.gd → combat_entity.gd override → combat_judge.gd | #577/#581 | `request_transition("heavy_attack")` 同步触发登记；fallback 链读取 override | ✅ connected |
+| 受击 → 击退位移 | judge.hit_landed → EnemyAI._on_judge_hit_landed → _apply_movement | #579（事件源复用） | 信号订阅（与 parry_success 同构）；渲染层零改动 | ✅ connected |
+| 敌人受击/弹反 → 脱战恢复 | take_stance_damage → CombatEntity._process | #575 | 延迟重置 + 轮询恢复（仅 is_player=false） | ✅ connected |
+| 敌人 HP → Boss 条 | CombatEntity.hp_changed → Hud.EnemyHealthBar | #576 | set_target_enemy 订阅 + _HudBar.set_fill_color | ✅ connected |
 | 崩解 → 处决窗口 | stance_broken → ExecutionOrchestrator | #580 | 既有衔接确认（零改动，回归全绿） | ✅ 既有 |
 | 精英档位 → #589 军曹 | EnemyAI.elite_mode + 常量组 + Boss 条 UI | #589（backlog） | 内容 issue 叠加武器/危攻击/霸体，零重复实现 | ⬜ 移交 |
 | 数值候选 → #584 定稿 | constants 精英分区 # DRAFT | #584（human-review） | 候选集 + 情感断言注释移交调参面板 | ⬜ 移交 |

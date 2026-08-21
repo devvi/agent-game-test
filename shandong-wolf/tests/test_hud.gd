@@ -57,6 +57,12 @@ func run() -> void:
 	_test_t26_static_no_polling()
 	_test_t27_singleton_guard()
 	_test_t28_invalid_numbers()
+	# Scenario B(#682): EnemyHealthBar（Boss 条组合，AC6, DESIGN §8 Scenario B）
+	_test_b1_enemy_health_bar_visible()
+	_test_b2_enemy_health_bar_layout()
+	_test_b3_enemy_health_bar_hp_changed()
+	_test_b4_enemy_health_bar_hide()
+	_test_b5_player_bars_fill_override_off()
 	print("Passed: %d, Failed: %d" % [passed, failed])
 
 
@@ -175,7 +181,7 @@ func _test_t5_enemy_stance_bar_layout() -> void:
 	var bar = hud.EnemyStanceBar
 	_assert(absf(bar.anchor_left - 0.5) < 0.001 and absf(bar.anchor_right - 0.5) < 0.001, "T5: EnemyStanceBar anchored top-center (anchor 0.5)")
 	_assert(bar.size == Vector2(240, 6), "T5: EnemyStanceBar size (240,6) = HUD_ENEMY_BAR_WIDTH x HUD_STANCE_HEIGHT")
-	_assert(absf(bar.offset_top - 12.0) < 0.001, "T5: EnemyStanceBar top offset 12 = HUD_ENEMY_BAR_TOP")
+	_assert(absf(bar.offset_top - 26.0) < 0.001, "T5: EnemyStanceBar top offset 26 = HUD_ENEMY_BAR_TOP + HUD_BAR_HEIGHT + HUD_ENEMY_HP_GAP (#682 血条占位下移)")
 	_assert(bar.visible == false, "T5: EnemyStanceBar hidden without set_target_enemy")
 	_cleanup_hud(hud)
 
@@ -503,4 +509,102 @@ func _test_t28_invalid_numbers() -> void:
 		if not is_finite(v) or v < 0.0 or v > 1.0:
 			ok2 = false
 	_assert(ok2, "T28: set_debug_hp(NAN,50,1) → fractions finite and clamped to [0,1] (got %s)" % [str(f2)])
+	_cleanup_hud(hud)
+
+
+# ── Scenario B(#682): EnemyHealthBar（Boss 条组合，AC6）────────────────────
+## 血条+架势条顶部组合: EnemyHealthBar(240×10 暗红) 在 EnemyStanceBar 上方；
+##   新常量 HUD_ENEMY_HP_GAP 实现期才加入 constants.gd → 布局断言用字面值 26（=12+10+4），
+##   既有 T5 断言已同步 12 → 26。EnemyHealthBar/_HudBar 新成员经无类型局部变量鸭子访问。
+
+func _test_b1_enemy_health_bar_visible() -> void:
+	## B1 注入可见: set_target_enemy 后 EnemyHealthBar/EnemyStanceBar 双条可见 + 同锚点 0.5
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	_assert(hud.EnemyHealthBar.visible == false, "B1: EnemyHealthBar hidden before set_target_enemy")
+	_assert(absf(hud.EnemyHealthBar.anchor_left - 0.5) < 0.001 and absf(hud.EnemyHealthBar.anchor_right - 0.5) < 0.001, "B1: EnemyHealthBar anchored top-center (anchor 0.5)")
+	hud.set_target_enemy(enemy)
+	_assert(hud.EnemyHealthBar.visible == true, "B1: EnemyHealthBar visible after set_target_enemy")
+	_assert(hud.EnemyStanceBar.visible == true, "B1: EnemyStanceBar visible after set_target_enemy")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_b2_enemy_health_bar_layout() -> void:
+	## B2 布局: EnemyHealthBar size (240,10) 且 offset_top 12（HUD_ENEMY_BAR_TOP）；
+	##   EnemyStanceBar offset_top 26（HUD_ENEMY_BAR_TOP + HUD_BAR_HEIGHT + HUD_ENEMY_HP_GAP）
+	var hud = _spawn_hud()
+	if hud == null: return
+	var hb = hud.EnemyHealthBar
+	_assert(hb.size == Vector2(240, 10), "B2: EnemyHealthBar size (240,10) = HUD_ENEMY_BAR_WIDTH x HUD_BAR_HEIGHT (got %s)" % [str(hb.size)])
+	_assert(absf(hb.offset_top - 12.0) < 0.001, "B2: EnemyHealthBar top offset 12 = HUD_ENEMY_BAR_TOP")
+	_assert(absf(hud.EnemyStanceBar.offset_top - 26.0) < 0.001, "B2: EnemyStanceBar top offset 26 = HUD_ENEMY_BAR_TOP + HUD_BAR_HEIGHT + HUD_ENEMY_HP_GAP")
+	_assert(hud.EnemyStanceBar.offset_top > hud.EnemyHealthBar.offset_top, "B2: stance bar sits below health bar")
+	_cleanup_hud(hud)
+
+
+func _test_b3_enemy_health_bar_hp_changed() -> void:
+	## B3 信号驱动比例: 注入 set_target_enemy 初始化 1.0；hp_changed(40, 0, 1) →
+	##   EnemyHealthBar 比例 0.5；fill 色为 HUD_BLOOD_RED（set_fill_color 生效）
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	hud.set_target_enemy(enemy)
+	var init: Array = hud.EnemyHealthBar.get_segment_fractions()
+	_assert(init.size() == 1 and absf(init[0] - 1.0) < 0.001, "B3: set_target_enemy init fraction 1.0 (got %s)" % [str(init)])
+	enemy.hp_changed.emit(40.0, 0.0, 1)
+	var f: Array = hud.EnemyHealthBar.get_segment_fractions()
+	_assert(f.size() == 1 and absf(f[0] - 0.5) < 0.001, "B3: hp_changed(40,0,1) → fraction 0.5 (got %s)" % [str(f)])
+	_assert(hud.EnemyHealthBar._use_fill_override == true, "B3: EnemyHealthBar fill override enabled (set_fill_color)")
+	var c = load("res://gdscripts/constants.gd")
+	if c != null:
+		_assert(hud.EnemyHealthBar._fill_override == c.HUD_BLOOD_RED, "B3: EnemyHealthBar fill color == HUD_BLOOD_RED")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+
+
+func _test_b4_enemy_health_bar_hide() -> void:
+	## B4 died 隐藏: died(final=true) → 双条 hidden；set_target_enemy(null) → 双条隐藏
+	var hud = _spawn_hud()
+	if hud == null: return
+	var enemy = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy == null:
+		_cleanup_hud(hud)
+		return
+	## ① died(final=true)
+	hud.set_target_enemy(enemy)
+	_assert(hud.EnemyHealthBar.visible == true, "B4: health bar visible before death")
+	enemy.take_damage(80.0)
+	_assert(enemy.state_name == "dead", "B4: enemy final dead (got %s)" % enemy.state_name)
+	_assert(hud.EnemyHealthBar.visible == false, "B4: EnemyHealthBar hidden after died(final=true)")
+	_assert(hud.EnemyStanceBar.visible == false, "B4: EnemyStanceBar hidden after died(final=true)")
+	## ② set_target_enemy(null)
+	var enemy2 = _spawn_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if enemy2 == null:
+		_cleanup_hud(hud)
+		_cleanup_entity(enemy)
+		return
+	hud.set_target_enemy(enemy2)
+	_assert(hud.EnemyHealthBar.visible == true, "B4: health bar visible for new target")
+	hud.set_target_enemy(null)
+	_assert(hud.EnemyHealthBar.visible == false, "B4: EnemyHealthBar hidden after set_target_enemy(null)")
+	_assert(hud.EnemyStanceBar.visible == false, "B4: EnemyStanceBar hidden after set_target_enemy(null)")
+	_cleanup_hud(hud)
+	_cleanup_entity(enemy)
+	_cleanup_entity(enemy2)
+
+
+func _test_b5_player_bars_fill_override_off() -> void:
+	## B5 玩家条回归: 玩家血条/架势条 fill_override 默认关闭（additive 零影响 → 月白活性段）
+	var hud = _spawn_hud()
+	if hud == null: return
+	_assert(hud.PlayerHealthBar._use_fill_override == false, "B5: PlayerHealthBar fill_override default off")
+	_assert(hud.PlayerStanceBar._use_fill_override == false, "B5: PlayerStanceBar fill_override default off")
 	_cleanup_hud(hud)

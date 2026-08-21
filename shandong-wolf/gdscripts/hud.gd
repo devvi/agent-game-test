@@ -33,6 +33,7 @@ var _kill_hint_tween: Tween = null
 var PlayerBarGroup: Control
 var PlayerHealthBar: _HudBar
 var PlayerStanceBar: _HudBar
+var EnemyHealthBar: _HudBar
 var EnemyStanceBar: _HudBar
 var ExecutePromptLabel: Label
 var KillPromptLabel: Label
@@ -74,13 +75,24 @@ func _create_nodes() -> void:
 	PlayerStanceBar.size = Vector2(C.HUD_BAR_WIDTH, C.HUD_STANCE_HEIGHT)
 	PlayerBarGroup.add_child(PlayerStanceBar)
 
+	EnemyHealthBar = _HudBar.new()
+	EnemyHealthBar.anchor_left = 0.5
+	EnemyHealthBar.anchor_right = 0.5
+	EnemyHealthBar.offset_left = -C.HUD_ENEMY_BAR_WIDTH / 2.0
+	EnemyHealthBar.offset_right = C.HUD_ENEMY_BAR_WIDTH / 2.0
+	EnemyHealthBar.offset_top = C.HUD_ENEMY_BAR_TOP
+	EnemyHealthBar.offset_bottom = C.HUD_ENEMY_BAR_TOP + C.HUD_BAR_HEIGHT
+	EnemyHealthBar.visible = false
+	EnemyHealthBar.set_fill_color(C.HUD_BLOOD_RED)
+	add_child(EnemyHealthBar)
+
 	EnemyStanceBar = _HudBar.new()
 	EnemyStanceBar.anchor_left = 0.5
 	EnemyStanceBar.anchor_right = 0.5
 	EnemyStanceBar.offset_left = -C.HUD_ENEMY_BAR_WIDTH / 2.0
 	EnemyStanceBar.offset_right = C.HUD_ENEMY_BAR_WIDTH / 2.0
-	EnemyStanceBar.offset_top = C.HUD_ENEMY_BAR_TOP
-	EnemyStanceBar.offset_bottom = C.HUD_ENEMY_BAR_TOP + C.HUD_STANCE_HEIGHT
+	EnemyStanceBar.offset_top = C.HUD_ENEMY_BAR_TOP + C.HUD_BAR_HEIGHT + C.HUD_ENEMY_HP_GAP
+	EnemyStanceBar.offset_bottom = C.HUD_ENEMY_BAR_TOP + C.HUD_BAR_HEIGHT + C.HUD_ENEMY_HP_GAP + C.HUD_STANCE_HEIGHT
 	EnemyStanceBar.visible = false
 	add_child(EnemyStanceBar)
 
@@ -144,18 +156,22 @@ func bind_player(entity: CombatEntityScript) -> void:
 
 
 func set_target_enemy(entity: CombatEntityScript) -> void:
-	## 幂等注入战斗目标：同实体早退；换目标先断开旧敌人订阅；null → 隐藏敌人架势条；
-	## 有效实体 → 订阅 + 立即按当前架势初始化（MVP 无锁定系统，「当前锁定敌人」= 注入目标）。
+	## 幂等注入战斗目标：同实体早退；换目标先断开旧敌人订阅；null → 隐藏敌人血条/架势条；
+	## 有效实体 → 订阅 hp/stance/died + 立即按当前血量/架势初始化（MVP 无锁定系统，「当前锁定敌人」= 注入目标）。
 	if entity == _target_enemy:
 		return
 	_disconnect_enemy()
 	_target_enemy = entity
 	if entity == null:
+		EnemyHealthBar.visible = false
 		EnemyStanceBar.visible = false
 		return
+	entity.hp_changed.connect(_on_enemy_hp_changed, CONNECT_REFERENCE_COUNTED)
 	entity.stance_changed.connect(_on_enemy_stance_changed, CONNECT_REFERENCE_COUNTED)
 	entity.stance_broken.connect(_on_enemy_stance_broken, CONNECT_REFERENCE_COUNTED)
 	entity.died.connect(_on_enemy_died, CONNECT_REFERENCE_COUNTED)
+	EnemyHealthBar.visible = true
+	EnemyHealthBar.set_segments([entity.hp_1], [entity.life_1_max], 0)
 	EnemyStanceBar.visible = true
 	EnemyStanceBar.set_segments([entity.stance], [entity.stance_max], 0)
 
@@ -206,6 +222,11 @@ func _on_enemy_stance_changed(stance: float, stance_max: float) -> void:
 	EnemyStanceBar.set_segments([stance], [stance_max], 0)
 
 
+func _on_enemy_hp_changed(hp_1: float, _hp_2: float, _active_life: int) -> void:
+	## 敌人血量（#682）: 单段血条（段1 [hp_1 / life_1_max]），hp_changed 信号驱动
+	EnemyHealthBar.set_segments([hp_1], [_target_enemy.life_1_max], 0)
+
+
 func _on_enemy_stance_broken(_entity: CombatEntityScript) -> void:
 	_show_execute_hint()
 
@@ -217,14 +238,16 @@ func _on_player_state_changed(_from: String, to: String) -> void:
 
 
 func _on_enemy_died(_entity: CombatEntityScript, is_final: bool) -> void:
-	## 击杀 > 处决：final=true → 击杀提示 + 处决让位 + 敌人架势条隐藏；
-	## final=false（MVP 无复活敌人，防御）→ 仅隐藏处决提示 + 清空敌人架势条
+	## 击杀 > 处决：final=true → 击杀提示 + 处决让位 + 敌人血条/架势条隐藏；
+	## final=false（MVP 无复活敌人，防御）→ 仅隐藏处决提示 + 清空敌人血条/架势条
 	if is_final:
 		_show_kill_hint()
 		_hide_execute_hint()
+		EnemyHealthBar.visible = false
 		EnemyStanceBar.visible = false
 	else:
 		_hide_execute_hint()
+		EnemyHealthBar.set_segments([0.0], [1.0], 0)
 		EnemyStanceBar.set_segments([0.0], [1.0], 0)
 
 
@@ -323,6 +346,8 @@ func _disconnect_enemy() -> void:
 	if not is_instance_valid(_target_enemy):
 		_target_enemy = null
 		return
+	if _target_enemy.hp_changed.is_connected(_on_enemy_hp_changed):
+		_target_enemy.hp_changed.disconnect(_on_enemy_hp_changed)
 	if _target_enemy.stance_changed.is_connected(_on_enemy_stance_changed):
 		_target_enemy.stance_changed.disconnect(_on_enemy_stance_changed)
 	if _target_enemy.stance_broken.is_connected(_on_enemy_stance_broken):
@@ -343,11 +368,19 @@ class _HudBar:
 	var _maxes: Array = []
 	var _active_index: int = 0      # 活性段（高亮月白）；非活性段暗显墨黑
 	var _low_hp_mode: bool = false  # 低血：活性段填充+描边转 HUD_BLOOD_RED
+	var _fill_override: Color = Color.TRANSPARENT  # #682: 填充色覆写（EnemyHealthBar 暗红条）
+	var _use_fill_override: bool = false           # #682: 覆写开关（默认关闭 → 既有行为零变化）
 
 	func set_segments(values: Array, maxes: Array, active_index: int) -> void:
 		_values = values
 		_maxes = maxes
 		_active_index = active_index
+		queue_redraw()
+
+	func set_fill_color(color: Color) -> void:
+		## #682 additive: 覆写活性段填充色（EnemyHealthBar 用 HUD_BLOOD_RED；玩家条不调用 → 默认零变化）
+		_fill_override = color
+		_use_fill_override = true
 		queue_redraw()
 
 	func set_low_hp_mode(enabled: bool) -> void:
@@ -399,7 +432,8 @@ class _HudBar:
 			if seg_w > 0.0:
 				var fill_color: Color
 				if i == _active_index:
-					fill_color = C.HUD_BLOOD_RED if _low_hp_mode else C.HUD_MOON_WHITE
+					## #682 additive: fill_override（EnemyHealthBar 暗红）优先，默认走既有低血/月白逻辑
+					fill_color = _fill_override if _use_fill_override else (C.HUD_BLOOD_RED if _low_hp_mode else C.HUD_MOON_WHITE)
 				else:
 					fill_color = _inactive_color()
 				draw_rect(Rect2(Vector2(x, 0.0), Vector2(seg_w, size.y)), fill_color, true)
