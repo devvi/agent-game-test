@@ -149,7 +149,7 @@ func _on_attack_pressed() -> void:
 		return                        # 防「尸体处决」演出（PRD §5.2-3）
 	if _enemy == null or not is_instance_valid(_enemy):
 		return
-	if absf(_player.position.x - _enemy.position.x) > _range_px():
+	if absf(_player.global_position.x - _enemy.global_position.x) > _range_px():
 		return                        # 距离外 → 正常 attack
 	_trigger_execution()
 

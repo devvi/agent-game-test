@@ -152,10 +152,11 @@ func _sword_hits_body(attacker, defender, direction: int) -> bool:
 	##   身体: 竖直胶囊，中心 (defender.x, defender.y)，水平半宽 BODY_CAPSULE_HALF_WIDTH，
 	##         竖直跨 [defender.y - BODY_TOP_EXT, defender.y + BODY_BOTTOM_EXT]（头→脚）。
 	##   命中 = ① 剑高落在敌身体竖直跨内，且 ② 剑段水平伸程触及敌身体近缘。
-	## 旧版从 root(髋) 起量的 `absf(dy)` 盒：敌在玩家正下方(dy=+40) 剑高-44 根本够不到，
-	##   却被判命中——正是"player 没靠近也能击毙"。
-	var attacker_pos = attacker.position
-	var defender_pos = defender.position
+	## 关键（2026-08-21 根因）: 必须用 **global_position**（世界坐标，frame 精确）。玩家/敌人实体
+	##   是各自移动 controller 的子节点，其 `.position`（local）恒为 (0,0)——旧版读 local 导致
+	##   dx 恒为 0，跨屏也能命中=虚空命中。global_position 在测试(parentless)=position，向后兼容。
+	var attacker_pos = attacker.global_position
+	var defender_pos = defender.global_position
 	var sword_y: float = attacker_pos.y + float(C.SWORD_HAND_OFFSET_Y)
 	var sword_x0: float = attacker_pos.x
 	var sword_x1: float = attacker_pos.x + float(direction) * float(C.SWORD_LENGTH)

@@ -182,7 +182,7 @@ func _on_judge_hit_landed(defender, attacker, _hp_damage: float, _stance_damage:
 		return
 	var dx: float = 0.0
 	if attacker != null:
-		dx = attacker.position.x - position.x
+		dx = attacker.global_position.x - global_position.x
 	_knockback_dir = -1 if dx >= 0.0 else 1
 	_knockback_vel = float(C.ENEMY_KNOCKBACK_PX)
 

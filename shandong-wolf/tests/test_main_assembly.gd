@@ -158,6 +158,24 @@ func _assembler(m: Node) -> Node:
 	return m.get_node_or_null("MainBattle")
 
 
+func _place_enemy_in_melee(a: Node, dx: float = 60.0, dy: float = 0.0) -> void:
+	## 把敌人实体放进玩家近身（世界坐标）——弹反/受击测试的前提。
+	## 2026-08-21: judge 用 global_position 判定剑段↔身体胶囊（旧版读 local 恒 0 恒命中）；
+	##   这些测试在实体仍相隔 360px 时强制 attack，真实 AI 会先 chase 进 ENEMY_ATTACK_RANGE，
+	##   测试需显式把敌人摆进近身再触发攻击，否则剑判挥空、弹反链断。
+	var p = a.get("player_entity") if a != null else null
+	var e = a.get("enemy_entity") if a != null else null
+	if p == null or e == null:
+		return
+	var p_global: Vector2 = p.global_position
+	var e_ctrl = e.get_parent()       # EnemyAI controller 根（移动体）
+	if e_ctrl != null and e_ctrl is Node2D and e_ctrl.get("entity") == e:
+		e_ctrl.global_position = p_global + Vector2(dx, dy)
+	else:
+		e.global_position = p_global + Vector2(dx, dy)
+	e.set("facing", -1)              # 面向玩家（PARRY_DIRECTION_TOLERANCE=1）
+
+
 func _enemy_hit_ms() -> int:
 	## 敌攻击命中时点 = ENEMY_ATTACK_WINDUP 帧 → hit_ms = 帧 × 1000 / FRAME_RHYTHM_BASE
 	return int(WolfConstantsScript.ENEMY_ATTACK_WINDUP) * 1000 / int(WolfConstantsScript.FRAME_RHYTHM_BASE)
@@ -356,6 +374,7 @@ func _test_b2_judge_chain() -> void:
 	if a == null:
 		_free_main(m)
 		return
+	_place_enemy_in_melee(a)
 	a.enemy_entity.facing = -1
 	a.enemy_entity.request_transition("attack")
 	_assert(a.judge._windows.size() >= 1, "B2: 敌人 attack → 判定器窗口已登记")
@@ -381,6 +400,8 @@ func _test_b3_execution_chain() -> void:
 	a.enemy_entity.take_stance_damage(100.0)
 	_assert(a.enemy_entity.is_stance_broken == true, "B3: 敌架势崩解")
 	_assert(a.execution.get("_armed") == true, "B3: 崩解 → 处决窗口 armed")
+	# 处决范围判定用 global_position（旧版 local 恒 0 恒"距离内"）；摆进近身使 EXECUTE_RANGE 真实触发
+	_place_enemy_in_melee(a)
 	a.enemy_entity.died.connect(_on_died_spy)
 	var ic = _get_root().get_node_or_null("InputController")
 	_assert(ic != null, "B3: InputController autoload 可用")
@@ -422,6 +443,7 @@ func _test_b5_feedback_chain() -> void:
 		_free_main(m)
 		return
 	a.reaction.feedback_played.connect(_on_feedback_spy)
+	_place_enemy_in_melee(a)
 	a.enemy_entity.facing = -1
 	a.enemy_entity.request_transition("attack")
 	a.judge._on_guard_pressed(_enemy_hit_ms())
@@ -492,7 +514,8 @@ func _test_c1_full_loop() -> void:
 	a.game_state_changed.connect(_on_game_state_changed)
 	_assert(a.game_state == a.GameState.IDLE, "C1: 初始 IDLE")
 
-	# 1. 遇敌 → COMBAT
+	# 1. 遇敌 → COMBAT（敌进玩家近身再攻击——judge 用 global_position 判定，旧版 local 恒 0 恒命中）
+	_place_enemy_in_melee(a)
 	a.enemy_entity.facing = -1
 	a.enemy_entity.request_transition("attack")
 	_assert(a.game_state == a.GameState.COMBAT, "C1: 敌人 attack → COMBAT")
