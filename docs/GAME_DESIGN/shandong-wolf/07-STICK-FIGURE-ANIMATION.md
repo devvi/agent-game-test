@@ -1,4 +1,4 @@
-# 火柴人剪影骨架与关键帧动画 — Line2D 程序化骨架 + 11 态关键帧 + consume_state 契约 + additive 刀光（#574/#612）
+# 火柴人剪影骨架与关键帧动画 — Line2D 程序化骨架 + 11 态关键帧 + consume_state 契约 + additive 刀光 + 查询委托 API（#574/#612/#681/#692）
 
 > 落盘依据：PR #612（implement，已 merge 2026-08-19）← DESIGN `docs/DESIGN/574-stick-figure-silhouette-animation.md`；
 > PRD `docs/PRD/574-stick-figure-silhouette-animation.md`（research PR #603，已 merge）。
@@ -297,3 +297,56 @@ CI/本地: run-e2e-review.sh --with-visual
 | #575 | 战斗状态机（consume_state 权威状态源，canonical 11 态） | 待实现 |
 | #573 | 输入映射与玩家控制器（本层不读输入，只消费状态） | 已合并（#611） |
 | #584 | 帧节奏/骨骼几何/刀光参数 # DRAFT 定稿（含 10vs14 裁决） | 草稿已合并（#609），待用户定稿 |
+| #681 | 攻击查询委托补漏（StickFigureController +2 查询方法，本文件 §10） | 已合并（#692） |
+
+## 10. 查询委托 API（#681 补漏，2026-08-21 合并 #692）
+
+### 10.1 背景与意图
+
+**问题本质是「调用方契约已写死、实现方缺失」的一侧缺口（half-implemented contract）：** #574 实现期在
+**调用方**——`stick_figure_anim_states.gd:111`（AnimStateAttack.update 每帧）与 `e2e_stick_figure_capture.gd:129-130`
+（E2E 截图像具轮询）——自创并直接调用了 `get_animation_position()` / `is_animation_playing()` 两个方法名，但漏掉了
+在 **StickFigureController 上实现这两个 callee**。运行时每次攻击（键盘 J / 鼠标左键，input map 同一 action 双绑定）
+→ AnimStateAttack.update 每帧调用缺失方法 → 稳定 SCRIPT ERROR：`Invalid call. Nonexistent function 'get_animation_position'`，
+attack 三段 phase（0 前摇 / 1 暴发 / 2 收招）判定完全失效，E2E 攻击三段截图（WINDUP/BURST/RECOVERY）同步崩。
+
+**修复哲学：只补 callee，不动 caller 契约；与 `play_clip()` 既有委托风格逐字一致。** 调用方契约是既成事实不可修改
+（改动 = 扩散 diff + 违背「最小修复面」）；callee 薄委托 `_anim`、不暴露 AnimationPlayer 本体；null-guard 是硬性要求
+（`_anim` 可能为 null，`_ready()` 已 push_warning）。**一处实现、两路受益**——AnimStateAttack 主路径（每次攻击）与
+E2E capture 路径（截图轮询）同时被满足。
+
+### 10.2 方法定义（`gdscripts/stick_figure_controller.gd`，置于 `play_clip()` 附近）
+
+查询方法与播放方法同区，供动画状态对象 / E2E 截图像具消费。
+
+```gdscript
+func get_animation_position() -> float:
+    ## 供动画状态对象 / E2E 截图像具查询 AnimationPlayer 当前播放位置（秒）
+    if _anim == null:
+        return 0.0
+    return _anim.current_animation_position
+
+func is_animation_playing() -> bool:
+    ## 供 E2E 截图像具查询动画是否在播（null-guard）
+    if _anim == null:
+        return false
+    return _anim.is_playing()
+```
+
+### 10.3 参数与语义
+
+| 方法 | 委托目标 | null-guard 默认值 | 语义要点 |
+|------|---------|:---:|------|
+| `get_animation_position() -> float` | `_anim.current_animation_position` | `0.0` | 只读无副作用；`seek()` 后同步反映新位置（同态重入：play_clip 内部 seek(0.0) → 下一帧查询 ≈ 0 → phase 回 0，连招语义保持） |
+| `is_animation_playing() -> bool` | `_anim.is_playing()` | `false` | 只读；E2E capture 判断「动画播完 → 回 IDLE」 |
+
+### 10.4 消费方与数据流
+
+| 消费方 | 位置 | 用途 |
+|--------|------|------|
+| AnimStateAttack.update | `stick_figure_anim_states.gd:111` | 每帧 `var pos = controller.get_animation_position()` → 三段 phase 判定：pos < 8/60 前摇（0）/ < 12/60 暴发（1）/ ≥ 12/60 收招（2） |
+| e2e capture 轮询 | `e2e_stick_figure_capture.gd:129-130` | `get_animation_position()` + `is_animation_playing()` → WINDUP / BURST / RECOVERY / IDLE 截图态派生（播完回退 IDLE） |
+
+**红线（DESIGN #681 §10 转述）：** 只加这两个方法——不修改 AnimStateAttack.update 调用契约（方法名 / 返回 float 保持）、
+不新增动画状态、不碰 #575 战斗状态机、不改 constants 时间戳（FRAME_ANIM_ATTACK_WINDUP/BURST/RECOVERY 8/4/10 帧保持）、
+不新增动画入口（consume_state 唯一入口契约保持）。

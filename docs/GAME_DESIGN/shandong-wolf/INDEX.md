@@ -14,7 +14,7 @@
 | [04-GAME-AUTOLOAD](04-GAME-AUTOLOAD.md) | Game autoload 锚点 — 版本号 + constants 预加载，单例注册约定（#572/#599） |
 | [05-DEBUG-CANVAS](05-DEBUG-CANVAS.md) | DebugCanvas 战斗数值调参面板 — F1 热更新 + 14 参数 PARAMS 表 + 静态读值链路 + JSON dump（#584/#609） |
 | [06-INPUT-CONTROLLER](06-INPUT-CONTROLLER.md) | 输入层 — Input Map 9 动作 + InputController 意图事件/时间戳缓冲 + PlayerController 加速度移动 + 输入层 # DRAFT 分区（#573/#611） |
-| [07-STICK-FIGURE-ANIMATION](07-STICK-FIGURE-ANIMATION.md) | 火柴人剪影骨架与关键帧动画 — Line2D 程序化骨架 7 pivot + 11 态→clip 镜像映射 + consume_state 契约 + 过渡 ≤2 帧 + additive 刀光 + E2E 截图像具（#574/#612） |
+| [07-STICK-FIGURE-ANIMATION](07-STICK-FIGURE-ANIMATION.md) | 火柴人剪影骨架与关键帧动画 — Line2D 程序化骨架 7 pivot + 11 态→clip 镜像映射 + consume_state 契约 + 过渡 ≤2 帧 + additive 刀光 + E2E 截图像具 + 查询委托 API（#574/#612/#681/#692） |
 | [08-COMBAT-ENTITY](08-COMBAT-ENTITY.md) | CombatEntity 战斗实体基类 — 两段血 hp_1/hp_2 + stance/facing 数据容器 + request_transition 唯一转移入口 + 6 信号契约 + _StateInputBridge 输入桥 + 玩家/敌人变体参数（#575/#618） |
 | [09-COMBAT-STATE-MACHINE](09-COMBAT-STATE-MACHINE.md) | 11 态战斗状态机 — CANONICAL_STATES 权威集 + TRANSITIONS 转移表 + CombatStateBase/11 状态对象 + 战斗时序 5 常量 + 数据流（#575/#618） |
 | [10-HUD-STANCE-BARS](10-HUD-STANCE-BARS.md) | 极简 HUD 层 — CanvasLayer layer=1 纯消费方：两段式血条/玩家与敌人架势条/击杀与处决提示 + low_health_changed 边沿信号 + 13 个 HUD # DRAFT 常量 + 4 帧 E2E 截图剧本（#576/#627） |
