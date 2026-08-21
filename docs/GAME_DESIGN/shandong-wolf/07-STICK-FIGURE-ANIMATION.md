@@ -1,4 +1,4 @@
-# 火柴人剪影骨架与关键帧动画 — Line2D 程序化骨架 + 11 态关键帧 + consume_state 契约 + additive 刀光 + 查询委托 API（#574/#612/#681/#692）
+# 火柴人剪影骨架与关键帧动画 — Line2D 程序化骨架 + 11 态关键帧 + consume_state 契约 + additive 刀光 + 查询委托 API + 颈/膝骨架结构 + 24 帧步态循环 + REST_POSE 衔接规约 + facing 翻转接线（#574/#612/#681/#692/#683/#694）
 
 > 落盘依据：PR #612（implement，已 merge 2026-08-19）← DESIGN `docs/DESIGN/574-stick-figure-silhouette-animation.md`；
 > PRD `docs/PRD/574-stick-figure-silhouette-animation.md`（research PR #603，已 merge）。
@@ -315,6 +315,7 @@ CI/本地: run-e2e-review.sh --with-visual
 | #573 | 输入映射与玩家控制器（本层不读输入，只消费状态） | 已合并（#611） |
 | #584 | 帧节奏/骨骼几何/刀光参数 # DRAFT 定稿（含 10vs14 裁决） | 草稿已合并（#609），待用户定稿 |
 | #681 | 攻击查询委托补漏（StickFigureController +2 查询方法，本文件 §10） | 已合并（#692） |
+| #683 | 火柴人结构完整化（颈/膝骨架 + 24 帧步态 + REST_POSE 衔接 + facing 翻转，本文件 §3.1/§3.2 更新） | 已合并（#694） |
 
 ## 10. 查询委托 API（#681 补漏，2026-08-21 合并 #692）
 
