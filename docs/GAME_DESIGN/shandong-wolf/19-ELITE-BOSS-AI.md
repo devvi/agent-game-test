@@ -1,6 +1,7 @@
 # 精英 Boss AI — 参数档位 + 蓄力重斩 + 受击击退 + 架势脱战恢复 + EnemyHealthBar（#682/#695）
 
 > 落盘依据：PR #695（implement，squash-merge 2026-08-21, commit 608f8e2）← DESIGN `docs/DESIGN/682-elite-boss-ai.md`（plan #690 已 merge）← PRD `docs/PRD/682-elite-boss-ai.md`（research #687 已 merge）。
+> 增量：#703/#710（2026-08-21）落地运行时驱动链——`_physics_process` 先 decide 后 `_apply_movement`，击退与决策门控的正交性（§4 第 4 条）由驱动链结构性保证（decide 门控提前 return 不影响 `_apply_movement` 无条件可达），详见 13 章 §13。
 > 上游：#581/#638 EnemyAI 四态行为 FSM 与判定层参数化（13 章，精英化基底）、#575/#618 CombatEntity 数据模型与 6 信号（08 章）、#577/#626 CombatJudge 双轨伤害与自动窗口登记（11 章）、#576/#627 HUD 与 _HudBar 自绘条（10 章）、#585/#666 战斗闭环组装（17 章）、#580/#660 处决编排器（16 章，零改动消费）。
 > 所有权：`content_ownership: mechanical` —— AI 出招概率 / HP 双轨 / 击退位移 / 架势恢复 = 机械工程；**全部新数值 # DRAFT 只读不裁决**，候选集移交 #584 调参面板定稿；EnemyHealthBar 视觉色相按 #576 既有风格 additive 实现，用户定稿差异走 #576 human-review 通道。
 
@@ -13,7 +14,7 @@
 1. **精英 = 参数档位 + 行为增量，绝不重写**（#575「差异通过参数配置」契约字面对齐）：EnemyAI 新增 `@export elite_mode: bool = false`——装配时置 true → AttackState 出招三选一（+蓄力重斩）；HP/架势由装配注入 CombatEntity 参数；击退/恢复为独立 additive 机制。小兵档位（`elite_mode=false`）行为与 #581 逐字节一致，既有 36 条 AI 测试回归全绿。
 2. **双轨击杀成立（HP 慢线 / 架势快线）**：慢线 = 装配消费 `ENEMY_HP_MAX`（80）+ EnemyHealthBar 可视化，轻击 12/刀 → 7 刀削死（`die()` 终态）；快线 = 4 次弹反（25×4=100）崩解 → #580 处决窗口 → 处决一击（999）。弹反高手速杀 < 稳健玩家磨刀——只狼式「快线奖励技术」。
 3. **蓄力重斩 = 长前摇可弹反重击**：AttackState 掷骰三选一；复用 `AttackWindow.windup_frames` 契约（#581 已交付字段），**但注入点需要新增**——`CombatJudge._on_entity_state_changed` 对敌人硬编码 `windup_frames = ENEMY_ATTACK_WINDUP`、`hp_damage = entity.attack_hp_damage`（单值）。设计裁决：CombatEntity 新增 2 个瞬时 override 字段（默认 -1 兜底 = #581 行为不变），蓄力出招前设置、judge 登记时读取。
-4. **受击后退 = 位移层击退**：EnemyAI 订阅 `judge.hit_landed`（defender == 本敌人，与既有 parry_success 订阅同构）→ 沿受击反向设置 `_knockback_vel`，stagger 期间线性衰减位移（`ENEMY_KNOCKBACK_DECAY`），与 12 帧硬直叠加成「僵直+后退」完整反馈；位移执行在 `_apply_movement`（与决策门控正交——硬直中 AI 不决策但击退仍执行），与 #579 反馈渲染（火花/屏震）分层正交。
+4. **受击后退 = 位移层击退**：EnemyAI 订阅 `judge.hit_landed`（defender == 本敌人，与既有 parry_success 订阅同构）→ 沿受击反向设置 `_knockback_vel`，stagger 期间线性衰减位移（`ENEMY_KNOCKBACK_DECAY`），与 12 帧硬直叠加成「僵直+后退」完整反馈；位移执行在 `_apply_movement`（与决策门控正交——硬直中 AI 不决策但击退仍执行；#703/#710 驱动链落地后由 `_physics_process` 先 decide 后 _apply_movement 结构性保证），与 #579 反馈渲染（火花/屏震）分层正交。
 5. **架势脱战恢复 = 节奏阀**：CombatEntity `_process` 轮询（仅 `is_player=false` 且未崩解且超延迟窗口）→ 按 `ENEMY_STANCE_RECOVER_PER_SEC` 恢复至 stance_max；`take_stance_damage` 重置延迟计时——只狼铁律 4「回复太快=无脑弹反，太慢=龟缩」，sekiro 基准 1.5s/20-35 per/s 放宽候选。
 6. **Boss 条 = EnemyStanceBar 组合扩展**：hud.gd 新增 `EnemyHealthBar`（同锚点顶部中央，240×10 暗红粗条，位于 EnemyStanceBar 上方），复用 `_HudBar` 自绘组件 + 新增 `set_fill_color` additive 覆写（默认行为零变化）；`set_target_enemy` 订阅 `hp_changed`，died 双条联动隐藏。
 

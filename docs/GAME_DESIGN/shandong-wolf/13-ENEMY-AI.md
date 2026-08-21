@@ -1,6 +1,7 @@
 # 基础日本兵 AI — EnemyAI 行为状态机 + 判定层 additive 参数化（#581/#638）
 
 > 落盘依据：PR #638（implement，squash-merge 2026-08-20, commit 75b0b34）← DESIGN `docs/DESIGN/581-enemy-ai.md`（plan #633 已 merge）← PRD `docs/PRD/581-enemy-ai.md`（research #632 已 merge）。
+> 增量：#703/#710（implement，squash-merge 2026-08-21, commit 98dbfc5）——运行时驱动链接线：`_physics_process` 先 decide 后 _apply_movement，decide 回归纯决策（移除内部位移调用）；← DESIGN `docs/DESIGN/703-enemy-ai-driver-wiring.md`（plan #707 已 merge）← PRD `docs/PRD/703-enemy-ai-decide-not-called.md`（research #705 已 merge）。本 issue 是「生产驱动链从未接线」的集成缺口修复，零新组件/零新常量/零签名变更（详见 §13）。
 > 上游：#575 CombatEntity 敌人变体与 11 态状态机（08/09 章）、#577 CombatJudge 自动登记窗口与五结果事件（11 章）、#573 PlayerController 加速度移动模型（06 章）、#584 数值 DRAFT 纪律与 DebugCanvas（02/05 章）。
 > 本层是 #585 战斗闭环组装的**最后一个行为组件**：敌人「能被打/能弹反/能崩解」的承受面已就绪（#575/#577），本层交付「谁驱动敌人」。下游 #579 反馈 / #580 处决 / #583 场景 / #585 组装 / #586 E2E 全部挂接本层接口。
 
@@ -32,7 +33,7 @@
 
 文件：`shandong-wolf/gdscripts/enemy_ai.gd`（class_name `EnemyAI` extends CharacterBody2D，非 autoload——#585 组装时实例化进场景）。
 
-**职责：** 行为 FSM 持有 + 感知（120° 视线 6m）+ 决策门控 + 位移执行。**`decide(delta)` 纯决策方法（无物理依赖，headless 测试手动驱动）与 `_physics_process`（只消费 `_move_intent`，仿 #573 加速度模型）分离**——这是可测性核心。
+**职责：** 行为 FSM 持有 + 感知（120° 视线 6m）+ 决策门控 + 位移执行。**`decide(delta)` 纯决策方法（无物理依赖，headless 测试手动驱动 + #703 起运行时由 `_physics_process` 驱动）与 `_physics_process`（运行时驱动链：先 decide 后 _apply_movement，位移仿 #573 加速度模型，每帧恰一次）分离**——这是可测性核心。
 
 **Node 结构（#585 组装约定，本 issue 不组装场景）：**
 
@@ -57,7 +58,7 @@ EnemyAI (CharacterBody2D)          ← 本类
 ```gdscript
 func bind_entity(e) -> void          # #585 组装调用：注入 attack_hp_damage/attack_stance_damage + 订阅 state_changed/died
 func can_sense_player() -> bool      # 纯函数几何判据（无物理）
-func decide(delta: float) -> void    # 纯决策入口：门控 → 推进行为 FSM（headless 手动调用）
+func decide(delta: float) -> void    # 纯决策入口：门控 → 推进行为 FSM（headless 手动调用 + #703 运行时 _physics_process 驱动）
 func move_intent() -> Vector2        # decide 写、_physics_process 读
 func set_rng_seed(seed: int) -> void # 测试注入（确定性回避统计）
 ```
@@ -70,6 +71,19 @@ func set_rng_seed(seed: int) -> void # 测试注入（确定性回避统计）
 ③ Time 未到 _parry_stun_until_sec（弹反抑制窗）→ 清 move_intent 返回（硬直 0.5s 不追击不攻击）
 ④ 推进行为 FSM → 状态对象写 _move_intent / 调 entity.request_transition
 ```
+
+**运行时驱动链（#703 接线，2026-08-21）：**
+
+```gdscript
+## _physics_process(delta) — 运行时驱动链（#703）: 先决策后位移
+func _physics_process(delta: float) -> void:
+    decide(delta)           # 纯决策: 门控 + _ai_fsm.update 写 _move_intent（无物理依赖）
+    _apply_movement(delta)  # 位移执行: 每帧恰一次（加速度模型 → move_and_slide / headless 手动积分）
+```
+
+- **decide 回归纯决策**：#710 移除 decide 内部 `_apply_movement(delta)` 调用（#581 注释宣称「纯决策」与实现含位移的文档-实现漂移消除）——位移统一由 `_physics_process` 执行，杜绝每帧双重位移（AC5）。
+- **击退无条件可达（AC3 保障）**：`_apply_movement` 不依赖 decide 门控通过——stagger/弹反抑制窗内 decide 清 intent 提前 return，但击退分支（#682，`_knockback_vel` + DECAY 衰减 + STAGE_WIDTH clamp）随 `_physics_process` 每帧照常执行。方案 A 优于方案 B 的核心差异。
+- **测试对齐运行时**：`test_enemy_ai.gd` 的 `_tick` 从 `ai.decide(TEST_FRAME_SEC)` 迁移到 `ai._physics_process(TEST_FRAME_SEC)`（与实机一致）；门控类用例保留手动调 decide（纯决策语义验证）。
 
 **can_sense_player() 几何判据（闭区间含端点，「> 阈值则 false」单向容差防浮点抖动）：**
 
@@ -138,7 +152,7 @@ func hit_frame() -> int:        # 优先 windup_frames（≥0），否则 int(C.
 
 ## 7. 数据流
 
-**Flow 1 正常路径（巡逻→发现→追击→攻击，AC1/AC5）：** Patrol 沿 waypoints ping-pong → 玩家进入感知（|dx|≤600 且夹角≤60° 且 |dy|≤150）→ Chase（facing 转向 + 逼近）→ |dx|≤80 且冷却就绪 → Attack 决策（randf()<0.3 突刺 heavy_attack，否则三连砍 attack）→ `entity.request_transition("attack")` → #577 自动登记 AttackWindow（windup=12、hp_damage=15、stance_damage=35）→ 命中帧 start+12 裁决受击 → 冷却 1.5s 循环。
+**Flow 1 正常路径（巡逻→发现→追击→攻击，AC1/AC5；#703 起每物理帧经 `_physics_process` 驱动链：先 decide 后 _apply_movement）：** Patrol 沿 waypoints ping-pong → 玩家进入感知（|dx|≤600 且夹角≤60° 且 |dy|≤150）→ Chase（facing 转向 + 逼近）→ |dx|≤80 且冷却就绪 → Attack 决策（randf()<0.3 突刺 heavy_attack，否则三连砍 attack）→ `entity.request_transition("attack")` → #577 自动登记 AttackWindow（windup=12、hp_damage=15、stance_damage=35）→ 命中帧 start+12 裁决受击 → 冷却 1.5s 循环。
 
 **Flow 2 弹反路径（AC2）：** 敌人 attack 前摇 12 帧窗口 active → 玩家 guard_pressed 时间戳 ∈ [hit_ms-200ms, hit_ms] 且 facing 正确 → parry_ok（#577 既有逻辑零改动）→ 敌人 take_stance_damage(25) + EnemyAI 收到 parry_success → 抑制窗 0.5s（共享态 10 帧 + AI 补足）→ 第 4 次弹反 4×25=100=POSTURE_BREAK_THRESHOLD → stance_break 态 3.0s（#575 自然驱动，AI 决策门控不抢戏）→ #580 处决接管。
 
@@ -161,7 +175,7 @@ func hit_frame() -> int:        # 优先 windup_frames（≥0），否则 int(C.
 
 ## 9. 测试
 
-文件：`shandong-wolf/tests/test_enemy_ai.gd`（36 用例，DESIGN §9 Scenario A-G 落地，run_tests.gd 注册第 10 套件）。纪律对齐 test_combat_judge.gd：headless 免树（直接 new + 手动 decide/tick，不依赖真实帧/物理/Input）、RNG 一律 set_rng_seed() 注入确定性、禁止 `:=` 类型推断（Godot 4.7.1 视推断警告为硬错误）、class_name 一律经 load() 访问、Time 系门控用成员赋值推进（不依赖真实时钟）。
+文件：`shandong-wolf/tests/test_enemy_ai.gd`（48 用例，DESIGN §9 Scenario A-G + #703 Scenario H 落地，run_tests.gd 注册第 10 套件）。纪律对齐 test_combat_judge.gd：headless 免树（直接 new + #703 起 `_tick` 走运行时路径 `ai._physics_process(TEST_FRAME_SEC)` / 门控用例手动 decide，不依赖真实帧/物理/Input）、RNG 一律 set_rng_seed() 注入确定性、禁止 `:=` 类型推断（Godot 4.7.1 视推断警告为硬错误）、class_name 一律经 load() 访问、Time 系门控用成员赋值推进（不依赖真实时钟）。
 
 | 场景 | 用例 | 覆盖 |
 |------|:---:|------|
@@ -172,6 +186,7 @@ func hit_frame() -> int:        # 优先 windup_frames（≥0），否则 int(C.
 | E 常量驱动 | T25-T26 | 改常量值行为随动（零字面量）/ 非法值兜底 |
 | F 边界失败路径 | T27-T34 | 空 waypoints / 单 waypoint / judge 未绑定 / entity 未绑定 / 死亡禁用 / stagger 门控 / 连段中断 / 回避后撤 |
 | G 回归基线 | T35-T36 | additive 无回归（既有 25 判定用例全绿）/ 全量 10 套件 |
+| H 运行时驱动链（#703） | T37-T40（TC703-1~4） | 仅 `_physics_process` 驱动自动索敌追击（不手动 decide）/ elite 攻击态出招 / stagger 抑制窗内击退正交门控照常位移 / 每物理帧位移恰一次（非 2×） |
 
 ## 10. 验收条件映射（issue #581 body）
 
@@ -196,3 +211,18 @@ func hit_frame() -> int:        # 优先 windup_frames（≥0），否则 int(C.
 ## 12. 精英档位延伸（#682/#695，详见 19 章）
 
 本章记录 #581/#638 基础小兵档位。**#682/#695 在 EnemyAI 上叠加精英档位**（`@export elite_mode: bool`）——AttackState 出招二选一 → 三选一（+蓄力重斩）、受击击退位移、敌人架势脱战恢复、EnemyHealthBar 血条、HP 慢线装配消费 `ENEMY_HP_MAX`（40→80 候选上调，§6 表值已被 #682 覆盖为 80）。小兵档位（elite_mode=false）行为与本章逐字节一致，既有 36 用例回归全绿。详见 `19-ELITE-BOSS-AI.md`。
+
+
+## 13. 运行时驱动链接线（#703/#710，2026-08-21）
+
+**问题本质是「生产驱动链从未接线」的集成缺口**：`decide(delta)` 设计为纯决策入口（headless 测试手动驱动），但游戏运行时无人调用——`_physics_process` 只调 `_apply_movement()`、`main_battle.gd` 也未驱动 → `_move_intent` 恒为 ZERO → 行为 FSM（patrol/chase/attack/retreat）永不推进 → 敌人站着不动（#703 实机 bug）。#682 精英化（蓄力重斩/击退/脱战恢复）全部建立在 decide 驱动链之上，一并失效。测试长期「手动调 decide」恰好掩盖了运行时断点——#695 E2E 只验视觉漏网的根因。
+
+**修复 = 接线而非重写**（两处调用点增删 + 一处测试驱动方式替换，零新逻辑/零新文件/零签名变更）：
+
+1. `_physics_process` 建立「先 decide 后 _apply_movement」运行时驱动链（§3）——EnemyAI 是 CharacterBody2D 自驱动节点，AI 行为驱动职责归属自身，与 PlayerController 输入驱动对称（#573 范式）。
+2. `decide()` 移除内部 `_apply_movement(delta)` 调用——职责分离，decide 回归纯决策，杜绝双重位移。
+3. `test_enemy_ai.gd` `_tick` 驱动改走 `_physics_process`（运行时路径）；门控用例保留手动调 decide。
+
+**方案裁决**：方案 A（自驱动 + 职责分离）采纳；否决方案 B（`_physics_process` 只调 decide、decide 内保留位移——门控③提前 return 时击退不执行，AC3 破坏）与方案 C（main_battle 驱动——职责外移、多敌人扩展性差），理由同 DESIGN §1/§4。
+
+**验收映射（issue #703）**：AC1 实机敌人自动索敌接近（TC703-1）/ AC2 进入攻击范围出招含蓄力重斩（TC703-2）/ AC3 弹反击退时行为正确——stagger 不位移→击退位移、无弹簧抖动（TC703-3 + 既有 #682 击退用例）/ AC4 headless 全绿（decide 纯入口不变，TC703-5）/ AC5 位移单次执行（TC703-4）。**集成点**：运行时驱动链 / 决策-位移解耦 / 测试驱动对齐 = ✅ 已连接（#710）；击退路径保持（#682）由 `_apply_movement` 无条件可达保障（19 章）。
