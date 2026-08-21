@@ -33,6 +33,7 @@ func run() -> void:
 	_test_b1_collider_blocks_body()
 	_test_b2_full_width_walkthrough()
 	_test_b3_spawn_marker_layout()
+	_test_b4_spawn_distance()
 	_test_c1_ink_palette()
 	_test_c2_moon_composition()
 	_test_c3_moonlight_luma()
@@ -275,6 +276,28 @@ func _test_b3_spawn_marker_layout() -> void:
 				overlap = true
 				print("  B3: %s 与物件包围盒重叠 @ %s" % [n, str(m2.global_position)])
 	_assert(not overlap, "B3: 出生点与草屋/枯树包围盒无交集（PRD §5.2-3）")
+	_cleanup(inst)
+
+
+func _test_b4_spawn_distance() -> void:
+	# B4: 出生间距防回归（#713 AC1）—— PlayerSpawn 与 EnemySpawnA 的 X 间距
+	#     必须 > HITBOX_RANGE + 50（≥130px 硬门槛）；只锁间距不锁绝对值坐标
+	var inst: Node = _instantiate_stage()
+	if inst == null:
+		_assert(false, "B4: 场景实例化失败")
+		return
+	var pspawn: Node = inst.get_node_or_null("PlayerSpawn")
+	var espawn: Node = inst.get_node_or_null("EnemySpawnA")
+	_assert(pspawn != null and pspawn is Marker2D, "B4: PlayerSpawn (Marker2D) 存在")
+	_assert(espawn != null and espawn is Marker2D, "B4: EnemySpawnA (Marker2D) 存在")
+	if pspawn != null and pspawn is Marker2D and espawn != null and espawn is Marker2D:
+		var p: Marker2D = pspawn as Marker2D
+		var e: Marker2D = espawn as Marker2D
+		var dx: float = absf(p.position.x - e.position.x)
+		var threshold: float = float(WolfConstantsScript.HITBOX_RANGE) + 50.0
+		_assert(dx > threshold,
+			"B4: 出生间距 |%s - %s| = %.1f > HITBOX_RANGE+50 = %.1f（敌人 A 不在玩家攻击范围内，AC1）"
+			% [str(p.position.x), str(e.position.x), dx, threshold])
 	_cleanup(inst)
 
 
