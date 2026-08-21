@@ -10,6 +10,8 @@ class_name CombatStateTable
 ##   - dead → 除 revive 外全部表外 = reject（状态机停摆，仅复活可出）
 ##   - guard → stance_break 表内（格挡中崩解 = 失衡，优先级高于格挡姿态）
 ##   - guard → parry_success 表内（#577 弹反成功驱动入口）
+##   - stagger → stance_break 表内（硬直中崩解 = 失衡，优先级高于硬直，与 guard 同构 #577）
+##   - parry_success → stance_break 表内（弹反窗口内 clash 扣架势归零同样失衡）
 ##   - attack → attack 表内（连段拓扑合法；条件合法性 = request_transition 同态 restart 钩子）
 
 ## 11 态转移拓扑（canonical 状态名权威集，与 #574 ANIM_CLIP_NAMES 键集逐字对齐）
@@ -25,8 +27,8 @@ const TRANSITIONS: Dictionary = {
 	"attack": ["attack", "idle", "stagger", "stance_break", "dead"],   # attack→attack = 连段（同态重入钩子）
 	"heavy_attack": ["idle", "stagger", "stance_break", "dead"],
 	"guard": ["idle", "attack", "heavy_attack", "stance_break", "dead", "parry_success"],
-	"parry_success": ["idle", "attack", "heavy_attack", "move"],
-	"stagger": ["idle", "dead"],
+	"parry_success": ["idle", "attack", "heavy_attack", "move", "stance_break"],
+	"stagger": ["idle", "dead", "stance_break"],
 	"stance_break": ["idle", "execute", "dead"],
 	"execute": ["idle"],
 	"revive": ["idle"],
