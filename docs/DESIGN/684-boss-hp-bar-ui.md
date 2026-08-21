@@ -315,11 +315,11 @@ died(final=false)（防御）──► 名字清空 + 双条清 0 + clear_break_
 
 | 集成 | 本组件 | 目标 Issue | 方式 | Status |
 |-------------|:---:|:---:|-----|:---:|
-| `CombatEntity.stance_broken` → 条级闪白 | `_HudBar.set_break_flash()`（EnemyStanceBar） | #580/#684 | 信号订阅（`_on_enemy_stance_broken` 增订，既有连接） | ⬜ pending |
+| `CombatEntity.stance_broken` → 条级闪白 | `_HudBar.set_break_flash()`（EnemyStanceBar） | #580/#684 | 信号订阅（`_on_enemy_stance_broken` 增订，既有连接） | ✅ connected（#684 implement） |
 | `CombatEntity.hp_changed` → 血条（既有） | `EnemyHealthBar` | #682 | 信号订阅（#695 已接线，零改动） | ✅ connected |
-| `CombatEntity.died` → 名字联动隐藏 | `EnemyNameLabel` | #684 | `_on_enemy_died` 增订（final/非 final 分支） | ⬜ pending |
-| 装配注入档位 | `main_battle.gd _build_hud` | #585/#684 | `set_boss_mode(true)` + `set_enemy_display_name(...)`（+2 行） | ⬜ pending |
-| E2E 截图驱动 | `e2e_hud_capture.gd` + `e2e_shots.json` | #684 | 新 3 态（BOSS_BAR/STANCE_BREAK_FLASH/MINION_MODE）+ debug API `set_debug_stance_break()` | ⬜ pending |
+| `CombatEntity.died` → 名字联动隐藏 | `EnemyNameLabel` | #684 | `_on_enemy_died` 增订（final/非 final 分支） | ✅ connected（#684 implement） |
+| 装配注入档位 | `main_battle.gd _build_hud` | #585/#684 | `set_boss_mode(true)` + `set_enemy_display_name(...)`（+2 行） | ✅ connected（#684 implement） |
+| E2E 截图驱动 | `e2e_hud_capture.gd` + `e2e_shots.json` | #684 | 新 3 态（BOSS_BAR/STANCE_BREAK_FLASH/MINION_MODE）+ debug API `set_debug_stance_break()` | ✅ connected（#684 implement） |
 | 杂兵档铺路 | `set_boss_mode(false)` 调用方 | #589/#590（backlog） | 注入方按实体声明档位（本设计只提供 API，不实现内容） | ⬜ deferred |
 
 ---

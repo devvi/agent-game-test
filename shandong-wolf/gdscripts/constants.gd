@@ -383,6 +383,36 @@ const HUD_BLOOD_RED: Color = Color("#8c2f2f")  # # DRAFT
 const HUD_HINT_FONT_SIZE: int = 16             # # DRAFT
 # > 处决提示窗口不新增常量——复用 STANCE_BREAK_RECOVERY_SEC=3.0（#584 只读，PRD §4.4 字面）。
 
+# ── Boss 血条 UI (#684) ──
+# HUD_ENEMY_NAME_WIDTH
+#   sekiro 基准: 只狼式顶部读图（名字在条上方）
+#   候选集: [200, 240, 280]（默认 240 = HUD_ENEMY_BAR_WIDTH 同宽，名字与条对齐）
+#   该值影响什么: 敌人名字 Label 宽度——与血条同宽对齐；超长名走 OVERRUN_TRIM_ELLIPSIS
+#   情感断言: 克制——名字悬浮于条上方，与条同宽不越界
+const HUD_ENEMY_NAME_WIDTH: float = 240.0      # # DRAFT   (候选 [200, 240, 280])
+# HUD_ENEMY_NAME_FONT_SIZE
+#   候选集: [14, 16, 18]（默认 16 = HUD_HINT_FONT_SIZE 同级，克制）
+#   该值影响什么: 敌人名字字号——只狼式读图名字可读但不抢戏
+#   情感断言: 克制的可读（与提示文字同级，不喧宾夺主）
+const HUD_ENEMY_NAME_FONT_SIZE: int = 16       # # DRAFT   (候选 [14, 16, 18], = HUD_HINT_FONT_SIZE 同级)
+# HUD_ENEMY_NAME_TOP
+#   候选集: [0.0, 2.0, 4.0]（默认 2）
+#   该值影响什么: 名字 Label 顶边距（血条 offset_top=12 → 名字 2..30）；0 = 贴条顶，4 = 更疏离
+#   情感断言: 贴条不悬浮，同组不粘连
+const HUD_ENEMY_NAME_TOP: float = 2.0          # # DRAFT   (候选 [0.0, 2.0, 4.0])
+# HUD_STANCE_BREAK_FLASH_SECONDS
+#   sekiro 基准: 「架势崩解必须惩罚清晰：白闪」（sekiro-tuning-reference）
+#   候选集: [0.12, 0.18, 0.25]（默认 0.18）
+#   该值影响什么: 崩解白闪淡出时长——0.12 偏瞬闪、0.25 偏强调
+#   情感断言: 崩解必须惩罚清晰，但不遮战斗
+const HUD_STANCE_BREAK_FLASH_SECONDS: float = 0.18  # # DRAFT (候选 [0.12, 0.18, 0.25], sekiro 崩解白闪)
+# HUD_STANCE_BREAK_FLASH_COLOR
+#   sekiro 基准: 崩解白闪 = 月白（零新色相）
+#   候选集: [HUD_MOON_WHITE, HUD_BLOOD_RED.lightened(0.5)]（默认 HUD_MOON_WHITE）
+#   该值影响什么: 崩解瞬间条内填充/描边色——月白 = 只狼基准白闪；血红提亮 = 「血染白」变体
+#   情感断言: 白是惩罚的清晰，不是警报的红
+const HUD_STANCE_BREAK_FLASH_COLOR: Color = HUD_MOON_WHITE  # # DRAFT (候选 [HUD_MOON_WHITE, HUD_BLOOD_RED.lightened(0.5)])
+
 # ── AI 分区（# DRAFT 候补值，待 #584 定稿；#581 消费方，禁止实现期定稿）──
 # ENEMY_SENSE_RANGE_PX
 #   issue body: 视线范围 6m@100px/m

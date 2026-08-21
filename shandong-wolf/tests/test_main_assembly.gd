@@ -93,6 +93,9 @@ func run() -> void:
 	_test_a5_enemy_elite_assembly()
 	_reset_logs()
 	_test_f4_enemy_hp_default_intercept()
+	# Scenario F(#684): Boss 档装配接线（main_battle._build_hud +2 行）
+	_reset_logs()
+	_test_f1_boss_tier_assembly()
 	print("Passed: %d, Failed: %d" % [passed, failed])
 
 
@@ -867,4 +870,27 @@ func _test_f4_enemy_hp_default_intercept() -> void:
 		"F1: 敌装配 life_1_max 必须非默认 100（漏装配即红，实际 %.1f）" % a.enemy_entity.life_1_max)
 	_assert(is_equal_approx(a.enemy_entity.hp_1, a.enemy_entity.life_1_max),
 		"F1: hp_1 与 life_1_max 一致（实际 hp %.1f / max %.1f）" % [a.enemy_entity.hp_1, a.enemy_entity.life_1_max])
+	_free_main(m)
+
+
+# ── Scenario F(#684): Boss 档装配接线（main_battle._build_hud +2 行）───────────
+## 设计: docs/DESIGN/684-boss-hp-bar-ui.md §8 场景 F。装配后 hud 处于 Boss 档：
+##   _boss_mode == true（hud.get 守卫——红期无 SCRIPT ERROR）、EnemyNameLabel 可见
+##   （display name 非空）、EnemyHealthBar 可见。既有装配断言（F2）零改动。
+
+func _test_f1_boss_tier_assembly() -> void:
+	# F1(#684): 装配接线 Boss 档——main_battle._build_hud 后 hud._boss_mode == true、
+	#   EnemyNameLabel 可见（display name 非空）、EnemyHealthBar 可见
+	var m = _spawn_main()
+	if m == null:
+		_assert(false, "F1: Main 实例化失败")
+		return
+	var a = _assembler(m)
+	if a == null:
+		_free_main(m)
+		return
+	_assert(a.hud.get("_boss_mode") == true, "F1(#684): 装配后 hud._boss_mode == true（Boss 档接线）")
+	var name_label = a.hud.get("EnemyNameLabel")
+	_assert(name_label != null and name_label.visible == true, "F1(#684): EnemyNameLabel 可见（display name 非空）")
+	_assert(a.hud.EnemyHealthBar.visible == true, "F1(#684): EnemyHealthBar 可见")
 	_free_main(m)

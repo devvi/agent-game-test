@@ -75,7 +75,10 @@
         { "name": "01_hud_normal", "state": 0, "settle_frames": 10 },
         { "name": "02_hud_low_hp", "state": 1, "settle_frames": 10 },
         { "name": "03_hud_execute_hint", "state": 2, "settle_frames": 10 },
-        { "name": "04_hud_kill_hint", "state": 3, "settle_frames": 10 }
+        { "name": "04_hud_kill_hint", "state": 3, "settle_frames": 10 },
+        { "name": "05_hud_boss_bar", "state": 4, "settle_frames": 10 },
+        { "name": "06_hud_stance_break_flash", "state": 5, "settle_frames": 6 },
+        { "name": "07_hud_minion_mode", "state": 6, "settle_frames": 10 }
       ]
     },
     "battle_stage": {
