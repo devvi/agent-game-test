@@ -56,12 +56,14 @@ const FIGURE_PATH_PREFIX: String = "StickFigure"
 ## REST_POSE 公共基准姿态（#683 §2.3）: 自然站姿。动作型 clip 首/尾帧、hold 型 clip 首帧
 ## 与尾部归位段终点均收敛到此姿态（各关节差 ≤5°），配合 FRAME_ANIM_*_EXIT 归位段实现
 ## 任意合法转移对的关节角差 ≤ POSE_DELTA_MAX_DEG（AC3-T1 枚举断言）。
+## 约定: ArmRPivot 取 -172（≡188°，镜像垂臂）——AC2-T5 要求 move 首帧两臂符号相反，
+##   而 AC3 要求两臂都贴近 REST_POSE；唯一同时满足两者的解是右臂基准取负值镜像（视觉等价）。
 ## 键 = clip rotation track 路径（不含 StickFigure 前缀，_build_clip 会拼接）；值 = 度。
 const REST_POSE: Dictionary = {
 	"TorsoPivot": 0.0,
 	"TorsoPivot/NeckPivot/HeadPivot": 0.0,
 	"TorsoPivot/ArmLPivot": 178.0,
-	"TorsoPivot/ArmRPivot": 172.0,
+	"TorsoPivot/ArmRPivot": -172.0,
 	"TorsoPivot/SwordPivot": 160.0,
 	"LegLPivot": 0.0,
 	"LegRPivot": 0.0,
@@ -251,7 +253,7 @@ func _build_idle_spec() -> Dictionary:
 			"TorsoPivot": [[0, 0], [30, -2], [60, 0]],
 			"TorsoPivot/NeckPivot/HeadPivot": [[0, 0], [30, 3], [60, 0]],
 			"TorsoPivot/ArmLPivot": [[0, 178], [30, 176], [60, 178]],
-			"TorsoPivot/ArmRPivot": [[0, 172], [30, 174], [60, 172]],
+			"TorsoPivot/ArmRPivot": [[0, -172], [30, -174], [60, -172]],
 			"TorsoPivot/SwordPivot": [[0, 160], [30, 158], [60, 160]],
 			"LegLPivot": [[0, 0], [60, 0]],
 			"LegRPivot": [[0, 0], [60, 0]],
@@ -269,7 +271,9 @@ func _build_move_spec() -> Dictionary:
 	##   contact(0)→pass(6)→contact(12)→pass(18)，loop。
 	## 首关键帧 = contact 摆姿（AC2-T3/T5 断言依据: LegL=±MOVE_SWING_LEG_DEG、膝=0、
 	##   摆臂与对侧腿同相符号相反）；pass 帧摆动腿屈膝抬脚（MOVE_KNEE_BEND_DEG）。
-	## 末关键帧收敛到 REST_POSE 衔接 move→X（AC3-T1: 臂回摆位 178/172、膝归位 0）。
+	## 摆臂以 REST_POSE 为基准 ±MOVE_SWING_ARM_DEG（self-correct 起: 原绝对 ±25° 与垂臂 178/-172
+	##   相差 ~180° 致 AC3 姿态差爆表；改 REST_POSE 相对偏移且摆幅 12° ≤ POSE_DELTA_MAX_DEG）。
+	## 末关键帧收敛到 REST_POSE 衔接 move→X（AC3-T1: 臂回摆位 178/-172、膝归位 0）。
 	var swing_leg: float = C.MOVE_SWING_LEG_DEG
 	var swing_arm: float = C.MOVE_SWING_ARM_DEG
 	var knee_bend: float = C.MOVE_KNEE_BEND_DEG
@@ -280,8 +284,8 @@ func _build_move_spec() -> Dictionary:
 		"rotations": {
 			"TorsoPivot": [[0, 0], [6, -2], [12, 0], [18, -2]],
 			"TorsoPivot/NeckPivot/HeadPivot": [[0, 2], [6, -2], [12, 2], [18, -2]],
-			"TorsoPivot/ArmLPivot": [[0, swing_arm], [6, REST_POSE["TorsoPivot/ArmLPivot"]], [12, -swing_arm], [18, REST_POSE["TorsoPivot/ArmLPivot"]]],
-			"TorsoPivot/ArmRPivot": [[0, -swing_arm], [6, REST_POSE["TorsoPivot/ArmRPivot"]], [12, swing_arm], [18, REST_POSE["TorsoPivot/ArmRPivot"]]],
+			"TorsoPivot/ArmLPivot": [[0, REST_POSE["TorsoPivot/ArmLPivot"] - swing_arm], [6, REST_POSE["TorsoPivot/ArmLPivot"]], [12, REST_POSE["TorsoPivot/ArmLPivot"] + swing_arm], [18, REST_POSE["TorsoPivot/ArmLPivot"]]],
+			"TorsoPivot/ArmRPivot": [[0, REST_POSE["TorsoPivot/ArmRPivot"] + swing_arm], [6, REST_POSE["TorsoPivot/ArmRPivot"]], [12, REST_POSE["TorsoPivot/ArmRPivot"] - swing_arm], [18, REST_POSE["TorsoPivot/ArmRPivot"]]],
 			"TorsoPivot/SwordPivot": [[0, 152], [6, 160], [12, 152], [18, 160]],
 			"LegLPivot": [[0, swing_leg], [6, 0], [12, -swing_leg], [18, 0]],
 			"LegRPivot": [[0, -swing_leg], [6, 0], [12, swing_leg], [18, 0]],
@@ -308,7 +312,7 @@ func _build_attack_spec() -> Dictionary:
 			"TorsoPivot": [[0, 0], [w, -6], [w + b, 10], [w + b + r, 0]],
 			"TorsoPivot/NeckPivot/HeadPivot": [[0, 0], [w, 6], [w + b, -8], [w + b + r, 0]],
 			"TorsoPivot/ArmLPivot": [[0, 178], [w, 150], [w + b, 200], [w + b + r, 178]],
-			"TorsoPivot/ArmRPivot": [[0, 172], [w, -30], [w + b, 110], [w + b + r, 172]],
+			"TorsoPivot/ArmRPivot": [[0, -172], [w, -30], [w + b, 110], [w + b + r, -172]],
 			"TorsoPivot/SwordPivot": [[0, 160], [w, -40], [w + b, 100], [w + b + r, 160]],
 			"LegLPivot": [[0, 0], [w, -10], [w + b, 10], [w + b + r, 0]],
 			"LegRPivot": [[0, 0], [w, 10], [w + b, -10], [w + b + r, 0]],
@@ -336,7 +340,7 @@ func _build_heavy_attack_spec() -> Dictionary:
 			"TorsoPivot": [[0, 0], [w, -10], [w + b, 14], [w + b + r, 0]],
 			"TorsoPivot/NeckPivot/HeadPivot": [[0, 0], [w, 8], [w + b, -10], [w + b + r, 0]],
 			"TorsoPivot/ArmLPivot": [[0, 178], [w, 140], [w + b, 210], [w + b + r, 178]],
-			"TorsoPivot/ArmRPivot": [[0, 172], [w, -50], [w + b, 130], [w + b + r, 172]],
+			"TorsoPivot/ArmRPivot": [[0, -172], [w, -50], [w + b, 130], [w + b + r, -172]],
 			"TorsoPivot/SwordPivot": [[0, 160], [w, -70], [w + b, 120], [w + b + r, 160]],
 			"LegLPivot": [[0, 0], [w, -14], [w + b, 14], [w + b + r, 0]],
 			"LegRPivot": [[0, 0], [w, 14], [w + b, -14], [w + b + r, 0]],
@@ -363,7 +367,7 @@ func _build_guard_spec() -> Dictionary:
 			"TorsoPivot": [[0, 0], [2, -4], [hold_end, -4], [60, 0]],
 			"TorsoPivot/NeckPivot/HeadPivot": [[0, 0], [2, 4], [hold_end, 4], [60, 0]],
 			"TorsoPivot/ArmLPivot": [[0, 178], [2, 160], [hold_end, 160], [60, 178]],
-			"TorsoPivot/ArmRPivot": [[0, 172], [2, -5], [hold_end, -5], [60, 172]],
+			"TorsoPivot/ArmRPivot": [[0, -172], [2, -5], [hold_end, -5], [60, -172]],
 			"TorsoPivot/SwordPivot": [[0, 160], [2, -85], [hold_end, -85], [60, 160]],
 			"LegLPivot": [[0, 0], [2, -8], [hold_end, -8], [60, 0]],
 			"LegRPivot": [[0, 0], [2, 8], [hold_end, 8], [60, 0]],
@@ -389,7 +393,7 @@ func _build_parry_success_spec() -> Dictionary:
 			"TorsoPivot": [[0, 0], [2, 14], [hold_end, 14], [24, 0]],
 			"TorsoPivot/NeckPivot/HeadPivot": [[0, 0], [2, -12], [hold_end, -12], [24, 0]],
 			"TorsoPivot/ArmLPivot": [[0, 178], [2, 140], [hold_end, 140], [24, 178]],
-			"TorsoPivot/ArmRPivot": [[0, 172], [2, -30], [hold_end, -30], [24, 172]],
+			"TorsoPivot/ArmRPivot": [[0, -172], [2, -30], [hold_end, -30], [24, -172]],
 			"TorsoPivot/SwordPivot": [[0, 160], [2, -120], [hold_end, -120], [24, 160]],
 			"LegLPivot": [[0, 0], [2, -15], [hold_end, -15], [24, 0]],
 			"LegRPivot": [[0, 0], [2, 15], [hold_end, 15], [24, 0]],
@@ -415,7 +419,7 @@ func _build_stagger_spec() -> Dictionary:
 			"TorsoPivot": [[0, 0], [2, 22], [hold_end, 22], [24, 0]],
 			"TorsoPivot/NeckPivot/HeadPivot": [[0, 0], [2, -20], [hold_end, -20], [24, 0]],
 			"TorsoPivot/ArmLPivot": [[0, 178], [2, 130], [hold_end, 130], [24, 178]],
-			"TorsoPivot/ArmRPivot": [[0, 172], [2, 30], [hold_end, 30], [24, 172]],
+			"TorsoPivot/ArmRPivot": [[0, -172], [2, 30], [hold_end, 30], [24, -172]],
 			"TorsoPivot/SwordPivot": [[0, 160], [2, -30], [hold_end, -30], [24, 160]],
 			"LegLPivot": [[0, 0], [2, -20], [hold_end, -20], [24, 0]],
 			"LegRPivot": [[0, 0], [2, 20], [hold_end, 20], [24, 0]],
@@ -441,7 +445,7 @@ func _build_stance_break_spec() -> Dictionary:
 			"TorsoPivot": [[0, 0], [2, -18], [hold_end, -18], [24, 0]],
 			"TorsoPivot/NeckPivot/HeadPivot": [[0, 0], [2, 18], [hold_end, 18], [24, 0]],
 			"TorsoPivot/ArmLPivot": [[0, 178], [2, 220], [hold_end, 220], [24, 178]],
-			"TorsoPivot/ArmRPivot": [[0, 172], [2, 60], [hold_end, 60], [24, 172]],
+			"TorsoPivot/ArmRPivot": [[0, -172], [2, 60], [hold_end, 60], [24, -172]],
 			"TorsoPivot/SwordPivot": [[0, 160], [2, -150], [hold_end, -150], [24, 160]],
 			"LegLPivot": [[0, 0], [2, 15], [hold_end, 15], [24, 0]],
 			"LegRPivot": [[0, 0], [2, -15], [hold_end, -15], [24, 0]],
@@ -467,7 +471,7 @@ func _build_execute_spec() -> Dictionary:
 			"TorsoPivot": [[0, 0], [mid, -12], [total, 0]],
 			"TorsoPivot/NeckPivot/HeadPivot": [[0, 0], [mid, 8], [total, 0]],
 			"TorsoPivot/ArmLPivot": [[0, 178], [mid, 150], [total, 178]],
-			"TorsoPivot/ArmRPivot": [[0, 172], [mid, -50], [total, 172]],
+			"TorsoPivot/ArmRPivot": [[0, -172], [mid, -50], [total, -172]],
 			"TorsoPivot/SwordPivot": [[0, 160], [mid, -120], [total, 160]],
 			"LegLPivot": [[0, 0], [mid, -12], [total, 0]],
 			"LegRPivot": [[0, 0], [mid, 12], [total, 0]],
@@ -492,7 +496,7 @@ func _build_revive_spec() -> Dictionary:
 			"TorsoPivot": [[0, 0], [15, -40], [30, 0]],
 			"TorsoPivot/NeckPivot/HeadPivot": [[0, 0], [15, 10], [30, 0]],
 			"TorsoPivot/ArmLPivot": [[0, 178], [15, 120], [30, 178]],
-			"TorsoPivot/ArmRPivot": [[0, 172], [15, 130], [30, 172]],
+			"TorsoPivot/ArmRPivot": [[0, -172], [15, 130], [30, -172]],
 			"TorsoPivot/SwordPivot": [[0, 160], [15, 100], [30, 160]],
 			"LegLPivot": [[0, 0], [15, -30], [30, 0]],
 			"LegRPivot": [[0, 0], [15, 30], [30, 0]],
@@ -519,7 +523,7 @@ func _build_dead_spec() -> Dictionary:
 			"TorsoPivot": [[0, 0], [2, -75], [hold_end, -75], [total, 0]],
 			"TorsoPivot/NeckPivot/HeadPivot": [[0, 0], [2, 25], [hold_end, 25], [total, 0]],
 			"TorsoPivot/ArmLPivot": [[0, 178], [2, 210], [hold_end, 210], [total, 178]],
-			"TorsoPivot/ArmRPivot": [[0, 172], [2, 120], [hold_end, 120], [total, 172]],
+			"TorsoPivot/ArmRPivot": [[0, -172], [2, 120], [hold_end, 120], [total, -172]],
 			"TorsoPivot/SwordPivot": [[0, 160], [2, 60], [hold_end, 60], [total, 160]],
 			"LegLPivot": [[0, 0], [2, -35], [hold_end, -35], [total, 0]],
 			"LegRPivot": [[0, 0], [2, 35], [hold_end, 35], [total, 0]],

@@ -134,8 +134,8 @@ const HEAD_OUTLINE_ENABLED: bool = false            # # DRAFT（候选 true/fals
 const HEAD_OUTLINE_WIDTH: float = 2.0               # # DRAFT（候选 1–2；头轮廓线宽）
 const HEAD_OUTLINE_COLOR: Color = Color("#c0c8d0")  # # DRAFT（冷白，SWORD_COLOR 系；头轮廓色）
 const FRAME_ANIM_MOVE_CYCLE: int = 24               # # DRAFT（候选 24/28/32 = 0.4–0.53s 2 步；步态周期实验 2）
-const MOVE_SWING_LEG_DEG: float = 25.0              # # DRAFT（候选 20–30；腿髋摆幅）
-const MOVE_SWING_ARM_DEG: float = 25.0              # # DRAFT（候选 20–35；摆臂幅度）
+const MOVE_SWING_LEG_DEG: float = 12.0              # # DRAFT（候选 8–15；腿髋摆幅。偏离理由: 原候选 20–30 与 AC3 衔接阈值 POSE_DELTA_MAX_DEG=15° 冲突——contact 首帧腿摆幅即 idle→move 姿态差，须 ≤15°；12 为收敛后居中值）
+const MOVE_SWING_ARM_DEG: float = 12.0              # # DRAFT（候选 8–15；摆臂幅度。偏离理由: 同 MOVE_SWING_LEG_DEG——摆臂以 REST_POSE 为基准 ±swing，AC3 约束 swing ≤15°）
 const MOVE_KNEE_BEND_DEG: float = 40.0              # # DRAFT（候选 30–50；摆动相屈膝抬脚）
 const KNEE_BEND_MAX_DEG: float = 90.0               # # DRAFT（机械上限，AC3 膝单向弯曲断言用）
 const POSE_DELTA_MAX_DEG: float = 15.0              # # DRAFT（衔接阈值，AC3 状态切换关节角差上限）
