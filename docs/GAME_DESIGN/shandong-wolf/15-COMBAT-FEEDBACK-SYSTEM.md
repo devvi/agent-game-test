@@ -1,4 +1,4 @@
-# 打击反馈系统 — 火花 / hit-stop / 屏震 / 慢动作 / 白闪（#579/#654/#675）
+# 打击反馈系统 — 火花 / hit-stop / 屏震 / 慢动作 / 白闪（#579/#654/#675/#661）
 
 > 落盘依据：PR **#654**（feat(579) 打击反馈系统，已 merge 2026-08-20）← DESIGN
 > `docs/DESIGN/579-combat-feedback-system.md`（plan PR #653 已 merge）。
@@ -171,6 +171,11 @@ func burst_at(world_pos: Vector2, normal: Vector2, level: String) -> void
   7→execute / 2→hit_landed；auto_cycle 兜底（CYCLE_SEQUENCE = IDLE→三档→IDLE）。
 - **冻结效果帧模式**（AC2 决定性兜底）：`freeze_effects` 开启 → 时间栈墙钟不推进，
   火花/白闪停留画面供截图（shot plan 在效果窗口内开启）。
+- **组级 autoplay 冻结接线**（#661，2026-08-21 merge）：e2e_shots.json feedback 组声明组级
+  `autoplay`（resolve_plan 提升契约）→ tweaks 设 `/root/CaptureRig.freeze_effects=true` +
+  `auto_cycle_frames=200`（> 最大 settle 120，settle 期间不跨态）——冻结效果帧模式由 shot plan
+  tweak 数据通道落地；顶层 autoplay 放 freeze tweak 会对无此属性的 stick rig 报错，组级隔离
+  是唯一干净通道（GDD 18 §9）。
 - e2e_shots.json `groups.feedback` 组 3 shot：fb_parry_success（settle 90 帧）/
   fb_stance_break（100 帧）/ fb_execute（120 帧），供用户 AC6 裁决。
 
