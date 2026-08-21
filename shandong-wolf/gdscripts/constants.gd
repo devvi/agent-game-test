@@ -311,6 +311,22 @@ const HITBOX_RANGE: float = 80.0             # # DRAFT
 #   候选集: [30, 40, 60]（默认 40 = 平台高度容忍，MOVE 层 ground band）
 #   该值影响什么: 挥空判定多维度化——Y 差 > 容差即不命中（物理剑长只覆盖水平，高度差是真实威胁规避手段）
 const HITBOX_VERTICAL_TOLERANCE: float = 40.0  # # DRAFT
+# BODY_CAPSULE_HALF_WIDTH
+#   物理命中（2026-08-21 空气击毙根除）: 敌人身体竖直胶囊的水平半宽（px）。剑段 ↔ 身体胶囊
+#   相交判定用它做"剑尖触到身体近缘"的余量；也决定水平伸程 = SWORD_LENGTH + 半宽。
+#   候选集: [6, 8, 10]（默认 8 = 身体肢体宽 6 的对称近似，含手臂摆动余量）
+const BODY_CAPSULE_HALF_WIDTH: float = 8.0   # # DRAFT
+# SWORD_HAND_OFFSET_Y
+#   剑握持高度（2026-08-21 物理命中根除）: 剑段相对攻击者 root 的 Y 偏移。剑在肩/手高度挥出，
+#   不是从髋(root)起量——旧 `absf(dy)` 从 root 量导致"敌在下方/斜上也被横砍"的空气击毙。
+#   候选集: [-BODY_TORSO_LENGTH=-44 手部, -BODY_TORSO_LENGTH*0.5 腰际]（默认 -44 手部）
+const SWORD_HAND_OFFSET_Y: float = -44.0    # # DRAFT
+# BODY_HEAD_EXTENT / BODY_BOTTOM_EXTENT
+#   身体竖直胶囊跨（2026-08-21 物理命中根除）: 头顶距 root = TORSO+NECK+HEAD_RADIUS；
+#   脚底距 root = BODY_LEG_LENGTH。剑高（hand）落在此跨内才算"够到身体"。
+#   候选: HEAD=63.5（44+10+9.5 派生）/ BOTTOM=40（BODY_LEG_LENGTH 派生）
+const BODY_HEAD_EXTENT: float = 63.5        # # DRAFT
+const BODY_BOTTOM_EXTENT: float = 40.0      # # DRAFT
 # PARRY_DIRECTION_TOLERANCE
 #   只狼基准: 弹反必须面向攻击（背对挨打=受击）
 #   候选集: [1=仅同侧（defender 朝向攻击者）, 2=宽容（前后均可）]（默认 1）

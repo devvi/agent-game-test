@@ -64,6 +64,7 @@ func run() -> void:
 	_reset_logs()
 	_test_16_stance_broken_forward_idempotent()
 	_reset_logs()
+	_test_17_vertical_airhit_misses()
 	_test_17_event_signature_contract()
 	_reset_logs()
 	_test_18_reentry_noop()
@@ -539,6 +540,62 @@ func _test_13_range_whiff() -> void:
 	_assert(_hit_log.is_empty(), "distance whiff → no hit_landed")
 	_assert(_parry_log.is_empty() and _block_log.is_empty() and _clash_log.is_empty(), "whiff emits no result events")
 	_assert(player.hp_1 == 100.0, "whiff: player hp unchanged")
+
+
+func _test_17_vertical_airhit_misses() -> void:
+	## 空气击毙根除（2026-08-21，用户回归"player 没靠近也能击毙"）:
+	##   剑段 ↔ 身体胶囊 物理判定——剑在 hand 高度(y=-44)水平挥出，敌身体竖直胶囊跨
+	##   [root-63.5, root+40]。同一水平距离下:
+	##   ① dy=+30（敌在玩家正下方 30px）→ 剑高 y=-44 落在敌胶囊跨外 → 挥空（MISS）
+	##   ② dy=-30（敌在玩家正上方 30px）→ 剑高在敌胶囊跨内且水平伸程触及 → HIT
+	##   ③ dy=0（同高）→ HIT（合法近身命中）
+	##   旧版 `absf(dy)<=40` 从 root(髋) 起量：dy=+30 判命中=空气击毙。
+	# 用 _setup() 每个 case 拿新鲜 judge（_resolved 防重入键跨 case 不共享），避免短回路。
+
+	# ① 敌在玩家正下方 30px → 剑(hand y=-44)够不到 → MISS
+	var s1 = _setup()
+	if s1.is_empty(): return
+	var j1 = s1["j"]
+	var p1 = s1["player"]
+	var e1 = s1["enemy"]
+	p1.position = Vector2(30, 30)   # 玩家=(30,30) 敌=(0,0) facing=+1 朝右挥
+	var w = _new_window(e1, TEST_START_FRAME, 15.0, 35.0, 1)
+	if w == null: return
+	j1.register_attack_window(w)
+	j1._frame = w.hit_frame()
+	j1.resolve_attack(e1, p1)
+	_assert(_hit_log.is_empty(), "airhit: enemy below (dy=+30) → sword at hand height can't reach → MISS (got %d hits)" % _hit_log.size())
+	_assert(p1.hp_1 == 100.0, "airhit: player below-case hp unchanged")
+
+	# ② 敌在玩家正上方（仍在身体胶囊跨内）→ HIT
+	var s2 = _setup()
+	if s2.is_empty(): return
+	var j2 = s2["j"]
+	var p2 = s2["player"]
+	var e2 = s2["enemy"]
+	p2.position = Vector2(30, -30)
+	var w2 = _new_window(e2, TEST_START_FRAME, 15.0, 35.0, 1)
+	if w2 == null: return
+	j2.register_attack_window(w2)
+	j2._frame = w2.hit_frame()
+	_reset_logs()
+	j2.resolve_attack(e2, p2)
+	_assert(_hit_log.size() == 1, "vertical overlap: enemy above (dy=-30) within body capsule → HIT (got %d)" % _hit_log.size())
+
+	# ③ 同高 → HIT（合法近身）
+	var s3 = _setup()
+	if s3.is_empty(): return
+	var j3 = s3["j"]
+	var p3 = s3["player"]
+	var e3 = s3["enemy"]
+	p3.position = Vector2(30, 0)
+	var w3 = _new_window(e3, TEST_START_FRAME, 15.0, 35.0, 1)
+	if w3 == null: return
+	j3.register_attack_window(w3)
+	j3._frame = w3.hit_frame()
+	_reset_logs()
+	j3.resolve_attack(e3, p3)
+	_assert(_hit_log.size() == 1, "same-height (dy=0) → legitimate HIT (got %d)" % _hit_log.size())
 
 
 func _test_14_facing_check() -> void:

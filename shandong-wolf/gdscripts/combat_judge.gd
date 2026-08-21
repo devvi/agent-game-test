@@ -82,20 +82,12 @@ func resolve_attack(attacker, defender) -> void:
 		_resolved[key] = true
 		return
 	# 距离挥空 / facing 反向（mark resolved + return，不发射任何事件）
-	# 物理判定（2026-08-21 空气命中根因）: 剑是水平挥出（X 轴划线）；Y 差 > 垂直容差
-	#   = 剑够不到（垂直悬空/斜上方）→ 当挥空。旧版只看 X，敌人在正上方也被横砍打死。
-	if absf(defender.position.x - attacker.position.x) > float(C.HITBOX_RANGE):
+	# 物理判定（2026-08-21 空气击毙根除）: 剑是水平线段（从持手到剑尖），敌人是竖直身体胶囊。
+	#   命中 = 剑段与胶囊相交——旧版 `absf(defender.x-attacker.x)>HITBOX_RANGE` + `absf(dy)>容差`
+	#   是从 root(髋) 起量的盒，剑实际在 hand 高度，敌人在玩家正下/斜上方也被横砍打死（空气击毙）。
+	if not _sword_hits_body(attacker, defender, w.direction):
 		_resolved[key] = true
 		return
-	if absf(defender.position.y - attacker.position.y) > float(C.HITBOX_VERTICAL_TOLERANCE):
-		_resolved[key] = true
-		return
-	var dx: float = defender.position.x - attacker.position.x
-	if dx != 0.0:
-		var rel_dir: int = 1 if dx > 0.0 else -1
-		if rel_dir != w.direction:
-			_resolved[key] = true
-			return
 	# 弹反判定（仅玩家防御者）: 时间戳窗闭区间 [hit_ms - PARRY_WINDOW_SECONDS*1000, hit_ms] + facing 校验
 	var hit_ms: int = int(w.hit_frame() * 1000.0 / float(C.FRAME_RHYTHM_BASE))
 	var parry_ok: bool = false
@@ -150,6 +142,37 @@ func tick_frame() -> void:
 
 func _other(attacker) -> Object:
 	return enemy if attacker == player else player
+
+
+func _sword_hits_body(attacker, defender, direction: int) -> bool:
+	## 剑段 ↔ 身体胶囊 相交（2026-08-21 空气击毙根除）。真实几何，非盒阈值：
+	##   剑段: 水平线段，从持手 (attacker.x, attacker.y + SWORD_HAND_OFFSET_Y) 沿 facing 伸
+	##         SWORD_LENGTH → 剑尖 (attacker.x + direction*SWORD_LENGTH, attacker.y + HAND_Y)。
+	##         剑高 = root.y + HAND_Y（HAND_Y<0 在髋上方 = 手/肩高度）。
+	##   身体: 竖直胶囊，中心 (defender.x, defender.y)，水平半宽 BODY_CAPSULE_HALF_WIDTH，
+	##         竖直跨 [defender.y - BODY_TOP_EXT, defender.y + BODY_BOTTOM_EXT]（头→脚）。
+	##   命中 = ① 剑高落在敌身体竖直跨内，且 ② 剑段水平伸程触及敌身体近缘。
+	## 旧版从 root(髋) 起量的 `absf(dy)` 盒：敌在玩家正下方(dy=+40) 剑高-44 根本够不到，
+	##   却被判命中——正是"player 没靠近也能击毙"。
+	var attacker_pos = attacker.position
+	var defender_pos = defender.position
+	var sword_y: float = attacker_pos.y + float(C.SWORD_HAND_OFFSET_Y)
+	var sword_x0: float = attacker_pos.x
+	var sword_x1: float = attacker_pos.x + float(direction) * float(C.SWORD_LENGTH)
+	# 剑段水平范围（direction=±1 → [x0,x1] 线性，min/max 取段）
+	var seg_lo: float = minf(sword_x0, sword_x1)
+	var seg_hi: float = maxf(sword_x0, sword_x1)
+	var body_top: float = defender_pos.y - float(C.BODY_HEAD_EXTENT)
+	var body_bottom: float = defender_pos.y + float(C.BODY_BOTTOM_EXTENT)
+	# ① 剑高必须在敌身体竖直跨内（剑是水平线，越过头顶/低于脚底=挥空）
+	if sword_y < body_top or sword_y > body_bottom:
+		return false
+	# ② 剑段水平伸程必须触及敌身体（近缘 = defender.x - HALF_WIDTH，远缘 = + HALF_WIDTH）
+	var body_lx: float = defender_pos.x - float(C.BODY_CAPSULE_HALF_WIDTH)
+	var body_rx: float = defender_pos.x + float(C.BODY_CAPSULE_HALF_WIDTH)
+	if seg_hi < body_lx or seg_lo > body_rx:
+		return false
+	return true
 
 
 func _active_window_for(attacker) -> Object:
