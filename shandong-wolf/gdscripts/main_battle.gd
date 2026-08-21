@@ -168,10 +168,11 @@ func _build_enemy(stage) -> void:
 	stick.name = "EnemyStickFigure"
 	enemy.add_child(stick)
 	_enemy_stick_figure = stick
-	enemy_entity = CombatEntityScript.new({"is_player": false, "life_total": 1})
+	enemy_entity = CombatEntityScript.new({"is_player": false, "life_total": 1, "life_1_max": C.ENEMY_HP_MAX})
 	enemy_entity.name = "EnemyEntity"
 	enemy.add_child(enemy_entity)
 	enemy.bind_entity(enemy_entity)
+	enemy.elite_mode = true   # MVP 单敌人即精英（#682: 蓄力重斩出招启用，HP 慢线接通）
 	enemy_entity.state_changed.connect(func(_from: String, to: String): stick.consume_state(to))
 	## 遇敌 → COMBAT 态（首次攻击接战，仅 IDLE→COMBAT）
 	enemy_entity.state_changed.connect(_on_enemy_entity_state_changed)

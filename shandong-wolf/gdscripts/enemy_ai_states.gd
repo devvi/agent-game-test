@@ -140,11 +140,15 @@ class ChaseState:
 
 class AttackState:
 	extends AIStateBase
-	## 攻击: 突刺（heavy_attack 单发）或三连砍（attack ×3，收招间错开）二选一 + 冷却。
-	##   - 出招决策: _rng.randf() < ENEMY_THRUST_CHANCE → 突刺；否则三连砍
+	## 攻击: 蓄力重斩（elite_mode 门控）/ 突刺（heavy_attack 单发）/ 三连砍（attack ×3）三选一 + 冷却。
+	##   - 出招决策（概率和 = 1）: charge（elite 时 ENEMY_CHARGE_CHANCE）→ thrust（ENEMY_THRUST_CHANCE）
+	##     → combo（余量）；elite_mode=false 时首层门控短路，行为与 #581 二选一逐字节一致
+	##   - 蓄力（#682）: 复用 heavy_attack 战斗态 + 瞬时 override 注入（windup=ENEMY_CHARGE_WINDUP /
+	##     hp_damage=ENEMY_CHARGE_HP_DAMAGE）→ request_transition 同步触发 judge 登记读取 → 出招后清空
 	##   - 连段中断（边界 7）: 实体进入非 idle/move/attack/heavy_attack 态（stagger/崩解等）
 	##     或弹反抑制窗内 → 连段计划作废回 Chase（决策门控兜底，这里同步清理）
 	var _is_thrust: bool = false
+	var _attack_kind: String = "combo"       # "charge" / "thrust" / "combo"
 	var _issued: bool = false
 	var _strikes: int = 0
 
@@ -152,7 +156,13 @@ class AttackState:
 		ai._behavior = "attack"
 		state_name = "attack"
 		_elapsed = 0.0
-		_is_thrust = ai._rng.randf() < float(C.ENEMY_THRUST_CHANCE)
+		if ai.elite_mode and ai._rng.randf() < float(C.ENEMY_CHARGE_CHANCE):
+			_attack_kind = "charge"
+		elif ai._rng.randf() < float(C.ENEMY_THRUST_CHANCE):
+			_attack_kind = "thrust"
+		else:
+			_attack_kind = "combo"
+		_is_thrust = (_attack_kind == "thrust")
 		_issued = false
 		_strikes = 0
 
@@ -176,7 +186,18 @@ class AttackState:
 			return
 		if ai.entity == null:
 			return
-		if _is_thrust:
+		if _attack_kind == "charge":
+			if not _issued:
+				ai.entity.current_windup_frames = int(C.ENEMY_CHARGE_WINDUP)
+				ai.entity.current_hp_damage = float(C.ENEMY_CHARGE_HP_DAMAGE)
+				ai.entity.request_transition("heavy_attack")
+				ai.entity.current_windup_frames = -1
+				ai.entity.current_hp_damage = -1.0
+				ai._attack_cooldown_until_sec = now + float(C.ENEMY_ATTACK_COOLDOWN_SEC)
+				_issued = true
+			else:
+				ai._ai_fsm.transition_to(SelfScript.make_state("chase", ai))
+		elif _is_thrust:
 			if not _issued:
 				ai.entity.request_transition("heavy_attack")
 				ai._attack_cooldown_until_sec = now + float(C.ENEMY_ATTACK_COOLDOWN_SEC)

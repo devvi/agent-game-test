@@ -194,12 +194,15 @@ func _on_entity_state_changed(_from: String, to: String, entity) -> void:
 	w.start_frame = _frame
 	w.active_frames = int(C.HITBOX_ACTIVE_FRAMES)
 	var is_enemy: bool = entity != null and entity.get("is_player") != null and not entity.is_player
-	w.hp_damage = float(entity.attack_hp_damage) if (entity != null and entity.attack_hp_damage >= 0.0) \
+	w.hp_damage = float(entity.current_hp_damage) if (entity != null and entity.current_hp_damage >= 0.0) \
+		else float(entity.attack_hp_damage) if (entity != null and entity.attack_hp_damage >= 0.0) \
 		else float(C.SWORD_DAMAGE_HEAVY if to == "heavy_attack" else C.SWORD_DAMAGE_LIGHT)
 	w.stance_damage = float(entity.attack_stance_damage) if (entity != null and entity.attack_stance_damage >= 0.0) \
 		else float(C.POSTURE_HIT_COST)
 	if is_enemy:
-		w.windup_frames = int(C.ENEMY_ATTACK_WINDUP)   # 敌人前摇（AC1: 12 帧可弹反）
+		## 敌人前摇（AC1: 12 帧可弹反）；#682 蓄力重斩 override fallback 链——≥0 用 override，否则默认
+		var wu: int = int(entity.current_windup_frames) if (entity.current_windup_frames >= 0) else int(C.ENEMY_ATTACK_WINDUP)
+		w.windup_frames = wu
 	w.direction = entity.facing
 	register_attack_window(w)
 

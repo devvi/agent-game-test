@@ -355,6 +355,12 @@ const HUD_ENEMY_BAR_WIDTH: float = 240.0      # # DRAFT
 #   该值影响什么: 敌人架势条顶边距
 #   情感断言: 贴顶不悬浮
 const HUD_ENEMY_BAR_TOP: float = 12.0         # # DRAFT
+# HUD_ENEMY_HP_GAP
+#   sekiro 基准: #576 布局呼吸感（血条与架势条同组不粘连）
+#   候选集: [2, 4, 6]（默认 4）
+#   该值影响什么: 敌人血条与架势条间距（EnemyHealthBar 在 EnemyStanceBar 上方）
+#   情感断言: 同组相关，不粘连
+const HUD_ENEMY_HP_GAP: float = 4.0           # # DRAFT
 # HUD_MOON_WHITE
 #   候补值: Color("#e8e6e3")
 #   该值影响什么: 常态描边/活性段填充
@@ -426,10 +432,10 @@ const ENEMY_ATTACK_COOLDOWN_SEC: float = 1.5    # # DRAFT
 #   情感断言: 七刀之内是紧张，一刀半血是恐惧
 const ENEMY_HP_DAMAGE: float = 15.0             # # DRAFT
 # ENEMY_HP_MAX
-#   候选集: [30, 40, 50]（默认 40 = sekiro 敌小兵 HP 30-50）
-#   该值影响什么: 敌人血条上限（life_1_max 注入）
-#   情感断言: 小兵是消耗品，不是城墙
-const ENEMY_HP_MAX: float = 40.0                # # DRAFT
+#   候选集: [60, 80, 100]（默认 80 = sekiro 精英候选，小兵 30-50 上调）
+#   该值影响什么: 敌人血条上限（life_1_max 装配注入，MVP 单敌人即精英，慢线 7 刀击杀）
+#   情感断言: 精英是磨刀石：七刀之内是紧张，一刀半血是恐惧
+const ENEMY_HP_MAX: float = 80.0                # # DRAFT
 # ENEMY_THRUST_CHANCE
 #   候选集: [0.2, 0.3, 0.5]（默认 0.3 = 突刺 vs 三连砍 决策概率）
 #   该值影响什么: 出招风格概率——突刺单发 vs 三连砍连段
@@ -466,6 +472,49 @@ const ENEMY_LOSE_SIGHT_RANGE: float = 900.0     # # DRAFT（= ENEMY_SENSE_RANGE_
 #   该值影响什么: 巡逻到达停顿时长
 #   情感断言: 踱步要有节奏
 const ENEMY_PATROL_PAUSE_SEC: float = 1.0       # # DRAFT
+# ── 精英 AI 分区（# DRAFT 候补值，待 #584 定稿；#682 消费方，禁止实现期定稿）──
+# ENEMY_CHARGE_WINDUP
+#   sekiro 基准: 危攻击前摇 14-18 帧（本作保持可弹反，放宽）
+#   候选集: [18, 20, 24] 帧（默认 20）
+#   该值影响什么: 蓄力重斩前摇——弹反闭区间绝对窗口时长（实验 1）
+#   情感断言: 重斩是看得见的凶险，不是瞬发的意外
+const ENEMY_CHARGE_WINDUP: int = 20           # # DRAFT
+# ENEMY_CHARGE_HP_DAMAGE
+#   sekiro 基准: 重击语义（轻击 12/刀 ×2 倍）
+#   候选集: [20, 25, 30]（默认 25）
+#   该值影响什么: 蓄力命中 HP 伤害——慢线加速器
+#   情感断言: 一刀半血是恐惧，不是蹭血
+const ENEMY_CHARGE_HP_DAMAGE: float = 25.0    # # DRAFT
+# ENEMY_CHARGE_CHANCE
+#   sekiro 基准: 变招频率克制（三选一掷骰首层，概率和 = 1 约束）
+#   候选集: [0.15, 0.2, 0.25]（默认 0.2）
+#   该值影响什么: 蓄力出招概率
+#   情感断言: 敌人也会变招，但不多（常驻压力来自常规刀法）
+const ENEMY_CHARGE_CHANCE: float = 0.2        # # DRAFT
+# ENEMY_KNOCKBACK_PX
+#   sekiro 基准: 受击后退位移量（僵直+后退完整反馈）
+#   候选集: [30, 40, 60]（默认 40）
+#   该值影响什么: 击退初速（px/s 当量，stagger 12 帧内衰减）
+#   情感断言: 打中了就要后退，不是木桩
+const ENEMY_KNOCKBACK_PX: float = 40.0        # # DRAFT
+# ENEMY_KNOCKBACK_DECAY
+#   sekiro 基准: 防弹簧抖动（衰减先于 stagger 结束归零）
+#   候选集: [2, 3, 4] /s（默认 3）
+#   该值影响什么: 击退速度线性衰减系数（边界 1）
+#   情感断言: 退一步就稳住，不来回弹
+const ENEMY_KNOCKBACK_DECAY: float = 3.0      # # DRAFT
+# ENEMY_STANCE_RECOVER_DELAY_SEC
+#   sekiro 基准: 脱战/停防 1.5s（放宽节奏阀）
+#   候选集: [2.0, 2.5, 3.0]（默认 2.5）
+#   该值影响什么: 受击/弹反后无架势伤害的恢复延迟窗
+#   情感断言: 回复太快=无脑弹反，太慢=龟缩——喘口气的代价
+const ENEMY_STANCE_RECOVER_DELAY_SEC: float = 2.5  # # DRAFT
+# ENEMY_STANCE_RECOVER_PER_SEC
+#   sekiro 基准: 20-35/s
+#   候选集: [15, 20, 25]（默认 20）
+#   该值影响什么: 脱战恢复速率（上限 stance_max）
+#   情感断言: 磨刀石会自己找回架势，但挡不住连打
+const ENEMY_STANCE_RECOVER_PER_SEC: float = 20.0   # # DRAFT
 # ── 复活 FX 分区（# DRAFT 候补值，待 #584 定稿；#578 消费方，禁止实现期定稿）──
 # INK_BURST_COUNT
 #   只狼基准: issue body「30-50 黑点」

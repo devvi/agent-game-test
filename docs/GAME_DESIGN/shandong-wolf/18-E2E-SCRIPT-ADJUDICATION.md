@@ -1,4 +1,4 @@
-# E2E 剧本验收 — e2e_script 6 帧情感弧剧本组 / rig 4→7 态 / 管线四修复（#586/#673）
+# E2E 剧本验收 — e2e_script 6 帧情感弧剧本组 / rig 4→7 态 / 管线四修复 + 截图链路修复（#586/#673/#661）
 
 > 落盘依据：PR **#673**（feat(586) E2E 剧本验收 — e2e_script 6 帧剧本组 + 管线修复 + rig 7 态
 > + 报告模板，已 merge 2026-08-20）← DESIGN `docs/DESIGN/586-e2e-script-adjudication.md`
@@ -167,3 +167,66 @@ driver）；Tier 3 Movie Maker 补充证据（`--write-movie out.png`，E3 实�
 - 设计场景（implement 交付）：A 组级键提升回归 / B 数字 state 与元数据 / C rig 7 态确定性
   （6 帧全产出 + MOVE 位移断言 + clash 驱动来源 + 冻结防泄漏 + dwell 定长）/ D 分辨率读取与
   --size 断言 / E 用户裁决闭环（流程验证，非自动化评星）。
+
+## 9. 截图链路修复：组级 autoplay 提升 + scene_groups 多场景拆分 + fb 冻结帧接线（#661/#678，2026-08-21 merge）
+
+> 落盘依据：PR **#678**（feat(661) E2E 截图链路修复，已 merge 2026-08-21）← DESIGN
+> `docs/DESIGN/661-execute-feedback-event.md`（PRD #672 已合并）。性质：**E2E 链路 bug 修复**
+> —— 战斗代码正确（#654 已交付 fb rig + 三档 shot），但 resolve_plan.py `_GROUP_PROMOTED`
+> 白名单自 mini-pong 时代起不含 `main_scene`/`autoplay` → 组级场景 override 解析时被静默
+> 丢弃 → fb 组 shots 实际跑在火柴人 rig（无 ReactionController）上 + state 枚举错位（fb 组
+> EXECUTE=3 在 12 态 stick rig 上是 ATTACK_BURST）→ fb_execute 截图必为「普通对峙」。
+> #673（#586）已补 main_scene/state_node/state_property/states 提升，本 issue 在其上增量
+> 三件事：**组级 autoplay 提升 + scene_groups 多场景拆分 + fb 冻结帧接线**（战斗代码零改动红线）。
+
+### 9.1 resolve_plan.py — 组级 autoplay 提升 + scene_groups 输出（新契约）
+
+`_GROUP_PROMOTED` 追加 `"autoplay"`（首激活组 wins，与 #673 机制同构）——组级 autoplay
+覆盖顶层透传值。resolve() 返回值新增 `scene_groups: {main_scene: [shot, ...]}`：每组 shots
+按组级 `main_scene`（缺省 = 顶层）归类，同场景 setdefault 合并，单场景仅 1 key → 消费方走
+原路径逐字节不变（mini-pong 兼容）。
+
+```python
+_GROUP_PROMOTED = ("mode", "path", "transcript", "state_trajectory", "fidelity",
+                   "main_scene", "state_node", "state_property", "states", "autoplay")
+# resolve() 内新增：g_scene = g.get("main_scene", top_scene)
+#   scene_groups.setdefault(g_scene, []).append(s)
+#   resolved["scene_groups"] = scene_groups
+```
+
+### 9.2 run-e2e-review.sh — scene_groups 多场景拆分（每场景一个 godot 进程）
+
+P5 段 resolve 之后读 plan.json 的 `scene_groups` 键数：`≤1` → 原路径单次 capture（行为
+不变）；`>1` → 按 main_scene 生成 sub-plan-N.json（各自 out_dir），逐次 capture（每场景
+一个 godot 进程，`P5-visual-N.log`），产物合并到 `$OUT/shots/`（shot name 跨场景天然
+去重），analyze_bmp 4 重防伪断言对合并集运行；任一 sub-plan 失败 → CAPTURE_FAILS 上报
+（不静默跳过）。
+
+### 9.3 e2e_shots.json feedback 组 — 组级 autoplay 冻结接线（DESIGN 579 §2.6 契约落地）
+
+| 键 | 值 | 意图 |
+|----|----|------|
+| `freeze_effects` | `true`（tweak `/root/CaptureRig`） | 冻结效果帧：时间栈墙钟不推进，火花/白闪滞留画面（§2.6 契约） |
+| `auto_cycle_frames` | `200` | > fb 组最大 settle 120 → settle 期间不跨态，截图必落特效帧 |
+
+组级 autoplay 是唯一干净通道：顶层放 freeze tweak 会对无 `freeze_effects` 属性的 stick
+rig 报错（`_apply_tweaks` 仅 printerr 不崩溃，但脏日志）。
+
+### 9.4 数据流（fb 组修复后目标态）
+
+```
+e2e_shots.json feedback 组（main_scene=e2e_feedback_capture.tscn + 组级 autoplay）
+  → resolve_plan.py（main_scene 提升 #673 + autoplay 提升 #661 + scene_groups 输出）
+  → plan.json（main_scene=fb rig, autoplay=fb 声明, scene_groups={fb rig: 3 shots}）
+  → run-e2e-review.sh（SCENE_COUNT=1 → 原路径单次 capture）
+  → e2e_capture.gd _apply_tweaks（freeze_effects=true, auto_cycle_frames=200）
+  → 轮询 current_state：1/2/3 数字直比 ready → settle 90/100/120（状态稳定 + 特效滞留）
+  → fb_parry_success / fb_stance_break / fb_execute.png → analyze_bmp 防伪断言 → 用户 AC6 裁决
+```
+
+### 9.5 测试覆盖
+
+- `tests/pipeline/test_e2e_resolve.py`：+3 断言（组级 autoplay 提升 first-wins / scene_groups
+  多场景拆分与同场景合并 / 单场景无 override 行为不变），B4 期望值对齐 first-declarer 语义。
+- `tests/pipeline/test_e2e_runner.py`：+多场景两次 capture 调用断言 + 子目录清理回归。
+- 战斗代码 / gdscripts / 18 套件零改动（红线：只动 E2E 侧 5 文件）。

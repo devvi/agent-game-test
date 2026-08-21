@@ -102,6 +102,21 @@ func run() -> void:
 	_test_f2_canonical_contract_alignment()
 	_reset_logs()
 	_test_f3_input_bridge_mock()
+	# Scenario E(#682): 架势脱战恢复（AC8 + 实验 2, DESIGN §8 Scenario E）
+	_reset_logs()
+	_test_recover_e1_delay_no_recover()
+	_reset_logs()
+	_test_recover_e2_timeout_advance()
+	_reset_logs()
+	_test_recover_e3_skip_while_broken()
+	_reset_logs()
+	_test_recover_e4_player_no_trigger()
+	_reset_logs()
+	_test_recover_e5_redamage_reset()
+	_reset_logs()
+	_test_recover_e6_dual_write_race()
+	_reset_logs()
+	_test_recover_e6_fast_line_survives()
 	print("Passed: %d, Failed: %d" % [passed, failed])
 
 
@@ -121,6 +136,19 @@ func _reset_logs() -> void:
 	_state_log = []
 	_died_log = []
 	_revived_count = 0
+
+
+## 运行时常量查表（#682 精英常量实现期才加入 constants.gd → 禁止编译期引用）：
+## load constants.gd + get_script_constant_map().get(name, -1)（同 test_enemy_ai _c helper）
+func _const_map() -> Dictionary:
+	var script = load("res://gdscripts/constants.gd")
+	if script == null:
+		return {}
+	return script.get_script_constant_map()
+
+
+func _c(name: String) -> Variant:
+	return _const_map().get(name, -1)
 
 
 # ── helpers ─────────────────────────────────────────────────────────────
@@ -552,3 +580,120 @@ func _test_f3_input_bridge_mock() -> void:
 	mock.emit_signal("revive_pressed")
 	_assert(e.state_name == "revive", "revive_pressed → revive()")
 	_assert(_revived_count == 1, "revived emitted via bridge")
+
+
+# ── Scenario E(#682): 架势脱战恢复（AC8 + 实验 2）──────────────────────────
+## 敌人专用（is_player=false）: take_stance_damage 重置 _stance_recover_delay_until_sec；
+##   _process 轮询超延迟窗后按 ENEMY_STANCE_RECOVER_PER_SEC 恢复至 stance_max。
+## 新常量（ENEMY_STANCE_RECOVER_*）实现期才加入 constants.gd → 一律经 _c() 运行时查表，
+##   禁止编译期直接引用。时序手法（同 test_enemy_ai Time 门控）: 延迟字段直接落窗，
+##   不依赖真实时钟——take_stance_damage 用真实 Time 布窗，测试执行微秒级内必然未到窗。
+
+func _test_recover_e1_delay_no_recover() -> void:
+	## E1 延迟窗口内不恢复: take_stance_damage(35) 后 2.5s 内推进 → stance 不变
+	var e = _new_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if e == null: return
+	e.take_stance_damage(35.0)
+	_assert(e.stance == 65.0, "E1: stance 100-35 = 65 (got %.1f)" % e.stance)
+	_assert(e._stance_recover_delay_until_sec >= 0.0, "E1: take_stance_damage arms recovery delay (until %.2f)" % e._stance_recover_delay_until_sec)
+	_advance(e, 120)   # 2.0s < ENEMY_STANCE_RECOVER_DELAY_SEC(2.5) 延迟窗内
+	_assert(e.stance == 65.0, "E1: no recovery inside delay window (stance %.1f)" % e.stance)
+	_assert(e.state_name == "idle", "E1: entity idle during window (got %s)" % e.state_name)
+
+
+func _test_recover_e2_timeout_advance() -> void:
+	## E2 超时恢复: 延迟窗过后推进 → stance 逐帧 += ENEMY_STANCE_RECOVER_PER_SEC*delta，
+	##   至 stance_max 封顶（clamp 不越界）
+	var e = _new_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if e == null: return
+	var per_sec: float = float(_c("ENEMY_STANCE_RECOVER_PER_SEC"))
+	_assert(per_sec > 0.0, "E2: ENEMY_STANCE_RECOVER_PER_SEC present (got %.1f)" % per_sec)
+	e.take_stance_damage(35.0)
+	_assert(e.stance == 65.0, "E2: precondition stance 65")
+	e.stance_changed.connect(_on_stance_changed)
+	## 延迟窗落窗（强制过期——真实时钟驱动，测试直接置过去时间）
+	e._stance_recover_delay_until_sec = Time.get_ticks_msec() / 1000.0 - 0.5
+	e._process(1.0 / 60.0)
+	_assert(absf(e.stance - (65.0 + per_sec / 60.0)) < 0.01, "E2: single frame recover += PER_SEC*delta (got %.4f)" % e.stance)
+	_advance(e, 240)   # 4s → 65 + 80 = 145 → clamp 至 stance_max(100)
+	_assert(e.stance == e.stance_max, "E2: recovery caps at stance_max (%.1f)" % e.stance)
+	_assert(e.stance <= e.stance_max, "E2: never exceeds stance_max")
+	_assert(_stance_log.size() >= 1, "E2: stance_changed emitted during recovery (got %d)" % _stance_log.size())
+	if _stance_log.size() >= 1:
+		_assert(absf(float(_stance_log[_stance_log.size() - 1][0]) - e.stance_max) < 0.0001, "E2: final stance_changed == stance_max")
+
+
+func _test_recover_e3_skip_while_broken() -> void:
+	## E3 崩解中不恢复: break_stance 后推进 → stance 保持 0（快线处决窗口不被恢复打断）
+	var e = _new_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if e == null: return
+	e.take_stance_damage(100.0)
+	_assert(e.is_stance_broken == true and e.state_name == "stance_break", "E3: stance broken → stance_break (got %s)" % e.state_name)
+	_assert(e.stance == 0.0, "E3: stance at 0")
+	## 即便延迟窗已过，崩解期间（is_stance_broken）轮询跳过
+	e._stance_recover_delay_until_sec = Time.get_ticks_msec() / 1000.0 - 0.5
+	_advance(e, 60)   # 1s < STANCE_BREAK_RECOVERY_SEC(3) 崩解期
+	_assert(e.stance == 0.0, "E3: no recovery while broken (stance %.1f)" % e.stance)
+	_assert(e.state_name == "stance_break", "E3: still in stance_break (got %s)" % e.state_name)
+
+
+func _test_recover_e4_player_no_trigger() -> void:
+	## E4 玩家不触发: is_player=true 实体受击 → 无恢复（玩家架势语义不变）
+	var e = _new_entity({is_player=true})
+	if e == null: return
+	e.take_stance_damage(35.0)
+	_assert(e.stance == 65.0, "E4: player stance 100-35 = 65 (got %.1f)" % e.stance)
+	_assert(e._stance_recover_delay_until_sec == -1.0, "E4: player take_stance_damage does NOT arm delay (got %.1f)" % e._stance_recover_delay_until_sec)
+	## 即便强制过期，is_player 门控 → 仍不恢复
+	e._stance_recover_delay_until_sec = Time.get_ticks_msec() / 1000.0 - 0.5
+	_advance(e, 120)
+	_assert(e.stance == 65.0, "E4: player stance does NOT auto-recover (%.1f)" % e.stance)
+
+
+func _test_recover_e5_redamage_reset() -> void:
+	## E5 恢复-再受伤重置: 恢复中再注入 stance 伤害 → 延迟计时重置，恢复暂停（无闪烁）
+	var e = _new_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if e == null: return
+	e.take_stance_damage(35.0)
+	e._stance_recover_delay_until_sec = Time.get_ticks_msec() / 1000.0 - 0.5   # 落窗 → 恢复启动
+	_advance(e, 60)   # 1s 恢复中
+	var recovered: float = e.stance
+	_assert(recovered > 65.0 and recovered < e.stance_max, "E5: recovery in progress (65 → %.1f)" % recovered)
+	## 再受伤 → 重置延迟 + 恢复暂停
+	e.take_stance_damage(10.0)
+	var after_hit: float = e.stance
+	var delay: float = e._stance_recover_delay_until_sec
+	_assert(absf((recovered - after_hit) - 10.0) < 0.001, "E5: re-hit drops stance by 10 (%.1f → %.1f)" % [recovered, after_hit])
+	_assert(delay > Time.get_ticks_msec() / 1000.0, "E5: recovery delay re-armed to future (until %.2f)" % delay)
+	_advance(e, 120)   # 2s < 2.5s 新延迟窗 → 不恢复
+	_assert(e.stance == after_hit, "E5: recovery paused after re-hit (no flicker, stance %.1f)" % e.stance)
+
+
+func _test_recover_e6_dual_write_race() -> void:
+	## E6 双写竞态（实验 2 落地）: 脱战恢复与 recover_from_break 同帧双触发 →
+	##   最终 stance ∈ [0, stance_max]（幂等守卫 + 仅非崩解态恢复，双写不越界）
+	var e = _new_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if e == null: return
+	e.take_stance_damage(100.0)
+	_assert(e.is_stance_broken == true, "E6: stance broken")
+	## 同帧双触发: 起身恢复（50% + 清崩解）+ 脱战恢复轮询（强制过期）
+	e.recover_from_break()
+	e._stance_recover_delay_until_sec = Time.get_ticks_msec() / 1000.0 - 0.5
+	e._process(1.0 / 60.0)
+	_assert(is_finite(e.stance), "E6: stance finite (no NaN)")
+	_assert(e.stance >= 0.0 and e.stance <= e.stance_max, "E6: dual-write final stance ∈ [0, stance_max] (got %.2f)" % e.stance)
+
+
+func _test_recover_e6_fast_line_survives() -> void:
+	## E6（续）: 弹反序列（间隔 1.2s < 延迟 2.5s）下 4 弹反仍可崩解——快线不被脱战恢复打断
+	var e = _new_entity({is_player=false, life_total=1, life_1_max=80.0, stance_max=float(_c("POSTURE_BREAK_THRESHOLD"))})
+	if e == null: return
+	var pd: float = float(_c("PARRY_STANCE_DAMAGE"))
+	var parries: int = 4
+	_assert(pd > 0.0, "E6: PARRY_STANCE_DAMAGE present (got %.1f)" % pd)
+	_assert(parries * pd >= e.stance_max, "E6: 4×PARRY_STANCE_DAMAGE(%.0f) ≥ stance_max(%.0f)" % [parries * pd, e.stance_max])
+	for i in range(parries):
+		e.take_stance_damage(pd)
+		_advance(e, int(1.2 * 60.0))   # 间隔 1.2s < 延迟 2.5s → 每次弹反重置延迟，恢复不启动
+	_assert(e.is_stance_broken, "E6: 4 parries @ 1.2s gaps still break stance (fast line holds)")
+	_assert(e.state_name == "stance_break", "E6: enters stance_break (got %s)" % e.state_name)

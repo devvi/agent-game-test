@@ -68,6 +68,18 @@ func run() -> void:
 	_reset_logs()
 	_test_33_combo_interrupt()
 	_test_34_retreat_player_fled()
+	# Scenario E(#682): 精英蓄力重斩（elite 门控 / 窗口契约 / override 无泄漏 / 可弹反）
+	_test_35_elite_gate_no_charge()
+	_test_36_elite_gate_charge_exists()
+	_test_37_charge_window_contract()
+	_test_38_override_no_leak()
+	_test_39_charge_parryable()
+	# Scenario D(#682): 受击击退（触发 / 位移衰减 / 归零 / 玩家豁免 / 边界 clamp）
+	_test_40_knockback_trigger()
+	_test_41_knockback_displacement_decay()
+	_test_42_knockback_decay_to_zero()
+	_test_43_knockback_player_not_affected()
+	_test_44_knockback_edge_clamp()
 	# Scenario G: 回归基线（T35/T36 归 CI：run_tests.gd 10 套件全绿 + smoke）
 	print("Passed: %d, Failed: %d" % [passed, failed])
 
@@ -873,3 +885,338 @@ func _parry_at_hit_frame(judge, enemy, player) -> void:
 	var hit_ms: int = int(hit_frame * 1000 / int(_c("FRAME_RHYTHM_BASE")))
 	judge._on_guard_pressed(hit_ms)
 	judge.resolve_attack(enemy, player)
+
+
+# ── Scenario E(#682): 精英蓄力重斩（elite 门控三选一出招 + 窗口契约）────────
+
+## 扫描 0..79 找首个 elite 蓄力 seed（elite_mode=true + judge 绑定 + _enter_attack）
+## 蓄力判定 = 最新窗口 windup_frames == ENEMY_CHARGE_WINDUP（judge fallback 链读 override）
+func _find_charge_seed() -> int:
+	for seed_val in range(80):
+		var s = _setup(80.0, 0.0, seed_val, [])
+		if s.is_empty():
+			return -1
+		var ai = s["ai"]
+		ai.elite_mode = true
+		var judge = _new_judge()
+		if judge == null:
+			return -1
+		judge.bind_entities(s["player"], s["enemy"])
+		ai.judge = judge
+		_enter_attack(s)
+		if judge._windows.size() >= 1:
+			var w = judge._windows[judge._windows.size() - 1]
+			if int(w.windup_frames) == int(_c("ENEMY_CHARGE_WINDUP")):
+				return seed_val
+	return -1
+
+
+func _test_35_elite_gate_no_charge() -> void:
+	## elite 门控（elite_mode=false 默认）: 全 seed 扫描 0..59，任何窗口不得出现蓄力 windup
+	##   ——回归 #581 突刺/三连砍二选一出招（judge 登记窗口一律 ENEMY_ATTACK_WINDUP）
+	var charge_seen: int = 0
+	var window_count: int = 0
+	for seed_val in range(60):
+		var s = _setup(80.0, 0.0, seed_val, [])
+		if s.is_empty():
+			return
+		var ai = s["ai"]
+		var judge = _new_judge()
+		if judge == null:
+			return
+		judge.bind_entities(s["player"], s["enemy"])
+		ai.judge = judge
+		_enter_attack(s)
+		window_count += judge._windows.size()
+		for w in judge._windows:
+			if int(w.windup_frames) == int(_c("ENEMY_CHARGE_WINDUP")):
+				charge_seen += 1
+			_assert(int(w.windup_frames) == int(_c("ENEMY_ATTACK_WINDUP")), "elite=false window windup == ENEMY_ATTACK_WINDUP (seed=%d got %d)" % [seed_val, int(w.windup_frames)])
+	_assert(window_count >= 60, "attack windows registered across 60 seeds (got %d)" % window_count)
+	_assert(charge_seen == 0, "no charge window with elite_mode=false (got %d)" % charge_seen)
+
+
+func _test_36_elite_gate_charge_exists() -> void:
+	## elite 门控（elite_mode=true）: 扫描 0..79 至少一个 seed 出蓄力重斩（三选一出招启用）
+	var charge_seed: int = _find_charge_seed()
+	_assert(charge_seed >= 0, "found elite charge seed in 0..79 (elite_mode gates charge in)")
+
+
+func _test_37_charge_window_contract() -> void:
+	## 蓄力重斩窗口契约: 前摇 ENEMY_CHARGE_WINDUP(20) / 伤害 ENEMY_CHARGE_HP_DAMAGE(25) /
+	##   hit_frame == start + 20；转移后瞬时 override 清空（-1 / -1.0）
+	var charge_seed: int = _find_charge_seed()
+	_assert(charge_seed >= 0, "found charge seed for window contract")
+	if charge_seed < 0:
+		return
+	var s = _setup(80.0, 0.0, charge_seed, [])
+	if s.is_empty():
+		return
+	var ai = s["ai"]
+	ai.elite_mode = true
+	var enemy = s["enemy"]
+	var judge = _new_judge()
+	if judge == null:
+		return
+	judge.bind_entities(s["player"], enemy)
+	ai.judge = judge
+	_enter_attack(s)
+	var cw: int = int(_c("ENEMY_CHARGE_WINDUP"))
+	var chd: float = float(_c("ENEMY_CHARGE_HP_DAMAGE"))
+	_assert(cw == 20, "ENEMY_CHARGE_WINDUP constant == 20 (got %d)" % cw)
+	_assert(absf(chd - 25.0) < 0.0001, "ENEMY_CHARGE_HP_DAMAGE constant == 25.0 (got %.1f)" % chd)
+	_assert(enemy.state_name == "heavy_attack", "charge attacks via heavy_attack (got %s)" % enemy.state_name)
+	if judge._windows.size() >= 1:
+		var w = judge._windows[judge._windows.size() - 1]
+		_assert(int(w.windup_frames) == cw, "charge window windup == ENEMY_CHARGE_WINDUP(%d) (got %d)" % [cw, int(w.windup_frames)])
+		_assert(absf(float(w.hp_damage) - chd) < 0.0001, "charge window hp_damage == ENEMY_CHARGE_HP_DAMAGE(%.1f) (got %.1f)" % [chd, float(w.hp_damage)])
+		_assert(w.hit_frame() == w.start_frame + cw, "charge hit_frame == start + ENEMY_CHARGE_WINDUP")
+	_assert(int(enemy.current_windup_frames) == -1, "windup override cleared after transition (got %d)" % int(enemy.current_windup_frames))
+	_assert(absf(float(enemy.current_hp_damage) - (-1.0)) < 0.0001, "hp_damage override cleared after transition (got %.1f)" % float(enemy.current_hp_damage))
+
+
+func _test_38_override_no_leak() -> void:
+	## override 无泄漏: 蓄力后复位再出招，下一击窗口 windup 回落 ENEMY_ATTACK_WINDUP(12)
+	##   ——防 charge override 泄漏到下一击（judge fallback 链默认回退）
+	var charge_seed: int = -1
+	for seed_val in range(80):
+		var s = _setup(80.0, 0.0, seed_val, [])
+		if s.is_empty():
+			return
+		var ai2 = s["ai"]
+		ai2.elite_mode = true
+		var j2 = _new_judge()
+		if j2 == null:
+			return
+		j2.bind_entities(s["player"], s["enemy"])
+		ai2.judge = j2
+		_enter_attack(s)
+		if j2._windows.size() < 1:
+			continue
+		var w2 = j2._windows[j2._windows.size() - 1]
+		if int(w2.windup_frames) != int(_c("ENEMY_CHARGE_WINDUP")):
+			continue
+		## 首次蓄力 → 复位后下一击必须非蓄力（防泄漏验证）
+		var enemy2 = s["enemy"]
+		enemy2.request_transition("idle")
+		ai2._attack_cooldown_until_sec = 0.0
+		var guard: int = 0
+		while enemy2.state_name != "attack" and enemy2.state_name != "heavy_attack" and guard < 600:
+			_tick(s, TEST_FRAME_SEC)
+			guard += 1
+		if guard >= 600:
+			continue
+		var w3 = j2._windows[j2._windows.size() - 1]
+		if int(w3.windup_frames) == int(_c("ENEMY_ATTACK_WINDUP")):
+			charge_seed = seed_val
+			break
+	_assert(charge_seed >= 0, "found charge seed whose next strike is non-charge")
+	if charge_seed < 0:
+		return
+	## 主流程复验（用同一 seed 独立装配）
+	var s2 = _setup(80.0, 0.0, charge_seed, [])
+	if s2.is_empty():
+		return
+	var ai = s2["ai"]
+	ai.elite_mode = true
+	var enemy = s2["enemy"]
+	var judge = _new_judge()
+	if judge == null:
+		return
+	judge.bind_entities(s2["player"], enemy)
+	ai.judge = judge
+	_enter_attack(s2)
+	if judge._windows.size() >= 1:
+		var w = judge._windows[judge._windows.size() - 1]
+		_assert(int(w.windup_frames) == int(_c("ENEMY_CHARGE_WINDUP")), "first strike is charge (windup=%d)" % int(w.windup_frames))
+	## 复位 → 下一击（连段计划作废后重新出招）
+	enemy.request_transition("idle")
+	ai._attack_cooldown_until_sec = 0.0
+	var guard2: int = 0
+	while enemy.state_name != "attack" and enemy.state_name != "heavy_attack" and guard2 < 600:
+		_tick(s2, TEST_FRAME_SEC)
+		guard2 += 1
+	_assert(guard2 < 600, "second strike issued within guard loop")
+	if judge._windows.size() >= 1:
+		var w2 = judge._windows[judge._windows.size() - 1]
+		_assert(int(w2.windup_frames) == int(_c("ENEMY_ATTACK_WINDUP")), "next strike window windup == ENEMY_ATTACK_WINDUP(%d) — no charge override leak (got %d)" % [int(_c("ENEMY_ATTACK_WINDUP")), int(w2.windup_frames)])
+
+
+func _test_39_charge_parryable() -> void:
+	## 蓄力重斩可弹反（实验 1 落地）: 20 帧前摇窗口弹反闭区间 [hit-200ms, hit] 三态判定——
+	##   下界含端点弹反成功 / 命中帧弹反成功 / 下界-1 窗口外不弹反（落入受击）
+	var charge_seed: int = _find_charge_seed()
+	_assert(charge_seed >= 0, "found elite charge seed for parry test")
+	if charge_seed < 0:
+		return
+	var s = _setup(80.0, 0.0, charge_seed, [])
+	if s.is_empty():
+		return
+	var ai = s["ai"]
+	ai.elite_mode = true
+	var enemy = s["enemy"]
+	var player = s["player"]
+	var judge = _new_judge()
+	if judge == null:
+		return
+	judge.bind_entities(player, enemy)
+	ai.judge = judge
+	judge.parry_success.connect(_on_parry_success)
+	player.facing = -1
+	enemy.facing = 1
+	_enter_attack(s)
+	_reset_logs()
+	_assert(enemy.state_name == "heavy_attack", "elite charge enters heavy_attack (got %s)" % enemy.state_name)
+	if judge._windows.size() >= 1:
+		var w = judge._windows[judge._windows.size() - 1]
+		var hit_frame: int = w.hit_frame()
+		var hit_ms: int = int(hit_frame * 1000 / int(_c("FRAME_RHYTHM_BASE")))
+		var lower_ms: int = hit_ms - int(float(_c("PARRY_WINDOW_SECONDS")) * 1000.0)
+		## ① 下界（闭区间含端点）→ 弹反成功
+		judge._on_guard_pressed(lower_ms)
+		judge._frame = hit_frame
+		judge._resolved = {}
+		judge.resolve_attack(enemy, player)
+		_assert(_parry_log.size() == 1, "parry at lower bound succeeds (got %d)" % _parry_log.size())
+		## ② 上界（命中帧）→ 弹反成功
+		_reset_logs()
+		judge._on_guard_pressed(hit_ms)
+		judge._frame = hit_frame
+		judge._resolved = {}
+		judge.resolve_attack(enemy, player)
+		_assert(_parry_log.size() == 1, "parry at hit frame succeeds (got %d)" % _parry_log.size())
+		## ③ 下界 - 1（窗口外）→ 不弹反（落入受击，hit_landed 但无 parry）
+		_reset_logs()
+		judge._on_guard_pressed(lower_ms - 1)
+		judge._frame = hit_frame
+		judge._resolved = {}
+		judge.resolve_attack(enemy, player)
+		_assert(_parry_log.size() == 0, "no parry below lower bound (got %d)" % _parry_log.size())
+
+
+# ── Scenario D(#682): 受击击退（位移层，hit_landed 订阅）──────────────────
+
+## 受击击退装配: 玩家(右侧, facing=-1) 攻击敌人；judge 绑定 + hit_landed 日志订阅 +
+##   decide 一次触发 AI 侧惰性接线（_ensure_judge_subscription）。敌人在 x=enemy_x > 0
+##   （击退 clamp 至 [0, STAGE_WIDTH_PX]，贴 0 则位移不可观测）。
+func _knockback_setup(player_x: float, enemy_x: float):
+	var s = _setup(player_x, enemy_x, 11, [])
+	if s.is_empty():
+		return {}
+	var ai = s["ai"]
+	var enemy = s["enemy"]
+	var player = s["player"]
+	player.facing = -1
+	enemy.facing = 1
+	ai.position = Vector2(enemy_x, 0)
+	var judge = _new_judge()
+	if judge == null:
+		return {}
+	judge.bind_entities(player, enemy)
+	ai.judge = judge
+	judge.hit_landed.connect(_on_hit_landed)
+	ai.decide(TEST_FRAME_SEC)
+	_reset_logs()
+	return {"ai": ai, "enemy": enemy, "player": player, "judge": judge}
+
+
+## 玩家 attack 登记窗口 → 在窗口命中帧裁决（defender=敌人 → hit_landed）
+func _knockback_player_attack(k) -> void:
+	var judge = k["judge"]
+	var enemy = k["enemy"]
+	var player = k["player"]
+	player.request_transition("attack")
+	if judge._windows.size() >= 1:
+		var w = judge._windows[judge._windows.size() - 1]
+		judge._frame = w.hit_frame()
+		judge.resolve_attack(player, enemy)
+
+
+func _test_40_knockback_trigger() -> void:
+	## 击退触发: 玩家命中敌人 → _knockback_vel == ENEMY_KNOCKBACK_PX、方向远离攻击者（左）、hit_landed 入日志
+	var k = _knockback_setup(170.0, 100.0)
+	if k.is_empty():
+		return
+	var ai = k["ai"]
+	var enemy = k["enemy"]
+	_knockback_player_attack(k)
+	_assert(_hit_log.size() == 1, "hit_landed logged once (got %d)" % _hit_log.size())
+	_assert(absf(float(ai._knockback_vel) - float(_c("ENEMY_KNOCKBACK_PX"))) < 0.0001, "_knockback_vel == ENEMY_KNOCKBACK_PX(%.1f) (got %.1f)" % [float(_c("ENEMY_KNOCKBACK_PX")), float(ai._knockback_vel)])
+	_assert(int(ai._knockback_dir) == -1, "_knockback_dir == -1 (attacker right → push left, got %d)" % int(ai._knockback_dir))
+	_assert(enemy.state_name == "stagger", "enemy staggered by hit (got %s)" % enemy.state_name)
+
+
+func _test_41_knockback_displacement_decay() -> void:
+	## 击退位移与衰减: 手动 _physics_process 5 帧（非 _tick——stagger 中 decide 门控 _apply_movement）
+	##   → 敌人左移、速度逐帧衰减（首帧 == maxf(40 - 3/60, 0)）
+	var k = _knockback_setup(170.0, 100.0)
+	if k.is_empty():
+		return
+	var ai = k["ai"]
+	_knockback_player_attack(k)
+	var pos_x0: float = ai.position.x
+	## ① 首帧衰减数学验证
+	ai._physics_process(TEST_FRAME_SEC)
+	var decayed: float = float(_c("ENEMY_KNOCKBACK_PX")) - float(_c("ENEMY_KNOCKBACK_DECAY")) * TEST_FRAME_SEC
+	_assert(absf(float(ai._knockback_vel) - maxf(decayed, 0.0)) < 0.0001, "vel after 1 frame == maxf(PX - DECAY/60, 0) (got %.4f)" % float(ai._knockback_vel))
+	## ② 再推 4 帧 → 位移方向 + 持续衰减
+	var pos_x1: float = ai.position.x
+	for i in range(4):
+		ai._physics_process(TEST_FRAME_SEC)
+	_assert(ai.position.x < pos_x0, "knockback moves enemy left away from attacker (%.3f → %.3f)" % [pos_x0, ai.position.x])
+	_assert(ai.position.x < pos_x1, "knockback continues over frames (%.3f → %.3f)" % [pos_x1, ai.position.x])
+	_assert(float(ai._knockback_vel) < float(_c("ENEMY_KNOCKBACK_PX")), "knockback velocity decayed below initial (got %.2f)" % float(ai._knockback_vel))
+
+
+func _test_42_knockback_decay_to_zero() -> void:
+	## 击退归零（#682 边界 1）: 每帧先 enemy._process（推进实体战斗 FSM——CombatStateStagger
+	##   在 _elapsed >= STAGGER_FRAMES/FRAME_RHYTHM_BASE = 0.2s 自动 request_transition("idle")）
+	##   再 ai._physics_process（击退分支守卫）。stagger 结束 → 击退归零 → 位移路径恢复 Chase。
+	##   帧数: 阈值 0.2s 下 12 帧浮点累加 ≈ 0.19999… < 0.2，第 13 帧才触发退出，故循环 13 帧。
+	var k = _knockback_setup(170.0, 100.0)
+	if k.is_empty():
+		return
+	var ai = k["ai"]
+	var enemy = k["enemy"]
+	_knockback_player_attack(k)
+	var pos_x0: float = ai.position.x
+	for i in range(13):
+		enemy._process(TEST_FRAME_SEC)
+		ai._physics_process(TEST_FRAME_SEC)
+	_assert(enemy.state_name == "idle", "enemy left stagger after stagger duration (got %s)" % enemy.state_name)
+	_assert(float(ai._knockback_vel) == 0.0, "knockback velocity zeroed once stagger ends (got %.4f)" % float(ai._knockback_vel))
+	_assert(ai.position.x < pos_x0, "enemy displaced left by knockback (%.3f → %.3f)" % [pos_x0, ai.position.x])
+
+
+func _test_43_knockback_player_not_affected() -> void:
+	## 玩家被击中不触发敌人击退: defender=玩家 → _on_judge_hit_landed 早退（defender != entity）
+	var k = _knockback_setup(80.0, 0.0)
+	if k.is_empty():
+		return
+	var ai = k["ai"]
+	var enemy = k["enemy"]
+	var player = k["player"]
+	var judge = k["judge"]
+	## 敌人攻击玩家（敌人登记 heavy_attack 窗口 → 命中玩家）
+	enemy.request_transition("heavy_attack")
+	if judge._windows.size() >= 1:
+		var w = judge._windows[judge._windows.size() - 1]
+		judge._frame = w.hit_frame()
+		judge.resolve_attack(enemy, player)
+	_assert(_hit_log.size() == 1, "player hit landed (got %d)" % _hit_log.size())
+	_assert(float(ai._knockback_vel) == 0.0, "enemy knockback NOT triggered when defender=player (got %.1f)" % float(ai._knockback_vel))
+	_assert(ai.position.x == 0.0, "enemy position unchanged (x=%.1f)" % ai.position.x)
+
+
+func _test_44_knockback_edge_clamp() -> void:
+	## 击退边界兜底: 敌人贴左缘 x=10 受击 → 击退向左推向 x=0 → position.x clamp ≥ 0（[0, STAGE_WIDTH_PX]）
+	var k = _knockback_setup(30.0, 10.0)
+	if k.is_empty():
+		return
+	var ai = k["ai"]
+	_knockback_player_attack(k)
+	_assert(int(ai._knockback_dir) == -1, "dir == -1 pushes enemy left toward x=0 (got %d)" % int(ai._knockback_dir))
+	for i in range(30):
+		ai._physics_process(TEST_FRAME_SEC)
+	_assert(ai.position.x >= 0.0, "enemy position clamped to stage range (x=%.1f)" % ai.position.x)
+	_assert(ai.position.x <= float(_c("STAGE_WIDTH_PX")), "enemy position within [0, STAGE_WIDTH_PX] (x=%.1f)" % ai.position.x)

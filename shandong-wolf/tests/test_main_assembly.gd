@@ -88,6 +88,11 @@ func run() -> void:
 	_test_ma2_physics_root_scale_untouched()
 	_reset_logs()
 	_test_ma3_enemy_facing_flip()
+	# Scenario A(#682): 精英装配（AC5）+ Scenario F(#682): HP 装配失败拦截
+	_reset_logs()
+	_test_a5_enemy_elite_assembly()
+	_reset_logs()
+	_test_f4_enemy_hp_default_intercept()
 	print("Passed: %d, Failed: %d" % [passed, failed])
 
 
@@ -821,4 +826,45 @@ func _test_ma3_enemy_facing_flip() -> void:
 		a.enemy_entity.facing = 1
 		a._process(0.016)
 		_assert(absf(stick.scale.x - 1.0) <= 0.01, "MA3: enemy facing=1 → scale.x == 1（实际 %s）" % str(stick.scale.x))
+	_free_main(m)
+
+
+# ── Scenario A(#682): 精英装配与 HP 慢线（AC5）──────────────────────────────
+
+func _test_a5_enemy_elite_assembly() -> void:
+	# A1(#682): 装配消费常量——enemy_entity.life_1_max == ENEMY_HP_MAX（精英 80）、
+	#   hp_1 同、EnemyAI.elite_mode == true（§3.2-2 一行参数，HP 慢线接通）
+	var m = _spawn_main()
+	if m == null:
+		_assert(false, "A1: Main 实例化失败")
+		return
+	var a = _assembler(m)
+	if a == null:
+		_free_main(m)
+		return
+	_assert(is_equal_approx(a.enemy_entity.life_1_max, WolfConstantsScript.ENEMY_HP_MAX),
+		"A1: 敌装配 life_1_max == ENEMY_HP_MAX(%.1f)（实际 %.1f）" % [WolfConstantsScript.ENEMY_HP_MAX, a.enemy_entity.life_1_max])
+	_assert(is_equal_approx(a.enemy_entity.hp_1, WolfConstantsScript.ENEMY_HP_MAX),
+		"A1: 敌初始 hp_1 == ENEMY_HP_MAX(%.1f)（实际 %.1f）" % [WolfConstantsScript.ENEMY_HP_MAX, a.enemy_entity.hp_1])
+	_assert(a.enemy.elite_mode == true, "A1: enemy.elite_mode == true（精英档位）")
+	_free_main(m)
+
+
+# ── Scenario F(#682): 失败路径拦截（PRD §5.3-1）────────────────────────────
+
+func _test_f4_enemy_hp_default_intercept() -> void:
+	# F1(#682): HP 装配漏改拦截——life_1_max 回落默认 100 即红（与 A1 的 == ENEMY_HP_MAX
+	#   双保险：漏装配或常量改动任一回归都被装配断言拦下）
+	var m = _spawn_main()
+	if m == null:
+		_assert(false, "F1: Main 实例化失败")
+		return
+	var a = _assembler(m)
+	if a == null:
+		_free_main(m)
+		return
+	_assert(absf(a.enemy_entity.life_1_max - 100.0) > 0.001,
+		"F1: 敌装配 life_1_max 必须非默认 100（漏装配即红，实际 %.1f）" % a.enemy_entity.life_1_max)
+	_assert(is_equal_approx(a.enemy_entity.hp_1, a.enemy_entity.life_1_max),
+		"F1: hp_1 与 life_1_max 一致（实际 hp %.1f / max %.1f）" % [a.enemy_entity.hp_1, a.enemy_entity.life_1_max])
 	_free_main(m)

@@ -25,6 +25,13 @@ const DebugCanvasScript = preload("res://gdscripts/debug_canvas.gd")
 @export var attack_hp_damage: float = -1.0      # 敌人命中 HP 伤害（EnemyAI._ready 注入 ENEMY_HP_DAMAGE；-1=玩家常量兜底）
 @export var attack_stance_damage: float = -1.0  # 敌人命中架势伤害（EnemyAI._ready 注入 POSTURE_HIT_COST；-1=玩家常量兜底）
 
+## 蓄力重斩瞬时 override（#682，additive；默认 -1 = #581 行为不变，judge fallback 链读取后清空）
+var current_windup_frames: int = -1    # 蓄力重斩前摇 override（-1 → judge 用 ENEMY_ATTACK_WINDUP）
+var current_hp_damage: float = -1.0    # 蓄力重斩伤害 override（-1 → attack_hp_damage → 玩家常量兜底）
+
+## 敌人架势脱战恢复（#682，仅 is_player=false；-1 = 尚未受击，无恢复窗口）
+var _stance_recover_delay_until_sec: float = -1.0  # 受击/被弹反后恢复延迟截止（Time.get_ticks_msec()/1000.0 比较）
+
 ## 运行期数据
 var hp_1: float
 var hp_2: float                        # life_total=1 时不参与
@@ -71,6 +78,13 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	## 状态机推进 + 无敌期到期自动失效 + 输入桥轮询（_ic 启用时）
 	fsm.update(delta)
+	## 敌人架势脱战恢复（#682，仅敌人变体）: 非崩解 + 非生死态 + 延迟窗已过 → 按
+	##   ENEMY_STANCE_RECOVER_PER_SEC 恢复至 stance_max（崩解中不恢复——快线处决不被打断）
+	if not is_player and not is_stance_broken and state_name != "dead" and state_name != "revive":
+		var now: float = Time.get_ticks_msec() / 1000.0
+		if _stance_recover_delay_until_sec >= 0.0 and now >= _stance_recover_delay_until_sec and stance < stance_max:
+			stance = clampf(stance + float(C.ENEMY_STANCE_RECOVER_PER_SEC) * delta, 0.0, stance_max)
+			emit_signal("stance_changed", stance, stance_max)
 	if _invincible_until_sec > 0.0 and Time.get_ticks_msec() / 1000.0 >= _invincible_until_sec:
 		_invincible_until_sec = 0.0
 	if _ic != null:
@@ -139,6 +153,9 @@ func take_stance_damage(amount: float) -> void:
 		amount = amount * float(_read_exe("EXECUTE_EXHAUST_MULTIPLIER", C.EXECUTE_EXHAUST_MULTIPLIER))
 	stance = clampf(stance - amount, 0.0, stance_max)
 	emit_signal("stance_changed", stance, stance_max)
+	## 敌人受击/被弹反 → 脱战恢复延迟重置（#682，仅敌人变体）: 恢复中再受伤即暂停
+	if not is_player:
+		_stance_recover_delay_until_sec = Time.get_ticks_msec() / 1000.0 + float(C.ENEMY_STANCE_RECOVER_DELAY_SEC)
 	if stance <= 0.0:
 		break_stance()
 
