@@ -79,9 +79,19 @@ func run() -> void:
 	_test_23_window_overwrite()
 	_reset_logs()
 	_test_24_constants_driven()
+	## #718 (origin/main): stagger 中连续受击崩解
 	_reset_logs()
 	_test_25_stagger_consecutive_hit_break()
-	## Test 25 (stagger 中连续受击崩解, #718): godot --path shandong-wolf/ --headless --script tests/run_tests.gd
+	## #720 Scenario E: 差异化前摇 + 弹反窗口/回报（T15-T18）
+	_reset_logs()
+	_test_25_parry_window_three_tier()
+	_reset_logs()
+	_test_26_charge_wide_parry_window()
+	_reset_logs()
+	_test_27_combo_window_fallback()
+	_reset_logs()
+	_test_28_parry_reward_differentiated()
+	## Test 25 (全量回归, CI): godot --path shandong-wolf/ --headless --script tests/run_tests.gd
 	##   8 套件全绿（含既有 7 套件防回归）。本文件 headless 单跑验证 CombatJudge 层；
 	##   完整回归 + CLASH_PRIORITY=1 翻转验证（Test 8）在 CI 全量跑中覆盖。
 	print("Passed: %d, Failed: %d" % [passed, failed])
@@ -209,6 +219,17 @@ func _setup() -> Dictionary:
 	j._frame = _hit_frame(TEST_START_FRAME)
 	_connect_judge(j)
 	return {"j": j, "player": player, "enemy": enemy}
+
+
+## #720 helper: 经 judge._on_entity_state_changed 敌人分支自动登记窗口（注入 windup override），
+##   返回最新窗口（未登记返回 null）。windup=-1 → fallback ENEMY_ATTACK_WINDUP（普通连击）。
+func _register_enemy_window(j, enemy, to: String, windup: int) -> Object:
+	enemy.current_windup_frames = windup
+	j._on_entity_state_changed("idle", to, enemy)
+	enemy.current_windup_frames = -1
+	if j._windows.size() >= 1:
+		return j._windows[j._windows.size() - 1]
+	return null
 
 
 ## 五事件 handler（实体引用未类型化、数值 float，与 §2.3 契约一致）
@@ -782,10 +803,10 @@ func _test_23_window_overwrite() -> void:
 func _test_24_constants_driven() -> void:
 	## AC4: 判定数值全部来自 constants（无字面量）——事件发射数值与 constants 映射比对
 	var cm: Dictionary = _const_map()
-	_assert(absf(float(cm.get("PARRY_STANCE_DAMAGE", -1.0)) - 25.0) < 0.0001, "PARRY_STANCE_DAMAGE == 25.0 (DRAFT)")
+	_assert(absf(float(cm.get("PARRY_STANCE_DAMAGE", -1.0)) - 35.0) < 0.0001, "PARRY_STANCE_DAMAGE == 35.0 (DRAFT, #720)")
 	_assert(absf(float(cm.get("CLASH_STANCE_COST", -1.0)) - 10.0) < 0.0001, "CLASH_STANCE_COST == 10.0 (DRAFT)")
 	_assert(absf(float(cm.get("POSTURE_BLOCK_COST", -1.0)) - 10.0) < 0.0001, "POSTURE_BLOCK_COST == 10.0 (DRAFT)")
-	_assert(absf(float(cm.get("POSTURE_HIT_COST", -1.0)) - 35.0) < 0.0001, "POSTURE_HIT_COST == 35.0 (DRAFT)")
+	_assert(absf(float(cm.get("POSTURE_HIT_COST", -1.0)) - 18.0) < 0.0001, "POSTURE_HIT_COST == 18.0 (DRAFT, #720)")
 	_assert(int(cm.get("CLASH_PRIORITY", -1)) == 0, "CLASH_PRIORITY == 0 (DRAFT)")
 	_assert(int(cm.get("HITBOX_ACTIVE_FRAMES", -1)) == 4, "HITBOX_ACTIVE_FRAMES == 4 (DRAFT)")
 	_assert(absf(float(cm.get("HITBOX_RANGE", -1.0)) - 80.0) < 0.0001, "HITBOX_RANGE == 80.0 (DRAFT)")
@@ -851,6 +872,134 @@ func _test_24_constants_driven() -> void:
 		_assert(float(_hit_log[0][3]) == hc, "hit stance cost follows POSTURE_HIT_COST constant (no literal, got %s)" % str(_hit_log[0][3]))
 
 
+# ── Scenario E (#720): 差异化前摇 + 弹反窗口/回报（T15-T18）────────────────
+
+func _test_25_parry_window_three_tier() -> void:
+	## #720 T15 三级前摇窗口: combo=ENEMY_ATTACK_WINDUP / thrust=ENEMY_THRUST_WINDUP /
+	##   charge=ENEMY_CHARGE_WINDUP（judge 敌人分支按 windup override 登记；三级梯度递增）
+	var s = _setup()
+	if s.is_empty(): return
+	var j = s["j"]
+	var enemy = s["enemy"]
+	var w_combo = _register_enemy_window(j, enemy, "attack", -1)
+	var w_thrust = _register_enemy_window(j, enemy, "heavy_attack", int(_c("ENEMY_THRUST_WINDUP")))
+	var w_charge = _register_enemy_window(j, enemy, "heavy_attack", int(_c("ENEMY_CHARGE_WINDUP")))
+	if w_combo == null or w_thrust == null or w_charge == null:
+		_assert(false, "three-tier windows registered")
+		return
+	_assert(int(w_combo.windup_frames) == int(_c("ENEMY_ATTACK_WINDUP")), "combo window windup == ENEMY_ATTACK_WINDUP(%d) (got %d)" % [int(_c("ENEMY_ATTACK_WINDUP")), int(w_combo.windup_frames)])
+	_assert(int(w_thrust.windup_frames) == int(_c("ENEMY_THRUST_WINDUP")), "thrust window windup == ENEMY_THRUST_WINDUP(%d) (got %d)" % [int(_c("ENEMY_THRUST_WINDUP")), int(w_thrust.windup_frames)])
+	_assert(int(w_charge.windup_frames) == int(_c("ENEMY_CHARGE_WINDUP")), "charge window windup == ENEMY_CHARGE_WINDUP(%d) (got %d)" % [int(_c("ENEMY_CHARGE_WINDUP")), int(w_charge.windup_frames)])
+	_assert(int(_c("ENEMY_ATTACK_WINDUP")) < int(_c("ENEMY_THRUST_WINDUP")), "三级前摇梯度: combo(%d) < thrust(%d)" % [int(_c("ENEMY_ATTACK_WINDUP")), int(_c("ENEMY_THRUST_WINDUP"))])
+	_assert(int(_c("ENEMY_THRUST_WINDUP")) < int(_c("ENEMY_CHARGE_WINDUP")), "三级前摇梯度: thrust(%d) < charge(%d)" % [int(_c("ENEMY_THRUST_WINDUP")), int(_c("ENEMY_CHARGE_WINDUP"))])
+
+
+func _test_26_charge_wide_parry_window() -> void:
+	## #720 T16 蓄力弹反宽窗: charge 窗口 parry_window_seconds == PARRY_WINDOW_CHARGE_SECONDS(0.3) →
+	##   guard 在 hit_ms-0.25s（普通窗 0.2s 必失败）仍弹反成功
+	var s = _setup()
+	if s.is_empty(): return
+	var j = s["j"]
+	var player = s["player"]
+	var enemy = s["enemy"]
+	var w = _register_enemy_window(j, enemy, "heavy_attack", int(_c("ENEMY_CHARGE_WINDUP")))
+	if w == null:
+		_assert(false, "charge window registered")
+		return
+	_assert(absf(float(w.parry_window_seconds) - float(_c("PARRY_WINDOW_CHARGE_SECONDS"))) < 0.0001, "charge window parry_window_seconds == PARRY_WINDOW_CHARGE_SECONDS(%.2f) (got %.2f)" % [float(_c("PARRY_WINDOW_CHARGE_SECONDS")), float(w.parry_window_seconds)])
+	_assert(absf(float(w.parry_stance_damage) - float(_c("PARRY_STANCE_DAMAGE_CHARGE"))) < 0.0001, "charge window parry_stance_damage == PARRY_STANCE_DAMAGE_CHARGE(%.1f) (got %.1f)" % [float(_c("PARRY_STANCE_DAMAGE_CHARGE")), float(w.parry_stance_damage)])
+	var hit_frame: int = w.hit_frame()
+	j._frame = hit_frame
+	var hit_ms: int = int(hit_frame * 1000 / int(_c("FRAME_RHYTHM_BASE")))
+	var guard_ms: int = hit_ms - int(0.25 * 1000.0)   # 0.25s 早于普通窗 0.2s（普通窗必失败）
+	j._on_guard_pressed(guard_ms)
+	j.resolve_attack(enemy, player)
+	_assert(_parry_log.size() == 1, "charge wide window: parry at -0.25s succeeds (普通窗 0.2s 该时点必失败) (got %d)" % _parry_log.size())
+
+
+func _test_27_combo_window_fallback() -> void:
+	## #720 T17 普通连击窗口不变: combo 窗口 parry 字段 -1 → fallback 常量（0.2s/35）
+	##   A: guard 在 hit_ms-0.2s（下界含端点）→ parry_success；B: hit_ms-0.25s → 失败（fallback 语义零回归）
+	var s1 = _setup()
+	if s1.is_empty(): return
+	var j1 = s1["j"]
+	var p1 = s1["player"]
+	var e1 = s1["enemy"]
+	var w1 = _register_enemy_window(j1, e1, "attack", -1)
+	if w1 == null:
+		_assert(false, "combo window registered")
+		return
+	_assert(float(w1.parry_window_seconds) == -1.0, "combo window parry_window_seconds == -1 (fallback)")
+	_assert(float(w1.parry_stance_damage) == -1.0, "combo window parry_stance_damage == -1 (fallback)")
+	var hit_frame1: int = w1.hit_frame()
+	var hit_ms1: int = int(hit_frame1 * 1000 / int(_c("FRAME_RHYTHM_BASE")))
+	var pws: float = float(_c("PARRY_WINDOW_SECONDS"))
+	j1._frame = hit_frame1
+	j1._on_guard_pressed(hit_ms1 - int(pws * 1000.0))
+	j1.resolve_attack(e1, p1)
+	_assert(_parry_log.size() == 1, "combo parry at -0.2s (下界) succeeds — fallback PARRY_WINDOW_SECONDS (got %d)" % _parry_log.size())
+	## B: -0.25s（超出 fallback 0.2s 窗）→ 弹反失败 → 受击
+	_reset_logs()
+	var s2 = _setup()
+	if s2.is_empty(): return
+	var j2 = s2["j"]
+	var p2 = s2["player"]
+	var e2 = s2["enemy"]
+	var w2 = _register_enemy_window(j2, e2, "attack", -1)
+	if w2 == null:
+		_assert(false, "combo window registered (B)")
+		return
+	var hit_frame2: int = w2.hit_frame()
+	var hit_ms2: int = int(hit_frame2 * 1000 / int(_c("FRAME_RHYTHM_BASE")))
+	j2._frame = hit_frame2
+	j2._on_guard_pressed(hit_ms2 - int(0.25 * 1000.0))
+	j2.resolve_attack(e2, p2)
+	_assert(_parry_log.is_empty(), "combo parry at -0.25s fails (超出 fallback 窗) (got %d)" % _parry_log.size())
+	_assert(_hit_log.size() == 1, "combo parry fail → hit_landed (fallback 语义零回归) (got %d)" % _hit_log.size())
+
+
+func _test_28_parry_reward_differentiated() -> void:
+	## #720 T18 弹反回报差异化: charge 弹反 → stance 扣 PARRY_STANCE_DAMAGE_CHARGE(55)；
+	##   combo 弹反 → stance 扣 PARRY_STANCE_DAMAGE(35, 新默认)
+	## A: charge
+	var s1 = _setup()
+	if s1.is_empty(): return
+	var j1 = s1["j"]
+	var p1 = s1["player"]
+	var e1 = s1["enemy"]
+	var w1 = _register_enemy_window(j1, e1, "heavy_attack", int(_c("ENEMY_CHARGE_WINDUP")))
+	if w1 == null:
+		_assert(false, "charge window registered (reward)")
+		return
+	var hf1: int = w1.hit_frame()
+	var hm1: int = int(hf1 * 1000 / int(_c("FRAME_RHYTHM_BASE")))
+	j1._frame = hf1
+	j1._on_guard_pressed(hm1)
+	j1.resolve_attack(e1, p1)
+	if _parry_log.size() == 1:
+		_assert(float(_parry_log[0][2]) == float(_c("PARRY_STANCE_DAMAGE_CHARGE")), "charge parry reward == PARRY_STANCE_DAMAGE_CHARGE(%.1f) (got %.1f)" % [float(_c("PARRY_STANCE_DAMAGE_CHARGE")), float(_parry_log[0][2])])
+	## B: combo
+	_reset_logs()
+	var s2 = _setup()
+	if s2.is_empty(): return
+	var j2 = s2["j"]
+	var p2 = s2["player"]
+	var e2 = s2["enemy"]
+	var w2 = _register_enemy_window(j2, e2, "attack", -1)
+	if w2 == null:
+		_assert(false, "combo window registered (reward)")
+		return
+	var hf2: int = w2.hit_frame()
+	var hm2: int = int(hf2 * 1000 / int(_c("FRAME_RHYTHM_BASE")))
+	j2._frame = hf2
+	j2._on_guard_pressed(hm2)
+	j2.resolve_attack(e2, p2)
+	if _parry_log.size() == 1:
+		_assert(float(_parry_log[0][2]) == float(_c("PARRY_STANCE_DAMAGE")), "combo parry reward == PARRY_STANCE_DAMAGE(%.1f) (got %.1f)" % [float(_c("PARRY_STANCE_DAMAGE")), float(_parry_log[0][2])])
+
+
+# ── #718: stagger 中连续受击崩解 ─────────────────
+
 func _test_25_stagger_consecutive_hit_break() -> void:
 	## #718 AC3: 连续受击（帧 1 进 stagger，帧 2 扣架势归零）→ 表内合法 → stance_break，
 	##   判定器转发 stance_broken 恰好一次（修复前 illegal transition + 卡 stagger）。参照 _test_15/_test_16 断言风格。
@@ -879,3 +1028,4 @@ func _test_25_stagger_consecutive_hit_break() -> void:
 	_assert(_broken_log.size() == 1, "frame2: stance_broken forwarded exactly once (got %d)" % _broken_log.size())
 	if _broken_log.size() == 1:
 		_assert(_broken_log[0][0] == player, "forwarded stance_broken(entity) carries the broken entity")
+

@@ -47,6 +47,13 @@ var _exhausted_until_sec: float = 0.0
 var fsm: Object                        # StateMachineBase 实例
 var _state_objs: Dictionary = {}       # canonical 状态名 → 状态对象（_init 预建）
 var _ic: Object = null                 # InputController 引用（输入桥，is_player 启用）
+## #720 霸体/自动面向状态: 
+##   _state_elapsed_frames: 进入任意态重置、_process 每帧 +1（霸体 windup 期计时用）
+##   _windup_frames: 进入 attack/heavy_attack 时按招式设置（读 override / fallback 常量）
+##   _auto_face_target: 玩家攻击瞬间自动面向的敌人引用（main_battle 装配注入；headless 测试手动设）
+var _state_elapsed_frames: int = 0
+var _windup_frames: int = 0
+var _auto_face_target: Node2D = null
 
 ## 信号（#576 HUD / #574 动画 / #577/#578/#580 下游契约）
 signal hp_changed(hp_1: float, hp_2: float, active_life: int)
@@ -78,6 +85,9 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	## 状态机推进 + 无敌期到期自动失效 + 输入桥轮询（_ic 启用时）
 	fsm.update(delta)
+	## #720 霸体计时: 非 idle 态每帧 +1（_state_elapsed_frames < _windup_frames = 仍处 windup 期）
+	if state_name != "idle":
+		_state_elapsed_frames += 1
 	## 敌人架势脱战恢复（#682，仅敌人变体）: 非崩解 + 非生死态 + 延迟窗已过 → 按
 	##   ENEMY_STANCE_RECOVER_PER_SEC 恢复至 stance_max（崩解中不恢复——快线处决不被打断）
 	if not is_player and not is_stance_broken and state_name != "dead" and state_name != "revive":
@@ -114,6 +124,19 @@ func request_transition(to: String) -> bool:
 	fsm.transition_to(_state_objs[to])
 	var from: String = state_name
 	state_name = to
+	## #720 霸体计时重置 + windup 帧设置（attack/heavy_attack 时按招式）:
+	##   读自身 override current_windup_frames，fallback 读 ENEMY_ATTACK_WINDUP；
+	##   heavy_attack 且无 override = thrust，读 ENEMY_THRUST_WINDUP
+	_state_elapsed_frames = 0
+	if to == "attack" or to == "heavy_attack":
+		if current_windup_frames >= 0:
+			_windup_frames = current_windup_frames
+		elif to == "heavy_attack":
+			_windup_frames = int(C.ENEMY_THRUST_WINDUP)
+		else:
+			_windup_frames = int(C.ENEMY_ATTACK_WINDUP)
+	else:
+		_windup_frames = 0
 	emit_signal("state_changed", from, to)
 	return true
 
@@ -136,8 +159,21 @@ func take_damage(amount: float, source: Object = null) -> void:
 	if (_active_life == 1 and hp_1 <= 0.0) or (_active_life == 2 and hp_2 <= 0.0):
 		die()
 		return
+	## #720 霸体: 敌人 attack/heavy_attack 且仍在 windup 期 → 扣血已发生（hp_changed 已广播），
+	##   但不转 stagger、不打断蓄力（windup 结束后的暴发/收招期恢复可打断）
+	if _is_armored():
+		return
 	if state_name in ["idle", "move", "attack", "heavy_attack"]:
 		request_transition("stagger")
+
+func _is_armored() -> bool:
+	## 霸体条件: 敌人 + attack/heavy_attack 态 + 仍在 windup 期内
+	##   （仅守卫 windup 期——收招期必须恢复可打断，PRD §5.3-1）
+	if is_player:
+		return false
+	if state_name != "attack" and state_name != "heavy_attack":
+		return false
+	return _state_elapsed_frames < _windup_frames
 
 func take_stance_damage(amount: float) -> void:
 	## 兜底: dead/revive 状态 no-op；无敌期内 no-op；负/NaN/Inf 视为 0 + push_warning；
@@ -215,9 +251,11 @@ func bind_input_controller(ic: Object) -> void:
 		ic.revive_pressed.connect(_on_bridge_revive_pressed)
 
 func _on_bridge_attack_pressed() -> void:
+	_face_nearest_target()          # #720 攻击瞬间自动面向最近敌人（消除站桩挥空）
 	request_transition("attack")
 
 func _on_bridge_heavy_attack_pressed() -> void:
+	_face_nearest_target()          # #720 同规则（PRD §5.2-6）
 	request_transition("heavy_attack")
 
 func _on_bridge_guard_pressed(_timestamp_ms: int) -> void:
@@ -240,6 +278,19 @@ func _bridge_poll() -> void:
 		request_transition("idle")
 	if state_name == "guard" and not Input.is_action_pressed("game_guard"):
 		request_transition("idle")
+
+func _face_nearest_target() -> void:
+	## #720 自动面向: 攻击瞬间一次翻转 facing = sign(target.x - self.x)。
+	##   no-op 边界（PRD §5.2-3）: 无 target / 敌人已死 / dx==0 → 保持原 facing。
+	if _auto_face_target == null:
+		return
+	if _auto_face_target.has_method("_is_final_dead"):
+		if _auto_face_target._is_final_dead:
+			return
+	var dx: float = _auto_face_target.position.x - position.x
+	if dx == 0.0:
+		return
+	facing = 1 if dx > 0.0 else -1
 
 func _read_exe(param_name: String, default_value: Variant) -> Variant:
 	return DebugCanvasScript.get_value(param_name, default_value)

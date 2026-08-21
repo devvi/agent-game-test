@@ -19,6 +19,8 @@ var failed: int = 0
 ## judge 五结果事件日志（handler 写成员，用例间 _reset_logs() 隔离）
 var _parry_log: Array = []
 var _hit_log: Array = []
+var _block_log: Array = []
+var _hp_log: Array = []
 
 
 func run() -> void:
@@ -85,6 +87,21 @@ func run() -> void:
 	_test_46_attack_state_elite()
 	_test_47_knockback_orthogonal_to_gate()
 	_test_48_single_displacement_per_frame()
+	# Scenario #720: 霸体（T1-T4）/ 停距·击退·回扑（T8-T10）/ 防御（T11-T14）/ 数值平衡（T20-T21）
+	_test_49_armor_windup_no_interrupt()
+	_test_50_armor_charge_windup()
+	_test_51_armor_parry_still_interrupts()
+	_test_52_armor_recovery_interrupt()
+	_test_53_stop_distance_buffer()
+	_test_54_knockback_shortened_combo()
+	_test_55_rechase_no_cooldown()
+	_test_56_guard_trigger()
+	_reset_logs()
+	_test_57_guard_block()
+	_test_58_guard_exit()
+	_test_59_guard_not_in_retreat()
+	_test_60_six_hits_break()
+	_test_61_three_parries_break()
 	# Scenario G: 回归基线（T35/T36 归 CI：run_tests.gd 10 套件全绿 + smoke）
 	print("Passed: %d, Failed: %d" % [passed, failed])
 
@@ -100,6 +117,8 @@ func _assert(condition: bool, msg: String) -> void:
 func _reset_logs() -> void:
 	_parry_log = []
 	_hit_log = []
+	_block_log = []
+	_hp_log = []
 
 
 # ── helpers ─────────────────────────────────────────────────────────────
@@ -285,7 +304,8 @@ func _test_4_attack_transition() -> void:
 
 
 func _test_5_attack_window_windup() -> void:
-	## 攻击窗口 windup (AC1): 绑定 judge + 敌人 attack → 自动登记窗口 windup_frames == ENEMY_ATTACK_WINDUP
+	## 攻击窗口 windup (AC1): 绑定 judge + 敌人 attack → 自动登记窗口 windup_frames
+	##   ∈ {ENEMY_ATTACK_WINDUP(combo), ENEMY_THRUST_WINDUP(thrust)}（#720 三级前摇）
 	var s = _setup(80.0, 0.0, 11, [])
 	if s.is_empty(): return
 	var ai = s["ai"]
@@ -299,9 +319,9 @@ func _test_5_attack_window_windup() -> void:
 	_assert(judge._windows.size() >= 1, "judge auto-registered attack window for enemy")
 	if judge._windows.size() >= 1:
 		var w = judge._windows[judge._windows.size() - 1]
-		var expected_windup: int = int(_c("ENEMY_ATTACK_WINDUP"))
-		_assert(int(w.windup_frames) == expected_windup, "window.windup_frames == ENEMY_ATTACK_WINDUP(%d) (got %d)" % [expected_windup, int(w.windup_frames)])
-		_assert(w.hit_frame() == w.start_frame + expected_windup, "hit_frame() == start + ENEMY_ATTACK_WINDUP")
+		var wf: int = int(w.windup_frames)
+		_assert(wf == int(_c("ENEMY_ATTACK_WINDUP")) or wf == int(_c("ENEMY_THRUST_WINDUP")), "window.windup_frames ∈ {ENEMY_ATTACK_WINDUP, ENEMY_THRUST_WINDUP} (got %d)" % wf)
+		_assert(w.hit_frame() == w.start_frame + wf, "hit_frame() == start + windup")
 		_assert(absf(float(w.hp_damage) - float(_c("ENEMY_HP_DAMAGE"))) < 0.0001, "window.hp_damage reads enemy entity param (got %.1f)" % float(w.hp_damage))
 
 
@@ -497,7 +517,7 @@ func _test_15_sense_reproducible() -> void:
 # ── Scenario C: 弹反硬直与架势崩解（AC2）─────────────────────────────────
 
 func _test_16_parry_stance_reduction() -> void:
-	## 弹反架势扣减: 敌人被弹反 → stance 扣 PARRY_STANCE_DAMAGE 且收到 parry_success
+	## 弹反架势扣减: 敌人被弹反 → stance 扣 PARRY_STANCE_DAMAGE(35, #720 新默认) 且收到 parry_success
 	var s = _setup(80.0, 0.0, 11, [])
 	if s.is_empty(): return
 	var ai = s["ai"]
@@ -519,7 +539,8 @@ func _test_16_parry_stance_reduction() -> void:
 
 
 func _test_17_four_parries_break() -> void:
-	## 连续 4 次弹反崩解: 4 × PARRY_STANCE_DAMAGE == POSTURE_BREAK_THRESHOLD → stance_break
+	## 连续弹反崩解: ceil(POSTURE_BREAK_THRESHOLD / PARRY_STANCE_DAMAGE) = 3 次（#720: 35×3=105 ≥ 100 → 3 次崩解，更新自 4 次）
+	##   4×25=100 旧默认 → 3×35=105 新默认；ceil 推导自适应常量
 	var s = _setup(80.0, 0.0, 11, [])
 	if s.is_empty(): return
 	var ai = s["ai"]
@@ -826,30 +847,24 @@ func _test_32_stagger_gate() -> void:
 
 
 func _test_33_combo_interrupt() -> void:
-	## 连段中断: 三连砍第 2 刀前玩家弹反 → parry_success → 连段计划作废（抑制窗接管）
+	## #720 霸体行为反转（修复前红）: 敌人 attack/heavy_attack windup 期内被玩家命中 →
+	##   不转 stagger、不打断连段（修复前命中即 stagger → 连段作废回 Chase）
+	##   霸体仅守卫 windup 期——收招期命中仍 stagger（PRD §5.3-1）
 	var s = _setup(80.0, 0.0, 11, [])
 	if s.is_empty(): return
-	var ai = s["ai"]
 	var enemy = s["enemy"]
-	var player = s["player"]
-	var judge = _new_judge()
-	if judge == null: return
-	judge.bind_entities(player, enemy)
-	ai.judge = judge
-	judge.parry_success.connect(_on_parry_success)
-	player.facing = -1
-	enemy.facing = 1
 	_enter_attack(s)
-	_assert(enemy.state_name == "attack" or enemy.state_name == "heavy_attack", "combo first strike (got %s)" % enemy.state_name)
-	_parry_at_hit_frame(judge, enemy, player)
-	_assert(_parry_log.size() == 1, "parry interrupts combo (got %d)" % _parry_log.size())
-	_assert(ai._parry_stun_until_sec > 0.0, "parry stun armed after interrupt")
-	## 抑制窗内: 无第二次攻击发起
-	ai._attack_cooldown_until_sec = 0.0
-	ai._parry_stun_until_sec = 99999.0
-	enemy.request_transition("idle")
-	_tick(s, 0.3)
-	_assert(enemy.state_name != "attack" and enemy.state_name != "heavy_attack", "no 2nd strike during stun (got %s)" % enemy.state_name)
+	_assert(enemy.state_name == "attack" or enemy.state_name == "heavy_attack", "enemy attacking for armor test (got %s)" % enemy.state_name)
+	## 确保处于 windup 期（进入攻击态时 _state_elapsed_frames 已重置为 0）
+	enemy._state_elapsed_frames = 0
+	var hp_before: float = enemy.hp_1
+	enemy.take_damage(15.0)
+	_assert(enemy.hp_1 < hp_before, "armor hit still reduces HP (%.1f → %.1f)" % [hp_before, enemy.hp_1])
+	_assert(enemy.state_name == "attack" or enemy.state_name == "heavy_attack", "windup hit does NOT stagger (霸体): still attacking (got %s)" % enemy.state_name)
+	## 收招期（windup 结束后）命中 → 转 stagger（霸体只拦 windup 期）
+	enemy._state_elapsed_frames = enemy._windup_frames + 1
+	enemy.take_damage(15.0)
+	_assert(enemy.state_name == "stagger", "recovery-phase hit staggers (霸体不拦收招期) (got %s)" % enemy.state_name)
 
 
 func _test_34_retreat_player_fled() -> void:
@@ -883,6 +898,14 @@ func _on_parry_success(defender, attacker, stance_damage: float) -> void:
 
 func _on_hit_landed(defender, attacker, hp_damage: float, stance_damage: float) -> void:
 	_hit_log.append([defender, attacker, hp_damage, stance_damage])
+
+
+func _on_block_held(defender, attacker, stance_cost: float) -> void:
+	_block_log.append([defender, attacker, stance_cost])
+
+
+func _on_hp_changed(_hp1: float, _hp2: float, _active: int) -> void:
+	_hp_log.append([_hp1, _hp2, _active])
 
 
 ## 在敌人窗口命中帧处触发弹反（guard_pressed 上界时间戳）
@@ -941,7 +964,8 @@ func _test_35_elite_gate_no_charge() -> void:
 		for w in judge._windows:
 			if int(w.windup_frames) == int(_c("ENEMY_CHARGE_WINDUP")):
 				charge_seen += 1
-			_assert(int(w.windup_frames) == int(_c("ENEMY_ATTACK_WINDUP")), "elite=false window windup == ENEMY_ATTACK_WINDUP (seed=%d got %d)" % [seed_val, int(w.windup_frames)])
+			var wf: int = int(w.windup_frames)
+			_assert(wf == int(_c("ENEMY_ATTACK_WINDUP")) or wf == int(_c("ENEMY_THRUST_WINDUP")), "elite=false window windup ∈ {ENEMY_ATTACK_WINDUP, ENEMY_THRUST_WINDUP} (seed=%d got %d)" % [seed_val, wf])
 	_assert(window_count >= 60, "attack windows registered across 60 seeds (got %d)" % window_count)
 	_assert(charge_seen == 0, "no charge window with elite_mode=false (got %d)" % charge_seen)
 
@@ -973,7 +997,7 @@ func _test_37_charge_window_contract() -> void:
 	_enter_attack(s)
 	var cw: int = int(_c("ENEMY_CHARGE_WINDUP"))
 	var chd: float = float(_c("ENEMY_CHARGE_HP_DAMAGE"))
-	_assert(cw == 20, "ENEMY_CHARGE_WINDUP constant == 20 (got %d)" % cw)
+	_assert(cw == 24, "ENEMY_CHARGE_WINDUP constant == 24 (DRAFT, #720) (got %d)" % cw)
 	_assert(absf(chd - 25.0) < 0.0001, "ENEMY_CHARGE_HP_DAMAGE constant == 25.0 (got %.1f)" % chd)
 	_assert(enemy.state_name == "heavy_attack", "charge attacks via heavy_attack (got %s)" % enemy.state_name)
 	if judge._windows.size() >= 1:
@@ -1053,7 +1077,7 @@ func _test_38_override_no_leak() -> void:
 
 
 func _test_39_charge_parryable() -> void:
-	## 蓄力重斩可弹反（实验 1 落地）: 20 帧前摇窗口弹反闭区间 [hit-200ms, hit] 三态判定——
+	## 蓄力重斩可弹反（实验 1 落地）: 24 帧前摇窗口弹反闭区间 [hit-300ms, hit] 三态判定——
 	##   下界含端点弹反成功 / 命中帧弹反成功 / 下界-1 窗口外不弹反（落入受击）
 	var charge_seed: int = _find_charge_seed()
 	_assert(charge_seed >= 0, "found elite charge seed for parry test")
@@ -1081,7 +1105,7 @@ func _test_39_charge_parryable() -> void:
 		var w = judge._windows[judge._windows.size() - 1]
 		var hit_frame: int = w.hit_frame()
 		var hit_ms: int = int(hit_frame * 1000 / int(_c("FRAME_RHYTHM_BASE")))
-		var lower_ms: int = hit_ms - int(float(_c("PARRY_WINDOW_SECONDS")) * 1000.0)
+		var lower_ms: int = hit_ms - int(float(_c("PARRY_WINDOW_CHARGE_SECONDS")) * 1000.0)
 		## ① 下界（闭区间含端点）→ 弹反成功
 		judge._on_guard_pressed(lower_ms)
 		judge._frame = hit_frame
@@ -1143,7 +1167,7 @@ func _knockback_player_attack(k) -> void:
 
 
 func _test_40_knockback_trigger() -> void:
-	## 击退触发: 玩家命中敌人 → _knockback_vel == ENEMY_KNOCKBACK_PX、方向远离攻击者（左）、hit_landed 入日志
+	## 击退触发: 玩家命中敌人 → _knockback_vel == ENEMY_KNOCKBACK_PX(22, #720 缩短)、方向远离攻击者（左）、hit_landed 入日志
 	var k = _knockback_setup(170.0, 100.0)
 	if k.is_empty():
 		return
@@ -1301,3 +1325,262 @@ func _test_48_single_displacement_per_frame() -> void:
 	var total: float = ai.position.x - 0.0
 	_assert(total > 60.0, "single-displacement total > 60px (got %.1f)" % total)
 	_assert(total < 330.0, "total displacement roughly single chase speed, NOT 2× double-move (got %.1f)" % total)
+
+
+# ── Scenario #720: 霸体 / 停距·击退·回扑 / 防御 / 数值平衡 ─────────────────
+
+func _test_49_armor_windup_no_interrupt() -> void:
+	## #720 T1（霸体 windup 期命中不打断）: 敌人 attack 且 _state_elapsed_frames < windup →
+	##   take_damage → 仍保持 attack/heavy_attack（不转 stagger）、HP 已扣、hp_changed 已广播
+	var e = _new_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if e == null: return
+	_reset_logs()
+	e.request_transition("attack")
+	_assert(e.state_name == "attack", "enemy enters attack (got %s)" % e.state_name)
+	e._state_elapsed_frames = 0
+	var hp_before: float = e.hp_1
+	e.hp_changed.connect(_on_hp_changed)
+	e.take_damage(15.0)
+	_assert(e.hp_1 < hp_before, "T1: armor hit reduces HP (%.1f → %.1f)" % [hp_before, e.hp_1])
+	_assert(e.state_name == "attack", "T1: windup hit does NOT stagger (霸体) (got %s)" % e.state_name)
+	_assert(_hp_log.size() == 1, "T1: hp_changed broadcast once (got %d)" % _hp_log.size())
+
+
+func _test_50_armor_charge_windup() -> void:
+	## #720 T2（蓄力重斩 windup 期同理 + 收招期可打断）: charge override 注入后 windup 期命中不打断；
+	##   推进 _state_elapsed_frames ≥ windup 后再命中 → 进 stagger
+	var e = _new_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if e == null: return
+	e.current_windup_frames = int(_c("ENEMY_CHARGE_WINDUP"))
+	e.request_transition("heavy_attack")
+	e.current_windup_frames = -1
+	_assert(e.state_name == "heavy_attack", "T2: charge enters heavy_attack (got %s)" % e.state_name)
+	_assert(e._windup_frames == int(_c("ENEMY_CHARGE_WINDUP")), "T2: _windup_frames == ENEMY_CHARGE_WINDUP (got %d)" % e._windup_frames)
+	e._state_elapsed_frames = 0
+	e.take_damage(15.0)
+	_assert(e.state_name == "heavy_attack", "T2: charge windup hit does NOT interrupt (霸体) (got %s)" % e.state_name)
+	e._state_elapsed_frames = e._windup_frames + 1
+	e.take_damage(15.0)
+	_assert(e.state_name == "stagger", "T2: post-windup hit staggers (收招期可打断) (got %s)" % e.state_name)
+
+
+func _test_51_armor_parry_still_interrupts() -> void:
+	## #720 T3（弹反仍打断蓄力）: 蓄力期玩家弹反 → 敌人进入 parry_success 路径（弹反打断霸体）
+	## 找 charge 种子并出招（蓄力）
+	var charge_seed: int = _find_charge_seed()
+	_assert(charge_seed >= 0, "T3: found charge seed for parry interrupt test")
+	if charge_seed < 0: return
+	var s2 = _setup(80.0, 0.0, charge_seed, [])
+	if s2.is_empty(): return
+	var ai2 = s2["ai"]
+	var enemy2 = s2["enemy"]
+	var player2 = s2["player"]
+	var judge2 = _new_judge()
+	if judge2 == null: return
+	judge2.bind_entities(player2, enemy2)
+	ai2.judge = judge2
+	judge2.parry_success.connect(_on_parry_success)
+	player2.facing = -1
+	enemy2.facing = 1
+	ai2.elite_mode = true
+	_enter_attack(s2)
+	_assert(enemy2.state_name == "heavy_attack", "T3: charge in windup (got %s)" % enemy2.state_name)
+	_parry_at_hit_frame(judge2, enemy2, player2)
+	_assert(_parry_log.size() == 1, "T3: parry interrupts charge (霸体) (got %d)" % _parry_log.size())
+	_assert(player2.state_name == "parry_success", "T3: player in parry_success (got %s)" % player2.state_name)
+
+
+func _test_52_armor_recovery_interrupt() -> void:
+	## #720 T4（收招期可打断）: windup 结束后（暴发/收招）命中 → 转 stagger（玩家反击窗口保留）
+	var e = _new_entity({is_player=false, life_total=1, life_1_max=80.0})
+	if e == null: return
+	e.request_transition("attack")
+	_assert(e.state_name == "attack", "T4: enemy in attack (got %s)" % e.state_name)
+	_assert(e._windup_frames > 0, "T4: _windup_frames set on attack enter (got %d)" % e._windup_frames)
+	e._state_elapsed_frames = e._windup_frames + 1   # 已过 windup 期
+	e.take_damage(15.0)
+	_assert(e.state_name == "stagger", "T4: post-windup hit staggers (got %s)" % e.state_name)
+
+
+func _test_53_stop_distance_buffer() -> void:
+	## #720 T8（停距缓冲）: ENEMY_ATTACK_RANGE(65) < HITBOX_RANGE(80) → 敌人停距 65px 处玩家攻击命中
+	var s = _setup(65.0, 0.0, 11, [])
+	if s.is_empty(): return
+	var ai = s["ai"]
+	var enemy = s["enemy"]
+	var player = s["player"]
+	var judge = _new_judge()
+	if judge == null: return
+	judge.bind_entities(player, enemy)
+	ai.judge = judge
+	judge.hit_landed.connect(_on_hit_landed)
+	player.facing = -1
+	enemy.facing = 1
+	_assert(float(_c("ENEMY_ATTACK_RANGE")) < float(_c("HITBOX_RANGE")), "T8: ENEMY_ATTACK_RANGE(%.0f) < HITBOX_RANGE(%.0f) — 天然缓冲" % [float(_c("ENEMY_ATTACK_RANGE")), float(_c("HITBOX_RANGE"))])
+	player.request_transition("attack")
+	if judge._windows.size() >= 1:
+		var w = judge._windows[judge._windows.size() - 1]
+		judge._frame = w.hit_frame()
+		judge.resolve_attack(player, enemy)
+	_assert(_hit_log.size() == 1, "T8: player attack at |dx|=65 ≤ HITBOX_RANGE=80 hits (got %d)" % _hit_log.size())
+
+
+func _test_54_knockback_shortened_combo() -> void:
+	## #720 T9（击退缩短后连段）: 敌人 65px 处被命中（击退 22px/s 初速）→ 击退位移后 |dx| 仍 ≤ HITBOX_RANGE（连段可续）
+	var k = _knockback_setup(65.0, 0.0)
+	if k.is_empty(): return
+	var ai = k["ai"]
+	var enemy = k["enemy"]
+	var player = k["player"]
+	_knockback_player_attack(k)
+	_assert(float(ai._knockback_vel) == float(_c("ENEMY_KNOCKBACK_PX")), "T9: knockback vel == ENEMY_KNOCKBACK_PX(%.1f) (got %.1f)" % [float(_c("ENEMY_KNOCKBACK_PX")), float(ai._knockback_vel)])
+	for i in range(13):
+		enemy._process(TEST_FRAME_SEC)
+		ai._physics_process(TEST_FRAME_SEC)
+	var dx: float = absf(player.position.x - enemy.position.x)
+	_assert(dx <= float(_c("HITBOX_RANGE")), "T9: after knockback |dx|=%.1f ≤ HITBOX_RANGE=%.1f (连段可续)" % [dx, float(_c("HITBOX_RANGE"))])
+
+
+func _test_55_rechase_no_cooldown() -> void:
+	## #720 T10（回扑无冷却）: 击退/受击后敌人进入 Chase → 直接逼近（AttackState 冷却只 gate 出招，不 gate 位移）
+	##   #720 停距 65 后贴 0 敌击退不可观测（clamp）→ 用 170/100（玩家右、敌被击退出范围）验证回扑
+	var k = _knockback_setup(170.0, 100.0)
+	if k.is_empty(): return
+	var ai = k["ai"]
+	var enemy = k["enemy"]
+	_knockback_player_attack(k)
+	for i in range(13):
+		enemy._process(TEST_FRAME_SEC)
+		ai._physics_process(TEST_FRAME_SEC)
+	_assert(_ai_state(ai) == "ChaseState", "T10: enemy re-chases after knockback (got %s)" % _ai_state(ai))
+	## 冷却窗 99999 仍逼近（位移不被攻击冷却门控——无冷却空窗）
+	ai._attack_cooldown_until_sec = 99999.0
+	ai.decide(TEST_FRAME_SEC)
+	_assert(ai.move_intent().x != 0.0, "T10: chase moves toward player despite attack cooldown (move_intent.x=%.1f)" % ai.move_intent().x)
+
+
+func _find_guard_seed() -> int:
+	## 扫描 0..199 找防御触发 seed: 玩家 attack 前摇 + 敌人 idle + |dx|≤80 → GuardState
+	for seed_val in range(200):
+		var s = _setup(80.0, 0.0, seed_val, [])
+		if s.is_empty():
+			return -1
+		s["player"].request_transition("attack")
+		if _ai_state(s["ai"]) == "GuardState":
+			return seed_val
+	return -1
+
+
+func _test_56_guard_trigger() -> void:
+	## #720 T11（格挡触发）: 敌人 idle + |dx|≤80 + 确定性 RNG → 玩家进入 attack → 行为 FSM 进 guard、实体进 guard 态
+	var guard_seed: int = _find_guard_seed()
+	_assert(guard_seed >= 0, "T11: found guard trigger seed")
+	if guard_seed < 0: return
+	var s = _setup(80.0, 0.0, guard_seed, [])
+	if s.is_empty(): return
+	var ai = s["ai"]
+	var enemy = s["enemy"]
+	s["player"].request_transition("attack")
+	_assert(_ai_state(ai) == "GuardState", "T11: behavior FSM enters GuardState (got %s)" % _ai_state(ai))
+	_assert(enemy.state_name == "guard", "T11: entity enters guard combat state (got %s)" % enemy.state_name)
+
+
+func _test_57_guard_block() -> void:
+	## #720 T12（格挡判定）: 敌人 guard 态 → 玩家攻击命中帧 → judge 走 block_held（敌扣 POSTURE_BLOCK_COST、hit_landed 不发射）
+	var s = _setup(80.0, 0.0, 11, [])
+	if s.is_empty(): return
+	var ai = s["ai"]
+	var enemy = s["enemy"]
+	var player = s["player"]
+	var judge = _new_judge()
+	if judge == null: return
+	judge.bind_entities(player, enemy)
+	ai.judge = judge
+	judge.block_held.connect(_on_block_held)
+	judge.hit_landed.connect(_on_hit_landed)
+	player.facing = -1
+	enemy.facing = 1
+	enemy.request_transition("guard")
+	_assert(enemy.state_name == "guard", "T12: enemy in guard (got %s)" % enemy.state_name)
+	player.request_transition("attack")
+	if judge._windows.size() >= 1:
+		var w = judge._windows[judge._windows.size() - 1]
+		judge._frame = w.hit_frame()
+		judge.resolve_attack(player, enemy)
+	_assert(_block_log.size() == 1, "T12: guard enemy blocks player attack → block_held (got %d)" % _block_log.size())
+	_assert(_hit_log.is_empty(), "T12: block does NOT emit hit_landed (got %d)" % _hit_log.size())
+
+
+func _test_58_guard_exit() -> void:
+	## #720 T13（防御退出）: GuardState 期满（ENEMY_GUARD_HOLD_SECONDS）→ 实体回 idle + 行为 FSM 回 Chase（防御有界）
+	var guard_seed: int = _find_guard_seed()
+	_assert(guard_seed >= 0, "T13: found guard trigger seed")
+	if guard_seed < 0: return
+	var s = _setup(80.0, 0.0, guard_seed, [])
+	if s.is_empty(): return
+	var ai = s["ai"]
+	var enemy = s["enemy"]
+	s["player"].request_transition("attack")
+	_assert(_ai_state(ai) == "GuardState", "T13: guard entered (got %s)" % _ai_state(ai))
+	var hold: float = float(_c("ENEMY_GUARD_HOLD_SECONDS"))
+	_tick(s, hold + 0.1)
+	_assert(enemy.state_name != "guard", "T13: entity left guard after hold (got %s)" % enemy.state_name)
+	_assert(_ai_state(ai) == "ChaseState", "T13: behavior FSM back to Chase after guard (got %s)" % _ai_state(ai))
+
+
+func _test_59_guard_not_in_retreat() -> void:
+	## #720 T14（防御不触发在 retreat 中）: 敌人 retreat 行为中玩家攻击 → 不进入 guard（_behavior 守卫互斥）
+	## 玩家置于 x=80（dx ≤ HITBOX_RANGE，guard 范围满足）——唯有 retreat 互斥拦截才不 guard
+	var retreat_seed: int = -1
+	for seed_val in range(200):
+		var s = _setup(80.0, 0.0, seed_val, [])
+		if s.is_empty(): return
+		s["player"].request_transition("attack")
+		if _ai_state(s["ai"]) == "RetreatState":
+			retreat_seed = seed_val
+			break
+	_assert(retreat_seed >= 0, "T14: found retreat seed for guard-mutex test")
+	if retreat_seed < 0: return
+	var s2 = _setup(80.0, 0.0, retreat_seed, [])
+	if s2.is_empty(): return
+	var ai2 = s2["ai"]
+	s2["player"].request_transition("attack")
+	_assert(_ai_state(ai2) == "RetreatState", "T14: enemy retreating (got %s)" % _ai_state(ai2))
+	## 玩家退出攻击再进入（敌人在 retreat 中，0.5s 未满）→ 不得进入 guard
+	s2["player"].request_transition("idle")
+	_tick(s2, 0.1)
+	s2["player"].request_transition("attack")
+	_assert(_ai_state(ai2) != "GuardState", "T14: retreating enemy does NOT guard (got %s)" % _ai_state(ai2))
+	_assert(_ai_state(ai2) == "RetreatState", "T14: still retreating (got %s)" % _ai_state(ai2))
+
+
+func _test_60_six_hits_break() -> void:
+	## #720 T20（6 击崩解）: POSTURE_HIT_COST=18 → 第 6 击 stance 归零 → stance_broken（5-7 击区间）
+	var s = _setup(80.0, 0.0, 11, [])
+	if s.is_empty(): return
+	var enemy = s["enemy"]
+	var hc: float = float(_c("POSTURE_HIT_COST"))
+	_assert(absf(hc - 18.0) < 0.0001, "T20: POSTURE_HIT_COST == 18.0 (DRAFT, #720) (got %.1f)" % hc)
+	var hits: int = 0
+	while not enemy.is_stance_broken and hits < 10:
+		enemy.take_stance_damage(hc)
+		hits += 1
+	_assert(enemy.is_stance_broken, "T20: stance broken after %d hits" % hits)
+	_assert(hits == 6, "T20: 6 hits break stance (5-7 区间), got %d" % hits)
+	_assert(enemy.state_name == "stance_break", "T20: enemy enters stance_break (got %s)" % enemy.state_name)
+
+
+func _test_61_three_parries_break() -> void:
+	## #720 T21（3 次弹反崩解）: PARRY_STANCE_DAMAGE=35 → ceil(100/35)=3 次弹反崩解（更新 _test_17 4→3 断言）
+	var s = _setup(80.0, 0.0, 11, [])
+	if s.is_empty(): return
+	var enemy = s["enemy"]
+	var pd: float = float(_c("PARRY_STANCE_DAMAGE"))
+	var threshold: float = float(_c("POSTURE_BREAK_THRESHOLD"))
+	var parries: int = int(ceil(threshold / pd))
+	_assert(absf(pd - 35.0) < 0.0001, "T21: PARRY_STANCE_DAMAGE == 35.0 (DRAFT, #720) (got %.1f)" % pd)
+	_assert(parries == 3, "T21: ceil(%.0f/%.0f) == 3 parries (got %d)" % [threshold, pd, parries])
+	for i in range(parries):
+		enemy.take_stance_damage(pd)
+	_assert(enemy.is_stance_broken, "T21: %d parries break stance" % parries)
+	_assert(enemy.state_name == "stance_break", "T21: enemy enters stance_break (got %s)" % enemy.state_name)

@@ -173,7 +173,7 @@ const MOVE_MAX_SPEED: float = 300.0           # # DRAFT（px/s）
 #   只狼基准: 受击扣架势大（30-40/次）——血+架势双重惩罚，纯防御会崩架势，逼玩家进攻（只狼核心哲学）
 #   候选集: [30, 35, 40]（默认 35 = 区间中位；宽容 30 / 严苛 40）
 #   偏离理由: 无
-const POSTURE_HIT_COST: float = 35.0         # # DRAFT
+const POSTURE_HIT_COST: float = 18.0         # # DRAFT（#720 用户拍板 15-20，取中位 18；候选集 [15, 18, 20]）
 # PARRY_COST
 #   只狼基准: 弹反成功扣 0（精准格挡的奖励——成功不扣血不扣架势）
 #   候选集: [0, 1, 2]（默认 1 = 轻微消耗）
@@ -185,6 +185,12 @@ const PARRY_COST: float = 1.0                # # DRAFT
 #   偏离理由: ⚠️ 2026-08-20 #581 实现期改值 12 对齐 AC1（前摇 12 帧可弹反），偏差记录交 #584 定稿
 #   偏离理由: 无（issue body 指定 12-18 帧，与只狼 14-18 基本重合，取宽 12 下限）
 const ENEMY_ATTACK_WINDUP: int = 12          # # DRAFT
+# ENEMY_THRUST_WINDUP (#720 新增)
+#   issue body 要素 8: 三级前摇梯度 combo 12 短 / thrust 16 中 / charge 24 长——可读性分层
+#   候选集: [14, 16, 18]（默认 16 = 中位）
+#   该值影响什么: 突刺/横扫前摇——比 combo 长、比 charge 短（读招梯度中段）
+#   情感断言: 突刺是看得见的快，蓄力是看得见的凶
+const ENEMY_THRUST_WINDUP: int = 16          # # DRAFT
 # EXECUTE_RANGE
 #   只狼基准: 忍杀触发 = 近身（架势崩解后玩家靠近即可处决）
 #   候选集: [1.0, 1.2, 1.5]（默认 1.2 = issue body 指定）
@@ -282,7 +288,24 @@ const INVINCIBLE_SECONDS: float = 1.0        # # DRAFT
 #   候选集: [20, 25, 30]（默认 25 = 区间中位；AC1 硬约束 ≥20）
 #   该值影响什么: 弹反的「爽感」——太小=弹反无价值，太大=几下弹反直接崩解
 #   情感断言: 弹反成功必须比格挡爽（只狼铁律 1）
-const PARRY_STANCE_DAMAGE: float = 25.0      # # DRAFT
+const PARRY_STANCE_DAMAGE: float = 35.0      # # DRAFT（#720 用户拍板 30-40，取中位 35；候选集 [30, 35, 40]）
+# PARRY_WINDOW_CHARGE_SECONDS (#720 新增)
+#   蓄力重斩弹反窗口（加宽——读招回报，弹大招更宽）
+#   候选集: [0.25, 0.3, 0.35]（默认 0.3）
+#   情感断言: 大凶之招，给你看得见的反应时间
+const PARRY_WINDOW_CHARGE_SECONDS: float = 0.3   # # DRAFT
+# PARRY_WINDOW_THRUST_SECONDS (#720 新增)
+#   突刺弹反窗口（中，介于 combo 0.2 与 charge 0.3 之间）
+#   候选集: [0.2, 0.25, 0.3]（默认 0.25）
+const PARRY_WINDOW_THRUST_SECONDS: float = 0.25  # # DRAFT
+# PARRY_STANCE_DAMAGE_CHARGE (#720 新增)
+#   蓄力重斩弹反回报（弹大招扣更多架势）
+#   候选集: [50, 55, 60]（默认 55）
+const PARRY_STANCE_DAMAGE_CHARGE: float = 55.0   # # DRAFT
+# PARRY_STANCE_DAMAGE_THRUST (#720 新增)
+#   突刺弹反回报（中）
+#   候选集: [40, 45, 50]（默认 45）
+const PARRY_STANCE_DAMAGE_THRUST: float = 45.0   # # DRAFT
 # CLASH_STANCE_COST
 #   只狼基准: 拼刀（打铁）双方各扣小架势（互格=节奏博弈，代价低于受击）
 #   候选集: [8, 10, 12]（默认 10 = 区间中位）
@@ -450,12 +473,12 @@ const ENEMY_TURN_DELAY_SEC: float = 0.2         # # DRAFT
 #   候选集: [70, 80, 100]（默认 80 = HITBOX_RANGE 对齐，停距=可命中）
 #   该值影响什么: 攻击停距——<= 此距离才出刀
 #   情感断言: 贴脸是危险的
-const ENEMY_ATTACK_RANGE: float = 80.0          # # DRAFT
+const ENEMY_ATTACK_RANGE: float = 65.0          # # DRAFT（#720 停距 60-70 取中位 65 < HITBOX_RANGE=80 → 天然缓冲；候选集 [60, 65, 70]）
 # ENEMY_ATTACK_COOLDOWN_SEC
 #   候选集: [1.2, 1.5, 2.0]（默认 1.5 = 攻击节奏阀，压迫但不无脑）
 #   该值影响什么: 攻击冷却——太快无脑，太慢木桩
 #   情感断言: 有呼吸的攻击节奏
-const ENEMY_ATTACK_COOLDOWN_SEC: float = 1.5    # # DRAFT
+const ENEMY_ATTACK_COOLDOWN_SEC: float = 1.2    # # DRAFT（#720 攻击欲望高、压迫感；候选集 [1.2, 1.5, 1.8]）
 # ENEMY_HP_DAMAGE
 #   候选集: [10, 15, 20]（默认 15 = sekiro 敌小兵对玩家伤害基准，100/15≈7 刀击杀）
 #   该值影响什么: 敌人命中玩家 HP 伤害
@@ -508,7 +531,7 @@ const ENEMY_PATROL_PAUSE_SEC: float = 1.0       # # DRAFT
 #   候选集: [18, 20, 24] 帧（默认 20）
 #   该值影响什么: 蓄力重斩前摇——弹反闭区间绝对窗口时长（实验 1）
 #   情感断言: 重斩是看得见的凶险，不是瞬发的意外
-const ENEMY_CHARGE_WINDUP: int = 20           # # DRAFT
+const ENEMY_CHARGE_WINDUP: int = 24           # # DRAFT（#720 蓄力重斩 20+ 帧长前摇奖励读招；候选集 [20, 24, 28]）
 # ENEMY_CHARGE_HP_DAMAGE
 #   sekiro 基准: 重击语义（轻击 12/刀 ×2 倍）
 #   候选集: [20, 25, 30]（默认 25）
@@ -526,13 +549,29 @@ const ENEMY_CHARGE_CHANCE: float = 0.2        # # DRAFT
 #   候选集: [30, 40, 60]（默认 40）
 #   该值影响什么: 击退初速（px/s 当量，stagger 12 帧内衰减）
 #   情感断言: 打中了就要后退，不是木桩
-const ENEMY_KNOCKBACK_PX: float = 40.0        # # DRAFT
+const ENEMY_KNOCKBACK_PX: float = 22.0        # # DRAFT（#720 击退缩短 20-25 取中位 22——单次击退后 |dx|≈87 略出范围，玩家前移/回扑续连段；候选集 [20, 22, 25]）
 # ENEMY_KNOCKBACK_DECAY
 #   sekiro 基准: 防弹簧抖动（衰减先于 stagger 结束归零）
 #   候选集: [2, 3, 4] /s（默认 3）
 #   该值影响什么: 击退速度线性衰减系数（边界 1）
 #   情感断言: 退一步就稳住，不来回弹
 const ENEMY_KNOCKBACK_DECAY: float = 3.0      # # DRAFT
+# ENEMY_BLOCK_CHANCE (#720 新增)
+#   issue body 要素 4: 防御触发概率——玩家攻击前摇内敌人掷骰进入 guard
+#   候选集: [0.3, 0.4, 0.5]（默认 0.4）
+#   该值影响什么: 格挡频率——太高=全程龟缩，太低=防御无存在感
+#   情感断言: 敌人会挡，但挡不住连续压制
+const ENEMY_BLOCK_CHANCE: float = 0.4         # # DRAFT
+# ENEMY_GUARD_HOLD_SECONDS (#720 新增)
+#   GuardState 持续时间——覆盖玩家 windup 8 + burst 4 + recovery 10 ≈ 22 帧 ≈ 0.37s
+#   候选集: [0.4, 0.5, 0.6]（默认 0.5）
+#   该值影响什么: 防御有界——格挡后会松开回扑，不永驻
+#   情感断言: 防得住一刀，防不住连打
+const ENEMY_GUARD_HOLD_SECONDS: float = 0.5   # # DRAFT
+# ENEMY_ENRAGE_HP_RATIO (#720 新增, P2 可选)
+#   血线阶段: HP ≤ 50% 触发强化（冷却缩短 + charge 概率提升）
+#   候选集: [0.4, 0.5, 0.6]（默认 0.5）
+const ENEMY_ENRAGE_HP_RATIO: float = 0.5      # # DRAFT
 # ENEMY_STANCE_RECOVER_DELAY_SEC
 #   sekiro 基准: 脱战/停防 1.5s（放宽节奏阀）
 #   候选集: [2.0, 2.5, 3.0]（默认 2.5）
