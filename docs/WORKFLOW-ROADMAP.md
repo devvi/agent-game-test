@@ -173,6 +173,43 @@ PR #641（research/579）body: "parent #579" + "Closes #579"
 
 ---
 
+### R7. SPAWN 输出后 cron session 未启动（系统资源耗尽）→ 指令永久丢失（2026-08-21 列入，状态：待设计）
+
+**为什么列入**：R1 是"LLM 调用失败"、R2 是"LLM 歧义"、R6 是"provider 故障"吞 SPAWN——本次是**第四变体：SPAWN 输出后消费它的 cron session 因系统资源耗尽从未启动**。SPAWN 一次性无 ACK，丢失后无任何自愈路径，8.5 小时死等。
+
+**现象**（2026-08-21 实弹）：
+```
+01:13-01:25   #661 implement + 用户 feishu 会话 + cron 多 session 并行 → FD/资源压力
+01:22:19-27  [Errno 24] Too many open files（webhook 脚本执行失败 ×7）
+01:22:29     socket.accept() out of system resource（asyncio 资源耗尽）
+01:22:44     event-processor 输出 SPAWN: research,issue=681/682/683（spawn gate 写入）
+             → 01:22 tick 的 cron LLM session 启动失败（资源耗尽）→ SPAWN 未消费
+01:23:56     资源恢复，下个 cron session 启动 → 脚本输出已无 SPAWN（一次性不重发）
+             → 返回 [SILENT] → 681/682/683 卡 workflow/research 死等 8.5 小时
+```
+
+**根因**：
+1. **SPAWN 一次性 + 无 ACK/重试**：event-processor 输出 SPAWN 即写入 spawn gate——消费它的 session 未启动/崩溃 → 指令永久丢失（后续 tick 不重发）
+2. **资源耗尽无保护**：多 session 并行（implement + 用户会话 + cron）→ FD 耗尽 → cron session 启动静默失败（仅 agent.log 有 ERROR 记录，无告警）
+3. **stalled scan 盲区**：只查"PR merge 卡住"（merge-pr），不查"SPAWN 输出后无 agent 启动"
+
+**影响链**：
+```
+资源耗尽 → cron session 未启动 → SPAWN 未消费 → label 已推进 research
+→ available-rescan 不认（非 available）→ 死等 8.5h
+→ 人工恢复：移回 backlog + 重新 pick（第三次人工解卡，前两次见 R2/R6）
+```
+
+**设计方向（待评审）**（与 R2 方向 3 合并为通用解）：
+1. **SPAWN 消费 ACK + 超时重发**：SPAWN 输出落盘（指令队列）→ 消费（delegation 创建）后标记 → 超时（如 5min）未 ACK → 自动重发（cron 或 watchdog）
+2. **research-rescan 兜底**（R2 方向 3，第三次实证）：`workflow/research` + 无 research PR + gate 过期 → 自动重发
+3. **资源耗尽熔断**：watchdog 检测 FD/内存水位 → Feishu 告警 + 暂停 cron（防 session 启动失败窗口期吞指令）
+4. **恢复工具化**：人工恢复操作（issue 移回 backlog 触发重新 pick）封装为脚本/命令，降低手工操作风险
+
+**本次恢复实录**（2026-08-21 11:00）：681/682/683 移回 workflow/backlog → picker 重新 pick（backlog-promotion）→ SPAWN 重发（11:00:51）→ cron session 正常消费（API 98.4s 慢但成功）→ research agent 启动。恢复链路本身工作正常，缺口在"检测 + 自动重发"。
+
+---
+
 ## 观察区（候选，未正式列入）
 
 - webhook 链路 5 故障点（ngrok→gateway→route script）——已有 reconcile_check_runs 兜底
