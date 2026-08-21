@@ -446,13 +446,15 @@ func _test_13_behind_no_sense() -> void:
 
 func _test_14_chase_lose_sight() -> void:
 	## 追击丢失: Chase 中玩家移出 ENEMY_LOSE_SIGHT_RANGE → 回 PatrolState
+	## teleport 相对敌当前位（而非绝对坐标）：敌 chase 速度越快贴得越近，硬编码绝对 X
+	## 会随速度变化失去"超出 lose-sight"语义（2026-08-21 pace 调整后暴露）。
 	var s = _setup(400.0, 0.0, 7, [Vector2(-300, 0), Vector2(300, 0)])
 	if s.is_empty(): return
 	var ai = s["ai"]
 	_tick(s, 0.5)
 	_assert(_ai_state(ai) == "ChaseState", "chasing before lose-sight (got %s)" % _ai_state(ai))
 	var lose: float = float(_c("ENEMY_LOSE_SIGHT_RANGE"))
-	s["player"].position = Vector2(lose + 100.0, 0)
+	s["player"].position = Vector2(ai.position.x + lose + 100.0, 0)
 	_tick(s, 0.5)
 	_assert(_ai_state(ai) == "PatrolState", "lost sight → back to PatrolState (got %s)" % _ai_state(ai))
 

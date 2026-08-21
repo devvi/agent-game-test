@@ -304,6 +304,13 @@ const HITBOX_ACTIVE_FRAMES: int = 4          # # DRAFT
 #   候选集: [60, 80, 100]（默认 80 = SWORD_LENGTH=88 派生近似）
 #   该值影响什么: 挥空语义——距离外攻击不命中（AC 未覆盖，挥空=不发射事件）
 const HITBOX_RANGE: float = 80.0             # # DRAFT
+# HITBOX_VERTICAL_TOLERANCE
+#   # 物理判定修正（2026-08-21 空气命中根因）: 剑是水平挥出的（X 轴划线），攻击者与
+#   防御者的 Y 差异超过该容差 = 剑根本够不到（垂直悬空/斜上方）→ 应按挥空处理。
+#   旧版只判 `absf(defender.x - attacker.x)`，Y 完全不看 → 敌人在玩家正上方也能被横砍打死（空气击毙）。
+#   候选集: [30, 40, 60]（默认 40 = 平台高度容忍，MOVE 层 ground band）
+#   该值影响什么: 挥空判定多维度化——Y 差 > 容差即不命中（物理剑长只覆盖水平，高度差是真实威胁规避手段）
+const HITBOX_VERTICAL_TOLERANCE: float = 40.0  # # DRAFT
 # PARRY_DIRECTION_TOLERANCE
 #   只狼基准: 弹反必须面向攻击（背对挨打=受击）
 #   候选集: [1=仅同侧（defender 朝向攻击者）, 2=宽容（前后均可）]（默认 1）
@@ -435,12 +442,13 @@ const ENEMY_SENSE_HEIGHT_TOLERANCE: float = 150.0  # # DRAFT
 #   候选集: [60, 80, 100]（默认 80 = 火柴人 move 动画节奏）
 #   该值影响什么: 巡逻步态速度——太慢无聊，太快不像巡逻
 #   情感断言: 雪夜村口的踱步，不急不慢
-const ENEMY_PATROL_SPEED: float = 80.0          # # DRAFT
+const ENEMY_PATROL_SPEED: float = 120.0         # # DRAFT 2026-08-21: 80→120（巡逻不拖沓）
 # ENEMY_CHASE_SPEED
-#   候选集: [150, 180, 220]（默认 180 = 低于玩家 300 但足够逼近）
+#   候选集: [180, 240, 280]（默认 280 = 只狼 Boss 压强：接近玩家 300，贴脸压迫不可风筝）
 #   该值影响什么: 追击压迫感——太快无解，太慢无压迫
 #   情感断言: 追得上你的恐惧，追不上的喘息
-const ENEMY_CHASE_SPEED: float = 180.0          # # DRAFT
+#   2026-08-21: 180→280。旧 180 仅为玩家 300 的 60%，玩家可无限风筝 = "非常缓慢"根因。
+const ENEMY_CHASE_SPEED: float = 280.0          # # DRAFT
 # ENEMY_TURN_DELAY_SEC
 #   候选集: [0.1, 0.2, 0.3]（默认 0.2 = 防瞬移转身穿帮）
 #   该值影响什么: 转向延迟——转身有过程，不是瞬移
@@ -452,10 +460,11 @@ const ENEMY_TURN_DELAY_SEC: float = 0.2         # # DRAFT
 #   情感断言: 贴脸是危险的
 const ENEMY_ATTACK_RANGE: float = 80.0          # # DRAFT
 # ENEMY_ATTACK_COOLDOWN_SEC
-#   候选集: [1.2, 1.5, 2.0]（默认 1.5 = 攻击节奏阀，压迫但不无脑）
+#   候选集: [0.7, 0.9, 1.2]（默认 0.9 = 只狼 Boss 攻击节律：密集但可弹反，呼吸口短）
 #   该值影响什么: 攻击冷却——太快无脑，太慢木桩
 #   情感断言: 有呼吸的攻击节奏
-const ENEMY_ATTACK_COOLDOWN_SEC: float = 1.5    # # DRAFT
+#   2026-08-21: 1.5→0.9。旧 1.5 出招频率过低 = "缓慢/木桩"根因之一。
+const ENEMY_ATTACK_COOLDOWN_SEC: float = 0.9    # # DRAFT
 # ENEMY_HP_DAMAGE
 #   候选集: [10, 15, 20]（默认 15 = sekiro 敌小兵对玩家伤害基准，100/15≈7 刀击杀）
 #   该值影响什么: 敌人命中玩家 HP 伤害

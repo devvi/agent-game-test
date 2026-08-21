@@ -82,7 +82,12 @@ func resolve_attack(attacker, defender) -> void:
 		_resolved[key] = true
 		return
 	# 距离挥空 / facing 反向（mark resolved + return，不发射任何事件）
+	# 物理判定（2026-08-21 空气命中根因）: 剑是水平挥出（X 轴划线）；Y 差 > 垂直容差
+	#   = 剑够不到（垂直悬空/斜上方）→ 当挥空。旧版只看 X，敌人在正上方也被横砍打死。
 	if absf(defender.position.x - attacker.position.x) > float(C.HITBOX_RANGE):
+		_resolved[key] = true
+		return
+	if absf(defender.position.y - attacker.position.y) > float(C.HITBOX_VERTICAL_TOLERANCE):
 		_resolved[key] = true
 		return
 	var dx: float = defender.position.x - attacker.position.x
