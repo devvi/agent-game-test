@@ -326,13 +326,13 @@ combat_state_table 合法转移 (from→to)   [状态机权威 #575，本层镜�
 
 | 集成 | 本设计组件 | 目标系统 | 方式 | 状态 |
 |------|:---:|:---:|------|:---:|
-| facing → 视觉翻转 | main_battle `_sync_visual_facing()` | `CombatEntity.facing` / `enemy_entity.facing` | _process 轮询 + `StickFigure.scale.x` | ⬜ |
-| 步频 → 速度同步 | controller `set_move_speed(v)` | `PlayerController.velocity` / `EnemyAI.velocity` | main_battle._process 调用 | ⬜ |
-| 动画路径更新 | controller 各 clip track | StickFigure 新节点树（NeckPivot/LegKPivot） | track 路径 `TorsoPivot/NeckPivot/HeadPivot`、`LegLPivot/LegKPivot:rotation` | ⬜ |
-| 姿态衔接断言 | 新增 AC3 单测 | `combat_state_table.gd` TRANSITIONS | 枚举合法对 vs clip 首/尾帧关键帧 | ⬜ |
-| 步态裁决截图 | e2e_shots.json move 组 | E2E 截图链路（#661/#662/#678） | at_frame 定格 shot | ⬜ |
-| 头轮廓 taste 裁决 | HEAD_OUTLINE_* 常量 | E2E 截图对比（实验 1） | 带/不带轮廓双 shot 用户裁决 | ⬜ |
-| 帧数值定稿 | 新 # DRAFT 常量 | #584 定稿管线 | 候补值注释协议，实现前查 #584 状态 | ⬜ |
+| facing → 视觉翻转 | main_battle `_sync_visual_facing()` | `CombatEntity.facing` / `enemy_entity.facing` | _process 轮询 + `StickFigure.scale.x` | ✅ |
+| 步频 → 速度同步 | controller `set_move_speed(v)` | `PlayerController.velocity` / `EnemyAI.velocity` | main_battle._process 调用 | ✅ |
+| 动画路径更新 | controller 各 clip track | StickFigure 新节点树（NeckPivot/LegKPivot） | track 路径 `TorsoPivot/NeckPivot/HeadPivot`、`LegLPivot/LegKPivot:rotation` | ✅ |
+| 姿态衔接断言 | 新增 AC3 单测 | `combat_state_table.gd` TRANSITIONS | 枚举合法对 vs clip 首/尾帧关键帧 | ✅ |
+| 步态裁决截图 | e2e_shots.json move 组 | E2E 截图链路（#661/#662/#678） | at_frame 定格 shot | ✅ |
+| 头轮廓 taste 裁决 | HEAD_OUTLINE_* 常量 | E2E 截图对比（实验 1） | 带/不带轮廓双 shot 用户裁决 | ✅ |
+| 帧数值定稿 | 新 # DRAFT 常量 | #584 定稿管线 | 候补值注释协议，实现前查 #584 状态 | ✅ |
 
 ---
 

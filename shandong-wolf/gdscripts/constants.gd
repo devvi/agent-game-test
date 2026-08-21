@@ -103,18 +103,49 @@ const FRAME_ANIM_ATTACK_WINDUP: int = 8    # # DRAFT（与 FRAME_ATTACK_WINDUP=8
 const FRAME_ANIM_ATTACK_BURST: int = 4     # # DRAFT（新值；挥刀暴发，刀光在此段触发）
 const FRAME_ANIM_ATTACK_RECOVERY: int = 10 # # DRAFT（⚠️ 与 FRAME_ATTACK_RECOVERY=14 冲突，双值共存互引，禁止实现期二选一，定稿归 #584）
 const FRAME_ANIM_TRANSITION_MAX: int = 2   # # DRAFT（AC1 过渡上限；2 帧 @60fps = 0.033s）
-const FRAME_ANIM_MOVE_STEP: int = 4        # # DRAFT（步态摆臂循环 4 帧，配方 §6.5）
+const FRAME_ANIM_MOVE_STEP: int = 4        # # DRAFT（关键姿态数 = 4：contact/pass ×2；完整步态周期由 FRAME_ANIM_MOVE_CYCLE 决定。值 4 保留——E3 断言依赖，禁止删除）
 const FRAME_ANIM_EXECUTE_TOTAL: int = 5    # # DRAFT（处决上撩→斩落 5 帧，配方 §7）
 const FRAME_ANIM_SWORD_ARC_FADE: int = 4   # # DRAFT（刀光存在/衰减帧数，PRD 实验 2 预期值）
 const BODY_COLOR: Color = Color("#2b2b2b")      # # DRAFT（issue body 墨色剪影）
 const SWORD_COLOR: Color = Color("#c0c8d0")     # # DRAFT（冷白刀身，雪夜反差点）
-const BODY_HEAD_RADIUS: float = 16.0            # # DRAFT
+const BODY_HEAD_RADIUS: float = 9.5             # # DRAFT（#683 修订 16→9.5: GDD 头径:躯干 ≈ 1:2.2–2.5，候选 9–10；头圆最低点与躯干顶重叠 ≤4px）
 const BODY_TORSO_LENGTH: float = 44.0           # # DRAFT
 const BODY_ARM_LENGTH: float = 34.0             # # DRAFT
-const BODY_LEG_LENGTH: float = 40.0             # # DRAFT
+const BODY_LEG_LENGTH: float = 40.0             # # DRAFT（#683 保留不动——兼容既有测试/E2E；F2 已改用 UPPER/LOWER）
 const BODY_LIMB_WIDTH: float = 6.0              # # DRAFT（Line2D width）
 const SWORD_LENGTH: float = 88.0                # # DRAFT（长刀，视觉焦点）
 const SWORD_WIDTH: float = 5.0                  # # DRAFT
+
+# ── 火柴人结构（# DRAFT 候补值，待 #584 定稿；#683 新增，骨架结构修正专用）──
+#   候补值: 颈长 10（候选 8–12）/ 大腿 20 / 小腿 20（候选 18–22，两段和保持 ≈ 原 BODY_LEG_LENGTH=40）；
+#           头轮廓 开/关 + 宽 2.0（候选 1–2）+ 冷白 #c0c8d0（SWORD_COLOR 系，实验 1）；
+#           步态周期 24 帧（候选 24/28/32 = 0.4–0.53s 2 步，实验 2）；
+#           腿髋摆 25°（候选 20–30）/ 摆臂 25°（候选 20–35）/ 屈膝 40°（候选 30–50）；
+#           膝机械上限 90° / 衔接阈值 15°；播放速度下限 0.3 / 上限 1.2（实验 3）；
+#           hold 型 clip 归位段 3 帧（候选 2–4）
+#   该值影响什么: 颈长决定头与躯干视觉分离度（太小粘连、太大离身）；头径按 GDD 头:躯干 ≈ 1:2.5 校准；
+#           步态周期决定「走路像走路」还是「振动」（4 帧循环 = 振动）；摆幅/屈膝决定步态自然度；
+#           衔接阈值保证状态切换骨架不瞬移；播放速度同步消除滑步
+#   情感断言: 剪影火柴人干净可读——头身分离、步态有节奏、切换不瞬移（禁止振动/瞬移/滑步）
+const BODY_NECK_LENGTH: float = 10.0                # # DRAFT（候选 8–12；影响: 头与躯干视觉分离度）
+const BODY_LEG_UPPER_LENGTH: float = 20.0           # # DRAFT（候选 18–22；大腿长，两段和保持 ≈ 原 BODY_LEG_LENGTH=40）
+const BODY_LEG_LOWER_LENGTH: float = 20.0           # # DRAFT（候选 18–22；小腿长，膝 pivot 支撑）
+const HEAD_OUTLINE_ENABLED: bool = false            # # DRAFT（候选 true/false；taste 决策点实验 1，E2E 裁决）
+const HEAD_OUTLINE_WIDTH: float = 2.0               # # DRAFT（候选 1–2；头轮廓线宽）
+const HEAD_OUTLINE_COLOR: Color = Color("#c0c8d0")  # # DRAFT（冷白，SWORD_COLOR 系；头轮廓色）
+const FRAME_ANIM_MOVE_CYCLE: int = 24               # # DRAFT（候选 24/28/32 = 0.4–0.53s 2 步；步态周期实验 2）
+const MOVE_SWING_LEG_DEG: float = 25.0              # # DRAFT（候选 20–30；腿髋摆幅）
+const MOVE_SWING_ARM_DEG: float = 25.0              # # DRAFT（候选 20–35；摆臂幅度）
+const MOVE_KNEE_BEND_DEG: float = 40.0              # # DRAFT（候选 30–50；摆动相屈膝抬脚）
+const KNEE_BEND_MAX_DEG: float = 90.0               # # DRAFT（机械上限，AC3 膝单向弯曲断言用）
+const POSE_DELTA_MAX_DEG: float = 15.0              # # DRAFT（衔接阈值，AC3 状态切换关节角差上限）
+const MOVE_PLAYBACK_SPEED_MIN: float = 0.3          # # DRAFT（实验 3：速度同步下限，起步/急停顺滑）
+const MOVE_PLAYBACK_SPEED_MAX: float = 1.2          # # DRAFT（实验 3：速度同步上限）
+const FRAME_ANIM_GUARD_EXIT: int = 3                # # DRAFT（候选 2–4；guard 尾帧归位段帧数）
+const FRAME_ANIM_PARRY_SUCCESS_EXIT: int = 3        # # DRAFT（候选 2–4；parry_success 尾帧归位段帧数）
+const FRAME_ANIM_STAGGER_EXIT: int = 3              # # DRAFT（候选 2–4；stagger 尾帧归位段帧数）
+const FRAME_ANIM_STANCE_BREAK_EXIT: int = 3         # # DRAFT（候选 2–4；stance_break 尾帧归位段帧数）
+const FRAME_ANIM_DEAD_EXIT: int = 3                 # # DRAFT（候选 2–4；dead 尾帧归位段帧数）
 
 # ── 刀光弧线参数（# DRAFT 候补值，待 #584 定稿）──
 #   候补值: 张角 120°（PRD 实验 2 预期）/ 半径 70 / 4 环透明度衰减 / 起始 alpha 0.6

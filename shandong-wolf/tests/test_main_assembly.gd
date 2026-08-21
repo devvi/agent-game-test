@@ -82,6 +82,12 @@ func run() -> void:
 	_test_f2_window_missed_recover()
 	_reset_logs()
 	_test_f3_main_resources()
+	_reset_logs()
+	_test_ma1_player_facing_flip()
+	_reset_logs()
+	_test_ma2_physics_root_scale_untouched()
+	_reset_logs()
+	_test_ma3_enemy_facing_flip()
 	print("Passed: %d, Failed: %d" % [passed, failed])
 
 
@@ -742,4 +748,77 @@ func _test_f3_main_resources() -> void:
 		_assert(false, "F3: Main 实例化失败")
 		return
 	_assert(m.get_node_or_null("BattleStage/StageCamera") != null, "F3: BattleStage/StageCamera 路径可达")
+	_free_main(m)
+
+
+# ── Scenario MA: facing → 视觉翻转接线（#683 AC2-T6/T7）───────────────────
+
+func _test_ma1_player_facing_flip() -> void:
+	# MA1: 玩家 facing 翻转 —— player_entity.facing=-1 → PlayerStickFigure/StickFigure.scale.x == -1；
+	#   设回 1 → scale.x == 1（main_battle._process 每帧同步，实现新增）
+	var m = _spawn_main()
+	if m == null:
+		_assert(false, "MA1: Main 实例化失败")
+		return
+	var a = _assembler(m)
+	if a == null:
+		_assert(false, "MA1: MainBattle 缺失")
+		_free_main(m)
+		return
+	var stick = a.player.get_node_or_null("PlayerStickFigure/StickFigure")
+	_assert(stick != null, "MA1: PlayerStickFigure/StickFigure 路径可达")
+	if stick != null:
+		a.player_entity.facing = -1
+		a._process(0.016)
+		_assert(absf(stick.scale.x - (-1.0)) <= 0.01, "MA1: facing=-1 → StickFigure.scale.x == -1（实际 %s）" % str(stick.scale.x))
+		a.player_entity.facing = 1
+		a._process(0.016)
+		_assert(absf(stick.scale.x - 1.0) <= 0.01, "MA1: facing=1 → StickFigure.scale.x == 1（实际 %s）" % str(stick.scale.x))
+	_free_main(m)
+
+
+func _test_ma2_physics_root_scale_untouched() -> void:
+	# MA2: PlayerController 根 scale 不受 facing 翻转影响（物理层零影响红线——翻转只作用于视觉子节点）
+	var m = _spawn_main()
+	if m == null:
+		_assert(false, "MA2: Main 实例化失败")
+		return
+	var a = _assembler(m)
+	if a == null:
+		_assert(false, "MA2: MainBattle 缺失")
+		_free_main(m)
+		return
+	var before_x = a.player.scale.x
+	a.player_entity.facing = -1
+	a._process(0.016)
+	_assert(absf(a.player.scale.x - before_x) <= 0.01,
+		"MA2: PlayerController 根 scale.x 未翻转（facing=-1 后不变，before=%s after=%s）" % [str(before_x), str(a.player.scale.x)])
+	a.player_entity.facing = 1
+	a._process(0.016)
+	_assert(absf(a.player.scale.x - before_x) <= 0.01,
+		"MA2: PlayerController 根 scale.x 保持 1.0（before=%s after=%s）" % [str(before_x), str(a.player.scale.x)])
+	_free_main(m)
+
+
+func _test_ma3_enemy_facing_flip() -> void:
+	# MA3: 敌人 facing 翻转 —— enemy_entity.facing=-1（e2e rig 初始值）→ EnemyStickFigure/StickFigure.scale.x == -1；
+	#   设回 1 → scale.x == 1
+	var m = _spawn_main()
+	if m == null:
+		_assert(false, "MA3: Main 实例化失败")
+		return
+	var a = _assembler(m)
+	if a == null:
+		_assert(false, "MA3: MainBattle 缺失")
+		_free_main(m)
+		return
+	var stick = a.enemy.get_node_or_null("EnemyStickFigure/StickFigure")
+	_assert(stick != null, "MA3: EnemyStickFigure/StickFigure 路径可达")
+	if stick != null:
+		a.enemy_entity.facing = -1
+		a._process(0.016)
+		_assert(absf(stick.scale.x - (-1.0)) <= 0.01, "MA3: enemy facing=-1 → scale.x == -1（实际 %s）" % str(stick.scale.x))
+		a.enemy_entity.facing = 1
+		a._process(0.016)
+		_assert(absf(stick.scale.x - 1.0) <= 0.01, "MA3: enemy facing=1 → scale.x == 1（实际 %s）" % str(stick.scale.x))
 	_free_main(m)
