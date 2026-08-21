@@ -80,6 +80,11 @@ func run() -> void:
 	_test_42_knockback_decay_to_zero()
 	_test_43_knockback_player_not_affected()
 	_test_44_knockback_edge_clamp()
+	# Scenario #703: 运行时驱动链（TC703-1..4）
+	_test_45_runtime_driver_chain()
+	_test_46_attack_state_elite()
+	_test_47_knockback_orthogonal_to_gate()
+	_test_48_single_displacement_per_frame()
 	# Scenario G: 回归基线（T35/T36 归 CI：run_tests.gd 10 套件全绿 + smoke）
 	print("Passed: %d, Failed: %d" % [passed, failed])
 
@@ -164,14 +169,15 @@ func _setup(player_x: float, enemy_x: float, seed_val: int = -1, waypoints: Arra
 	return {"ai": ai, "enemy": enemy, "player": player}
 
 
-## 推进 N 秒: 每帧 decide + entity 战斗 FSM 推进（headless 免树驱动）
+## 推进 N 秒: 每帧运行时路径驱动（#703）——enemy._process 推进实体战斗 FSM，
+## 再 ai._physics_process（内部先 decide 纯决策 → 后 _apply_movement 位移，与实机一致）
 func _tick(s: Dictionary, seconds: float) -> void:
 	var ai = s["ai"]
 	var enemy = s["enemy"]
 	var frames: int = int(seconds / TEST_FRAME_SEC)
 	for i in range(frames):
 		enemy._process(TEST_FRAME_SEC)
-		ai.decide(TEST_FRAME_SEC)
+		ai._physics_process(TEST_FRAME_SEC)
 
 
 ## AI 行为 FSM 当前行为态名映射（get_class() 对 inner class 返回 RefCounted，改用 ai._behavior）
@@ -257,7 +263,11 @@ func _test_3_chase_approach_stop() -> void:
 		_tick(s, TEST_FRAME_SEC)
 		guard += 1
 	_assert(absf(ai.position.x - 400.0) <= attack_range + 2.0, "enemy stops within attack range (dx=%.1f)" % absf(ai.position.x - 400.0))
-	## 停距后 move_intent.x == 0（Chase 停距语义）
+	## 停距后 move_intent.x == 0（Chase 停距语义）。
+	## #703 驱动链为「决策先于位移」：跨入攻击范围那一帧 decide 写出的仍是
+	## ENEMY_CHASE_SPEED（intent 供本帧位移用），次帧 FSM 见 |dx| <= 攻击范围
+	## 才清零 intent → 读前再推 1 帧。
+	_tick(s, TEST_FRAME_SEC)
 	var intent: Vector2 = ai.move_intent()
 	_assert(intent.x == 0.0, "move_intent.x == 0 when within attack range (got %.1f)" % intent.x)
 
@@ -1220,3 +1230,74 @@ func _test_44_knockback_edge_clamp() -> void:
 		ai._physics_process(TEST_FRAME_SEC)
 	_assert(ai.position.x >= 0.0, "enemy position clamped to stage range (x=%.1f)" % ai.position.x)
 	_assert(ai.position.x <= float(_c("STAGE_WIDTH_PX")), "enemy position within [0, STAGE_WIDTH_PX] (x=%.1f)" % ai.position.x)
+
+
+# ── Scenario #703: 运行时驱动链（TC703-1..4）──────────────────────────────
+
+func _test_45_runtime_driver_chain() -> void:
+	## 运行时驱动链 (AC1/AC2, TC703-1): 仅经 _tick（_physics_process）驱动——不手动调 decide——
+	##   → 行为 FSM 自动推进 Chase 且 position.x 逼近玩家，证明运行时驱动链成立
+	var s = _setup(400.0, 0.0, 7, [])
+	if s.is_empty(): return
+	var ai = s["ai"]
+	var x0: float = ai.position.x
+	var moved_toward: bool = false
+	for i in range(60):
+		_tick(s, TEST_FRAME_SEC)
+		if ai.position.x > x0 + 1.0:
+			moved_toward = true
+		x0 = ai.position.x
+	_assert(_ai_state(ai) == "ChaseState", "runtime driver chain transitions to ChaseState (got %s)" % _ai_state(ai))
+	_assert(moved_toward, "enemy moves toward player via _physics_process alone (no manual decide)")
+
+
+func _test_46_attack_state_elite() -> void:
+	## 攻击态出招 (AC2, TC703-2): elite_mode=true + 停距 → 运行时驱动链 FSM 推进 AttackState 出招
+	var s = _setup(60.0, 0.0, 7, [])
+	if s.is_empty(): return
+	var ai = s["ai"]
+	ai.elite_mode = true
+	var enemy = s["enemy"]
+	ai._attack_cooldown_until_sec = 0.0
+	var guard: int = 0
+	while enemy.state_name != "attack" and enemy.state_name != "heavy_attack" and guard < 600:
+		_tick(s, TEST_FRAME_SEC)
+		guard += 1
+	_assert(enemy.state_name == "attack" or enemy.state_name == "heavy_attack", "elite enemy reached attack state via runtime chain (got %s)" % enemy.state_name)
+	_assert(ai._behavior == "attack", "AI behavior == attack in attack state (got %s)" % ai._behavior)
+
+
+func _test_47_knockback_orthogonal_to_gate() -> void:
+	## 击退正交于决策门控 (AC3, TC703-3): stagger 内 + 弹反抑制窗（decide 门控③命中清 intent）
+	##   → _physics_process 仍执行击退位移（_apply_movement 无条件可达）
+	var k = _knockback_setup(170.0, 100.0)
+	if k.is_empty():
+		return
+	var ai = k["ai"]
+	var enemy = k["enemy"]
+	_knockback_player_attack(k)
+	_assert(enemy.state_name == "stagger", "enemy staggered by hit for knockback gate test")
+	_assert(absf(float(ai._knockback_vel) - float(_c("ENEMY_KNOCKBACK_PX"))) < 0.0001, "_knockback_vel == ENEMY_KNOCKBACK_PX before drive (got %.1f)" % float(ai._knockback_vel))
+	ai._parry_stun_until_sec = Time.get_ticks_msec() / 1000.0 + 5.0
+	var x_prev: float = ai.position.x
+	var moved_left: bool = true
+	for i in range(5):
+		ai._physics_process(TEST_FRAME_SEC)
+		if ai.position.x >= x_prev:
+			moved_left = false
+		x_prev = ai.position.x
+	_assert(moved_left, "knockback displacement executed each frame despite decide gate")
+	_assert(ai.move_intent() == Vector2.ZERO, "decide gate cleared move_intent (intent=%s)" % str(ai.move_intent()))
+	_assert(float(ai._knockback_vel) < float(_c("ENEMY_KNOCKBACK_PX")), "knockback velocity decayed below ENEMY_KNOCKBACK_PX (got %.2f)" % float(ai._knockback_vel))
+
+
+func _test_48_single_displacement_per_frame() -> void:
+	## 位移单次执行 (AC5, TC703-4): _physics_process 驱动 60 帧总位移 ≈ 单速
+	##   （ENEMY_CHASE_SPEED×1s ≈ 180px，扣转向延迟帧）——非 2× ≈ 360（decide 内位移已移除）
+	var s = _setup(400.0, 0.0, 7, [])
+	if s.is_empty(): return
+	var ai = s["ai"]
+	_tick(s, 1.0)
+	var total: float = ai.position.x - 0.0
+	_assert(total > 60.0, "single-displacement total > 60px (got %.1f)" % total)
+	_assert(total < 330.0, "total displacement roughly single chase speed, NOT 2× double-move (got %.1f)" % total)
