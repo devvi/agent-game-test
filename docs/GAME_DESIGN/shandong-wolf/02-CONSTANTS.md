@@ -135,8 +135,8 @@ shandong-wolf 骨架期（#559-#570）`gdscripts/` 为空，后续 #573-#578 的
 | `HEAD_OUTLINE_WIDTH` | `2.0` | 头轮廓线宽（候选 1–2） |
 | `HEAD_OUTLINE_COLOR` | `#c0c8d0` | 头轮廓冷白（SWORD_COLOR 系） |
 | `FRAME_ANIM_MOVE_CYCLE` | `24` | 步态周期帧数（#683 实验 2 候选 24/28/32） |
-| `MOVE_SWING_LEG_DEG` | `25.0` | 腿髋摆幅（候选 20–30） |
-| `MOVE_SWING_ARM_DEG` | `25.0` | 摆臂幅度（候选 20–35） |
+| `MOVE_SWING_LEG_DEG` | `12.0` | 腿髋摆幅（#683 实现期偏离：原候选 20–30 与 AC3 衔接阈值 POSE_DELTA_MAX_DEG=15° 冲突——contact 首帧腿摆幅即 idle→move 姿态差须 ≤15°，收敛为 12） |
+| `MOVE_SWING_ARM_DEG` | `12.0` | 摆臂幅度（#683 实现期偏离：同 LEG——摆臂以 REST_POSE 为基准 ±swing，AC3 约束 swing ≤15°） |
 | `MOVE_KNEE_BEND_DEG` | `40.0` | 摆动相屈膝抬脚（候选 30–50） |
 | `KNEE_BEND_MAX_DEG` | `90.0` | 膝机械上限（AC3 断言） |
 | `POSE_DELTA_MAX_DEG` | `15.0` | 跨状态衔接阈值（AC3 断言） |
