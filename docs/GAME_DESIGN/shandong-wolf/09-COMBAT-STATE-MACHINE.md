@@ -1,6 +1,7 @@
 # 11 态战斗状态机 — 转移合法性表 + 状态对象 + 时序常量（#575/#618）
 
 > 落盘依据：PR #618（implement，已 merge 2026-08-19）← DESIGN `docs/DESIGN/575-combat-entity-state-machine.md` §2.1-§2.3。
+> 修订：PR #727（#718，已 merge 2026-08-21）← DESIGN `docs/DESIGN/718-stagger-stance-break.md` §2（stagger/parry_success 行补 stance_break + take_stance_damage execute 守卫）。
 > 上游：#572 StateMachineBase（03-STATE-MACHINE.md）三接口派生；#574 ANIM_CLIP_NAMES 键集（状态名契约对齐）。
 > 本层与 08-COMBAT-ENTITY.md 同属 #575：实体层持有 FSM 与数据，本层提供转移拓扑与状态行为。
 
@@ -42,8 +43,8 @@ const TRANSITIONS: Dictionary = {
     "attack":        ["attack", "idle", "stagger", "stance_break", "dead"],   # attack→attack = 连段（同态重入钩子）
     "heavy_attack":  ["idle", "stagger", "stance_break", "dead"],
     "guard":         ["idle", "attack", "heavy_attack", "stance_break", "dead", "parry_success"],
-    "parry_success": ["idle", "attack", "heavy_attack", "move"],
-    "stagger":       ["idle", "dead"],
+    "parry_success": ["idle", "attack", "heavy_attack", "move", "stance_break"],   # #718: 弹反窗口内 clash 扣架势归零同样失衡（防御加固 1）
+    "stagger":       ["idle", "dead", "stance_break"],                             # #718: 硬直中崩解=失衡，优先级高于硬直，与 guard 同构（#577）
     "stance_break":  ["idle", "execute", "dead"],
     "execute":       ["idle"],
     "revive":        ["idle"],
@@ -59,9 +60,31 @@ static func is_legal(from: String, to: String) -> bool:
 - `stance_break → attack/heavy_attack/guard` **表外 = reject**（AC2 红线：崩解失衡不可攻击/格挡）
 - `dead → 除 revive 外全部表外 = reject`（状态机停摆）
 - `guard → stance_break` 表内（格挡中崩解 = 失衡，优先级高于格挡姿态）
+- `stagger → stance_break` 表内（#718：硬直中崩解 = 失衡，优先级高于硬直，与 guard 同构）
+- `parry_success → stance_break` 表内（#718：弹反窗口内 clash 扣架势归零同样失衡）
 - `guard → parry_success` 表内（#577 弹反成功驱动入口）
 - `attack → attack` 表内（连段拓扑合法；条件合法性 = AttackState.restart 钩子，仅收招 phase 重置帧计数）
 - 同态转移（from == to）除 attack 外：表内无自环，request_transition 层由 StateMachineBase 同态守卫静默忽略
+
+### 3.1 #718 修订：stagger/parry_success 可崩解 + take_stance_damage execute 守卫（2026-08-21）
+
+> DESIGN `docs/DESIGN/718-stagger-stance-break.md`。issue #718 实测发现运行时警告
+> `illegal transition stagger -> stance_break`：stagger（受击硬直）中二次受击照常扣架势 → 架势归零 →
+> `break_stance()` → `request_transition("stance_break")` → 状态表 `"stagger": ["idle","dead"]` **表外拒绝** + push_warning
+> → 崩解展示/处决窗口/处决连招（#580）全部丢失。
+
+**修拓扑不修调用时序**——把「崩解优先级高于姿态」的既有裁决（guard→stance_break，#577）推广到硬直态：
+
+| 位置 | 变更 | 语义 |
+|------|------|------|
+| `combat_state_table.gd` `"stagger"` | `["idle","dead"]` → `["idle","dead","stance_break"]` | 硬直中崩解 = 失衡，打断硬直（与 guard 同构） |
+| `combat_state_table.gd` `"parry_success"` | 追加 `"stance_break"` | 弹反窗口内 clash 扣架势归零同样失衡（防御加固 1，消灭整类「表外拒绝」缺口） |
+| `combat_entity.gd` `take_stance_damage` | no-op 守卫补 `execute` | 处决演出中架势扣减无意义，与 `take_damage` L125 对齐（防御加固 2） |
+
+**数据流（修复后核心路径）**：`judge 受击兜底 → take_stance_damage × N → stance ≤ 0 → break_stance()` →
+`is_stance_broken=true` + `emit stance_broken` → `request_transition("stance_break")` → **表内合法** →
+`state=stance_break` → #580 armed 窗口 → 处决链。修复后 `break_stance()` 副作用（标记+广播）与状态一致，无 push_warning。
+判定层（combat_judge.gd）/状态对象（combat_states.gd）/处决编排（execution_orchestrator.gd）全部零改动。
 
 ## 4. 状态对象设计（combat_states.gd）
 
@@ -127,4 +150,5 @@ static func is_legal(from: String, to: String) -> bool:
 | #577 | 判定层（本层 parry_success 入口消费方 + 攻击/格挡态裁决驱动，见 11 章） | 已合并（#626） |
 | #578/#580 | 复活/处决（本层状态驱动方） | 待实现 |
 | #584 | 时序常量定稿（调参面板） | 草稿已合并（#609），待用户定稿 |
+| #718 | stagger/parry_success 行补 stance_break + take_stance_damage execute 守卫（§3.1 拓扑修订） | 已合并（#727） |
 
