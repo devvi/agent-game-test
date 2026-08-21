@@ -1,4 +1,4 @@
-# 火柴人剪影骨架与关键帧动画 — Line2D 程序化骨架 + 11 态关键帧 + consume_state 契约 + additive 刀光 + 查询委托 API + 颈/膝骨架结构 + 24 帧步态循环 + REST_POSE 衔接规约 + facing 翻转接线（#574/#612/#681/#692/#683/#694）
+# 火柴人剪影骨架与关键帧动画 — Line2D 程序化骨架 + 11 态关键帧 + consume_state 契约 + additive 刀光 + 查询委托 API + 颈/膝骨架结构 + 24 帧步态循环 + REST_POSE 衔接规约 + facing 翻转接线 + 腿/膝几何方向修正（#574/#612/#681/#692/#683/#694/#704/#709）
 
 > 落盘依据：PR #612（implement，已 merge 2026-08-19）← DESIGN `docs/DESIGN/574-stick-figure-silhouette-animation.md`；
 > PRD `docs/PRD/574-stick-figure-silhouette-animation.md`（research PR #603，已 merge）。
@@ -60,6 +60,11 @@ StickFigure (Node2D)                    [script: stick_figure.gd]  ← scale.x =
 ```
 
 10 个 pivot（torso/head/neck/arm_l/arm_r/sword/leg_l/leg_r/leg_k_l/leg_k_r），供 AnimationPlayer 关键帧寻址 + 单测断言。
+**肢体方向约定（#704 勘误）：** 躯干/颈/臂/刀 Line2D 自 pivot 向 -Y（向上）延伸（pivot 在肢体顶端）；
+腿/膝自 #709 起向 **+Y（向下）** 延伸 —— 腿 pivot（髋）也在肢体顶端，但腿的语义是「自髋向下垂」，
+`_make_limb()` 统一 -Y 工厂对腿是错误约定（#704：大腿 (0,0)→(0,-20) 与躯干 y∈[0,-44] 整段重叠，
+膝 pivot 同样挂 -Y 侧），修复在调用点经 `_reverse_limb()` 把 points[1] 翻向 +Y（方向翻转、长度不变）。详见 §11。
+
 **原画接入点（PRD §4.1）：** 预留 `set_sprite_slot(sprite)` 与命名子节点位 `sprite_slot`——后续正式原画
 换 Sprite2D 层时保留骨架结构，零重构。
 
@@ -316,6 +321,7 @@ CI/本地: run-e2e-review.sh --with-visual
 | #584 | 帧节奏/骨骼几何/刀光参数 # DRAFT 定稿（含 10vs14 裁决） | 草稿已合并（#609），待用户定稿 |
 | #681 | 攻击查询委托补漏（StickFigureController +2 查询方法，本文件 §10） | 已合并（#692） |
 | #683 | 火柴人结构完整化（颈/膝骨架 + 24 帧步态 + REST_POSE 衔接 + facing 翻转，本文件 §3.1/§3.2 更新） | 已合并（#694） |
+| #704 | 腿 Line2D 方向修正（腿/膝几何 -Y → +Y，本文件 §11；错误继承自 DESIGN #683 自身 -Y 约定） | 已合并（#709） |
 
 ## 10. 查询委托 API（#681 补漏，2026-08-21 合并 #692）
 
@@ -368,3 +374,48 @@ func is_animation_playing() -> bool:
 **红线（DESIGN #681 §10 转述）：** 只加这两个方法——不修改 AnimStateAttack.update 调用契约（方法名 / 返回 float 保持）、
 不新增动画状态、不碰 #575 战斗状态机、不改 constants 时间戳（FRAME_ANIM_ATTACK_WINDUP/BURST/RECOVERY 8/4/10 帧保持）、
 不新增动画入口（consume_state 唯一入口契约保持）。
+
+
+## 11. 腿/膝几何方向修正（#704 bug 修复，2026-08-21 合并 #709）
+
+### 11.1 背景与根因
+
+#683 火柴人结构完整化（PR #694）把腿两段化（LegKPivot 膝 pivot）后，用户实机验证发现**腿画反/与躯干重叠**：
+`_make_limb()`（stick_figure.gd:135）统一让 Line2D 自 pivot 向 **-Y（向上）** 延伸
+`points = [ZERO, (0,-length)]` —— 躯干/颈/臂/刀的 pivot 都在肢体**顶端**（-Y 延伸 = 向上生长）语义正确；
+唯独**腿的 pivot（髋）也在顶端，但腿语义是「自髋向下垂」** → 大腿从髋 (0,0) 向 (0,-20) 向上延伸，
+与躯干线 y∈[0,-44] **整段重叠**（视觉「大腿根部在胸前」）；膝 pivot 挂 (0,-20)（-Y 侧）、小腿再向上 20px。
+错误继承自 DESIGN #683 自身：§2.2 写腿 `points=[ZERO,(0,-BODY_LEG_UPPER_LENGTH)]`（-Y 几何）
+而 §2.3 REST_POSE 表写「LegLPivot 0=直立」——设计与自身约定自相矛盾，PR #694 忠实实现 -Y 几何漏网。
+
+### 11.2 修改内容（DESIGN #704 方案 A：翻几何不翻动画）
+
+| 位置 | 变更 | 说明 |
+|------|------|------|
+| `stick_figure.gd` `_build_skeleton()` leg_l/leg_r | 新增 `_reverse_limb(leg_l/leg_r)` 调用 | 大腿 Line2D points[1] 翻向 +Y（方向翻转、长度不变） |
+| `stick_figure.gd` `_make_knee_pivot()` | `knee.position` `(0,-UPPER)` → `(0,+UPPER)` + 内部 `_reverse_limb(knee)` | 膝 pivot 移到腿中部 +Y 侧，小腿自膝向 +Y 下垂 |
+| `stick_figure.gd` 新增 `_reverse_limb(pivot)` | 取首个子 Line2D，`points[1] = Vector2(0, points[1].length())` | #704 专用辅助；非 Line2D 首子或 points.size()<2 时 no-op |
+| `stick_figure_controller.gd` L~244 摆姿注释 | 「-Y 延伸…legs rotation=0 即直立」→「±Y 延伸（躯干/颈/臂/刀 -Y；腿/膝 +Y）…legs rotation=0 即自然下垂」 | 勘误与实现矛盾的注释（issue 指控 #3） |
+| `docs/DESIGN/683-*.md` §2.2/§2.3 | 腿/膝几何 -Y → +Y；REST_POSE「直立」→「自然下垂」 | 勘误错误源头，防止后续 issue 继承错误约定 |
+| `test_stick_figure_animation.gd` Scenario D | 新增 `_test_d1_leg_direction()`（6 条断言） | 大腿/小腿 `points[1].y > 0` + 膝 pivot `position.y > 0`（AC1 回归保障） |
+
+**红线（DESIGN #704 §10）：** 动画与 Line2D 几何方向**解耦** —— 11 个 clip 的腿/膝 rotation track
+路径与关键帧数值**零改动**：`LegLPivot:rotation ∈ {0, ±MOVE_SWING_LEG_DEG=12}`、`LegKPivot:rotation ∈ {0, MOVE_KNEE_BEND_DEG=40}`，
+几何翻向 +Y 后「0=向下自然垂腿」语义自动成立；`constants.gd` 零改动；躯干/颈/臂/刀调用点不动；
+`leg_l/leg_r` 髋间距 `(±4,0)` 不动。
+
+### 11.3 修改后几何与验证
+
+```text
+修改后节点树（左右对称，pivot 名不变 → get_pivot("leg_l"/"leg_r"/"leg_k_l"/"leg_k_r") 契约兼容）
+LegLPivot (Node2D @ (-4,0))  ← 髋 pivot（名不变）
+├── Line2D 大腿: points=[ZERO, (0,+BODY_LEG_UPPER_LENGTH=20)]   ← -Y → +Y
+└── LegKPivot (Node2D @ (0,+20))  ← 位置 -Y → +Y（名 leg_k_l）
+    └── Line2D 小腿: points=[ZERO, (0,+BODY_LEG_LOWER_LENGTH=20)]  ← -Y → +Y
+踝点世界坐标 = 髋 (0,0) → 膝 (0,+20) → 踝 (0,+40)，与躯干 y∈[0,-44] 无重叠区间（AC1）；
+腿总长 40px 不变（AC3）；facing 翻转（scale.x=-1）镜像整个子树，局部 points 语义不变（正交，§5 #1）。
+```
+
+**验证：** F1/F2 既有断言方向无关继续通过（`_assert_limb_length` 取 `points[1].length()`）；
+新增 Scenario D 6 条方向断言（`_test_d1_leg_direction`）锁 AC1 回归；E2E stick_figure 组
+01_idle / 02a_move_contact / 02b_move_pass 截图内容自动变正确（e2e_shots.json 零改动）。
