@@ -1,4 +1,4 @@
-# Hud — 极简 HUD 层：两段式血条 + 双架势条 + 击杀/处决提示（#576/#627）
+# Hud — 极简 HUD 层：两段式血条 + 双架势条 + 击杀/处决提示 + Boss 血条 UI 呈现层（#576/#627/#684）
 
 > 落盘依据：PR #627（implement，taste-draft 草稿已 merge 2026-08-19）← DESIGN `docs/DESIGN/576-hud-stance-bars.md`（#622 合入）。
 > 上游：#575 CombatEntity 6 信号契约（hp_changed/stance_changed/stance_broken/state_changed/died/revived）、#584 战斗时序常量（STANCE_BREAK_RECOVERY_SEC=3.0 只读复用）、#562 标题 UI 的 CanvasLayer layer=1 层级约定。
@@ -54,7 +54,7 @@ signal low_health_changed(enabled: bool)   # 边沿触发：活性条占比 < HU
 
 内部类 `_HudBar`（extends Control，`_draw()` 自绘）：墨黑 60% 背景 + 1px 月白描边（无圆角）+ 逐段填充；`set_segments(values, maxes, active_index)` 注入段数组，`set_low_hp_mode(enabled)` 低血转 HUD_BLOOD_RED；段宽 `clamp(value/max, 0, 1)` 防除零/越界。
 
-## 3. 常量（constants.gd「HUD (#576)」# DRAFT 分区，13 个）
+## 3. 常量（constants.gd「HUD (#576)」# DRAFT 分区，18 个：13 既有 + 5 新增 #684）
 
 追加式新增分区（不触碰既有 9 分区任何一行），全部标 # DRAFT 待用户定稿；处决窗口复用 `STANCE_BREAK_RECOVERY_SEC=3.0` 不新增常量。
 
@@ -157,3 +157,64 @@ revived + hp_changed(0, 50, 2) → set_segments([0,50],[100,50],2)
 1. B2 提示文案：处决/击杀各 5 选 1（当前「按攻击键处决」「击毙」）
 2. HUD_LOW_HP_RATIO / HUD_KILL_HINT_SECONDS / 布局 / 配色 13 常量候补值（#584 调参面板可扩展挂入）
 3. E2E 4 帧观感裁决：克制、与雪夜水墨背景融为一体（禁止光效/圆角/饱和堆砌）
+
+## 10. Boss 血条 UI 呈现层增量（#684/#701）
+
+> 落盘依据：PR #701（implement，2026-08-21 merged）← DESIGN `docs/DESIGN/684-boss-hp-bar-ui.md`（plan #699 合入）。
+> 上游：#695 EnemyHealthBar 双条组合基底；#576 `_HudBar` 契约/色板。本增量 = **纯呈现层消费端**：零新数据管道、零新信号源（只消费 hp_changed / stance_changed / stance_broken / died 4 信号）、零 tscn 零贴图（#576 红线延续）。
+> 所有权：`content_ownership: mechanical`（节点结构/布局锚点/闪白状态机/分档显隐/信号接线全机械可验）；唯一 taste 环节 = 名字文案 + 闪白时长/颜色定值 + 百分比文本去留，全标 `# DRAFT` 只读候选，定稿归 #584/#576 human-review 通道。
+
+**设计意图：** #695 已交付顶部双条主体，本 issue 补呈现层三缺口——① 敌人名字（缺失）② 架势崩解条级闪白（现仅文字提示）③ Boss/杂兵呈现分档（未设计）。四个决策点（名字 Label / 条级闪白 / 分档 API / HP 纯条呈现）共享同一文件与实现窗口，合并实现避免返工。
+
+### 10.1 新组件（hud.gd 内 2 节点/状态 + 1 公有 API，无独立新文件）
+
+**① EnemyNameLabel（敌人名字 Label）**——`_make_hint_label` 同构（零 tscn 零贴图）：锚点 0.5 居中、offset_left/right = ±HUD_ENEMY_NAME_WIDTH/2（±120）、offset_top = HUD_ENEMY_NAME_TOP（2）、font_size 覆写 16（HUD_ENEMY_NAME_FONT_SIZE）、font_color = HUD_MOON_WHITE、**无底框**（克制悬浮，与提示 Label 墨黑底框区分）。超长名 `OVERRUN_TRIM_ELLIPSIS` 省略。显隐 = `_boss_mode and _enemy_display_name != ""`，由 `_apply_enemy_visibility()` 唯一收敛。
+
+```gdscript
+var EnemyNameLabel: Label               # tests 直接访问（与 EnemyHealthBar 同模式）
+var _enemy_display_name: String = ""    # 当前名字（taste 文案，默认空）
+
+func set_enemy_display_name(name: String) -> void:  # 新 API（PRD §4.1-A）: 空串隐藏；boss 档可见、杂兵档隐藏
+```
+
+**② `_HudBar` 崩解闪白状态机（set_break_flash）**——additive 扩展（玩家两条与既有 set_segments 路径零影响）：`_break_flash` / `_break_flash_alpha` / `_flash_tween` 三状态 + Tween 1.0→0.0 淡出（HUD_STANCE_BREAK_FLASH_SECONDS=0.18，零 `_process`）；`_draw` 两处分支（描边/填充）`HUD_STANCE_BREAK_FLASH_COLOR.lerp(原色, _break_flash_alpha)`。竞争语义：flash 期间 set_segments 到达 → `_draw` 读状态变量覆盖填充色，Tween 结束后重绘接管——**无竞态**；died/换目标打断走 `clear_break_flash()`（kill tween + 双状态复位，不留残影）。
+
+**③ `set_boss_mode(bool)` 分档 API + `_apply_enemy_visibility()` 三态显隐**——幂等（同值早退）；true = 名字+血条+架势条全显；false = 血条+名字隐藏、仅保留小架势条（现状位置）；null 目标 = 三态全隐。`set_target_enemy` / `_on_enemy_died` 的显隐逻辑收敛进 `_apply_enemy_visibility()`（签名零改动，先数据后显隐保证杂兵档小条有初始值）；`final=false` 防御分支 → 名字清空 + 双条清 0 + clear_break_flash()。
+
+### 10.2 新常量（constants.gd「Boss 血条 UI」分区，5 项 # DRAFT 归 #584）
+
+| 常量 | 值（候补） | 影响 |
+|------|-----------|------|
+| HUD_ENEMY_NAME_WIDTH | 240.0 [200, 240, 280] | 名字 Label 宽（= 血条同宽对齐，超长省略号） |
+| HUD_ENEMY_NAME_FONT_SIZE | 16 [14, 16, 18] | 名字字号（= HUD_HINT_FONT_SIZE 同级，克制） |
+| HUD_ENEMY_NAME_TOP | 2.0 [0.0, 2.0, 4.0] | 名字与血条上边距（血条 offset_top=12 → 名字 2..30） |
+| HUD_STANCE_BREAK_FLASH_SECONDS | 0.18 [0.12, 0.18, 0.25] | 崩解白闪淡出时长（sekiro「崩解白闪」惩罚清晰） |
+| HUD_STANCE_BREAK_FLASH_COLOR | HUD_MOON_WHITE [HUD_MOON_WHITE, HUD_BLOOD_RED.lightened(0.5)] | 闪白色（默认月白零新色相；「血染白」变体 taste 裁决） |
+
+> 全 `# DRAFT` 只读：实现期选默认值，候选集随 PR 提交，定稿归 #584/taste 通道。碎裂提示（PRD 4.2-B）与 HP 百分比数字文本（PRD 4.4-B）留 taste 候选，implement 未实现。
+
+### 10.3 数据流（全为既有信号消费端）
+
+```
+main_battle._build_hud: set_target_enemy(enemy) → set_boss_mode(true) → set_enemy_display_name("雪夜刀客")（# DRAFT 占位文案）
+  hp_changed      → EnemyHealthBar.set_segments                 ✅ 既有（#695）
+  stance_changed  → EnemyStanceBar.set_segments                 ✅ 既有（#695）
+  stance_broken   → EnemyStanceBar.set_break_flash() + 处决文字   ← 新增条级闪白（正交互不遮挡）
+  died(final)     → 名字隐藏 + 双条隐藏 + 击杀提示                ← 名字联动新增
+```
+
+### 10.4 E2E 截图扩展（3 新态）
+
+`e2e_hud_capture.gd` enum 0-6 向后兼容扩展（NORMAL=0/LOW_HP=1/EXECUTE_HINT=2/KILL_HINT=3 + BOSS_BAR=4/STANCE_BREAK_FLASH=5/MINION_MODE=6），CYCLE_SEQUENCE 7 态；debug API `set_debug_stance_break()` 直置 flash 态绕开真实 Tween 时序。`e2e_shots.json` hud group +3 shots：`05_hud_boss_bar`（名字+血条+架势条全显）/ `06_hud_stance_break_flash`（debug 置位闪白帧，与常态帧比色数/主题色）/ `07_hud_minion_mode`（仅小架势条）。
+
+### 10.5 装配与测试
+
+- **装配（main_battle.gd `_build_hud` +2 行）**：MVP 唯一敌人 = 精英 → Boss 档 `set_boss_mode(true)` + `set_enemy_display_name("雪夜刀客")`（# DRAFT 占位文案，taste 候选进 PR 待用户定稿）。
+- **单测（test_hud.gd additive）**：场景 A（名字布局/显隐 A1-A6）+ B（闪白状态机 B1-B6）+ C（分档三态 C1-C5）+ D（信号回归）+ E（E2E 态）+ F（装配断言）；既有 T1-T28/B1-B5 零改动全绿。
+- **静态契约延续**：零贴图零 tscn + 零 `_process` 轮询（TF-1 断言延续）——新代码全部信号 + Tween 驱动。
+
+### 10.6 待用户定稿清单（# DRAFT，taste 通道 #584/#576）
+
+1. 敌人名字文案（当前占位「雪夜刀客」）+ 名字字号/上边距候选
+2. 崩解闪白时长（0.12/0.18/0.25）与颜色（月白 vs 血染白）
+3. 碎裂提示（PRD 4.2-B）与 HP 百分比数字文本（4.4-B）去留
