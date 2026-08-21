@@ -430,11 +430,24 @@ func _unhandled_input(event: InputEvent) -> void:
 func _reset_game() -> void:
 	## 整局重置（只狼"死→重来"）: 重载当前场景（Main.tscn）回到初始作战。
 	## 终屏自身也是本轮场景的一部分，reload 即整体回收。
+	## ⚠️ 2026-08-22 排 bug: _show_end_screen/_on_player_final_death 对 InputController autoload
+	##   调 set_process(false) 冻结输入（autoload 跨 reload 持久）；若这里不复启，重载后的
+	##   InputController._process 永不 poll → attack_pressed 桥接断 → "胜利重开后不能出刀"。
+	##   复启输入 + 解除玩家/敌人物理冻结（reload 后这些节点是新实例，但 autoload 必须复启）。
 	_end_screen_shown = false
 	_ending = false
 	_fail_handled = false
 	_afterglow_started = false
+	_re_enable_input_systems()
 	get_tree().reload_current_scene()
+
+
+func _re_enable_input_systems() -> void:
+	## 复启被终屏冻结的输入/物理系统（D8 直接测此方法，避免触发 reload 悬空）。
+	## InputController 是 autoload，跨 reload 持久——必须显式 set_process(true) 解除冻结。
+	var ic = get_node_or_null("/root/InputController")
+	if ic != null:
+		ic.set_process(true)
 
 
 func _on_enemy_final_death(_entity, final: bool) -> void:

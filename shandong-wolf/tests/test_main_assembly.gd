@@ -75,6 +75,8 @@ func run() -> void:
 	_reset_logs()
 	_test_d7_death_screen_anykey_reset()
 	_reset_logs()
+	_test_d8_reset_re_enables_input()
+	_reset_logs()
 	_test_e1_afterglow_timing()
 	_reset_logs()
 	_test_e2_readonly_input_afterglow()
@@ -723,6 +725,33 @@ func _test_d7_death_screen_anykey_reset() -> void:
 	a._unhandled_input(ev_release2)
 	_assert(a.get("_ending") == true, "D7: 释放键不触发重置（_ending 保持 true）")
 
+	_free_main(m)
+
+
+func _test_d8_reset_re_enables_input() -> void:
+	# D8: 重置复启输入（2026-08-22 排 bug）—— _show_end_screen/_on_player_final_death 对
+	#   InputController autoload 调 set_process(false)（终屏期间输入冻结，D2 已测）；autoload
+	#   跨 reload_current_scene() 持久，若 _reset_game 不复启 → 重载后 _process 永不 poll →
+	#   attack_pressed 桥接断 → "胜利重开后不能出刀"。断言 _reset_game 的复启副作用。
+	#   测 _re_enable_input_systems()（_reset_game 调用），避免 headless 触发 reload 悬空。
+	var m = _spawn_main()
+	if m == null:
+		_assert(false, "D8: Main 实例化失败")
+		return
+	var a = _assembler(m)
+	if a == null:
+		_free_main(m)
+		return
+	var ic = _get_root().get_node_or_null("InputController")
+	_assert(ic != null, "D8: InputController autoload 可用")
+	if ic == null:
+		_free_main(m)
+		return
+	# 模拟终屏冻结输入（D2 已验证 set_process(false)），这里反向断言复启
+	ic.set_process(false)
+	_assert(ic.is_processing() == false, "D8: 前置——输入已冻结")
+	a._re_enable_input_systems()
+	_assert(ic.is_processing() == true, "D8: _re_enable_input_systems() 后 InputController 复启（is_processing==true）")
 	_free_main(m)
 
 
