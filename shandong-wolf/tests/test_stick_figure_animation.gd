@@ -20,7 +20,7 @@ const WolfConstantsScript = preload("res://gdscripts/constants.gd")
 
 const CANONICAL_STATES: Array = ["idle", "move", "attack", "heavy_attack", "guard", "parry_success", "stagger", "stance_break", "execute", "revive", "dead"]
 const ANIM_CLIPS: Array = ["anim_idle", "anim_move", "anim_attack", "anim_heavy_attack", "anim_guard", "anim_parry_success", "anim_stagger", "anim_stance_break", "anim_execute", "anim_revive", "anim_dead"]
-const PIVOT_PARTS: Array = ["torso", "head", "arm_l", "arm_r", "sword", "leg_l", "leg_r"]
+const PIVOT_PARTS: Array = ["torso", "head", "arm_l", "arm_r", "sword", "leg_l", "leg_r", "neck", "leg_k_l", "leg_k_r"]
 
 const STATE_TO_CLIP: Dictionary = {
 	"idle": "anim_idle",
@@ -34,6 +34,19 @@ const STATE_TO_CLIP: Dictionary = {
 	"execute": "anim_execute",
 	"revive": "anim_revive",
 	"dead": "anim_dead",
+}
+
+## 关节 → rotation track 路径（#683 AC3 姿态差枚举；head 路径含新 NeckPivot 前缀）
+const JOINT_ROTATION_PATHS: Dictionary = {
+	"torso": "StickFigure/TorsoPivot:rotation",
+	"head": "StickFigure/TorsoPivot/NeckPivot/HeadPivot:rotation",
+	"arm_l": "StickFigure/TorsoPivot/ArmLPivot:rotation",
+	"arm_r": "StickFigure/TorsoPivot/ArmRPivot:rotation",
+	"sword": "StickFigure/TorsoPivot/SwordPivot:rotation",
+	"leg_l": "StickFigure/LegLPivot:rotation",
+	"leg_r": "StickFigure/LegRPivot:rotation",
+	"leg_k_l": "StickFigure/LegLPivot/LegKPivot:rotation",
+	"leg_k_r": "StickFigure/LegRPivot/LegKPivot:rotation",
 }
 
 var passed: int = 0
@@ -60,6 +73,18 @@ func run() -> void:
 	_test_i1_all_clips_registered()
 	_test_i2_zero_resource_files()
 	_test_i3_no_overlapping_playback()
+	_test_ac1_t1_neck_separation()
+	_test_ac1_t2_head_torso_overlap()
+	_test_ac1_t3_head_ratio()
+	_test_ac1_t4_head_outline()
+	_test_ac2_t1_gait_cycle_frames()
+	_test_ac2_t2_knee_track()
+	_test_ac2_t3_contact_pass_pose()
+	_test_ac2_t4_playback_speed()
+	_test_ac2_t5_arm_leg_opposite()
+	_test_ac3_t1_transition_pose_delta()
+	_test_ac3_t3_knee_bend_max()
+	_test_ac3_t5_key_chain()
 	_test_l1_invalid_geometry_fallback()
 	_test_j1_windup_phase_zero()
 	_test_j2_burst_phase_one()
@@ -391,7 +416,8 @@ func _test_e3_draft_markers() -> void:
 # ── Scenario F: 骨架构建 ──
 
 func _test_f1_pivot_tree() -> void:
-	## F1: 7 pivot 完整（torso/head/arm_l/arm_r/sword/leg_l/leg_r）；头=Polygon2D，其余=Line2D
+	## F1: 10 pivot 完整（torso/head/arm_l/arm_r/sword/leg_l/leg_r/neck/leg_k_l/leg_k_r）；
+	##     头=Polygon2D，其余（含颈/膝）=Line2D（#683 R1 适配）
 	var controller: Node = _make_controller()
 	if controller == null:
 		return
@@ -414,12 +440,14 @@ func _test_f1_pivot_tree() -> void:
 
 func _test_f2_geometry_params() -> void:
 	## F2: 几何参数 == BODY_*/SWORD_* constants 值（容差 0.01）
+	## #683 R2 适配: 腿分两段——大腿 == BODY_LEG_UPPER_LENGTH、小腿（膝 pivot）== BODY_LEG_LOWER_LENGTH；
+	##   新增颈段 == BODY_NECK_LENGTH
 	var controller: Node = _make_controller()
 	if controller == null:
 		return
 	var figure: Node = controller.get_node_or_null("StickFigure")
 	var cm: Dictionary = _const_map()
-	var needed: Array = ["BODY_HEAD_RADIUS", "BODY_TORSO_LENGTH", "BODY_ARM_LENGTH", "BODY_LEG_LENGTH", "BODY_LIMB_WIDTH", "SWORD_LENGTH", "SWORD_WIDTH"]
+	var needed: Array = ["BODY_HEAD_RADIUS", "BODY_TORSO_LENGTH", "BODY_ARM_LENGTH", "BODY_LEG_LENGTH", "BODY_LEG_UPPER_LENGTH", "BODY_LEG_LOWER_LENGTH", "BODY_NECK_LENGTH", "BODY_LIMB_WIDTH", "SWORD_LENGTH", "SWORD_WIDTH"]
 	var all_present: bool = true
 	for n in needed:
 		if not cm.has(n):
@@ -434,8 +462,11 @@ func _test_f2_geometry_params() -> void:
 	_assert_limb_length(figure.get_pivot("torso"), float(cm.get("BODY_TORSO_LENGTH")), float(cm.get("BODY_LIMB_WIDTH")), "F2: torso")
 	_assert_limb_length(figure.get_pivot("arm_l"), float(cm.get("BODY_ARM_LENGTH")), float(cm.get("BODY_LIMB_WIDTH")), "F2: arm_l")
 	_assert_limb_length(figure.get_pivot("arm_r"), float(cm.get("BODY_ARM_LENGTH")), float(cm.get("BODY_LIMB_WIDTH")), "F2: arm_r")
-	_assert_limb_length(figure.get_pivot("leg_l"), float(cm.get("BODY_LEG_LENGTH")), float(cm.get("BODY_LIMB_WIDTH")), "F2: leg_l")
-	_assert_limb_length(figure.get_pivot("leg_r"), float(cm.get("BODY_LEG_LENGTH")), float(cm.get("BODY_LIMB_WIDTH")), "F2: leg_r")
+	_assert_limb_length(figure.get_pivot("neck"), float(cm.get("BODY_NECK_LENGTH")), float(cm.get("BODY_LIMB_WIDTH")), "F2: neck")
+	_assert_limb_length(figure.get_pivot("leg_l"), float(cm.get("BODY_LEG_UPPER_LENGTH")), float(cm.get("BODY_LIMB_WIDTH")), "F2: leg_l (thigh)")
+	_assert_limb_length(figure.get_pivot("leg_r"), float(cm.get("BODY_LEG_UPPER_LENGTH")), float(cm.get("BODY_LIMB_WIDTH")), "F2: leg_r (thigh)")
+	_assert_limb_length(figure.get_pivot("leg_k_l"), float(cm.get("BODY_LEG_LOWER_LENGTH")), float(cm.get("BODY_LIMB_WIDTH")), "F2: leg_k_l (shin)")
+	_assert_limb_length(figure.get_pivot("leg_k_r"), float(cm.get("BODY_LEG_LOWER_LENGTH")), float(cm.get("BODY_LIMB_WIDTH")), "F2: leg_k_r (shin)")
 	_assert_limb_length(figure.get_pivot("sword"), float(cm.get("SWORD_LENGTH")), float(cm.get("SWORD_WIDTH")), "F2: sword")
 	var head_poly: Node = _first_child(figure.get_pivot("head"))
 	if head_poly is Polygon2D:
@@ -568,6 +599,374 @@ func _test_i3_no_overlapping_playback() -> void:
 	_assert(anim.is_playing(), "I3: new clip playing")
 	_assert(anim.current_animation_position < 0.001, "I3: new clip starts fresh at frame 0")
 	_free_controller(controller)
+
+
+# ── Scenario AC1: 头部可读性（#683 AC1）──
+
+func _test_ac1_t1_neck_separation() -> void:
+	## AC1-T1: 头身分离 —— get_pivot("neck") 非 null；颈 Line2D 长度 == BODY_NECK_LENGTH（容差 0.01）；
+	##    HeadPivot 是 NeckPivot 子节点（结构 §2.1）
+	var cm: Dictionary = _const_map()
+	if not cm.has("BODY_NECK_LENGTH"):
+		_assert(false, "AC1-T1: BODY_NECK_LENGTH missing in constants")
+		return
+	var neck_len: float = float(cm.get("BODY_NECK_LENGTH"))
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var figure: Node = controller.get_node_or_null("StickFigure")
+	_assert(figure != null, "AC1-T1: StickFigure child exists")
+	if figure != null:
+		var neck_pivot: Node = figure.get_pivot("neck")
+		_assert(neck_pivot != null, "AC1-T1: get_pivot('neck') returns node")
+		if neck_pivot != null:
+			var neck_line: Node = _first_child(neck_pivot)
+			if neck_line is Line2D:
+				var got_len: float = (neck_line as Line2D).points[1].length()
+				_assert(absf(got_len - neck_len) < 0.01, "AC1-T1: neck length == BODY_NECK_LENGTH (got %s)" % str(got_len))
+			else:
+				_assert(false, "AC1-T1: neck pivot child is Line2D")
+		var head_pivot: Node = figure.get_pivot("head")
+		_assert(head_pivot != null and head_pivot.get_parent() == neck_pivot, "AC1-T1: HeadPivot is child of NeckPivot")
+	_free_controller(controller)
+
+
+func _test_ac1_t2_head_torso_overlap() -> void:
+	## AC1-T2: 头身重叠 ≤4px —— 头圆最低点 y（head.global_y + BODY_HEAD_RADIUS）vs 躯干顶 y
+	##    （torso.global_y - BODY_TORSO_LENGTH）；重叠 = head_bottom - torso_top（修复前 = 16px）
+	var cm: Dictionary = _const_map()
+	if not cm.has("BODY_HEAD_RADIUS") or not cm.has("BODY_TORSO_LENGTH"):
+		_assert(false, "AC1-T2: BODY_HEAD_RADIUS/BODY_TORSO_LENGTH missing in constants")
+		return
+	var head_radius: float = float(cm.get("BODY_HEAD_RADIUS"))
+	var torso_len: float = float(cm.get("BODY_TORSO_LENGTH"))
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var figure: Node = controller.get_node_or_null("StickFigure")
+	_assert(figure != null, "AC1-T2: StickFigure child exists")
+	if figure != null:
+		var head_pivot: Node = figure.get_pivot("head")
+		var torso_pivot: Node = figure.get_pivot("torso")
+		_assert(head_pivot != null and torso_pivot != null, "AC1-T2: head/torso pivots exist")
+		if head_pivot != null and torso_pivot != null:
+			var head_bottom: float = head_pivot.global_position.y + head_radius
+			var torso_top: float = torso_pivot.global_position.y - torso_len
+			var overlap: float = head_bottom - torso_top
+			_assert(overlap <= 4.0, "AC1-T2: head/torso overlap %.1fpx <= 4px (was 16px pre-fix)" % overlap)
+	_free_controller(controller)
+
+
+func _test_ac1_t3_head_ratio() -> void:
+	## AC1-T3: 头径:躯干 ∈ GDD 1:2.5 ±10% —— 断言 2*BODY_HEAD_RADIUS/BODY_TORSO_LENGTH ∈ [1/2.75, 1/2.25]
+	##    （纯常量断言，无需实例化）
+	var cm: Dictionary = _const_map()
+	if not cm.has("BODY_HEAD_RADIUS") or not cm.has("BODY_TORSO_LENGTH"):
+		_assert(false, "AC1-T3: BODY_HEAD_RADIUS/BODY_TORSO_LENGTH missing in constants")
+		return
+	var ratio: float = 2.0 * float(cm.get("BODY_HEAD_RADIUS")) / float(cm.get("BODY_TORSO_LENGTH"))
+	_assert(ratio >= 1.0 / 2.75 and ratio <= 1.0 / 2.25, "AC1-T3: 2*radius/torso ratio %.4f ∈ [1/2.75, 1/2.25]" % ratio)
+
+
+func _test_ac1_t4_head_outline() -> void:
+	## AC1-T4: 头轮廓开关 —— HEAD_OUTLINE_ENABLED 存在；默认 false 时 HeadPivot 只有头圆 1 个节点
+	var cm: Dictionary = _const_map()
+	_assert(cm.has("HEAD_OUTLINE_ENABLED"), "AC1-T4: HEAD_OUTLINE_ENABLED exists in constants")
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var figure: Node = controller.get_node_or_null("StickFigure")
+	_assert(figure != null, "AC1-T4: StickFigure child exists")
+	if figure != null:
+		var head_pivot: Node = figure.get_pivot("head")
+		_assert(head_pivot != null, "AC1-T4: get_pivot('head') returns node")
+		if head_pivot != null:
+			var outline_enabled: bool = false
+			if cm.has("HEAD_OUTLINE_ENABLED"):
+				outline_enabled = bool(cm.get("HEAD_OUTLINE_ENABLED"))
+			if outline_enabled:
+				_assert(head_pivot.get_child_count() >= 2, "AC1-T4: head outline Polygon2D present when HEAD_OUTLINE_ENABLED")
+			else:
+				_assert(head_pivot.get_child_count() == 1, "AC1-T4: head has only head-circle when outline disabled (got %d)" % head_pivot.get_child_count())
+	_free_controller(controller)
+
+
+# ── Scenario AC2: 走路动画（#683 AC2）──
+
+func _test_ac2_t1_gait_cycle_frames() -> void:
+	## AC2-T1: 步态周期 —— anim_move length*60 ∈ [24,32] 帧（容差 ±1 帧）
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var anim: AnimationPlayer = _anim_player(controller)
+	var lib: AnimationLibrary = anim.get_animation_library("")
+	var clip: Animation = lib.get_animation("anim_move")
+	_assert(clip != null, "AC2-T1: anim_move clip registered")
+	if clip != null:
+		var frames: float = clip.length * 60.0
+		_assert(frames >= 23.0 and frames <= 33.0, "AC2-T1: move cycle %.1f frames ∈ [24,32] (±1)" % frames)
+	_free_controller(controller)
+
+
+func _test_ac2_t2_knee_track() -> void:
+	## AC2-T2: 膝 pivot 存在且 anim_move 含膝 rotation track（关键帧 ≥3: contact/pass/contact）
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var figure: Node = controller.get_node_or_null("StickFigure")
+	_assert(figure != null, "AC2-T2: StickFigure child exists")
+	if figure != null:
+		_assert(figure.get_pivot("leg_k_l") != null, "AC2-T2: get_pivot('leg_k_l') returns node")
+	var anim: AnimationPlayer = _anim_player(controller)
+	var lib: AnimationLibrary = anim.get_animation_library("")
+	var clip: Animation = lib.get_animation("anim_move")
+	_assert(clip != null, "AC2-T2: anim_move clip registered")
+	if clip != null:
+		var found: bool = false
+		var key_count: int = 0
+		for t in range(clip.get_track_count()):
+			if clip.track_get_path(t) == NodePath("StickFigure/LegLPivot/LegKPivot:rotation"):
+				found = true
+				key_count = clip.track_get_key_count(t)
+		_assert(found, "AC2-T2: anim_move has LegLPivot/LegKPivot:rotation track")
+		if found:
+			_assert(key_count >= 3, "AC2-T2: knee track keyframes >= 3 (got %d)" % key_count)
+	_free_controller(controller)
+
+
+func _test_ac2_t3_contact_pass_pose() -> void:
+	## AC2-T3: contact/pass 关键姿态 —— contact(0): LegL 摆幅绝对值 == MOVE_SWING_LEG_DEG、膝屈曲 == 0；
+	##    pass(6): 摆动腿膝屈曲绝对值 == MOVE_KNEE_BEND_DEG（容差 0.5°）。track 缺失 → 断言失败
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var anim: AnimationPlayer = _anim_player(controller)
+	var cm: Dictionary = _const_map()
+	if not cm.has("MOVE_SWING_LEG_DEG") or not cm.has("MOVE_KNEE_BEND_DEG"):
+		_assert(false, "AC2-T3: MOVE_SWING_LEG_DEG/MOVE_KNEE_BEND_DEG missing in constants")
+		_free_controller(controller)
+		return
+	var swing_deg: float = float(cm.get("MOVE_SWING_LEG_DEG"))
+	var bend_deg: float = float(cm.get("MOVE_KNEE_BEND_DEG"))
+	var lib: AnimationLibrary = anim.get_animation_library("")
+	var clip: Animation = lib.get_animation("anim_move")
+	_assert(clip != null, "AC2-T3: anim_move clip registered")
+	if clip != null:
+		var hip_contact: float = _track_angle_at_frame(clip, "StickFigure/LegLPivot:rotation", 0)
+		var knee_contact: float = _track_angle_at_frame(clip, "StickFigure/LegLPivot/LegKPivot:rotation", 0)
+		_assert(is_finite(hip_contact), "AC2-T3: LegLPivot track present at contact frame 0")
+		if is_finite(hip_contact):
+			_assert(absf(absf(hip_contact) - swing_deg) <= 0.5, "AC2-T3: contact |LegL swing| == MOVE_SWING_LEG_DEG (got %s)" % str(hip_contact))
+		_assert(is_finite(knee_contact), "AC2-T3: LegLPivot/LegKPivot track present at contact frame 0")
+		if is_finite(knee_contact):
+			_assert(absf(knee_contact) <= 0.5, "AC2-T3: contact knee flexion == 0 (got %s)" % str(knee_contact))
+		var knee_pass: float = _track_angle_at_frame(clip, "StickFigure/LegLPivot/LegKPivot:rotation", 6)
+		_assert(is_finite(knee_pass), "AC2-T3: LegLPivot/LegKPivot track present at pass frame 6")
+		if is_finite(knee_pass):
+			_assert(absf(absf(knee_pass) - bend_deg) <= 0.5, "AC2-T3: pass |swing-leg knee bend| == MOVE_KNEE_BEND_DEG (got %s)" % str(knee_pass))
+	_free_controller(controller)
+
+
+func _test_ac2_t4_playback_speed() -> void:
+	## AC2-T4: 播放速度同步 —— set_move_speed(300)→speed_scale 1.0；(90)→下限；(400)→上限；
+	##    非 move clip 时调用 → no-op（speed_scale 不变）。set_move_speed 缺失 → 断言失败
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var anim: AnimationPlayer = _anim_player(controller)
+	_assert(controller.has_method("set_move_speed"), "AC2-T4: controller has set_move_speed method")
+	if not controller.has_method("set_move_speed"):
+		_free_controller(controller)
+		return
+	var cm: Dictionary = _const_map()
+	var speed_min: float = 0.3
+	var speed_max: float = 1.2
+	if cm.has("MOVE_PLAYBACK_SPEED_MIN"):
+		speed_min = float(cm.get("MOVE_PLAYBACK_SPEED_MIN"))
+	if cm.has("MOVE_PLAYBACK_SPEED_MAX"):
+		speed_max = float(cm.get("MOVE_PLAYBACK_SPEED_MAX"))
+	controller.consume_state("move")
+	controller.set_move_speed(300.0)
+	_assert(absf(anim.speed_scale - 1.0) <= 0.01, "AC2-T4: move @300 → speed_scale == 1.0 (got %s)" % str(anim.speed_scale))
+	controller.set_move_speed(90.0)
+	_assert(absf(anim.speed_scale - speed_min) <= 0.01, "AC2-T4: move @90 → speed_scale == %.2f (floor, got %s)" % [speed_min, str(anim.speed_scale)])
+	controller.set_move_speed(400.0)
+	_assert(absf(anim.speed_scale - speed_max) <= 0.01, "AC2-T4: move @400 → speed_scale == %.2f (cap, got %s)" % [speed_max, str(anim.speed_scale)])
+	controller.consume_state("idle")
+	var idle_scale: float = anim.speed_scale
+	controller.set_move_speed(300.0)
+	_assert(absf(anim.speed_scale - idle_scale) <= 0.01, "AC2-T4: idle + set_move_speed no-op (speed_scale unchanged)")
+	_free_controller(controller)
+
+
+func _test_ac2_t5_arm_leg_opposite() -> void:
+	## AC2-T5: 摆臂反向同频 —— anim_move 首帧 ArmL 与 LegR 符号相反、ArmR 与 LegL 符号相反
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var anim: AnimationPlayer = _anim_player(controller)
+	var lib: AnimationLibrary = anim.get_animation_library("")
+	var clip: Animation = lib.get_animation("anim_move")
+	_assert(clip != null, "AC2-T5: anim_move clip registered")
+	if clip != null:
+		var arm_l: float = _clip_joint_angle_at(clip, "StickFigure/TorsoPivot/ArmLPivot:rotation", true)
+		var leg_r: float = _clip_joint_angle_at(clip, "StickFigure/LegRPivot:rotation", true)
+		_assert(is_finite(arm_l) and is_finite(leg_r), "AC2-T5: ArmLPivot/LegRPivot tracks present")
+		if is_finite(arm_l) and is_finite(leg_r):
+			_assert(arm_l * leg_r < 0.0, "AC2-T5: ArmL first-frame sign opposite to LegR (%s vs %s)" % [str(arm_l), str(leg_r)])
+		var arm_r: float = _clip_joint_angle_at(clip, "StickFigure/TorsoPivot/ArmRPivot:rotation", true)
+		var leg_l: float = _clip_joint_angle_at(clip, "StickFigure/LegLPivot:rotation", true)
+		_assert(is_finite(arm_r) and is_finite(leg_l), "AC2-T5: ArmRPivot/LegLPivot tracks present")
+		if is_finite(arm_r) and is_finite(leg_l):
+			_assert(arm_r * leg_l < 0.0, "AC2-T5: ArmR first-frame sign opposite to LegL (%s vs %s)" % [str(arm_r), str(leg_l)])
+	_free_controller(controller)
+
+
+# ── Scenario AC3: 骨架一致性（#683 AC3）──
+
+func _test_ac3_t1_transition_pose_delta() -> void:
+	## AC3-T1: 姿态差 ≤15° 枚举 —— 对 combat_state_table.gd TRANSITIONS 每个合法转移对 (from,to)，
+	##    from.clip 尾帧 vs to.clip 首帧逐关节角度差 <= POSE_DELTA_MAX_DEG（容差 1°）；
+	##    同态（from==to）跳过；clip 缺某关节 track → 断言失败（实现遗漏）
+	var cm: Dictionary = _const_map()
+	if not cm.has("POSE_DELTA_MAX_DEG"):
+		_assert(false, "AC3-T1: POSE_DELTA_MAX_DEG missing in constants")
+		return
+	var max_deg: float = float(cm.get("POSE_DELTA_MAX_DEG"))
+	var table_script: GDScript = load("res://gdscripts/combat_state_table.gd")
+	_assert(table_script != null, "AC3-T1: combat_state_table.gd loads")
+	if table_script == null:
+		return
+	var transitions: Dictionary = table_script.get_script_constant_map().get("TRANSITIONS", {})
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var anim: AnimationPlayer = _anim_player(controller)
+	var lib: AnimationLibrary = anim.get_animation_library("")
+	var checked: int = 0
+	for from_state in transitions.keys():
+		var from_clip: Animation = lib.get_animation(STATE_TO_CLIP[from_state])
+		if from_clip == null:
+			_assert(false, "AC3-T1: clip for '%s' registered" % str(from_state))
+			continue
+		for to_state in transitions[from_state]:
+			if str(from_state) == str(to_state):
+				continue  # 同态重入（attack→attack）: 同 clip 首尾帧，重置语义，跳过
+			var to_clip: Animation = lib.get_animation(STATE_TO_CLIP[to_state])
+			if to_clip == null:
+				_assert(false, "AC3-T1: clip for '%s' registered" % str(to_state))
+				continue
+			for joint in JOINT_ROTATION_PATHS:
+				var node_path: String = JOINT_ROTATION_PATHS[joint]
+				var from_angle: float = _clip_joint_angle_at(from_clip, node_path, false)
+				var to_angle: float = _clip_joint_angle_at(to_clip, node_path, true)
+				if is_nan(from_angle):
+					_assert(false, "AC3-T1: %s missing joint track %s (tail)" % [STATE_TO_CLIP[from_state], node_path])
+					continue
+				if is_nan(to_angle):
+					_assert(false, "AC3-T1: %s missing joint track %s (head)" % [STATE_TO_CLIP[to_state], node_path])
+					continue
+				var delta: float = absf(to_angle - from_angle)
+				checked += 1
+				_assert(delta <= max_deg + 1.0, "AC3-T1: %s→%s %s pose delta %.1f° <= %s° (+1° tol)" % [str(from_state), str(to_state), joint, delta, str(max_deg)])
+	_assert(checked > 0, "AC3-T1: at least one transition pair checked")
+	_free_controller(controller)
+
+
+func _test_ac3_t3_knee_bend_max() -> void:
+	## AC3-T3: 膝单向弯曲上限 —— 全部 clip 的膝 track 关键帧角度绝对值 <= KNEE_BEND_MAX_DEG（容差 1°）
+	var cm: Dictionary = _const_map()
+	if not cm.has("KNEE_BEND_MAX_DEG"):
+		_assert(false, "AC3-T3: KNEE_BEND_MAX_DEG missing in constants")
+		return
+	var knee_max: float = float(cm.get("KNEE_BEND_MAX_DEG"))
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var anim: AnimationPlayer = _anim_player(controller)
+	var lib: AnimationLibrary = anim.get_animation_library("")
+	var knee_paths: Array = ["StickFigure/LegLPivot/LegKPivot:rotation", "StickFigure/LegRPivot/LegKPivot:rotation"]
+	for clip_name in ANIM_CLIPS:
+		var clip: Animation = lib.get_animation(clip_name)
+		if clip == null:
+			_assert(false, "AC3-T3: clip '%s' registered" % clip_name)
+			continue
+		for node_path in knee_paths:
+			var found: bool = false
+			for t in range(clip.get_track_count()):
+				if clip.track_get_path(t) == NodePath(node_path):
+					found = true
+					var count: int = clip.track_get_key_count(t)
+					for k in range(count):
+						var deg: float = absf(rad_to_deg(float(clip.track_get_key_value(t, k))))
+						_assert(deg <= knee_max + 1.0, "AC3-T3: %s %s key %d |%.1f°| <= %s° (+1° tol)" % [clip_name, node_path, k, deg, str(knee_max)])
+			if not found:
+				_assert(false, "AC3-T3: %s missing knee track %s" % [clip_name, node_path])
+	_free_controller(controller)
+
+
+func _test_ac3_t5_key_chain() -> void:
+	## AC3-T5: 关键链专项 —— guard→parry_success→move 三态相邻对姿态差 <= POSE_DELTA_MAX_DEG（复用 T1 枚举）
+	var cm: Dictionary = _const_map()
+	if not cm.has("POSE_DELTA_MAX_DEG"):
+		_assert(false, "AC3-T5: POSE_DELTA_MAX_DEG missing in constants")
+		return
+	var max_deg: float = float(cm.get("POSE_DELTA_MAX_DEG"))
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var anim: AnimationPlayer = _anim_player(controller)
+	var lib: AnimationLibrary = anim.get_animation_library("")
+	var chain: Array = ["guard", "parry_success", "move"]
+	for i in range(chain.size() - 1):
+		var from_state: String = chain[i]
+		var to_state: String = chain[i + 1]
+		var from_clip: Animation = lib.get_animation(STATE_TO_CLIP[from_state])
+		var to_clip: Animation = lib.get_animation(STATE_TO_CLIP[to_state])
+		if from_clip == null or to_clip == null:
+			_assert(false, "AC3-T5: %s→%s clips registered" % [from_state, to_state])
+			continue
+		for joint in JOINT_ROTATION_PATHS:
+			var node_path: String = JOINT_ROTATION_PATHS[joint]
+			var from_angle: float = _clip_joint_angle_at(from_clip, node_path, false)
+			var to_angle: float = _clip_joint_angle_at(to_clip, node_path, true)
+			if is_nan(from_angle) or is_nan(to_angle):
+				_assert(false, "AC3-T5: %s→%s %s track present (from=%s to=%s)" % [from_state, to_state, joint, str(from_angle), str(to_angle)])
+				continue
+			var delta: float = absf(to_angle - from_angle)
+			_assert(delta <= max_deg + 1.0, "AC3-T5: %s→%s %s pose delta %.1f° <= %s°" % [from_state, to_state, joint, delta, str(max_deg)])
+	_free_controller(controller)
+
+
+func _clip_joint_angle_at(clip: Animation, node_path: String, first: bool) -> float:
+	## 返回指定关节 rotation track 首个（first=true）或末个（first=false）关键帧角度（度）；
+	## track 缺失或空 → NAN（调用方 is_nan 判定缺失，不得用 parse error 表达）
+	if clip == null:
+		return NAN
+	for t in range(clip.get_track_count()):
+		if clip.track_get_path(t) == NodePath(node_path):
+			var count: int = clip.track_get_key_count(t)
+			if count <= 0:
+				return NAN
+			var idx: int = 0
+			if not first:
+				idx = count - 1
+			return rad_to_deg(float(clip.track_get_key_value(t, idx)))
+	return NAN
+
+
+func _track_angle_at_frame(clip: Animation, node_path: String, frame: int) -> float:
+	## 返回指定 rotation track 在 frame/60s 时间戳处的关键帧角度（度）；track/帧缺失 → NAN
+	if clip == null:
+		return NAN
+	var target: float = float(frame) / 60.0
+	for t in range(clip.get_track_count()):
+		if clip.track_get_path(t) == NodePath(node_path):
+			for k in range(clip.track_get_key_count(t)):
+				if absf(clip.track_get_key_time(t, k) - target) < 0.001:
+					return rad_to_deg(float(clip.track_get_key_value(t, k)))
+			return NAN
+	return NAN
 
 
 # ── Scenario L: 非法几何参数兜底 ──

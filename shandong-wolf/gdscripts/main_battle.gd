@@ -58,6 +58,14 @@ var _afterglow_started: bool = false  # 余韵幂等守卫（二次 died(true) �
 var _afterglow_timer: Timer = null      # 余韵 5s Timer（public 供测试驱动 timeout）
 var _fail_subtitle_timer: Timer = null  # 失败字幕延迟 Timer（public 供测试驱动 timeout）
 
+## 视觉 stick 引用（#683 §3.4 facing 接线）——翻转目标 = StickFigure 子节点，
+## 绝不 scale 物理根/controller 根（MA2 红线，PlayerController/EnemyAI 根 scale 保持 1.0）
+var _player_stick_figure = null
+var _enemy_stick_figure = null
+## facing 翻转缓存（每帧轮询比对，变化才设 scale.x——防重复写 + 翻转恰好一次）
+var _last_player_facing: float = 1.0
+var _last_enemy_facing: float = 1.0
+
 
 func _ready() -> void:
 	## 13 步装配全链路（§4 Flow 4 顺序契约，全部同步完成、首帧前就绪）
@@ -125,6 +133,8 @@ func _ready() -> void:
 	## ⑬ 教学提示 + 隐藏标题卡 + 初始状态
 	_setup_tutorial_hint()
 	_set_game_state(GameState.IDLE)
+	## ⑭ 初始 facing 落位（装配完成即按当前 facing 设一次 scale.x，防首帧朝向错误）
+	_sync_visual_facing()
 
 
 func _build_player(ic) -> void:
@@ -136,6 +146,7 @@ func _build_player(ic) -> void:
 	var stick = StickFigureScene.instantiate()
 	stick.name = "PlayerStickFigure"
 	player.add_child(stick)
+	_player_stick_figure = stick
 	player_entity = CombatEntityScript.new({"is_player": true, "life_total": 2})
 	player_entity.name = "PlayerEntity"
 	player.add_child(player_entity)
@@ -156,6 +167,7 @@ func _build_enemy(stage) -> void:
 	var stick = StickFigureScene.instantiate()
 	stick.name = "EnemyStickFigure"
 	enemy.add_child(stick)
+	_enemy_stick_figure = stick
 	enemy_entity = CombatEntityScript.new({"is_player": false, "life_total": 1, "life_1_max": C.ENEMY_HP_MAX})
 	enemy_entity.name = "EnemyEntity"
 	enemy.add_child(enemy_entity)
@@ -196,6 +208,48 @@ func _build_reaction() -> void:
 	reaction.bind_judge(judge)
 	reaction.subscribe_entity(player_entity)
 	reaction.subscribe_entity(enemy_entity)
+
+
+func _process(_delta: float) -> void:
+	## 每帧轮询同步（#683 §3.4 装配接线，零信号依赖——facing 可能从多源变化）
+	_sync_visual_facing()
+	_sync_move_speed()
+
+
+func _sync_visual_facing() -> void:
+	## 朝向 → 视觉翻转（Flow 1）: 缓存比对 facing 变化，变化时设 StickFigure.scale.x。
+	## 数据源: player_entity.facing（输入轴同步）/ enemy_entity.facing（AI 同步）——
+	##   单一事实源（不读 enemy_ai 私有状态）；翻转目标 = StickFigure 视觉子节点，
+	##   绝不 scale 物理根/controller 根（红线 §4.3-C，PlayerController/EnemyAI 根 scale
+	##   保持 1.0，MA2 断言）；null 引用 guard（headless 测试某些节点可能缺失）。
+	if player_entity != null:
+		var pf: int = player_entity.facing
+		if pf != _last_player_facing:
+			_last_player_facing = float(pf)
+			_apply_facing_flip(_player_stick_figure, pf)
+	if enemy_entity != null:
+		var ef: int = enemy_entity.facing
+		if ef != _last_enemy_facing:
+			_last_enemy_facing = float(ef)
+			_apply_facing_flip(_enemy_stick_figure, ef)
+
+
+func _apply_facing_flip(stick_root, facing: int) -> void:
+	## 翻转执行: 仅作用于 StickFigure 子节点（get_node_or_null 容错，节点缺失 no-op）
+	if stick_root == null:
+		return
+	var figure = stick_root.get_node_or_null("StickFigure")
+	if figure != null:
+		figure.scale.x = float(facing)
+
+
+func _sync_move_speed() -> void:
+	## 步频 → 速度同步（Flow 2）: set_move_speed(|v|/MOVE_MAX_SPEED)——
+	##   非 move clip 内部 no-op，可直接每帧调；velocity 为 CharacterBody2D 属性
+	if _player_stick_figure != null and player != null and _player_stick_figure.has_method("set_move_speed"):
+		_player_stick_figure.set_move_speed(player.velocity.x)
+	if _enemy_stick_figure != null and enemy != null and _enemy_stick_figure.has_method("set_move_speed"):
+		_enemy_stick_figure.set_move_speed(enemy.velocity.x)
 
 
 func _setup_tutorial_hint() -> void:

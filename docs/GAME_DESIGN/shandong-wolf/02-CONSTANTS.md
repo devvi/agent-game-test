@@ -111,7 +111,7 @@ shandong-wolf 骨架期（#559-#570）`gdscripts/` 为空，后续 #573-#578 的
 | `FRAME_ANIM_ATTACK_BURST` | `4` | 挥刀暴发（刀光在此段触发） |
 | `FRAME_ANIM_ATTACK_RECOVERY` | `10` | ⚠️ 与 FRAME_ATTACK_RECOVERY=14 冲突，双值共存互引 |
 | `FRAME_ANIM_TRANSITION_MAX` | `2` | AC1 过渡上限（2 帧 @60fps = 0.033s） |
-| `FRAME_ANIM_MOVE_STEP` | `4` | 步态摆臂循环 4 帧 |
+| `FRAME_ANIM_MOVE_STEP` | `4` | 关键姿态数（contact/pass ×2，#683 语义修订）；完整步态周期 = FRAME_ANIM_MOVE_CYCLE |
 | `FRAME_ANIM_EXECUTE_TOTAL` | `5` | 处决上撩→斩落 5 帧 |
 | `FRAME_ANIM_SWORD_ARC_FADE` | `4` | 刀光存在/衰减帧数 |
 
@@ -121,13 +121,32 @@ shandong-wolf 骨架期（#559-#570）`gdscripts/` 为空，后续 #573-#578 的
 |------|----|------|
 | `BODY_COLOR` | `#2b2b2b` | issue body 指定墨色剪影 |
 | `SWORD_COLOR` | `#c0c8d0` | 冷白刀身，雪夜反差点 |
-| `BODY_HEAD_RADIUS` | `16.0` | 头圆半径 |
+| `BODY_HEAD_RADIUS` | `9.5` | 头圆半径（#683 修订 16→9.5，GDD 头:躯干 ≈ 1:2.2–2.5） |
 | `BODY_TORSO_LENGTH` | `44.0` | 躯干长 |
 | `BODY_ARM_LENGTH` | `34.0` | 臂长 |
 | `BODY_LEG_LENGTH` | `40.0` | 腿长 |
 | `BODY_LIMB_WIDTH` | `6.0` | Line2D width |
 | `SWORD_LENGTH` | `88.0` | 长刀，视觉焦点 |
 | `SWORD_WIDTH` | `5.0` | 刀宽 |
+| `BODY_NECK_LENGTH` | `10.0` | 颈段长（#683 新增，候选 8–12） |
+| `BODY_LEG_UPPER_LENGTH` | `20.0` | 大腿长（#683 腿两段化，候选 18–22） |
+| `BODY_LEG_LOWER_LENGTH` | `20.0` | 小腿长（#683 膝 pivot 支撑，候选 18–22） |
+| `HEAD_OUTLINE_ENABLED` | `false` | 头冷白轮廓开关（#683 实验 1 taste 决策点） |
+| `HEAD_OUTLINE_WIDTH` | `2.0` | 头轮廓线宽（候选 1–2） |
+| `HEAD_OUTLINE_COLOR` | `#c0c8d0` | 头轮廓冷白（SWORD_COLOR 系） |
+| `FRAME_ANIM_MOVE_CYCLE` | `24` | 步态周期帧数（#683 实验 2 候选 24/28/32） |
+| `MOVE_SWING_LEG_DEG` | `25.0` | 腿髋摆幅（候选 20–30） |
+| `MOVE_SWING_ARM_DEG` | `25.0` | 摆臂幅度（候选 20–35） |
+| `MOVE_KNEE_BEND_DEG` | `40.0` | 摆动相屈膝抬脚（候选 30–50） |
+| `KNEE_BEND_MAX_DEG` | `90.0` | 膝机械上限（AC3 断言） |
+| `POSE_DELTA_MAX_DEG` | `15.0` | 跨状态衔接阈值（AC3 断言） |
+| `MOVE_PLAYBACK_SPEED_MIN` | `0.3` | 步频速度同步下限（#683 实验 3） |
+| `MOVE_PLAYBACK_SPEED_MAX` | `1.2` | 步频速度同步上限 |
+| `FRAME_ANIM_GUARD_EXIT` | `3` | guard 尾帧归位段（候选 2–4） |
+| `FRAME_ANIM_PARRY_SUCCESS_EXIT` | `3` | parry_success 尾帧归位段 |
+| `FRAME_ANIM_STAGGER_EXIT` | `3` | stagger 尾帧归位段 |
+| `FRAME_ANIM_STANCE_BREAK_EXIT` | `3` | stance_break 尾帧归位段 |
+| `FRAME_ANIM_DEAD_EXIT` | `3` | dead 尾帧归位段 |
 
 **刀光弧线参数**（挥砍轨迹可读性——张角过大刺眼、过小看不清轨迹）
 

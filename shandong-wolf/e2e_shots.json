@@ -30,7 +30,7 @@
   },
   "groups": {
     "stick_figure": {
-      "_comment": "#574 火柴人剪影骨架与关键帧动画：12 态 shot（attack 三段独立 shot，settle_frames 匹配各自动画时长）。",
+      "_comment": "#574 火柴人剪影骨架与关键帧动画：12 态 shot（attack 三段独立 shot，settle_frames 匹配各自动画时长）；#683 增补——02_move 拆为 02a/02b 步态定格（contact/pass）+ 13_head_readability 头可读性裁决（实验 1）。",
       "match": [
         "gdscripts/stick_figure.*\\.gd",
         "gdscripts/sword_arc\\.gd",
@@ -38,7 +38,8 @@
       ],
       "shots": [
         { "name": "01_idle", "state": "IDLE", "settle_frames": 6, "theme_color": null },
-        { "name": "02_move", "state": "MOVE", "settle_frames": 6, "theme_color": null },
+        { "name": "02a_move_contact", "state": "MOVE", "at_frame": 0, "settle_frames": 6, "theme_color": null, "_comment": "#683 AC2 步态接触相定格（contact=0 帧，支撑脚着地）" },
+        { "name": "02b_move_pass", "state": "MOVE", "at_frame": 6, "settle_frames": 6, "theme_color": null, "_comment": "#683 AC2 步态摆动相定格（pass=6 帧，摆动腿屈膝抬脚）" },
         { "name": "03_attack_windup", "state": "ATTACK_WINDUP", "settle_frames": 5, "theme_color": null },
         { "name": "04_attack_burst", "state": "ATTACK_BURST", "settle_frames": 1, "theme_color": null },
         { "name": "05_attack_recovery", "state": "ATTACK_RECOVERY", "settle_frames": 4, "theme_color": null },
@@ -48,7 +49,8 @@
         { "name": "09_stance_break", "state": "STANCE_BREAK", "settle_frames": 6, "theme_color": null },
         { "name": "10_execute", "state": "EXECUTE", "settle_frames": 2, "theme_color": null },
         { "name": "11_revive", "state": "REVIVE", "settle_frames": 6, "theme_color": null },
-        { "name": "12_dead", "state": "DEAD", "settle_frames": 6, "theme_color": null }
+        { "name": "12_dead", "state": "DEAD", "settle_frames": 6, "theme_color": null },
+        { "name": "13_head_readability", "state": "IDLE", "settle_frames": 6, "theme_color": null, "_comment": "#683 AC1 头部可读性裁决（实验 1）" }
       ]
     },
     "snow_night": {

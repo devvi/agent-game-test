@@ -7,14 +7,17 @@ extends Node2D
 ##     头 = Polygon2D 实心圆（「剪影」语义要求实心填充而非描边）
 ##   - 参数校验: 非法几何参数 → push_warning + 回退 constants 默认值（不崩溃，§5-10 / Scenario L）
 ##   - 原画接入点: set_sprite_slot() 预留 sprite_slot 命名位（换 Sprite2D 层保留骨架，PRD §4.1）
-##   - 节点树（DESIGN §2.2）:
+##   - 节点树（DESIGN §2.2，#683 增颈/膝）:
 ##     TorsoPivot ─┬─ Line2D 躯干
-##                 ├─ HeadPivot ── Polygon2D 头圆
+##                 ├─ NeckPivot ─┬─ Line2D 颈
+##                 │             └─ HeadPivot ── Polygon2D 头圆
+##                 │                  └── [可选] HeadOutline Polygon2D 冷白环
 ##                 ├─ ArmLPivot ── Line2D 左臂
 ##                 ├─ ArmRPivot ── Line2D 右臂
 ##                 └─ SwordPivot ── Line2D 刀
 ##                    └── SwordArc（Polygon2D additive 刀光）
-##     LegLPivot ── Line2D 左腿 / LegRPivot ── Line2D 右腿
+##     LegLPivot ── Line2D 大腿 ── LegKPivot ── Line2D 小腿
+##     LegRPivot ── Line2D 大腿 ── LegKPivot ── Line2D 小腿
 
 class_name StickFigure
 
@@ -27,6 +30,12 @@ const C = preload("res://gdscripts/constants.gd")
 @export var body_limb_width: float = C.BODY_LIMB_WIDTH
 @export var sword_length: float = C.SWORD_LENGTH
 @export var sword_width: float = C.SWORD_WIDTH
+@export var body_neck_length: float = C.BODY_NECK_LENGTH
+@export var body_leg_upper_length: float = C.BODY_LEG_UPPER_LENGTH
+@export var body_leg_lower_length: float = C.BODY_LEG_LOWER_LENGTH
+@export var head_outline_enabled: bool = C.HEAD_OUTLINE_ENABLED
+@export var head_outline_width: float = C.HEAD_OUTLINE_WIDTH
+@export var head_outline_color: Color = C.HEAD_OUTLINE_COLOR
 
 const HEAD_SEGMENTS: int = 16
 
@@ -48,6 +57,10 @@ func _validate_geometry() -> void:
 		"body_limb_width": C.BODY_LIMB_WIDTH,
 		"sword_length": C.SWORD_LENGTH,
 		"sword_width": C.SWORD_WIDTH,
+		"body_neck_length": C.BODY_NECK_LENGTH,
+		"body_leg_upper_length": C.BODY_LEG_UPPER_LENGTH,
+		"body_leg_lower_length": C.BODY_LEG_LOWER_LENGTH,
+		"head_outline_width": C.HEAD_OUTLINE_WIDTH,
 	}
 	for prop in defaults.keys():
 		var v: float = get(prop)
@@ -57,16 +70,23 @@ func _validate_geometry() -> void:
 
 
 func _build_skeleton() -> void:
-	## 按 DESIGN §2.2 节点树构建 7 pivot + Line2D 肢体 + Polygon2D 头圆 + SwordArc
+	## 按 DESIGN §2.2 + #683 §2.1/§2.2 构建 10 pivot + Line2D 肢体 + Polygon2D 头圆 + SwordArc
 	var torso_pivot: Node2D = _make_limb("TorsoPivot", body_torso_length, body_limb_width, C.BODY_COLOR)
 	add_child(torso_pivot)
 	_pivots["torso"] = torso_pivot
 
+	var neck_pivot: Node2D = _make_limb("NeckPivot", body_neck_length, body_limb_width, C.BODY_COLOR)
+	neck_pivot.position = Vector2(0, -body_torso_length)
+	torso_pivot.add_child(neck_pivot)
+	_pivots["neck"] = neck_pivot
+
 	var head_pivot: Node2D = Node2D.new()
 	head_pivot.name = "HeadPivot"
-	head_pivot.position = Vector2(0, -body_torso_length)
+	head_pivot.position = Vector2(0, -body_neck_length)
 	head_pivot.add_child(_make_head())
-	torso_pivot.add_child(head_pivot)
+	if head_outline_enabled:
+		head_pivot.add_child(_make_head_outline())
+	neck_pivot.add_child(head_pivot)
 	_pivots["head"] = head_pivot
 
 	var arm_l: Node2D = _make_limb("ArmLPivot", body_arm_length, body_limb_width, C.BODY_COLOR)
@@ -87,15 +107,19 @@ func _build_skeleton() -> void:
 	torso_pivot.add_child(sword_pivot)
 	_pivots["sword"] = sword_pivot
 
-	var leg_l: Node2D = _make_limb("LegLPivot", body_leg_length, body_limb_width, C.BODY_COLOR)
+	var leg_l: Node2D = _make_limb("LegLPivot", body_leg_upper_length, body_limb_width, C.BODY_COLOR)
 	leg_l.position = Vector2(-4, 0)
+	leg_l.add_child(_make_knee_pivot("LegKPivot", body_leg_lower_length))
 	add_child(leg_l)
 	_pivots["leg_l"] = leg_l
+	_pivots["leg_k_l"] = leg_l.get_node("LegKPivot")
 
-	var leg_r: Node2D = _make_limb("LegRPivot", body_leg_length, body_limb_width, C.BODY_COLOR)
+	var leg_r: Node2D = _make_limb("LegRPivot", body_leg_upper_length, body_limb_width, C.BODY_COLOR)
 	leg_r.position = Vector2(4, 0)
+	leg_r.add_child(_make_knee_pivot("LegKPivot", body_leg_lower_length))
 	add_child(leg_r)
 	_pivots["leg_r"] = leg_r
+	_pivots["leg_k_r"] = leg_r.get_node("LegKPivot")
 
 	# 原画接入点预留（sprite_slot 命名位，本期为空）
 	var sprite_slot: Node2D = Node2D.new()
@@ -115,12 +139,33 @@ func _make_limb(limb_name: String, length: float, width: float, color: Color) ->
 	return pivot
 
 
+func _make_knee_pivot(pivot_name: String, shin_length: float) -> Node2D:
+	## 膝 pivot（#683 §2.2）: 挂于髋 pivot 下 @ (0,-body_leg_upper_length)，
+	## 内含小腿 Line2D（自膝点向 -Y 延伸 shin_length）
+	var knee: Node2D = _make_limb(pivot_name, shin_length, body_limb_width, C.BODY_COLOR)
+	knee.position = Vector2(0, -body_leg_upper_length)
+	return knee
+
+
 func _make_head() -> Polygon2D:
-	## 头 = 圆多边形（BODY_HEAD_RADIUS，16 段），实心剪影填充
+	## 头 = 圆多边形（body_head_radius，16 段），实心剪影填充
 	var poly: Polygon2D = Polygon2D.new()
 	poly.polygon = _circle_points(body_head_radius, HEAD_SEGMENTS)
 	poly.color = C.BODY_COLOR
 	return poly
+
+
+func _make_head_outline() -> Polygon2D:
+	## 头轮廓（#683 §2.1 可选，taste 决策点实验 1）: 冷白圆环 Polygon2D，
+	## polygon = 外圆（头径 + 轮廓宽，16 段），holes = [内圆（头径）]
+	var ring: Polygon2D = Polygon2D.new()
+	ring.name = "HeadOutline"
+	var outer_r: float = body_head_radius + head_outline_width
+	ring.polygon = _circle_points(outer_r, HEAD_SEGMENTS)
+	var holes: Array[PackedVector2Array] = [_circle_points(body_head_radius, HEAD_SEGMENTS)]
+	ring.holes = holes
+	ring.color = head_outline_color
+	return ring
 
 
 func _circle_points(radius: float, segments: int) -> PackedVector2Array:
@@ -143,7 +188,7 @@ func _make_sword_arc() -> Polygon2D:
 
 
 func get_pivot(part: String) -> Node2D:
-	## 按名取 pivot（"torso"/"head"/"arm_l"/"arm_r"/"sword"/"leg_l"/"leg_r"）
+	## 按名取 pivot（"torso"/"head"/"arm_l"/"arm_r"/"sword"/"leg_l"/"leg_r"/"neck"/"leg_k_l"/"leg_k_r"）
 	## 供 AnimationPlayer 关键帧寻址 + 单测断言
 	return _pivots.get(part)
 

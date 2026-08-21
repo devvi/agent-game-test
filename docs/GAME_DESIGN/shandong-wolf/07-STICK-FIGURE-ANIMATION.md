@@ -46,18 +46,20 @@ shandong-wolf 经 #572 已有逻辑地基（WolfConstants # DRAFT 分区 / State
 → push_warning + 回退默认值，不崩溃。
 
 ```
-StickFigure (Node2D)                    [script: stick_figure.gd]
+StickFigure (Node2D)                    [script: stick_figure.gd]  ← scale.x = facing（#683 facing 接线，§3.5）
 ├── TorsoPivot (Node2D) ──── Line2D (躯干, BODY_TORSO_LENGTH × BODY_LIMB_WIDTH, BODY_COLOR)
-│   ├── HeadPivot (Node2D) ── Polygon2D (头圆, BODY_HEAD_RADIUS, BODY_COLOR)
+│   ├── NeckPivot (Node2D) ─ Line2D (颈, BODY_NECK_LENGTH, BODY_COLOR)   ← #683 新增
+│   │   └── HeadPivot (Node2D) ── Polygon2D (头圆, BODY_HEAD_RADIUS, BODY_COLOR)
+│   │                            └── [可选] HeadOutline (Polygon2D 冷白环, HEAD_OUTLINE_*, #683 实验 1)
 │   ├── ArmLPivot (Node2D) ── Line2D (左臂, BODY_ARM_LENGTH, BODY_COLOR)
 │   ├── ArmRPivot (Node2D) ── Line2D (右臂, BODY_ARM_LENGTH, BODY_COLOR)
 │   └── SwordPivot (Node2D) ─ Line2D (刀, SWORD_LENGTH × SWORD_WIDTH, SWORD_COLOR)
 │                             └── SwordArc (Polygon2D, additive 刀光 — §3.4)
-├── LegLPivot (Node2D) ── Line2D (左腿, BODY_LEG_LENGTH, BODY_COLOR)
-└── LegRPivot (Node2D) ── Line2D (右腿, BODY_LEG_LENGTH, BODY_COLOR)
+├── LegLPivot (Node2D) ── Line2D (左大腿, BODY_LEG_UPPER_LENGTH) ── LegKPivot (Node2D) ── Line2D (左小腿, BODY_LEG_LOWER_LENGTH)
+└── LegRPivot (Node2D) ── Line2D (右大腿, BODY_LEG_UPPER_LENGTH) ── LegKPivot (Node2D) ── Line2D (右小腿, BODY_LEG_LOWER_LENGTH)
 ```
 
-7 个 pivot（torso/head/arm_l/arm_r/sword/leg_l/leg_r），供 AnimationPlayer 关键帧寻址 + 单测断言。
+10 个 pivot（torso/head/neck/arm_l/arm_r/sword/leg_l/leg_r/leg_k_l/leg_k_r），供 AnimationPlayer 关键帧寻址 + 单测断言。
 **原画接入点（PRD §4.1）：** 预留 `set_sprite_slot(sprite)` 与命名子节点位 `sprite_slot`——后续正式原画
 换 Sprite2D 层时保留骨架结构，零重构。
 
@@ -78,7 +80,7 @@ func consume_state(state: String) -> void
 | canonical 状态（#575 权威） | clip 名 | 备注 |
 |:---:|:---:|------|
 | idle | `anim_idle` | 待机呼吸（微幅上下浮动） |
-| move | `anim_move` | 步态摆臂 4 帧循环（FRAME_ANIM_MOVE_STEP）；**run 别名 → move**（issue body 明文） |
+| move | `anim_move` | 步态循环（FRAME_ANIM_MOVE_CYCLE=24 帧，contact/pass 关键姿态；#683 重排）；**run 别名 → move**（issue body 明文） |
 | attack | `anim_attack` | 三段：前摇 8 / 暴发 4 / 收招 10（时间戳从 constants 派生） |
 | heavy_attack | `anim_heavy_attack` | 重砍（蓄力感更强的前摇；帧数 DRAFT 候补，与 attack 同分区） |
 | guard | `anim_guard` | 横刀胸前；**parry 别名 → guard**（格挡/弹反共用姿态，issue body 明文） |
@@ -93,6 +95,21 @@ func consume_state(state: String) -> void
 （idle→move→attack→guard→stagger 链路上逐 clip 对齐，引擎同帧切换即满足 ≤2 帧，无需 blend）；
 兜底策略（跳变大的转移如 stagger→idle、stance_break→idle）= 2 帧手动姿态插值（tween pivot rotation
 → 目标 clip 首帧姿态，时长 = FRAME_ANIM_TRANSITION_MAX/60s）。
+
+**#683 姿态衔接规约（REST_POSE 公共基准，docs/DESIGN/683 §2.3）：** 定义 REST_POSE 自然站姿
+（torso 0° / head 0° / arm_l 178° / arm_r 172° / sword 160° / leg 0° / 膝 0°）作公共基准——
+R1 动作型 clip（idle/move/attack/heavy_attack/execute/revive）首/尾帧 = REST_POSE（≤5°）；
+R2 hold 型 clip（guard/parry_success/stagger/stance_break/dead）首帧 = REST_POSE + 尾部
+`FRAME_ANIM_*_EXIT` 归位段（2–4 帧）收敛回 REST_POSE。配合 `consume_state` 直接 play + seek(0)
+（无 crossfade），任意合法转移对的关节角差 ≤ POSE_DELTA_MAX_DEG=15°（AC3 单测枚举断言）。
+
+**#683 步频速度同步（set_move_speed，docs/DESIGN/683 §2.4）：** 仅 `anim_move` 播放时生效，
+`speed_scale = clamp(|v|/MOVE_MAX_SPEED, MOVE_PLAYBACK_SPEED_MIN, MOVE_PLAYBACK_SPEED_MAX)`
+——匀速段（300px/s）每步位移 ≈ 步幅，消除脚滑步；非 move clip 调用为 no-op。
+
+**#683 视觉 facing 翻转（docs/DESIGN/683 §3.4）：** `main_battle.gd._sync_visual_facing()` 每帧
+轮询 `CombatEntity.facing`（玩家输入轴同步 / 敌人 AI 同步），变化时设 `StickFigure.scale.x = facing`
+（仅视觉子节点，物理根/controller 根 scale 恒 1.0——#577 判定方向与视觉一致）。
 
 **动画资源动态生成（零 .tres，AC3/AC5）：** `_build_clip(name, keyframes)` 运行时构建 Animation 对象——
 `length = 总帧数 / FRAME_RHYTHM_BASE`，关键帧时间戳 = 帧数/60（帧数全部来自 `FRAME_ANIM_*` 常量），
