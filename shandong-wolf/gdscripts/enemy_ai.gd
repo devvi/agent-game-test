@@ -7,8 +7,9 @@ class_name EnemyAI
 ##   idle/move 不决策 + 弹反抑制窗）+ 位移执行（仿 #573 加速度模型）。
 ## 单向依赖: AI 决策 → entity.request_transition("attack"/"heavy_attack") + 位移意图；
 ##   战斗结果 → state_changed / died / judge.parry_success 信号反向门控 AI 决策。
-## 可测性核心: decide(delta) 纯决策入口（headless 测试手动驱动，无物理依赖）；
-##   _physics_process 只消费 _move_intent。
+## 可测性核心: decide(delta) 纯决策入口（headless 测试手动驱动，无物理依赖），
+##   运行时由 _physics_process 驱动（#703）；_physics_process = 先 decide 后 _apply_movement
+##   的运行时驱动链（每帧决策一次、位移恰一次）。
 
 const C = preload("res://gdscripts/constants.gd")
 const StateMachineBaseScript = preload("res://gdscripts/state_machine.gd")
@@ -86,12 +87,13 @@ func can_sense_player() -> bool:
 	return true
 
 func decide(delta: float) -> void:
-	## 纯决策入口（headless 测试手动调用）:
+	## 纯决策入口（headless 测试手动调用 + 运行时 _physics_process 驱动，无物理依赖）:
 	##   ① 决策门控: entity == null or _dead → 清 move_intent 返回
 	##   ② 实体非 idle/move 态（entity.state_name not in ["idle","move"]）→ 清 move_intent 返回
 	##      （战斗动画/硬直期间 combat FSM 接管，AI 不抢戏）
 	##   ③ 弹反抑制窗: Time.get_ticks_msec()/1000.0 < _parry_stun_until_sec → 清 move_intent 返回
-	##   ④ 推进行为 FSM: _ai_fsm.update(delta)（状态对象写 _move_intent / 调 entity.request_transition）
+	##   ④ 推进行为 FSM: _ai_fsm.update(delta)（状态对象只写 _move_intent / 调 entity.request_transition；
+	##      位移不在此执行——_physics_process 每帧调用 _apply_movement 恰一次，见 #703）
 	_ensure_judge_subscription()
 	if entity == null or _dead:
 		_move_intent = Vector2.ZERO
@@ -103,7 +105,6 @@ func decide(delta: float) -> void:
 		_move_intent = Vector2.ZERO
 		return
 	if _ai_fsm != null:
-		_apply_movement(delta)
 		_ai_fsm.update(delta)
 
 func move_intent() -> Vector2:
@@ -117,7 +118,11 @@ func set_rng_seed(seed: int) -> void:
 	_rng.seed = seed
 
 func _physics_process(delta: float) -> void:
-	## 位移执行（仿 #573 加速度模型）: 只消费 _move_intent
+	## 运行时驱动链（#703）: 先决策后位移——decide(delta)（门控 + FSM 推进写 _move_intent，
+	##   纯决策无物理依赖）→ _apply_movement(delta)（位移执行，每帧恰一次）。
+	##   击退分支无条件可达: decide 门控提前 return 只清 _move_intent、不影响击退位移（AC3 保障，
+	##   硬直中 AI 不决策但击退仍执行）。
+	decide(delta)
 	_apply_movement(delta)
 
 func _apply_movement(delta: float) -> void:

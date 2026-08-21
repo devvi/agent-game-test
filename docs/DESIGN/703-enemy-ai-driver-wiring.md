@@ -208,11 +208,11 @@ test_enemy_ai.gd _tick(s, seconds): 每帧
 
 | 集成点 | 我们的组件 | 目标 Issue | 方式 | 状态 |
 |-------------|:---:|:---:|-----|:---:|
-| 运行时驱动链 | `EnemyAI._physics_process` → `decide(delta)` | #703 | 方法内先决策后位移（本次接线） | ⬜ pending |
-| 决策-位移解耦 | `EnemyAI.decide` 移除 `_apply_movement(delta)` | #703 | 位移统一由 `_physics_process` 执行 | ⬜ pending |
-| 测试驱动对齐 | `test_enemy_ai.gd._tick` → `ai._physics_process` | #703 | 运行时路径驱动（与实机一致） | ⬜ pending |
-| 击退路径保持 | `_physics_process` → `_apply_movement` 无条件可达 | #682（#695 merged） | 击退分支零改动、每帧可达 | ⬜ pending（回归保障） |
-| 行为 FSM 推进 | `decide` → `_ai_fsm.update(delta)` | #581（#638 merged） | 既有调用保留（仅删位移行） | ⬜ pending（不回归） |
+| 运行时驱动链 | `EnemyAI._physics_process` → `decide(delta)` | #703 | 方法内先决策后位移（本次接线） | ✅ wired |
+| 决策-位移解耦 | `EnemyAI.decide` 移除 `_apply_movement(delta)` | #703 | 位移统一由 `_physics_process` 执行 | ✅ wired |
+| 测试驱动对齐 | `test_enemy_ai.gd._tick` → `ai._physics_process` | #703 | 运行时路径驱动（与实机一致） | ✅ wired |
+| 击退路径保持 | `_physics_process` → `_apply_movement` 无条件可达 | #682（#695 merged） | 击退分支零改动、每帧可达 | ✅ wired（回归保障） |
+| 行为 FSM 推进 | `decide` → `_ai_fsm.update(delta)` | #581（#638 merged） | 既有调用保留（仅删位移行） | ✅ wired（不回归） |
 | 装配层 | `main_battle.gd._build_enemy` → EnemyAI 装配 | #585（#666 merged） | **零改动**（方案 A 自驱动） | ✅ 无需接线 |
 
 ## 7. 实现阶段
