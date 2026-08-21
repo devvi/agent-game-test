@@ -19,6 +19,7 @@ const EnemyAIStatesScript = preload("res://gdscripts/enemy_ai_states.gd")
 @export var player: Node2D                   # 玩家实体引用（感知/追击目标；也是 CombatEntity is_player=true）
 @export var judge: Node = null               # CombatJudge 引用（null = 不登记窗口，仅行为路径可测）
 @export var rng_seed: int = -1               # -1 = 全局 RNG；≥0 = 确定性（测试注入，CI 稳定）
+@export var elite_mode: bool = false         # 精英档位（#682）: true → 蓄力重斩出招启用（三选一）；false = #581 小兵二选一
 
 ## 运行期成员
 var entity: Object = null                    # bind_entity() 注入（#585 组装调用）
@@ -31,7 +32,9 @@ var _dead: bool = false                      # 实体终态后 AI 完全禁用
 var facing: int = 1                          # 敌人朝向（1 右 / -1 左；Chase 转向更新）
 var _turn_timer: float = 0.0                 # ENEMY_TURN_DELAY_SEC 转向延迟计时
 var _behavior: String = "patrol"             # 当前行为态名（调试/回避去重）
-var _judge_subscribed: bool = false          # judge.parry_success 已订阅标记（惰性接线）
+var _judge_subscribed: bool = false          # judge 信号已订阅标记（惰性接线）
+var _knockback_vel: float = 0.0              # 受击击退初速（#682，stagger 期间沿受击反向，ENEMY_KNOCKBACK_DECAY 衰减）
+var _knockback_dir: int = 1                  # 受击反向（相对 attacker 位置，远离攻击者）
 
 func bind_entity(e) -> void:
 	## 绑定战斗实体: 注入敌人攻击伤害参数（judge 登记读取）+ 订阅信号
@@ -120,6 +123,24 @@ func _physics_process(delta: float) -> void:
 func _apply_movement(delta: float) -> void:
 	## 位移模型: 场景树内走物理引擎 move_and_slide（#573 加速度模型）；
 	##   headless 免树（--script 测试）手动积分位移——物理空间不存在时 move_and_slide 报错。
+	## 击退分支（#682）: 受击击退覆盖 AI 位移意图（stagger 期间 _move_intent 本为 0），
+	##   速度按 ENEMY_KNOCKBACK_DECAY 线性衰减，STAGE_WIDTH_PX clamp 兜底（边界 8）。
+	##   守卫（边界 1）: 仅实体处于 stagger 态执行击退位移；实体已离开 stagger → 立即清零
+	##   _knockback_vel 并走正常位移路径——「stagger 结束 → 击退归零 → Chase 恢复」，
+	##   杜绝击退残留（DECAY 线性衰减远慢于 stagger 0.2s）覆盖 Chase 位移（无弹簧抖动）。
+	if absf(_knockback_vel) > 0.001:
+		if entity == null or entity.state_name != "stagger":
+			_knockback_vel = 0.0
+		else:
+			var kb: float = float(_knockback_dir) * _knockback_vel
+			velocity.x = kb
+			_knockback_vel = maxf(_knockback_vel - float(C.ENEMY_KNOCKBACK_DECAY) * delta, 0.0)
+			if is_inside_tree():
+				move_and_slide()
+			else:
+				position += Vector2(kb * delta, 0.0)
+			position.x = clampf(position.x, 0.0, float(C.STAGE_WIDTH_PX))
+			return
 	if is_inside_tree():
 		velocity.x = move_toward(velocity.x, _move_intent.x, C.MOVE_ACCELERATION * delta)
 		velocity.y = 0.0
@@ -130,12 +151,14 @@ func _apply_movement(delta: float) -> void:
 		position += velocity * delta
 
 func _ensure_judge_subscription() -> void:
-	## 惰性接线: judge 绑定后订阅 parry_success（弹反抑制窗触发源 AC2）
+	## 惰性接线: judge 绑定后订阅 parry_success（弹反抑制窗触发源 AC2）+ hit_landed（受击击退 #682）
 	if judge == null or _judge_subscribed:
 		return
 	if judge.has_signal("parry_success"):
 		judge.parry_success.connect(_on_judge_parry_success)
-		_judge_subscribed = true
+	if judge.has_signal("hit_landed"):
+		judge.hit_landed.connect(_on_judge_hit_landed)
+	_judge_subscribed = true
 
 func _on_judge_parry_success(defender, attacker, _stance_damage: float) -> void:
 	## 弹反命中本敌人 → 武装弹反抑制窗（AC2: 0.5s 硬直，AI 层补足共享 parry_success 态）
@@ -144,6 +167,19 @@ func _on_judge_parry_success(defender, attacker, _stance_damage: float) -> void:
 	if attacker != entity:
 		return
 	_parry_stun_until_sec = Time.get_ticks_msec() / 1000.0 + float(C.ENEMY_PARRY_STUN_SECONDS)
+
+func _on_judge_hit_landed(defender, attacker, _hp_damage: float, _stance_damage: float) -> void:
+	## 受击击退（#682）: 本敌人被击中 → 沿受击反向设击退初速（位移在 _apply_movement 衰减执行，
+	##   与决策门控正交——硬直中 AI 不决策但击退仍执行）
+	if _dead or entity == null:
+		return
+	if defender != entity:
+		return
+	var dx: float = 0.0
+	if attacker != null:
+		dx = attacker.position.x - position.x
+	_knockback_dir = -1 if dx >= 0.0 else 1
+	_knockback_vel = float(C.ENEMY_KNOCKBACK_PX)
 
 func _on_player_state_changed(_from: String, to: String) -> void:
 	## AC3 触发源: 玩家进入 attack/heavy_attack（前摇开始）且玩家在
