@@ -74,12 +74,16 @@ func _press_buffer(ic: Object, action: String) -> void:
 
 func _test_e1_missing_action_validation() -> void:
 	var ic: Object = _new_input()
+	var saved_events: Array = []
 	if InputMap.has_action("game_jump"):
+		saved_events = InputMap.action_get_events("game_jump")
 		InputMap.erase_action("game_jump")
 	var missing = ic._validate_input_map()
 	_assert(missing.has(&"game_jump"), "E1: erased game_jump reported as missing by _validate_input_map()")
 	if not InputMap.has_action("game_jump"):
 		InputMap.add_action("game_jump")
+		for ev in saved_events:
+			InputMap.action_add_event("game_jump", ev)
 	var missing_after = ic._validate_input_map()
 	_assert(not missing_after.has(&"game_jump"), "E1: game_jump no longer missing after restore (clean map for later tests)")
 	ic.free()
