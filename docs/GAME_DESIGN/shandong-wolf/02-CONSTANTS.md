@@ -215,6 +215,7 @@ shandong-wolf 骨架期（#559-#570）`gdscripts/` 为空，后续 #573-#578 的
 | #578 | 两条命原地复活系统（追加「复活 FX」12 常量分区：墨点/闪屏/慢动作/闪烁四件套参数） | 已合并（#637） |
 | #583 | 雪夜山东村战斗场景（追加「场景参数」分区：舞台尺寸/平台/色板/月亮/物件，STAGE_*/PLATFORM_*/MOON_*/HOUSE_* 等） | 已合并（#646） |
 | #579 | 打击反馈系统（追加「反馈分区」12 常量：FEEDBACK_SPARK_*/HITSTOP/SHAKE_PX/SLOWMO/FLASH/TIME_MAX_STACK/ENTITY_FLASH_FACTOR 等） | 已合并（#654） |
+| #684 | 敌人 Boss 血条 UI（追加「Boss 血条 UI」分区 5 常量：HUD_ENEMY_NAME_WIDTH/FONT_SIZE/TOP + HUD_STANCE_BREAK_FLASH_SECONDS/COLOR，全 # DRAFT 归 #584） | 已合并（#701） |
 
 ## 9. 复活 FX 分区指针（#578/#637）
 
@@ -239,3 +240,10 @@ shandong-wolf 骨架期（#559-#570）`gdscripts/` 为空，后续 #573-#578 的
 > ENTITY_FLASH_FACTOR + 时间栈 FEEDBACK_TIME_MAX_STACK，全 `# DRAFT` 候补值，
 > 定稿归 #584（taste 域；实现期禁止「顺手定稿」）。
 > 完整组件/矩阵/数据流/红线见 [15-COMBAT-FEEDBACK-SYSTEM](15-COMBAT-FEEDBACK-SYSTEM.md)。
+
+## 12. Boss 血条 UI 分区指针（#684/#701）
+
+> Boss 血条 UI 5 常量随 #701 落地于 constants.gd「Boss 血条 UI」分区（HUD 分区之后）：名字 Label
+> HUD_ENEMY_NAME_WIDTH/FONT_SIZE/TOP + 崩解闪白 HUD_STANCE_BREAK_FLASH_SECONDS/COLOR，全 `# DRAFT`
+> 候补值，定稿归 #584（taste 域；实现期选默认值不裁决）。完整组件/数据流/契约见
+> [10-HUD-STANCE-BARS](10-HUD-STANCE-BARS.md) §10。
