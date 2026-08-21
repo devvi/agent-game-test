@@ -240,8 +240,8 @@ func _build_clip(spec: Dictionary) -> Animation:
 
 
 # ── clip 摆姿规格（# DRAFT 候补摆姿，用户裁决；帧数全部来自 FRAME_ANIM_* 常量）──
-## 摆姿约定: 角色面向 +X；rotation 正值 = 逆时针；肢体 Line2D 自 pivot 向 -Y 延伸
-##   （arms/sword rotation≈180° 即自然下垂；legs rotation=0 即直立）
+## 摆姿约定: 角色面向 +X；rotation 正值 = 逆时针；肢体 Line2D 自 pivot 向 ±Y 延伸
+##   （躯干/颈/臂/刀 -Y：arms/sword rotation≈180° 即自然下垂；腿/膝 +Y：legs rotation=0 即自然下垂）
 
 func _build_idle_spec() -> Dictionary:
 	## 呼吸待机（R1 动作型）: 首/尾帧 = REST_POSE，中间微摆；9 关节 rotation track 全含
