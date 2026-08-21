@@ -233,8 +233,8 @@ WINDUP / BURST / RECOVERY / IDLE 截图态派生恢复（E2E 剧本不再崩）
 
 | 集成 | 本组件 | 目标 | How | Status |
 |------|:---:|:---:|-----|:---:|
-| 攻击 phase 推进 | StickFigureController.get_animation_position() | AnimStateAttack.update（stick_figure_anim_states.gd） | 方法委托（caller 契约已写死，callee 补齐即通） | ⬜ pending |
-| E2E 截图轮询 | StickFigureController.get_animation_position() + is_animation_playing() | e2e_stick_figure_capture.gd:_update_attack_phase() | 方法委托（同根因兄弟缺陷一并修复） | ⬜ pending |
+| 攻击 phase 推进 | StickFigureController.get_animation_position() | AnimStateAttack.update（stick_figure_anim_states.gd） | 方法委托（caller 契约已写死，callee 补齐即通） | ✅ implement #681 |
+| E2E 截图轮询 | StickFigureController.get_animation_position() + is_animation_playing() | e2e_stick_figure_capture.gd:_update_attack_phase() | 方法委托（同根因兄弟缺陷一并修复） | ✅ implement #681 |
 | 动画播放调度 | StickFigureController._process → _anim_fsm.update | StateMachineBase（#572）→ AnimStateAttack.update | 既有链路零改动，新方法使其不再报错 | ✅ 已有 |
 | 攻击触发链路 | consume_state("attack") | CombatEntity（#575）→ main_battle.gd:145 | 既有链路零改动 | ✅ 已有 |
 
