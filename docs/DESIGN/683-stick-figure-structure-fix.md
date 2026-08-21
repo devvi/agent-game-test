@@ -113,9 +113,9 @@ TorsoPivot (Node2D @ (0,0))
 
 ```
 LegLPivot (Node2D @ (-4,0))  ← 保留原 pivot 名（髋 pivot，兼容 get_pivot("leg_l")）
-├── Line2D 大腿: points=[ZERO, (0,-BODY_LEG_UPPER_LENGTH)]，width=BODY_LIMB_WIDTH
-└── LegKPivot (Node2D @ (0,-BODY_LEG_UPPER_LENGTH))  ← 新增膝 pivot（膝 pivot 名 leg_k_l / leg_k_r）
-    └── Line2D 小腿: points=[ZERO, (0,-BODY_LEG_LOWER_LENGTH)]，width=BODY_LIMB_WIDTH
+├── Line2D 大腿: points=[ZERO, (0,+BODY_LEG_UPPER_LENGTH)]，width=BODY_LIMB_WIDTH
+└── LegKPivot (Node2D @ (0,+BODY_LEG_UPPER_LENGTH))  ← 新增膝 pivot（膝 pivot 名 leg_k_l / leg_k_r）
+    └── Line2D 小腿: points=[ZERO, (0,+BODY_LEG_LOWER_LENGTH)]，width=BODY_LIMB_WIDTH
 ```
 
 - **关键参数（# DRAFT 候补）:** `BODY_LEG_UPPER_LENGTH: float = 20.0` / `BODY_LEG_LOWER_LENGTH: float = 20.0`（候选 18–22；两段和保持 ≈ 现 BODY_LEG_LENGTH=40，总高不突变）；`MOVE_KNEE_BEND_DEG: float = 40.0`（候选 30–50，摆动相屈膝抬脚）；`KNEE_BEND_MAX_DEG: float = 90.0`（机械上限——AC3「膝单向弯曲 ±90° 内」断言用）。
@@ -134,8 +134,8 @@ LegLPivot (Node2D @ (-4,0))  ← 保留原 pivot 名（髋 pivot，兼容 get_pi
 | TorsoPivot/ArmLPivot | 178 | 自然下垂（Line2D 向 -Y，≈180°） |
 | TorsoPivot/ArmRPivot | 172 | 自然下垂（持刀手微抬） |
 | TorsoPivot/SwordPivot | 160 | 刀自然下垂 |
-| LegLPivot / LegRPivot | 0 | 直立 |
-| LegLPivot/LegKPivot / LegRPivot/LegKPivot | 0 | 膝伸直 |
+| LegLPivot / LegRPivot | 0 | 自然下垂（Line2D 向 +Y） |
+| LegLPivot/LegKPivot / LegRPivot/LegKPivot | 0 | 膝伸直（小腿 Line2D 向 +Y） |
 
 - **衔接规约（本设计对 PRD 4.4-A 的落实，见 §1.2 差异说明）:**
   - **R1（动作型 clip）:** idle / move / attack / heavy_attack / execute / revive 首帧与尾帧均 = REST_POSE（各关节差 ≤5°）；move 循环回环自然；同态重入（attack→attack）重置前摇首帧语义不变（前摇首帧 = REST_POSE 起点）。

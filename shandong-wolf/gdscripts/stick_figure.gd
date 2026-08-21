@@ -109,6 +109,7 @@ func _build_skeleton() -> void:
 
 	var leg_l: Node2D = _make_limb("LegLPivot", body_leg_upper_length, body_limb_width, C.BODY_COLOR)
 	leg_l.position = Vector2(-4, 0)
+	_reverse_limb(leg_l)
 	leg_l.add_child(_make_knee_pivot("LegKPivot", body_leg_lower_length))
 	add_child(leg_l)
 	_pivots["leg_l"] = leg_l
@@ -116,6 +117,7 @@ func _build_skeleton() -> void:
 
 	var leg_r: Node2D = _make_limb("LegRPivot", body_leg_upper_length, body_limb_width, C.BODY_COLOR)
 	leg_r.position = Vector2(4, 0)
+	_reverse_limb(leg_r)
 	leg_r.add_child(_make_knee_pivot("LegKPivot", body_leg_lower_length))
 	add_child(leg_r)
 	_pivots["leg_r"] = leg_r
@@ -140,11 +142,26 @@ func _make_limb(limb_name: String, length: float, width: float, color: Color) ->
 
 
 func _make_knee_pivot(pivot_name: String, shin_length: float) -> Node2D:
-	## 膝 pivot（#683 §2.2）: 挂于髋 pivot 下 @ (0,-body_leg_upper_length)，
-	## 内含小腿 Line2D（自膝点向 -Y 延伸 shin_length）
+	## 膝 pivot（#683 §2.2，#704 反向）: 挂于髋 pivot 下 @ (0,+body_leg_upper_length)，
+	## 内含小腿 Line2D（自膝点向 +Y 延伸 shin_length）
 	var knee: Node2D = _make_limb(pivot_name, shin_length, body_limb_width, C.BODY_COLOR)
-	knee.position = Vector2(0, -body_leg_upper_length)
+	knee.position = Vector2(0, body_leg_upper_length)
+	_reverse_limb(knee)
 	return knee
+
+
+func _reverse_limb(pivot: Node2D) -> void:
+	## #704 专用: 取 pivot 首个子 Line2D，将 points[1] 自 -Y 反向为 +Y（方向翻转，长度不变）。
+	## 非 Line2D 首子或 points.size() < 2 时 no-op。
+	var child: Node = pivot.get_child(0) if pivot.get_child_count() > 0 else null
+	if child == null or not child is Line2D:
+		return
+	var line: Line2D = child as Line2D
+	var points: PackedVector2Array = line.points
+	if points.size() < 2:
+		return
+	points[1] = Vector2(0, points[1].length())
+	line.points = points
 
 
 func _make_head() -> Polygon2D:

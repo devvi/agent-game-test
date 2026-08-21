@@ -211,11 +211,11 @@ CombatEntity.facing / EnemyAI.facing → StickFigure.scale.x（#683 已接线）
 
 | 集成 | 我们的组件 | 目标 Issue | 方式 | 状态 |
 |-------------|:---:|:---:|-----|:---:|
-| 大腿几何反向 | `stick_figure.gd` `_build_skeleton()` | #704 | `leg_l`/`leg_r` Line2D points `(0,-UPPER)` → `(0,+UPPER)` | ⬜ 待实现 |
-| 膝 pivot 位置 + 小腿反向 | `stick_figure.gd` `_make_knee_pivot()` | #704 | `knee.position` `(0,-UPPER)` → `(0,+UPPER)`；小腿 points +Y | ⬜ 待实现 |
-| 摆姿注释勘误 | `stick_figure_controller.gd` L~244 | #704 | 「legs rotation=0 即自然下垂（腿/膝 Line2D 向 +Y）」 | ⬜ 待实现 |
-| DESIGN #683 勘误 | `docs/DESIGN/683-*.md` §2.2/§2.3 | #704 | 腿/膝几何 -Y → +Y；REST_POSE「直立」→「自然下垂」 | ⬜ 待实现 |
-| 方向断言（可选） | `test_stick_figure_animation.gd` | #704 | 新增 3 条 `points[1].y > 0` / `position.y > 0` 断言 | ⬜ 待实现（推荐） |
+| 大腿几何反向 | `stick_figure.gd` `_build_skeleton()` | #704 | `leg_l`/`leg_r` Line2D points `(0,-UPPER)` → `(0,+UPPER)` | ✅ 已连接 |
+| 膝 pivot 位置 + 小腿反向 | `stick_figure.gd` `_make_knee_pivot()` | #704 | `knee.position` `(0,-UPPER)` → `(0,+UPPER)`；小腿 points +Y | ✅ 已连接 |
+| 摆姿注释勘误 | `stick_figure_controller.gd` L~244 | #704 | 「legs rotation=0 即自然下垂（腿/膝 Line2D 向 +Y）」 | ✅ 已连接 |
+| DESIGN #683 勘误 | `docs/DESIGN/683-*.md` §2.2/§2.3 | #704 | 腿/膝几何 -Y → +Y；REST_POSE「直立」→「自然下垂」 | ✅ 已连接 |
+| 方向断言（可选） | `test_stick_figure_animation.gd` | #704 | 新增 3 条 `points[1].y > 0` / `position.y > 0` 断言 | ✅ 已连接（推荐） |
 
 ---
 

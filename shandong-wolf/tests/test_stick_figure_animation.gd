@@ -67,6 +67,7 @@ func run() -> void:
 	_test_e3_draft_markers()
 	_test_f1_pivot_tree()
 	_test_f2_geometry_params()
+	_test_d1_leg_direction()
 	_test_f3_silhouette_colors()
 	_test_g1_same_state_reentry()
 	_test_h1_unknown_state_fallback()
@@ -490,6 +491,43 @@ func _assert_limb_length(pivot: Node, length: float, width: float, tag: String) 
 			_assert(false, "%s: pivot child is Line2D" % tag)
 	else:
 		_assert(false, "%s: pivot missing" % tag)
+
+
+# ── Scenario D (#704): 腿方向几何（AC1 回归）──
+
+func _test_d1_leg_direction() -> void:
+	## D1 (#704): 腿方向 —— 大腿/小腿 Line2D 自 pivot 向 +Y（向下）延伸，膝 pivot 在腿中部 +Y 侧。
+	## 修复前: 腿自髋向 -Y（向上）延伸与躯干重叠（#704）；修复后: 反向为 +Y。
+	## 契约: DESIGN #704 §8 Scenario D / T7 —— get_pivot("leg_l"/"leg_r") 首子 Line2D points[1].y > 0；
+	##       get_pivot("leg_k_l"/"leg_k_r").position.y > 0 且其首子 Line2D points[1].y > 0
+	var controller: Node = _make_controller()
+	if controller == null:
+		return
+	var figure: Node = controller.get_node_or_null("StickFigure")
+	_assert(figure != null, "D1: StickFigure child exists")
+	if figure != null:
+		var thigh_tags: Array = ["leg_l", "leg_r"]
+		for part in thigh_tags:
+			var pivot: Node = figure.get_pivot(part)
+			_assert(pivot != null, "D1: get_pivot('%s') returns node" % part)
+			if pivot != null:
+				var line: Node = _first_child(pivot)
+				_assert(line is Line2D, "D1: '%s' thigh child is Line2D" % part)
+				if line is Line2D:
+					var line2d: Line2D = line
+					_assert(line2d.points[1].y > 0.0, "D1: %s thigh points[1].y > 0 (got %s)" % [part, str(line2d.points[1].y)])
+		var knee_tags: Array = ["leg_k_l", "leg_k_r"]
+		for part in knee_tags:
+			var pivot: Node = figure.get_pivot(part)
+			_assert(pivot != null, "D1: get_pivot('%s') returns node" % part)
+			if pivot != null:
+				_assert(pivot.position.y > 0.0, "D1: %s knee pivot position.y > 0 (got %s)" % [part, str(pivot.position.y)])
+				var line: Node = _first_child(pivot)
+				_assert(line is Line2D, "D1: '%s' shin child is Line2D" % part)
+				if line is Line2D:
+					var line2d: Line2D = line
+					_assert(line2d.points[1].y > 0.0, "D1: %s shin points[1].y > 0 (got %s)" % [part, str(line2d.points[1].y)])
+	_free_controller(controller)
 
 
 func _test_f3_silhouette_colors() -> void:
