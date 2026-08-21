@@ -113,7 +113,7 @@ material = SubResource("ShaderMaterial_moon_glow")
 position = Vector2(640, 560)
 
 [node name="EnemySpawnA" type="Marker2D" parent="."]
-position = Vector2(700, 560)
+position = Vector2(1000, 560)
 
 [node name="EnemySpawnB" type="Marker2D" parent="."]
 position = Vector2(1720, 560)
