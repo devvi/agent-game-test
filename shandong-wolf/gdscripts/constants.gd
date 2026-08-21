@@ -749,3 +749,16 @@ const TUTORIAL_HINT_CANDIDATES: Array = [
     "←→ 移动 · J 攻击 · K 格挡",
     "雪夜村口，有人来了。",
 ]
+
+# ── 暂停菜单（# DRAFT 候补值，定稿归 human-review/taste 通道；#719 消费方）──
+# PAUSE_TITLE_CANDIDATES: B 候选 3 选 1（implement 选首项，候选进 PR 待用户定稿）
+const PAUSE_TITLE_CANDIDATES: Array = ["暂停", "雪夜村口 · 暂歇", "歇一歇"]  # # DRAFT
+const PAUSE_BTN_RESUME_TEXT: String = "继续"           # # DRAFT
+const PAUSE_BTN_MANUAL_TEXT: String = "操作手册"       # # DRAFT
+const PAUSE_MANUAL_TITLE_TEXT: String = "操作手册"     # # DRAFT
+const PAUSE_HINT_TEXT: String = "按 ESC 或「继续」恢复"  # # DRAFT
+const PAUSE_DIM_COLOR: Color = Color(0.08, 0.08, 0.10, 0.6)  # # DRAFT（HUD_INK_BLACK 派生，零新色相）
+const PAUSE_TITLE_FONT_SIZE: int = 32                 # # DRAFT
+const PAUSE_BTN_FONT_SIZE: int = 22                   # # DRAFT
+const PAUSE_MANUAL_FONT_SIZE: int = 20                # # DRAFT
+const PAUSE_EXECUTE_LINE_CANDIDATES: Array = ["处决：架势崩解后按攻击键（J）", "处决：崩解后近身按攻击键"]  # # DRAFT（implement 选首项）

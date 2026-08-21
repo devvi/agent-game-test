@@ -29,6 +29,7 @@ func _run_tests() -> void:
 	_run("res://tests/test_reaction_controller.gd", "ReactionController")
 	_run("res://tests/test_execution_orchestrator.gd", "ExecutionOrchestrator")
 	_run("res://tests/test_main_assembly.gd", "MainAssembly")
+	_run("res://tests/test_pause_menu.gd", "PauseMenu")
 	print("TESTS: %d passed, %d failed" % [_pass, _fail])
 	quit(1 if _fail > 0 else 0)
 
