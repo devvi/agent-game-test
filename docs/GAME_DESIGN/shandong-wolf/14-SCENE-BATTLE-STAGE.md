@@ -37,7 +37,7 @@
 | 月亮 | A：Mesh2D 径向渐变圆 + `moon_glow.gdshader` 光晕（同心 alpha 衰减） | 双层半透明圆（回退） | shader 主路径；回退仅用于编译失败/观感差，架构不变 |
 | 物件布局 | 草屋×2（Polygon2D 墨色剪影 + 屋顶压雪 Line2D）+ 枯树×2（Line2D 骨架）= 4 ≤ 5 | 更多物件 | issue 硬约束「家具/物件 ≤5 防噪杂」；山峦/月亮属背景不计数 |
 | 相机 | A：场景内 StageCamera（Camera2D，current=true，limits 0-2400） | 无相机/外部控制 | 2400px > 1280px 窗口，必须相机才能全貌可见（AC5 前提） |
-| 出生点 | `PlayerSpawn` / `EnemySpawnA` / `EnemySpawnB`（Marker2D ×3，坐标 .tscn 声明） | 脚本写入 | 声明式红线 + #585 实例化契约 + #581 waypoints 数据源 |
+| 出生点 | `PlayerSpawn` / `EnemySpawnA` / `EnemySpawnB`（Marker2D ×3，坐标 .tscn 声明） | 脚本写入 | 声明式红线 + #585 实例化契约 + #581 waypoints 数据源；#713 出生间距契约：EnemySpawnA x=1000（距玩家 360px > HITBOX_RANGE=80，B4 断言 ≥130px 防回归） |
 | 色板（self-correct R1） | `STAGE_INK_COLOR` = **#4a5664**（实现期调亮） | 原候补 #1a1f26 | #1a1f26 染后 luma 0.055 < 30 违反 #624 F3（月光染后可见性）；#4a5664 染后 luma ≈ 39/255 ≥ 30 |
 
 ## 3. 节点树（battle_stage.tscn 定义，main 实测）
@@ -62,7 +62,7 @@ BattleStage (Node2D)                                    # 根，layer 0 世界�
 ├── Moon (MeshInstance2D)                               # 苍月悬顶：QuadMesh 径向渐变
 │   └── MoonGlow (MeshInstance2D)                       # 光晕：moon_glow.gdshader 或双层半透明圆（回退）
 ├── PlayerSpawn (Marker2D)                              # 玩家出生点（#585 实例化玩家）
-├── EnemySpawnA (Marker2D)                              # 敌人 1 出生点
+├── EnemySpawnA (Marker2D)                              # 敌人 1 出生点 (1000,560)（#713 外移，间距 360px > HITBOX_RANGE=80）
 ├── EnemySpawnB (Marker2D)                              # 敌人 2 出生点
 └── StageCamera (Camera2D)                              # current=true，limits 覆盖 0-2400
 ```
@@ -131,7 +131,7 @@ e2e_battle_stage_capture.tscn 加载（BattleStage + Atmosphere 同屏）
 | 集成 | 契约 | 状态 |
 |------|------|:----:|
 | 场景挂载 | battle_stage instance 进 Main.tscn 根节点（#585 组装，不重复挂 Atmosphere） | ⬜ 显式延期至 #585 |
-| 出生点 | PlayerSpawn / EnemySpawnA / EnemySpawnB 坐标 → #585 实例化玩家/敌人实体 | ⬜ 显式延期至 #585 |
+| 出生点 | PlayerSpawn / EnemySpawnA / EnemySpawnB 坐标 → #585 实例化玩家/敌人实体（#713：EnemySpawnA 外移 (1000,560)，间距 360 > HITBOX_RANGE=80） | ✅ connected（#646/#666 验证，#716 坐标更新） |
 | waypoints 数据 | 场景坐标 → `EnemyAI.waypoints` @export（#581；空数组 = 原地等待不报错） | ⬜ 显式延期至 #585 |
 | 氛围共存 | 几何挂 layer 0 被动染色；零新增 CanvasModulate（C3 守卫） | ✅ connected（#646 验证） |
 | E2E 截图 | `battle_stage` 组 3 shot（AC5 用户裁决输入物） | ✅ connected（#646 实现 PR 附截图） |
@@ -145,3 +145,34 @@ e2e_battle_stage_capture.tscn 加载（BattleStage + Atmosphere 同屏）
 - **物件 ≤5**；禁日式鸟居/和风元素、禁西式城堡（地域感红线，AC5 裁决口径）。
 - 不触碰：`mini-pong/`、`scenes/Main.tscn`（#585 组装时挂载）、`player_controller.gd` /
   `enemy_ai.gd` / `atmosphere_controller.gd`（零改动，被动受益或层契约共存）。
+
+## 9. 出生间距契约（#713/#716，2026-08-21）
+
+**问题本质是「出生布局与攻击判定范围的错配」，而非判定层 bug**：玩家出生点
+`PlayerSpawn=(640,560)` 与敌人出生点 `EnemySpawnA=(700,560)` 相距仅 **60px**，而
+`combat_judge.gd:85` 距离挥空判定阈值为 `HITBOX_RANGE=80px`（纯 X 轴
+`|defender.x - attacker.x| > 80 → 挥空`）→ 60 < 80 → **敌人出生即在玩家攻击范围内** →
+开局不移动挥剑即判定命中（空气命中，issue #713 实机反馈）。
+
+**修复 = 修布局不修判定（一行坐标消除充分条件，判定契约整体冻结）**：
+`battle_stage.tscn:116` EnemySpawnA `Vector2(700,560)` → **`Vector2(1000,560)`**（唯一生产改动；
+.tscn 声明式坐标 = 唯一事实源，`main_battle.gd:181-188` 自动跟随 → waypoints 变
+`[(1000,560),(1720,560)]`）。新间距 **360px = 4.5× HITBOX_RANGE**，余量 280px；
+x=1000 同时规避 TreeLeft 视觉重叠与 B3 测试树包围盒（x∈[840,960]）——若误选 900 则 B3 红。
+方案 B（HITBOX_RANGE 调 50-60）否决：80 本就是 `SWORD_LENGTH=88` 派生近似，且破坏
+`HITBOX_RANGE=80 = ENEMY_ATTACK_RANGE=80` 双向对称接战距离契约（#575/#577/#581/#703 共同建立）。
+
+**冻结清单（零改动）**：`constants.gd`（HITBOX_RANGE=80 / ENEMY_ATTACK_RANGE=80 /
+ENEMY_SENSE_RANGE_PX=600 全冻结）、`combat_judge.gd`（距离挥空判定逻辑零改动）、
+`enemy_ai.gd`/`enemy_ai_states.gd`（行为/停距契约零改动）、`main_battle.gd`（自动跟随零改动）、
+`e2e_shots.json`（shot plan 零增删）。
+
+**防回归（B4 出生间距断言，`test_battle_stage.gd` 新增）**：
+`abs(PlayerSpawn.position.x - EnemySpawnA.position.x) > C.HITBOX_RANGE + 50.0`（硬门槛 ≥130px）——
+任何后续场景编辑把间距缩回 ≤130px 即 CI 红（失败路径 1 兜底）；只锁间距不锁绝对值（不耦合具体坐标）。
+
+**验收映射（issue #713）**：AC1 开局挥剑打不到敌人（间距 360 > 80 → 挥空路径不发射命中事件；
+B4 断言 + 行为验证）/ AC2 走近 ≤80px 挥剑正常命中（判定层零改动，`test_combat_judge.gd:175`
+50px 命中用例回归）/ AC3 敌人 AI 索敌/接战节奏正常（感知 600 > 出生距离 360 → 开局即 Chase，
+停距 80px 契约不变，#703 运行时驱动链前提，接战 ~1.56s）。
+**集成点**：出生点坐标 / 出生间距断言 = ✅ 已连接（#716）；waypoints 自动跟随 / 开局索敌 = ✅ 验证通过（#716）。
