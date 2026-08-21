@@ -224,9 +224,11 @@ else
 fi
 
 # ═══════════════════════════ P5 VISUAL LAYER ══════════════════════════════
-# 2026-08-15 决策: 视觉层默认跳过(deepseek 无多模态, 视觉断言价值低
-# 且复杂度高 — 截图通道/防伪断言/orchestrator)。L0-L2(编译/逻辑/运行
-# 时)是核心验证。用 --with-visual 显式开启。
+# 2026-08-21 决策: 视觉层默认跑(模型已支持视觉; 语义判断由 review agent
+# 用 vision_analyze 看图 — 见 game-review-agent skill §2.5)。
+# analyze_bmp.py 像素断言降为兜底(机器防伪)。只有 --skip-visual 才跳过本层。
+# L0-L2(编译/逻辑/运行时)仍是核心。
+# 注: VISUAL 初始为 "skip", 但 L267 判定用 != "fail" → 默认仍执行截图(非跳过)。
 VISUAL="skip"
 if [ "$SKIP_VISUAL" = "1" ]; then
   log "P5 visual: skipped (--skip-visual)"

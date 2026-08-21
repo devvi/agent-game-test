@@ -22,6 +22,7 @@ var HudScript = load("res://gdscripts/hud.gd")
 var ReactionScript = load("res://gdscripts/reaction_controller.gd")
 var ReviveScript = load("res://gdscripts/revive_orchestrator.gd")
 var ExecutionScript = load("res://gdscripts/execution_orchestrator.gd")
+var PauseMenuScript = load("res://gdscripts/pause_menu.gd")
 var StickFigureScene = load("res://scenes/player_stick_figure.tscn")
 
 
@@ -44,6 +45,7 @@ var reaction
 var execution
 var revive
 var atmosphere
+var pause_menu
 
 ## 当前游戏状态（public 供测试/E2E 读取）
 var game_state: int = GameState.IDLE
@@ -136,6 +138,9 @@ func _ready() -> void:
 	## ⑭ 初始 facing 落位（装配完成即按当前 facing 设一次 scale.x，防首帧朝向错误）
 	_sync_visual_facing()
 
+	## ⑮ 暂停菜单（PauseLayer → PauseMenu + FAIL 守卫注入）
+	_build_pause_menu()
+
 
 func _build_player(ic) -> void:
 	## 玩家装配: PlayerController(CharacterBody2D, 组 player) 根 → StickFigure 视觉
@@ -202,6 +207,16 @@ func _build_hud() -> void:
 	hud.set_target_enemy(enemy_entity)
 	hud.set_boss_mode(true)          # MVP 唯一敌人 = 精英 → Boss 档（名字+血条+架势条全显）
 	hud.set_enemy_display_name("雪夜刀客")   # # DRAFT 占位文案（taste 候选进 PR 待用户定稿）
+
+
+func _build_pause_menu() -> void:
+	## ⑮ 暂停菜单: PauseLayer(CanvasLayer, layer=2, ALWAYS) → PauseMenu + FAIL 守卫注入
+	var pause_layer: CanvasLayer = CanvasLayer.new()
+	pause_layer.name = "PauseLayer"
+	add_child(pause_layer)
+	pause_menu = PauseMenuScript.new()
+	pause_layer.add_child(pause_menu)
+	pause_menu.bind_game_state(func() -> int: return game_state)   # 只读闭包注入（FAIL 守卫）
 
 
 func _build_reaction() -> void:
