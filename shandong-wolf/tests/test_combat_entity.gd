@@ -22,8 +22,8 @@ const EXPECTED_TRANSITIONS: Dictionary = {
 	"attack": ["attack", "idle", "stagger", "stance_break", "dead"],
 	"heavy_attack": ["idle", "stagger", "stance_break", "dead"],
 	"guard": ["idle", "attack", "heavy_attack", "stance_break", "dead", "parry_success"],
-	"parry_success": ["idle", "attack", "heavy_attack", "move"],
-	"stagger": ["idle", "dead"],
+	"parry_success": ["idle", "attack", "heavy_attack", "move", "stance_break"],
+	"stagger": ["idle", "dead", "stance_break"],
 	"stance_break": ["idle", "execute", "dead"],
 	"execute": ["idle"],
 	"revive": ["idle"],
@@ -84,6 +84,12 @@ func run() -> void:
 	_test_d4_guard_break()
 	_reset_logs()
 	_test_d5_break_recovery_execute()
+	_reset_logs()
+	_test_d6_stagger_break_in_stagger()
+	_reset_logs()
+	_test_d7_parry_success_stance_break()
+	_reset_logs()
+	_test_d8_execute_stance_damage_noop()
 	_reset_logs()
 	_test_e1_first_life_depleted()
 	_reset_logs()
@@ -425,6 +431,50 @@ func _test_d5_break_recovery_execute() -> void:
 	e2.take_stance_damage(100.0)
 	_advance(e2, 181)
 	_assert(e2.state_name == "idle", "stance_break natural recovery to idle after STANCE_BREAK_RECOVERY_SEC")
+
+
+func _test_d6_stagger_break_in_stagger() -> void:
+	## #718 方案 A: stagger 中架势归零 → 表内合法 → stance_break（修复前 illegal transition + 卡 stagger）
+	var e = _new_entity({})
+	if e == null: return
+	e.stance_broken.connect(_on_stance_broken)
+	e.state_changed.connect(_on_state_changed)
+	_assert(e.request_transition("stagger") == true and e.state_name == "stagger", "d6: enter stagger (got %s)" % e.state_name)
+	e.take_stance_damage(e.stance_max)
+	_assert(e.state_name == "stance_break", "d6: stagger stance depleted → stance_break (got %s)" % e.state_name)
+	_assert(e.is_stance_broken == true, "d6: is_stance_broken flag set")
+	_assert(_broken_log.size() == 1, "d6: exactly one stance_broken broadcast (got %d)" % _broken_log.size())
+	var expected: Array = [["idle", "stagger"], ["stagger", "stance_break"]]
+	_assert(_state_log == expected, "d6: state sequence idle→stagger→stance_break (got %s)" % [str(_state_log)])
+
+
+func _test_d7_parry_success_stance_break() -> void:
+	## #718 防御加固 1: parry_success 中扣架势归零 → 表内合法 → stance_break（修复前同款 warning）
+	var e = _new_entity({})
+	if e == null: return
+	e.stance_broken.connect(_on_stance_broken)
+	e.state_changed.connect(_on_state_changed)
+	_assert(e.request_transition("parry_success") == true and e.state_name == "parry_success", "d7: enter parry_success (got %s)" % e.state_name)
+	e.take_stance_damage(e.stance_max)
+	_assert(e.state_name == "stance_break", "d7: parry_success stance depleted → stance_break (got %s)" % e.state_name)
+	_assert(e.is_stance_broken == true, "d7: is_stance_broken flag set")
+	_assert(_broken_log.size() == 1, "d7: exactly one stance_broken broadcast (got %d)" % _broken_log.size())
+	var expected: Array = [["idle", "parry_success"], ["parry_success", "stance_break"]]
+	_assert(_state_log == expected, "d7: state sequence idle→parry_success→stance_break (got %s)" % [str(_state_log)])
+
+
+func _test_d8_execute_stance_damage_noop() -> void:
+	## #718 防御加固 2: execute 中 take_stance_damage no-op（与 take_damage 对齐）——不触发 break_stance
+	var e = _new_entity({})
+	if e == null: return
+	e.stance_broken.connect(_on_stance_broken)
+	_assert(e.request_transition("stance_break") == true and e.state_name == "stance_break", "d8: enter stance_break (got %s)" % e.state_name)
+	_assert(e.request_transition("execute") == true and e.state_name == "execute", "d8: stance_break→execute legal (got %s)" % e.state_name)
+	var before: float = e.stance
+	e.take_stance_damage(e.stance_max)
+	_assert(e.stance == before, "d8: take_stance_damage no-op in execute (stance %.1f unchanged)" % e.stance)
+	_assert(e.is_stance_broken == false, "d8: break_stance NOT triggered in execute")
+	_assert(_broken_log.is_empty(), "d8: no stance_broken emitted in execute (got %d)" % _broken_log.size())
 
 
 # ── Scenario E: 死亡主路径 (AC4 + AC5-3) ───────────────────────────────
