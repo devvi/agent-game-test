@@ -46,6 +46,7 @@ var _paused: bool = false                 # 当前暂停态（toggle 幂等基�
 var _manual_visible: bool = false         # 手册面板可见态（ESC 恢复优先关闭）
 var _game_state_getter: Callable = Callable()  # 注入的 game_state 只读闭包（FAIL 守卫）
 var _input_controller: Node = null        # /root/InputController 引用（恢复时清缓冲）
+var _was_pause_pressed: bool = false            # ESC 边沿检测状态（同 input_controller.gd 模式）
 
 ## 公有节点成员（_ready 代码创建，tests 直接访问，Hud 同构）
 var DimOverlay: ColorRect
@@ -79,9 +80,14 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	## A2: PauseMenu 自检 ESC 边沿（ALWAYS 常驻，暂停中仍响应）
-	if Input.is_action_just_pressed("game_pause"):
+	## A2: PauseMenu 自检 ESC 边沿（ALWAYS 常驻，暂停中仍响应）。
+	## 边沿检测用 is_action_pressed + _was_pause_pressed（同 input_controller.gd 模式），
+	## 不用 is_action_just_pressed —— 后者依赖引擎处理帧计数，在 --script 手动驱动
+	## _process 的测试环境下恒为 false（Godot 4.7.1 headless 陷阱，见 #719 CI 失败）。
+	var now_pressed: bool = Input.is_action_pressed("game_pause")
+	if now_pressed and not _was_pause_pressed:
 		toggle_pause()
+	_was_pause_pressed = now_pressed
 
 
 # ── 唯一暂停/恢复入口（幂等 + FAIL 守卫）──────────────────────────────────
