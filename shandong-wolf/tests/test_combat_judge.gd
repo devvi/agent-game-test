@@ -79,6 +79,9 @@ func run() -> void:
 	_test_23_window_overwrite()
 	_reset_logs()
 	_test_24_constants_driven()
+	## #718 (origin/main): stagger 中连续受击崩解
+	_reset_logs()
+	_test_25_stagger_consecutive_hit_break()
 	## #720 Scenario E: 差异化前摇 + 弹反窗口/回报（T15-T18）
 	_reset_logs()
 	_test_25_parry_window_three_tier()
@@ -993,3 +996,36 @@ func _test_28_parry_reward_differentiated() -> void:
 	j2.resolve_attack(e2, p2)
 	if _parry_log.size() == 1:
 		_assert(float(_parry_log[0][2]) == float(_c("PARRY_STANCE_DAMAGE")), "combo parry reward == PARRY_STANCE_DAMAGE(%.1f) (got %.1f)" % [float(_c("PARRY_STANCE_DAMAGE")), float(_parry_log[0][2])])
+
+
+# ── #718: stagger 中连续受击崩解 ─────────────────
+
+func _test_25_stagger_consecutive_hit_break() -> void:
+	## #718 AC3: 连续受击（帧 1 进 stagger，帧 2 扣架势归零）→ 表内合法 → stance_break，
+	##   判定器转发 stance_broken 恰好一次（修复前 illegal transition + 卡 stagger）。参照 _test_15/_test_16 断言风格。
+	var s = _setup()
+	if s.is_empty(): return
+	var j = s["j"]
+	var player = s["player"]
+	var enemy = s["enemy"]
+	var hc: float = float(_c("POSTURE_HIT_COST"))
+	## 帧 1: 命中 → 进 stagger（扣血 + 扣架势，架势未归零）
+	var w1 = _new_window(enemy, TEST_START_FRAME, 15.0, hc, 1)
+	if w1 == null: return
+	j.register_attack_window(w1)
+	j.resolve_attack(enemy, player)
+	_assert(player.state_name == "stagger", "frame1: player enters stagger (got %s)" % player.state_name)
+	_assert(player.stance == (100.0 - hc), "frame1: stance drained but not zero (got %.1f)" % player.stance)
+	## 帧 2: 新窗口（覆盖旧窗口）→ 扣血 + 扣架势归零 → 崩解
+	j._frame += 1
+	var w2 = _new_window(enemy, TEST_START_FRAME, 15.0, 999.0, 1)
+	if w2 == null: return
+	j.register_attack_window(w2)
+	j.resolve_attack(enemy, player)
+	_assert(player.state_name == "stance_break", "frame2: consecutive hit drains stance → stance_break (got %s)" % player.state_name)
+	_assert(player.is_stance_broken == true, "frame2: is_stance_broken flag set")
+	_assert(player.stance == 0.0, "frame2: stance clamped to 0 (got %.1f)" % player.stance)
+	_assert(_broken_log.size() == 1, "frame2: stance_broken forwarded exactly once (got %d)" % _broken_log.size())
+	if _broken_log.size() == 1:
+		_assert(_broken_log[0][0] == player, "forwarded stance_broken(entity) carries the broken entity")
+

@@ -178,7 +178,7 @@ func _is_armored() -> bool:
 func take_stance_damage(amount: float) -> void:
 	## 兜底: dead/revive 状态 no-op；无敌期内 no-op；负/NaN/Inf 视为 0 + push_warning；
 	##   stance 扣减 → stance_changed；stance ≤ 0 → break_stance()
-	if state_name == "dead" or state_name == "revive":
+	if state_name == "dead" or state_name == "revive" or state_name == "execute":
 		return
 	if _invincible_until_sec > Time.get_ticks_msec() / 1000.0:
 		return
