@@ -181,8 +181,8 @@ func _scenario_two_ac4() -> void:
 			print("SMOKE FAIL: S2-4 afterglow state changed before 5s elapsed")
 			_failed = true
 		a._afterglow_timer.timeout.emit()
-		if a.game_state != a.GameState.IDLE:
-			print("SMOKE FAIL: S2-4 afterglow timeout did not return IDLE (state %d)" % a.game_state)
+		if a.game_state != a.GameState.VICTORY:
+			print("SMOKE FAIL: S2-4 afterglow timeout did not reach VICTORY (state %d)" % a.game_state)
 			_failed = true
 	else:
 		print("SMOKE FAIL: S2-4 afterglow timer already expired before assertion")

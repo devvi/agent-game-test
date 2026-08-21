@@ -71,6 +71,10 @@ func run() -> void:
 	_reset_logs()
 	_test_d5_single_death_not_fail()
 	_reset_logs()
+	_test_d6_death_screen_kanji()
+	_reset_logs()
+	_test_d7_death_screen_anykey_reset()
+	_reset_logs()
 	_test_e1_afterglow_timing()
 	_reset_logs()
 	_test_e2_readonly_input_afterglow()
@@ -531,10 +535,13 @@ func _test_c1_full_loop() -> void:
 	_assert(_state_sequence_has(_state_pairs, ["IDLE", "COMBAT", "KILL", "AFTERGLOW"]),
 		"C1: game_state_changed 序列含 IDLE→COMBAT→KILL→AFTERGLOW（实际 %s）" % str(_state_pairs))
 
-	# 8. 余韵到期 → 回 IDLE（AC3 timer 往返）
+	# 8. 余韵到期 → VICTORY 终态 + 胜终屏（AC3 2026-08-21：旧回 IDLE 是死局，改胜局终屏）
 	if a._afterglow_timer != null:
 		a._afterglow_timer.timeout.emit()
-	_assert(a.game_state == a.GameState.IDLE, "C1: 余韵到期 → IDLE")
+	_assert(a.game_state == a.GameState.VICTORY, "C1: 余韵到期 → VICTORY")
+	_assert(a.get("_end_screen_shown") == true, "C1: 胜终屏已显示")
+	_assert(a.get("_end_kanji_label") != null and a._end_kanji_label.text == "胜",
+		"C1: 胜终屏大字 == 胜")
 	_free_main(m)
 
 
@@ -637,10 +644,70 @@ func _test_d5_single_death_not_fail() -> void:
 	_free_main(m)
 
 
+func _test_d6_death_screen_kanji() -> void:
+	# D6: 双死 → FAIL + 只狼式"死"终屏（黑屏大字"死"，任一键重置）——#4
+	var m = _spawn_main()
+	if m == null:
+		_assert(false, "D6: Main 实例化失败")
+		return
+	var a = _assembler(m)
+	if a == null:
+		_free_main(m)
+		return
+	a.fail_subtitle_shown.connect(_on_fail_subtitle_spy)
+	_drive_player_final_death(a)
+	_assert(a.game_state == a.GameState.FAIL, "D6: 双死 → FAIL")
+	_assert(a.get("_end_screen_shown") == true, "D6: 死终屏已显示")
+	_assert(a.get("_end_kanji_label") != null and a._end_kanji_label.text == "死",
+		"D6: 死终屏大字 == 死（实际 %s）" % (a._end_kanji_label.text if a.get("_end_kanji_label") != null else "null"))
+	if a.get("_end_screen_root") != null:
+		_assert(a._end_screen_root.visible == true, "D6: 死终屏容器可见")
+	if a.get("_end_hint_label") != null:
+		_assert(a._end_hint_label.text != "", "D6: '按任意键重置'提示已设置")
+	_free_main(m)
+
+
+func _test_d7_death_screen_anykey_reset() -> void:
+	# D7: 死终屏任一键重置 —— 验证 _unhandled_input 路由守卫：非终屏期输入被忽略，
+	#   终屏期按键被 _reset_game 吞下。为避免 headless 下 reload_current_scene 释放节点
+	#   导致后置 _free_main 悬空，这里用"释放键(release)"（is_press=false）验证：
+	#   终屏常驻时 release 不会触发 reset（无崩溃），证明 is_press 门控生效。
+	var m = _spawn_main()
+	if m == null:
+		_assert(false, "D7: Main 实例化失败")
+		return
+	var a = _assembler(m)
+	if a == null:
+		_free_main(m)
+		return
+
+	# ① 未终屏时按下一个"释放事件"（is_press=false）→ 守卫直接 return，不崩
+	var ev_release := InputEventKey.new()
+	ev_release.keycode = KEY_SPACE
+	ev_release.pressed = false
+	a._unhandled_input(ev_release)
+	_assert(a.get("_ending") == false or a.get("_end_screen_shown") == false, "D7: 非终屏期输入被忽略")
+
+	# ② 终屏常驻 → _ending == true（输入接管就绪）
+	_drive_player_final_death(a)
+	_assert(a.get("_ending") == true, "D7: 终屏常驻 → _ending == true（输入接管）")
+	_assert(a.get("_end_screen_shown") == true, "D7: 终屏已显示")
+
+	# ③ 终屏期一个"释放事件"（is_press=false）→ 门控不触发 reset（无副作用证明路由接住）
+	var ev_release2 := InputEventKey.new()
+	ev_release2.keycode = KEY_SPACE
+	ev_release2.pressed = false
+	a._unhandled_input(ev_release2)
+	_assert(a.get("_ending") == true, "D7: 释放键不触发重置（_ending 保持 true）")
+
+	_free_main(m)
+
+
 # ── Scenario E: 余韵 5s（AC3）──────────────────────────────────────────
 
 func _test_e1_afterglow_timing() -> void:
-	# E1: 余韵时序 —— 击杀 → AFTERGLOW + Timer 计时 → 到期回 IDLE
+	# E1: 余韵时序 —— 击杀 → AFTERGLOW + Timer 计时 → 到期 → VICTORY 终态 + 胜终屏
+	#   2026-08-21：旧"到期回 IDLE"是死局（敌人已 final-dead），改胜局终屏
 	var m = _spawn_main()
 	if m == null:
 		_assert(false, "E1: Main 实例化失败")
@@ -655,7 +722,10 @@ func _test_e1_afterglow_timing() -> void:
 	if a._afterglow_timer != null:
 		_assert(a._afterglow_timer.time_left > 0.0, "E1: 余韵计时进行中（time_left > 0）")
 		a._afterglow_timer.timeout.emit()
-		_assert(a.game_state == a.GameState.IDLE, "E1: 余韵到期 → IDLE")
+		_assert(a.game_state == a.GameState.VICTORY, "E1: 余韵到期 → VICTORY")
+		_assert(a.get("_end_screen_shown") == true, "E1: 胜终屏已显示")
+		_assert(a.get("_end_kanji_label") != null and a._end_kanji_label.text == "胜",
+			"E1: 胜终屏大字 == 胜")
 	_free_main(m)
 
 

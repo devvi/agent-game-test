@@ -25,8 +25,9 @@ var ExecutionScript = load("res://gdscripts/execution_orchestrator.gd")
 var StickFigureScene = load("res://scenes/player_stick_figure.tscn")
 
 
-## 游戏状态机（idle/combat/kill 为被动观察态；afterglow 由 Timer 驱动；fail 为终态）
-enum GameState { IDLE, COMBAT, KILL, AFTERGLOW, FAIL }
+## 游戏状态机（idle/combat/kill 为被动观察态；afterglow 由 Timer 驱动；fail 为终态；
+##   victory 为胜局终态——afterglow 余韵后进入，任意键重置）
+enum GameState { IDLE, COMBAT, KILL, AFTERGLOW, FAIL, VICTORY }
 
 ## 状态迁移广播（test/E2E 断言用，参数为枚举名字符串）
 signal game_state_changed(from_state: String, to_state: String)
@@ -57,6 +58,14 @@ var _fail_handled: bool = false       # 失败路径幂等守卫（二次 died(t
 var _afterglow_started: bool = false  # 余韵幂等守卫（二次 died(true) 不重启 Timer）
 var _afterglow_timer: Timer = null      # 余韵 5s Timer（public 供测试驱动 timeout）
 var _fail_subtitle_timer: Timer = null  # 失败字幕延迟 Timer（public 供测试驱动 timeout）
+
+## 死/胜终屏（2026-08-21，只狼式：#4/#5）——叠加在 FAIL/AFTERGLOW 状态之上，
+##   不改变状态机迁移；黑屏叠加 + 大号汉字 + "按任意键重置" + 任一键 reset。
+var _end_screen_root: Control = null      # 全屏黑叠加层（ColorRect 容器）
+var _end_kanji_label: Label = null        # 大字"死"/"胜"
+var _end_hint_label: Label = null         # 小字"按任意键重置"
+var _end_screen_shown: bool = false       # 幂等：仅显示一次
+var _ending: bool = false                 # 终屏常驻期间，禁止同帧重复触发
 
 ## 视觉 stick 引用（#683 §3.4 facing 接线）——翻转目标 = StickFigure 子节点，
 ## 绝不 scale 物理根/controller 根（MA2 红线，PlayerController/EnemyAI 根 scale 保持 1.0）
@@ -289,6 +298,7 @@ func _on_enemy_entity_state_changed(_from: String, to: String) -> void:
 
 func _on_player_final_death(_entity, final: bool) -> void:
 	## 失败路径（AC2）: final==true → FAIL 终态 + 输入冻结 + AI 停止 → 延迟字幕淡入
+	##   + 只狼式"死"终屏（#4，2026-08-21）叠加其上，任一键重置。
 	if not final:
 		return
 	if _fail_handled:
@@ -301,6 +311,8 @@ func _on_player_final_death(_entity, final: bool) -> void:
 	if enemy != null and is_instance_valid(enemy):
 		enemy.set_physics_process(false)
 	_show_fail_subtitle_delayed()
+	# 只狼式"死"终屏：黑屏大字"死" + 按任意键重置（#4）
+	_show_end_screen(str(C.DEATH_KANJI))
 
 
 func _show_fail_subtitle_delayed() -> void:
@@ -341,9 +353,94 @@ func _fade_in_fail_subtitle() -> void:
 		fail_subtitle_shown.emit()
 
 
+func _build_end_screen() -> void:
+	## 只狼式终屏（#4/#5）: 全屏黑叠加（ColorRect 容器）+ 中部大号汉字 + 底部"按任意键重置"。
+	## 挂在 Main/CanvasLayer（与 fail_label 同层，覆盖其上；叠加层 alpha ↓ 压暗但不全黑）。
+	if _end_screen_root != null or _canvas_layer == null:
+		return
+	_end_screen_root = Control.new()
+	_end_screen_root.name = "EndScreen"
+	_end_screen_root.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_canvas_layer.add_child(_end_screen_root)
+	_end_screen_root.visible = false
+	_end_screen_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	var bg: ColorRect = ColorRect.new()
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.color = Color(0.0, 0.0, 0.0, float(C.ENDSCREEN_BG_ALPHA))
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_end_screen_root.add_child(bg)
+
+	_end_kanji_label = Label.new()
+	_end_kanji_label.set_anchors_preset(Control.PRESET_CENTER)
+	_end_kanji_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_end_kanji_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_end_kanji_label.add_theme_font_size_override("font_size", int(C.ENDSCREEN_KANJI_SIZE))
+	_end_kanji_label.add_theme_color_override("font_color", Color.WHITE)
+	_end_screen_root.add_child(_end_kanji_label)
+
+	_end_hint_label = Label.new()
+	_end_hint_label.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	_end_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_end_hint_label.add_theme_font_size_override("font_size", 20)
+	_end_hint_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	_end_hint_label.text = str(C.ENDSCREEN_SUBTITLE)
+	_end_screen_root.add_child(_end_hint_label)
+
+
+func _show_end_screen(kanji: String) -> void:
+	## 终屏展示（幂等，恰好一次）: 若尚未 build 则先 build，再显示并置 kanji 文本。
+	## 终屏出现前保证 fail_label 淡入完成（若在 FAIL 路径）——见调用方时序。
+	if _end_screen_shown:
+		return
+	_build_end_screen()
+	if _end_screen_root == null:
+		return
+	_end_screen_shown = true
+	_ending = true
+	_end_kanji_label.text = kanji
+	_end_screen_root.visible = true
+	# 终屏常驻期间冻结输入处理（防终屏期间按键同时改战斗逻辑）
+	var ic = get_node_or_null("/root/InputController")
+	if ic != null:
+		ic.set_process(false)
+	if enemy != null and is_instance_valid(enemy):
+		enemy.set_physics_process(false)
+	if player != null and is_instance_valid(player):
+		player.set_physics_process(false)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	## 任一键重置（只狼式）: 终屏常驻期间任何按键/鼠标按下 → 重置整局。
+	## _ending 守卫：终屏未显示时正常战斗逻辑不受影响（不吞输入）。
+	if not _ending or not _end_screen_shown:
+		return
+	var is_press := false
+	if event is InputEventKey:
+		is_press = event.pressed and not event.echo
+	elif event is InputEventMouseButton:
+		is_press = event.pressed
+	elif event is InputEventJoypadButton:
+		is_press = event.pressed
+	if is_press:
+		get_viewport().set_input_as_handled()
+		_reset_game()
+
+
+func _reset_game() -> void:
+	## 整局重置（只狼"死→重来"）: 重载当前场景（Main.tscn）回到初始作战。
+	## 终屏自身也是本轮场景的一部分，reload 即整体回收。
+	_end_screen_shown = false
+	_ending = false
+	_fail_handled = false
+	_afterglow_started = false
+	get_tree().reload_current_scene()
+
+
 func _on_enemy_final_death(_entity, final: bool) -> void:
 	## 余韵路径（AC3）: final==true → KILL（HUD 击杀提示自动触发）→ AFTERGLOW
-	##   → AFTERGLOW_SECONDS 到期回 IDLE（敌人重生不在 MVP 范围）
+	##   → AFTERGLOW_SECONDS 余韵后 → VICTORY 终态 + 只狼式"胜"终屏（#5，任一键重置）。
+	##   旧行为回 IDLE（敌人已 final-dead，回 IDLE 是死局）→ 2026-08-21 改为胜局终屏。
 	if not final:
 		return
 	if _afterglow_started:
@@ -354,9 +451,15 @@ func _on_enemy_final_death(_entity, final: bool) -> void:
 	_afterglow_timer = Timer.new()
 	_afterglow_timer.one_shot = true
 	_afterglow_timer.wait_time = float(C.AFTERGLOW_SECONDS)
-	_afterglow_timer.timeout.connect(func(): _set_game_state(GameState.IDLE))
+	_afterglow_timer.timeout.connect(_on_afterglow_timeout)
 	add_child(_afterglow_timer)
 	_afterglow_timer.start()
+
+
+func _on_afterglow_timeout() -> void:
+	## 余韵到期 → 胜局终屏（#5）: 进入 VICTORY 终态 + 大字"胜" + 任一键重置。
+	_set_game_state(GameState.VICTORY)
+	_show_end_screen(str(C.VICTORY_KANJI))
 
 
 func _show_tutorial_hint() -> void:
@@ -373,10 +476,10 @@ func _show_tutorial_hint() -> void:
 
 
 func _set_game_state(next_state: int) -> void:
-	## 状态迁移唯一入口: 同态幂等 + FAIL 终态守卫（不再迁移）+ 广播名字符串
+	## 状态迁移唯一入口: 同态幂等 + 终态守卫（FAIL/VICTORY 不再迁移）+ 广播名字符串
 	if next_state == game_state:
 		return
-	if game_state == GameState.FAIL:
+	if game_state == GameState.FAIL or game_state == GameState.VICTORY:
 		return
 	var from_state: String = _state_name(game_state)
 	game_state = next_state
@@ -396,4 +499,6 @@ func _state_name(state: int) -> String:
 			return "AFTERGLOW"
 		GameState.FAIL:
 			return "FAIL"
+		GameState.VICTORY:
+			return "VICTORY"
 	return "IDLE"

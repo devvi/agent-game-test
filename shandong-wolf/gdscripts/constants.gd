@@ -740,6 +740,13 @@ const AFTERGLOW_SECONDS: float = 5.0             # # DRAFT
 #   候选集: delay [0.3, 0.5, 1.0] / fade [0.8, 1.0, 1.5]（默认 0.5 / 1.0）
 const FAIL_SUBTITLE_DELAY: float = 0.5           # # DRAFT
 const FAIL_SUBTITLE_FADE_SECONDS: float = 1.0    # # DRAFT
+# ENDSCREEN_KANJI（2026-08-21 死/胜屏，用户指定只狼式）
+#   玩家最终死 → 黑屏白字"死"；敌人最终死 → 黑屏白字"胜"。任一键重置。
+const DEATH_KANJI: String = "死"
+const VICTORY_KANJI: String = "胜"
+const ENDSCREEN_BG_ALPHA: float = 0.85          # 黑屏叠加层透明度（压暗战斗残留，非全黑）
+const ENDSCREEN_KANJI_SIZE: int = 128            # 只狼"死"字主字号
+const ENDSCREEN_SUBTITLE: String = "按任意键重置"
 # TUTORIAL_HINT_DELAY
 #   情绪弧「教学」: 开局 3s 内浮现操作提示（移动/攻击/格挡键位）
 #   候选集: [2.0, 3.0, 5.0]（默认 3.0）
